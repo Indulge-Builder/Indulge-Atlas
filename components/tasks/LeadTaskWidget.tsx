@@ -110,7 +110,7 @@ function QuickAddModal({
 }: {
   leadId: string;
   role: UserRole;
-  onSuccess: () => void;
+  onSuccess: (task: TaskWithLead) => void;
 }) {
   const [open, setOpen]             = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -162,9 +162,26 @@ function QuickAddModal({
     }
 
     toast.success("Task scheduled.");
+
+    // Build an optimistic task so the list updates instantly
+    const now = new Date().toISOString();
+    const optimisticTask: TaskWithLead = {
+      id:          `optimistic-${Date.now()}`,
+      lead_id:     leadId,
+      assigned_to: "",
+      title:       values.title,
+      task_type:   values.task_type as TaskType,
+      status:      "pending",
+      due_date:    new Date(values.due_date).toISOString(),
+      notes:       values.notes?.trim() || null,
+      created_at:  now,
+      updated_at:  now,
+      lead:        null,
+    };
+
     reset();
     setOpen(false);
-    onSuccess();
+    onSuccess(optimisticTask);
   }
 
   return (
@@ -324,7 +341,7 @@ function QuickAddModal({
 
 // ── Task row ────────────────────────────────────────────────
 
-function TaskRow({ task }: { task: TaskWithLead }) {
+function TaskRow({ task, onComplete }: { task: TaskWithLead; onComplete?: (id: string) => void }) {
   const [completing, setCompleting] = useState(false);
   const router = useRouter();
 
@@ -334,6 +351,7 @@ function TaskRow({ task }: { task: TaskWithLead }) {
 
   async function handleComplete() {
     setCompleting(true);
+    onComplete?.(task.id); // optimistic — mark done instantly in parent
     const result = await completeTask(task.id);
     setCompleting(false);
     if (!result.success) {
@@ -401,8 +419,20 @@ export function LeadTaskWidget({ leadId, role, initialTasks }: LeadTaskWidgetPro
   const [tasks, setTasks] = useState<TaskWithLead[]>(initialTasks);
   const router = useRouter();
 
-  function onTaskAdded() {
-    router.refresh();
+  // Sync local state when the server re-renders with confirmed data
+  useEffect(() => {
+    setTasks(initialTasks);
+  }, [initialTasks]);
+
+  function onTaskAdded(optimisticTask: TaskWithLead) {
+    setTasks((prev) => [optimisticTask, ...prev]); // show instantly
+    router.refresh(); // sync in background
+  }
+
+  function onTaskCompleted(taskId: string) {
+    setTasks((prev) =>
+      prev.map((t) => t.id === taskId ? { ...t, status: "completed" as TaskStatus } : t)
+    );
   }
 
   const pending   = tasks.filter((t) => t.status === "pending");
@@ -447,7 +477,7 @@ export function LeadTaskWidget({ leadId, role, initialTasks }: LeadTaskWidgetPro
                 exit={{ opacity: 0, height: 0 }}
                 transition={{ delay: i * 0.04 }}
               >
-                <TaskRow task={task} />
+                <TaskRow task={task} onComplete={onTaskCompleted} />
               </motion.div>
             ))}
 
