@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# data exports and personal assets — never commit these
+*.csv
+*.jpeg
+*.jpg
+*.png
+*.plan.md
+*.plan copy.md
