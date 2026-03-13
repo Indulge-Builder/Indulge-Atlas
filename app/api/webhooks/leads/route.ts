@@ -104,55 +104,18 @@ const leadPayloadSchema = z
 // Widen the inferred type so TypeScript permits the `...dynamicRest` spread
 type LeadPayload = z.infer<typeof leadPayloadSchema> & Record<string, unknown>;
 
-// ── Round-robin agent assignment ───────────────────────────────────────────────
-// Same recency-based algorithm as /api/webhooks/lead: picks the active agent
-// who was assigned a lead least recently. Agents with no leads are highest priority.
+// ── Capped Round-Robin agent assignment ────────────────────────────────────────
+// Uses optimized Supabase RPC: picks agent with lowest active 'new' lead count.
+// Samson Exception: samson@indulge.global is excluded when they have >= 15 new leads.
 async function pickNextAgent(): Promise<string | null> {
-  const { data: agents, error: agentsErr } = await supabase
-    .from("profiles")
-    .select("id")
-    .eq("role", "agent")
-    .eq("is_active", true);
+  const { data, error } = await supabase.rpc("pick_next_agent_capped");
 
-  if (agentsErr || !agents?.length) {
-    if (agentsErr)
-      console.error("[webhooks/leads] Agents query failed:", agentsErr.message);
-    else
-      console.warn(
-        "[webhooks/leads] No active agents — lead will be unassigned.",
-      );
+  if (error) {
+    console.error("[webhooks/leads] pick_next_agent_capped RPC failed:", error.message);
     return null;
   }
 
-  const agentIds = agents.map((a) => a.id);
-
-  const { data: recentLeads, error: leadsErr } = await supabase
-    .from("leads")
-    .select("assigned_to, created_at")
-    .in("assigned_to", agentIds)
-    .order("created_at", { ascending: false })
-    .limit(agentIds.length * 10);
-
-  if (leadsErr) {
-    console.error(
-      "[webhooks/leads] Recent-leads query failed:",
-      leadsErr.message,
-    );
-    return agentIds[0];
-  }
-
-  const latestAt = new Map<string, number>();
-  for (const row of recentLeads ?? []) {
-    if (row.assigned_to && !latestAt.has(row.assigned_to)) {
-      latestAt.set(row.assigned_to, new Date(row.created_at).getTime());
-    }
-  }
-
-  const sorted = [...agentIds].sort((a, b) => {
-    return (latestAt.get(a) ?? 0) - (latestAt.get(b) ?? 0);
-  });
-
-  return sorted[0];
+  return data as string | null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -259,6 +222,7 @@ export async function POST(request: NextRequest) {
     // All dynamic / non-column fields packed into JSONB — never lost
     form_responses: Object.keys(dynamicRest).length > 0 ? dynamicRest : null,
     assigned_to: assignedAgentId,
+    assigned_at: assignedAgentId ? new Date().toISOString() : null,
   };
 
   console.log("[webhooks/leads] Payload sanitized. Campaign:", dbPayload.utm_campaign ?? "organic", "| Assigned to:", assignedAgentId ?? "unassigned");

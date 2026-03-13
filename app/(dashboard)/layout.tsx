@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { TaskReminderProvider } from "@/components/task-reminder/TaskReminderProvider";
 import { ChatProvider } from "@/components/chat/ChatProvider";
+import { ProfileProvider } from "@/components/sla/ProfileProvider";
+import { SLAProvider } from "@/components/sla/SLAProvider";
 import type { Profile } from "@/lib/types/database";
 
 export default async function DashboardLayout({
@@ -36,21 +38,25 @@ export default async function DashboardLayout({
      */
     <TaskReminderProvider>
       <ChatProvider currentUserId={user.id}>
-        <div className="layout-canvas min-h-screen">
-          <Sidebar profile={profile as Profile} />
+        <ProfileProvider profile={profile as Profile}>
+          <SLAProvider profile={profile as Profile}>
+            <div className="layout-canvas min-h-screen">
+              <Sidebar profile={profile as Profile} />
 
-          <div className="ml-60 min-h-screen p-3">
-            <main
-              className="
-                relative min-h-[calc(100vh-1.5rem)]
-                bg-[#F9F9F6] rounded-2xl overflow-hidden
-                paper-shadow
-              "
-            >
-              {children}
-            </main>
-          </div>
-        </div>
+              <div className="ml-60 min-h-screen p-3">
+                <main
+                  className="
+                    relative min-h-[calc(100vh-1.5rem)]
+                    bg-[#F9F9F6] rounded-2xl overflow-hidden
+                    paper-shadow
+                  "
+                >
+                  {children}
+                </main>
+              </div>
+            </div>
+          </SLAProvider>
+        </ProfileProvider>
       </ChatProvider>
     </TaskReminderProvider>
   );
