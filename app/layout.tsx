@@ -25,7 +25,7 @@ const playfairDisplay = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "Indulge Global — CRM",
+  title: "Indulge Atlas",
   description: "Bespoke lead management for Indulge Global concierge services",
   robots: { index: false, follow: false },
 };

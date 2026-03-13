@@ -39,13 +39,14 @@ const VALUE_TO_DURATION: Record<number, string> = {
 };
 
 interface WonDealModalProps {
-  open:     boolean;
-  onClose:  () => void;
-  leadId:   string;
-  leadName: string;
+  open:      boolean;
+  onClose:   () => void;
+  leadId:    string;
+  leadName:  string;
+  onSuccess?: () => void;
 }
 
-export function WonDealModal({ open, onClose, leadId, leadName }: WonDealModalProps) {
+export function WonDealModal({ open, onClose, leadId, leadName, onSuccess }: WonDealModalProps) {
   const prefersReducedMotion = useReducedMotion();
   // Raw integer value stored as number; 0 means empty
   const [dealValue,    setDealValue]    = useState<number>(400000);
@@ -98,7 +99,7 @@ export function WonDealModal({ open, onClose, leadId, leadName }: WonDealModalPr
     toast.success(`Deal closed. ${leadName} is now Won.`, {
       description: `₹${formatINR(dealValue)} · ${dealDuration}`,
     });
-    onClose();
+    onSuccess ? onSuccess() : onClose();
   }
 
   return (

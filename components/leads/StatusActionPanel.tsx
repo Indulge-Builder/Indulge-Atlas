@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -12,7 +12,6 @@ import {
   Leaf,
   Trash2,
   Loader2,
-  CheckCircle,
   AlertCircle,
   ArrowRight,
 } from "lucide-react";
@@ -31,67 +30,61 @@ interface StatusActionPanelProps {
   currentStatus: LeadStatus;
 }
 
-type ActionState = "idle" | "loading" | "success" | "error";
-
 export function StatusActionPanel({
   leadId,
   leadName,
   currentStatus,
 }: StatusActionPanelProps) {
   const router = useRouter();
-  const [actionState, setActionState] = useState<ActionState>("idle");
+  const [isPending, startTransition] = useTransition();
+  const [isNotePending, startNoteTransition] = useTransition();
+  // Optimistic status — updates instantly on click, syncs when server re-renders
+  const [displayStatus, setDisplayStatus] = useState<LeadStatus>(currentStatus);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showRetryModal, setShowRetryModal] = useState(false);
   const [showLostModal, setShowLostModal]   = useState(false);
   const [showWonModal,  setShowWonModal]    = useState(false);
   const [note, setNote] = useState("");
-  const [savingNote, setSavingNote] = useState(false);
 
-  async function performAction(newStatus: LeadStatus) {
-    setActionState("loading");
+  // Sync optimistic state when the server re-renders with confirmed data
+  useEffect(() => {
+    setDisplayStatus(currentStatus);
+  }, [currentStatus]);
+
+  function performAction(newStatus: LeadStatus) {
+    const previousStatus = displayStatus;
+    setDisplayStatus(newStatus); // instant UI update
     setErrorMessage(null);
 
-    const result = await updateLeadStatus(leadId, newStatus);
+    startTransition(async () => {
+      const result = await updateLeadStatus(leadId, newStatus);
 
-    if (!result.success) {
-      setActionState("error");
-      setErrorMessage(result.error ?? "Something went wrong.");
-      return;
-    }
+      if (!result.success) {
+        setDisplayStatus(previousStatus); // revert on failure
+        setErrorMessage(result.error ?? "Something went wrong.");
+        return;
+      }
 
-    setActionState("success");
-    setTimeout(() => {
-      setActionState("idle");
-      router.refresh();
-    }, 1500);
+      router.refresh(); // background sync — UI already shows the new state
+    });
   }
 
-  async function handleSaveNote() {
+  function handleSaveNote() {
     if (!note.trim()) return;
-    setSavingNote(true);
-    await addLeadNote(leadId, note.trim());
-    setNote("");
-    setSavingNote(false);
-    router.refresh();
+    const savedNote = note.trim();
+    setNote(""); // clear immediately
+
+    startNoteTransition(async () => {
+      await addLeadNote(leadId, savedNote);
+      router.refresh();
+    });
   }
 
   return (
     <div className="space-y-5">
-      {/* Feedback states */}
+      {/* Error feedback */}
       <AnimatePresence mode="wait">
-        {actionState === "success" && (
-          <motion.div
-            key="success"
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="flex items-center gap-2 p-3 bg-[#EBF4EF] border border-[#4A7C59]/20 rounded-lg text-sm text-[#4A7C59]"
-          >
-            <CheckCircle className="w-4 h-4 shrink-0" />
-            Status updated successfully.
-          </motion.div>
-        )}
-        {actionState === "error" && (
+        {errorMessage && (
           <motion.div
             key="error"
             initial={{ opacity: 0, y: -8 }}
@@ -105,8 +98,8 @@ export function StatusActionPanel({
         )}
       </AnimatePresence>
 
-      {/* Actions by status */}
-      {currentStatus === "new" && (
+      {/* Actions by status — uses optimistic displayStatus for instant feedback */}
+      {displayStatus === "new" && (
         <ActionSection title="Contact Attempt">
           <p className="text-xs text-[#9E9E9E] mb-3">
             Open this lead to attempt first contact. Record the outcome below.
@@ -115,9 +108,9 @@ export function StatusActionPanel({
             variant="default"
             className="w-full gap-2"
             onClick={() => performAction("attempted")}
-            disabled={actionState === "loading"}
+            disabled={isPending}
           >
-            {actionState === "loading" ? (
+            {isPending ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
               <Phone className="w-4 h-4" />
@@ -127,7 +120,7 @@ export function StatusActionPanel({
         </ActionSection>
       )}
 
-      {currentStatus === "attempted" && (
+      {displayStatus === "attempted" && (
         <ActionSection title="Call Outcome">
           <p className="text-xs text-[#9E9E9E] mb-3">
             What happened when you tried to reach this lead?
@@ -137,7 +130,7 @@ export function StatusActionPanel({
               variant="outline"
               className="w-full gap-2 justify-start"
               onClick={() => setShowRetryModal(true)}
-              disabled={actionState === "loading"}
+              disabled={isPending}
             >
               <PhoneOff className="w-4 h-4 text-[#C5830A]" />
               Didn't Answer — Schedule Retry
@@ -146,9 +139,9 @@ export function StatusActionPanel({
               variant="outline"
               className="w-full gap-2 justify-start"
               onClick={() => performAction("in_discussion")}
-              disabled={actionState === "loading"}
+              disabled={isPending}
             >
-              {actionState === "loading" ? (
+              {isPending ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <MessageCircle className="w-4 h-4 text-[#6B4FBB]" />
@@ -160,7 +153,7 @@ export function StatusActionPanel({
               variant="outline"
               className="w-full gap-2 justify-start text-[#C0392B] hover:bg-[#FAEAE8] border-[#E5E4DF] hover:border-[#C0392B]/20"
               onClick={() => performAction("trash")}
-              disabled={actionState === "loading"}
+              disabled={isPending}
             >
               <Trash2 className="w-4 h-4" />
               Mark as Junk
@@ -169,7 +162,7 @@ export function StatusActionPanel({
         </ActionSection>
       )}
 
-      {currentStatus === "in_discussion" && (
+      {displayStatus === "in_discussion" && (
         <ActionSection title="Discussion Outcome">
           <p className="text-xs text-[#9E9E9E] mb-3">
             How is this conversation progressing?
@@ -179,7 +172,7 @@ export function StatusActionPanel({
               variant="success"
               className="w-full gap-2 justify-start"
               onClick={() => setShowWonModal(true)}
-              disabled={actionState === "loading"}
+              disabled={isPending}
             >
               <Trophy className="w-4 h-4" />
               Mark as Won — Finalize Membership
@@ -189,7 +182,7 @@ export function StatusActionPanel({
               variant="outline"
               className="w-full gap-2 justify-start"
               onClick={() => performAction("nurturing")}
-              disabled={actionState === "loading"}
+              disabled={isPending}
             >
               <Leaf className="w-4 h-4 text-[#8A8A6E]" />
               Nurturing — Set 3-Month Reminder
@@ -198,7 +191,7 @@ export function StatusActionPanel({
               variant="outline"
               className="w-full gap-2 justify-start text-[#C0392B] hover:bg-[#FAEAE8] border-[#E5E4DF] hover:border-[#C0392B]/20"
               onClick={() => setShowLostModal(true)}
-              disabled={actionState === "loading"}
+              disabled={isPending}
             >
               <XCircle className="w-4 h-4" />
               Mark as Lost
@@ -207,39 +200,39 @@ export function StatusActionPanel({
         </ActionSection>
       )}
 
-      {(currentStatus === "won" ||
-        currentStatus === "lost" ||
-        currentStatus === "nurturing" ||
-        currentStatus === "trash") && (
+      {(displayStatus === "won" ||
+        displayStatus === "lost" ||
+        displayStatus === "nurturing" ||
+        displayStatus === "trash") && (
         <ActionSection title="Lead Status">
           <div
             className={`flex items-center gap-3 p-3 rounded-lg ${
-              currentStatus === "won"
+              displayStatus === "won"
                 ? "bg-[#EBF4EF] border border-[#4A7C59]/20"
-                : currentStatus === "nurturing"
+                : displayStatus === "nurturing"
                 ? "bg-[#F4F4EE] border border-[#8A8A6E]/20"
                 : "bg-[#F5F5F5] border border-[#E5E4DF]"
             }`}
           >
-            {currentStatus === "won" ? (
+            {displayStatus === "won" ? (
               <Trophy className="w-5 h-5 text-[#4A7C59] shrink-0" />
-            ) : currentStatus === "nurturing" ? (
+            ) : displayStatus === "nurturing" ? (
               <Leaf className="w-5 h-5 text-[#8A8A6E] shrink-0" />
             ) : (
               <XCircle className="w-5 h-5 text-[#9E9E9E] shrink-0" />
             )}
             <div>
               <p className="text-sm font-medium text-[#1A1A1A]">
-                {currentStatus === "won"
+                {displayStatus === "won"
                   ? "Lead converted & sent to Finance"
-                  : currentStatus === "nurturing"
+                  : displayStatus === "nurturing"
                   ? "3-month nurture reminder is active"
-                  : currentStatus === "trash"
+                  : displayStatus === "trash"
                   ? "Marked as junk"
                   : "Lead marked as lost"}
               </p>
               <p className="text-xs text-[#9E9E9E] mt-0.5">
-                {currentStatus === "nurturing"
+                {displayStatus === "nurturing"
                   ? "Check My Tasks for the follow-up reminder."
                   : "This lead is no longer in the active pipeline."}
               </p>
@@ -261,9 +254,9 @@ export function StatusActionPanel({
           size="sm"
           className="mt-2 gap-1.5"
           onClick={handleSaveNote}
-          disabled={savingNote || !note.trim()}
+          disabled={isNotePending || !note.trim()}
         >
-          {savingNote ? (
+          {isNotePending ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
           ) : null}
           Save Note
@@ -276,6 +269,10 @@ export function StatusActionPanel({
         onClose={() => setShowRetryModal(false)}
         leadId={leadId}
         leadName={leadName}
+        onSuccess={() => {
+          setShowRetryModal(false);
+          router.refresh();
+        }}
       />
 
       {/* Lost lead analysis modal */}
@@ -285,11 +282,8 @@ export function StatusActionPanel({
         leadId={leadId}
         onSuccess={() => {
           setShowLostModal(false);
-          setActionState("success");
-          setTimeout(() => {
-            setActionState("idle");
-            router.refresh();
-          }, 1200);
+          setDisplayStatus("lost"); // instant update
+          router.refresh();
         }}
       />
 
@@ -299,6 +293,11 @@ export function StatusActionPanel({
         onClose={() => setShowWonModal(false)}
         leadId={leadId}
         leadName={leadName}
+        onSuccess={() => {
+          setShowWonModal(false);
+          setDisplayStatus("won"); // instant update
+          router.refresh();
+        }}
       />
     </div>
   );

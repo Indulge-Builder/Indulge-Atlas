@@ -21,6 +21,7 @@ interface RetryScheduleModalProps {
   onClose: () => void;
   leadId: string;
   leadName: string;
+  onSuccess?: () => void;
 }
 
 export function RetryScheduleModal({
@@ -28,6 +29,7 @@ export function RetryScheduleModal({
   onClose,
   leadId,
   leadName,
+  onSuccess,
 }: RetryScheduleModalProps) {
   const [dateTime, setDateTime] = useState<Date | undefined>(undefined);
   const [loading, setLoading] = useState(false);
@@ -51,7 +53,7 @@ export function RetryScheduleModal({
     }
 
     setLoading(false);
-    onClose();
+    onSuccess ? onSuccess() : onClose();
   }
 
   return (
