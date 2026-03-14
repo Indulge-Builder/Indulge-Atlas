@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { z } from "zod";
 
 export interface ScratchpadNote {
   id: string;
@@ -8,16 +9,18 @@ export interface ScratchpadNote {
   created_at: string;
 }
 
-const MAX_SCRATCHPAD_LENGTH = 10_000;
+const saveScratchpadSchema = z.object({
+  body: z.string().min(1, "Note is empty.").max(10_000, "Note must be under 10,000 characters."),
+});
 
 export async function saveScratchpadNote(
-  body: string
+  body: unknown
 ): Promise<{ success: boolean; error?: string }> {
-  const trimmed = body.trim();
-  if (!trimmed) return { success: false, error: "Note is empty." };
-  if (trimmed.length > MAX_SCRATCHPAD_LENGTH) {
-    return { success: false, error: `Note must be under ${MAX_SCRATCHPAD_LENGTH.toLocaleString()} characters.` };
+  const parsed = saveScratchpadSchema.safeParse(typeof body === "string" ? { body } : { body: "" });
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
+  const trimmed = parsed.data.body.trim();
 
   const supabase = await createClient();
 

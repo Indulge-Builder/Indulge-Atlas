@@ -2,11 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { z } from "zod";
 
-interface UpdateProfileInput {
-  phone: string | null;
-  dob: string | null;
-}
+const updateProfileSchema = z.object({
+  phone: z.union([z.string().max(30), z.null()]).optional(),
+  dob: z
+    .union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/), z.literal(""), z.null()])
+    .optional()
+    .transform((v) => (!v || v === "" ? null : v)),
+});
 
 interface ActionResult {
   success: boolean;
@@ -14,8 +18,14 @@ interface ActionResult {
 }
 
 export async function updateProfile(
-  data: UpdateProfileInput
+  data: unknown
 ): Promise<ActionResult> {
+  const parsed = updateProfileSchema.safeParse(data);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+  const { phone, dob } = parsed.data;
+
   try {
     const supabase = await createClient();
     const {
@@ -27,8 +37,8 @@ export async function updateProfile(
     const { error } = await supabase
       .from("profiles")
       .update({
-        phone: data.phone?.trim() || null,
-        dob:   data.dob   || null,
+        phone: phone?.trim() || null,
+        dob:   dob   || null,
       })
       .eq("id", user.id);
 

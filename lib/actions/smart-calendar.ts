@@ -2,7 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { z } from "zod";
 import type { TaskType, TaskWithLead } from "@/lib/types/database";
+
+const taskTypeSchema = z.enum([
+  "call", "whatsapp_message", "email", "file_dispatch", "general_follow_up",
+  "campaign_review", "strategy_meeting", "budget_approval", "performance_analysis",
+]);
 
 async function getAuthUser() {
   const supabase = await createClient();
@@ -25,11 +31,15 @@ export interface LeadMatch {
 
 // ── Create Smart Task ──────────────────────────────────────
 
-export async function createSmartTask(params: {
-  title: string;
-  dueAt: string;
-  type: TaskType;
-}): Promise<{ success: boolean; taskId?: string; error?: string }> {
+const createSmartTaskSchema = z.object({
+  title: z.string().min(1).max(500),
+  dueAt: z.string().datetime(),
+  type: taskTypeSchema,
+});
+
+export async function createSmartTask(params: unknown): Promise<{ success: boolean; taskId?: string; error?: string }> {
+  const parsed = createSmartTaskSchema.safeParse(params);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   try {
     const { supabase, user } = await getAuthUser();
 
@@ -37,9 +47,9 @@ export async function createSmartTask(params: {
       .from("tasks")
       .insert({
         assigned_to: user.id,
-        title: params.title,
-        due_date: params.dueAt,
-        task_type: params.type,
+        title: parsed.data.title,
+        due_date: parsed.data.dueAt,
+        task_type: parsed.data.type,
         lead_id: null,
         status: "pending",
       })
@@ -93,31 +103,35 @@ export async function searchLeadsByName(name: string): Promise<LeadMatch[]> {
 
 // ── Link Task to Lead ──────────────────────────────────────
 
+const linkTaskSchema = z.object({ taskId: z.string().uuid(), leadId: z.string().uuid() });
+
 export async function linkTaskToLead(
-  taskId: string,
-  leadId: string,
+  taskId: unknown,
+  leadId: unknown,
 ): Promise<{ success: boolean; error?: string }> {
+  const parsed = linkTaskSchema.safeParse({ taskId, leadId });
+  if (!parsed.success) return { success: false, error: "Invalid task or lead" };
   try {
     const { supabase, user } = await getAuthUser();
 
     const { error } = await supabase
       .from("tasks")
-      .update({ lead_id: leadId })
-      .eq("id", taskId)
+      .update({ lead_id: parsed.data.leadId })
+      .eq("id", parsed.data.taskId)
       .eq("assigned_to", user.id);
 
     if (error) return { success: false, error: "Failed to link lead" };
 
     await supabase.from("lead_activities").insert({
-      lead_id: leadId,
+      lead_id: parsed.data.leadId,
       performed_by: user.id,
       type: "task_created",
-      payload: { task_id: taskId, linked_from: "smart_calendar" },
+      payload: { task_id: parsed.data.taskId, linked_from: "smart_calendar" },
     });
 
     revalidatePath("/calendar");
     revalidatePath("/tasks");
-    revalidatePath(`/leads/${leadId}`);
+    revalidatePath(`/leads/${parsed.data.leadId}`);
 
     return { success: true };
   } catch {
@@ -127,17 +141,24 @@ export async function linkTaskToLead(
 
 // ── Save Task Notes ────────────────────────────────────────
 
+const saveNotesSchema = z.object({
+  taskId: z.string().uuid(),
+  notes: z.string().max(5000),
+});
+
 export async function saveTaskContextNotes(
-  taskId: string,
-  notes: string,
+  taskId: unknown,
+  notes: unknown,
 ): Promise<{ success: boolean; error?: string }> {
+  const parsed = saveNotesSchema.safeParse({ taskId, notes });
+  if (!parsed.success) return { success: false, error: "Invalid input" };
   try {
     const { supabase, user } = await getAuthUser();
 
     const { error } = await supabase
       .from("tasks")
-      .update({ notes: notes.trim() || null })
-      .eq("id", taskId)
+      .update({ notes: parsed.data.notes.trim() || null })
+      .eq("id", parsed.data.taskId)
       .eq("assigned_to", user.id);
 
     if (error) return { success: false, error: "Failed to save notes" };

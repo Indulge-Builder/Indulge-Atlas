@@ -131,22 +131,34 @@ export default async function LeadDetailPage({ params }: PageProps) {
     .single();
   const userRole: UserRole = (rawProfile?.role as UserRole) ?? "agent";
 
-  // Fetch lead with agent
+  // Fetch lead with agent — exclude private_scratchpad until we verify viewer is assigned agent
+  const LEAD_COLS =
+    "id, first_name, last_name, phone_number, secondary_phone, email, city, address, campaign_id, form_data, utm_source, utm_medium, utm_campaign, deal_value, deal_duration, domain, status, assigned_to, assigned_at, is_off_duty, agent_alert_sent, manager_alert_sent, notes, lost_reason_tag, lost_reason_notes, lost_reason, trash_reason, nurture_reason, attempt_count, personal_details, company, created_at, updated_at";
   const { data: rawLead, error } = await supabase
     .from("leads")
     .select(
-      "*, assigned_agent:profiles!assigned_to(id, full_name, email, role)"
+      `${LEAD_COLS}, assigned_agent:profiles!assigned_to(id, full_name, email, role)`
     )
     .eq("id", id)
     .single();
 
   if (error || !rawLead) notFound();
 
-  const lead = rawLead as Lead & { assigned_agent?: Profile };
+  const canViewScratchpad = user.id === (rawLead as { assigned_to: string | null }).assigned_to;
+  let scratchpadValue: string | null = null;
+  if (canViewScratchpad) {
+    const { data: scratch } = await supabase
+      .from("leads")
+      .select("private_scratchpad")
+      .eq("id", id)
+      .single();
+    scratchpadValue = scratch?.private_scratchpad ?? null;
+  }
 
-  // Security: only send private_scratchpad to the assigned agent
-  const canViewScratchpad = user.id === lead.assigned_to;
-  const scratchpadValue   = canViewScratchpad ? lead.private_scratchpad : null;
+  const lead = {
+    ...rawLead,
+    private_scratchpad: scratchpadValue,
+  } as unknown as Lead & { assigned_agent?: Profile };
 
   // Scouts / admins can reassign — pre-fetch active agents
   const canReassign = userRole === "scout" || userRole === "admin";

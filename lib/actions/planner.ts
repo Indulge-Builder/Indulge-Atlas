@@ -2,7 +2,18 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { z } from "zod";
 import type { AdPlatform, CampaignDraft } from "@/lib/types/database";
+
+const adPlatformSchema = z.enum(["meta", "google", "website", "events", "referral"]);
+const saveDraftSchema = z.object({
+  campaign_name: z.string().min(1).max(200),
+  platform: adPlatformSchema,
+  objective: z.string().max(500).nullable(),
+  total_budget: z.number().min(0),
+  target_cpa: z.number().min(0),
+  projected_revenue: z.number().min(0),
+});
 
 // ── Auth guard ────────────────────────────────────────────────
 
@@ -53,20 +64,24 @@ export interface SaveDraftInput {
 }
 
 export async function saveCampaignDraft(
-  input: SaveDraftInput
+  input: unknown
 ): Promise<{ success: boolean; draft?: CampaignDraft; error?: string }> {
+  const parsed = saveDraftSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
   try {
     const { supabase, userId } = await requireScout();
 
     const { data, error } = await supabase
       .from("campaign_drafts")
       .insert({
-        campaign_name:     input.campaign_name,
-        platform:          input.platform,
-        objective:         input.objective || null,
-        total_budget:      input.total_budget,
-        target_cpa:        input.target_cpa,
-        projected_revenue: input.projected_revenue,
+        campaign_name:     parsed.data.campaign_name,
+        platform:          parsed.data.platform,
+        objective:         parsed.data.objective || null,
+        total_budget:      parsed.data.total_budget,
+        target_cpa:        parsed.data.target_cpa,
+        projected_revenue: parsed.data.projected_revenue,
         status:            "draft",
         created_by:        userId,
       })

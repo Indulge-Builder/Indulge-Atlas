@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -25,12 +26,30 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { RetryScheduleModal } from "@/components/modals/RetryScheduleModal";
-import { LostLeadModal } from "@/components/leads/LostLeadModal";
-import { TrashLeadModal } from "@/components/leads/TrashLeadModal";
-import { NurtureModal } from "@/components/leads/NurtureModal";
-import { WonDealModal } from "@/components/leads/WonDealModal";
+const RetryScheduleModal = dynamic(
+  () => import("@/components/modals/RetryScheduleModal").then((m) => ({ default: m.RetryScheduleModal })),
+  { ssr: false }
+);
 import { updateLeadStatus, addLeadNote } from "@/lib/actions/leads";
+
+// Heavy modals: load only when user opens them (reduces initial bundle)
+const LostLeadModal = dynamic(
+  () => import("@/components/leads/LostLeadModal").then((m) => ({ default: m.LostLeadModal })),
+  { ssr: false }
+);
+const TrashLeadModal = dynamic(
+  () => import("@/components/leads/TrashLeadModal").then((m) => ({ default: m.TrashLeadModal })),
+  { ssr: false }
+);
+const NurtureModal = dynamic(
+  () => import("@/components/leads/NurtureModal").then((m) => ({ default: m.NurtureModal })),
+  { ssr: false }
+);
+const WonDealModal = dynamic(
+  () => import("@/components/leads/WonDealModal").then((m) => ({ default: m.WonDealModal })),
+  { ssr: false }
+);
+
 import { toast } from "sonner";
 import { useClientOnly } from "@/lib/hooks/useClientOnly";
 import { LEAD_STATUS_CONFIG, LEAD_STATUS_ORDER } from "@/lib/types/database";

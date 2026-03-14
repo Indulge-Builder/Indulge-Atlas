@@ -2,7 +2,26 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { z } from "zod";
 import type { TaskType, TaskWithLead } from "@/lib/types/database";
+
+const uuidSchema = z.string().uuid();
+const taskTypeSchema = z.enum([
+  "call", "whatsapp_message", "email", "file_dispatch", "general_follow_up",
+  "campaign_review", "strategy_meeting", "budget_approval", "performance_analysis",
+]);
+const updateTaskSchema = z.object({
+  taskId: z.string().uuid(),
+  notes: z.string().max(5000).nullable().optional(),
+  dueAt: z.union([z.date(), z.string().datetime()]).transform((v) => (typeof v === "string" ? new Date(v) : v)),
+});
+const createTaskSchema = z.object({
+  leadId: z.string().uuid().nullable(),
+  title: z.string().min(1).max(500),
+  dueAt: z.union([z.date(), z.string().datetime()]).transform((v) => (typeof v === "string" ? new Date(v) : v)),
+  type: taskTypeSchema,
+  notes: z.string().max(5000).nullable().optional(),
+});
 
 interface ActionResult {
   success: boolean;
@@ -123,14 +142,16 @@ export async function getLeadsForTaskModal(): Promise<
 
 // ── Complete a Task ────────────────────────────────────────
 
-export async function completeTask(taskId: string): Promise<ActionResult> {
+export async function completeTask(taskId: unknown): Promise<ActionResult> {
+  const parsed = uuidSchema.safeParse(taskId);
+  if (!parsed.success) return { success: false, error: "Invalid task" };
   try {
     const { supabase, user } = await getAuthUser();
 
     const { error } = await supabase
       .from("tasks")
       .update({ status: "completed" })
-      .eq("id", taskId)
+      .eq("id", parsed.data)
       .eq("assigned_to", user.id);
 
     if (error) return { success: false, error: "Failed to complete task" };
@@ -146,14 +167,16 @@ export async function completeTask(taskId: string): Promise<ActionResult> {
 
 // ── Delete a Task ──────────────────────────────────────────
 
-export async function deleteTask(taskId: string): Promise<ActionResult> {
+export async function deleteTask(taskId: unknown): Promise<ActionResult> {
+  const parsed = uuidSchema.safeParse(taskId);
+  if (!parsed.success) return { success: false, error: "Invalid task" };
   try {
     const { supabase, user } = await getAuthUser();
 
     const { error } = await supabase
       .from("tasks")
       .delete()
-      .eq("id", taskId)
+      .eq("id", parsed.data)
       .eq("assigned_to", user.id);
 
     if (error) return { success: false, error: "Failed to delete task" };
@@ -169,21 +192,19 @@ export async function deleteTask(taskId: string): Promise<ActionResult> {
 
 // ── Update a Task ─────────────────────────────────────────
 
-export async function updateTask(params: {
-  taskId: string;
-  notes?: string | null;
-  dueAt: Date;
-}): Promise<ActionResult> {
+export async function updateTask(params: unknown): Promise<ActionResult> {
+  const parsed = updateTaskSchema.safeParse(params);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   try {
     const { supabase, user } = await getAuthUser();
 
     const { error } = await supabase
       .from("tasks")
       .update({
-        notes: params.notes ?? null,
-        due_date: params.dueAt.toISOString(),
+        notes: parsed.data.notes ?? null,
+        due_date: parsed.data.dueAt.toISOString(),
       })
-      .eq("id", params.taskId)
+      .eq("id", parsed.data.taskId)
       .eq("assigned_to", user.id);
 
     if (error) return { success: false, error: "Failed to update task" };
@@ -201,41 +222,37 @@ export async function updateTask(params: {
 // ── Create Task ────────────────────────────────────────────
 // leadId is optional — scout tasks may not be linked to a lead.
 
-export async function createTask(params: {
-  leadId: string | null;
-  title: string;
-  dueAt: Date;
-  type: TaskType;
-  notes?: string | null;
-}): Promise<ActionResult> {
+export async function createTask(params: unknown): Promise<ActionResult> {
+  const parsed = createTaskSchema.safeParse(params);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   try {
     const { supabase, user } = await getAuthUser();
 
     const { error } = await supabase.from("tasks").insert({
-      lead_id: params.leadId ?? null,
+      lead_id: parsed.data.leadId ?? null,
       assigned_to: user.id,
-      title: params.title,
-      due_date: params.dueAt.toISOString(),
-      task_type: params.type,
+      title: parsed.data.title,
+      due_date: parsed.data.dueAt.toISOString(),
+      task_type: parsed.data.type,
       status: "pending",
-      notes: params.notes ?? null,
+      notes: parsed.data.notes ?? null,
     });
 
     if (error) return { success: false, error: "Failed to create task" };
 
-    if (params.leadId) {
+    if (parsed.data.leadId) {
       await supabase.from("lead_activities").insert({
-        lead_id: params.leadId,
+        lead_id: parsed.data.leadId,
         performed_by: user.id,
         type: "task_created",
         payload: {
-          task_type: params.type,
-          title: params.title,
-          due_date: params.dueAt.toISOString(),
+          task_type: parsed.data.type,
+          title: parsed.data.title,
+          due_date: parsed.data.dueAt.toISOString(),
           manual: true,
         },
       });
-      revalidatePath(`/leads/${params.leadId}`);
+      revalidatePath(`/leads/${parsed.data.leadId}`);
     }
 
     revalidatePath("/");
