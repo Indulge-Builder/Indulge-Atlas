@@ -3,7 +3,9 @@
 import { motion } from "framer-motion";
 import { MessageSquare } from "lucide-react";
 import { NotificationBell } from "./NotificationBell";
+import { ScoutSLAAlerts } from "@/components/sla/ScoutSLAAlerts";
 import { useChatDrawer } from "@/components/chat/ChatProvider";
+import { useProfile } from "@/components/sla/ProfileProvider";
 
 interface TopBarProps {
   title: string;
@@ -48,6 +50,9 @@ function GoldDotTitle({ text }: { text: string }) {
 }
 
 export function TopBar({ title, subtitle, actions }: TopBarProps) {
+  const profile = useProfile();
+  const showSLA = profile && (profile.role === "scout" || profile.role === "admin");
+
   return (
     <motion.header
       initial={{ opacity: 0, y: -6 }}
@@ -90,13 +95,15 @@ export function TopBar({ title, subtitle, actions }: TopBarProps) {
         )}
       </div>
 
-      {/* Right: page-specific actions + chat drawer trigger + notification bell */}
+      {/* Right: page-specific actions + chat drawer trigger + notification bell + SLA (scout/admin) */}
       <div className="flex items-center gap-3">
         {actions}
 
         <ChatTriggerButton />
 
         <NotificationBell />
+
+        {showSLA && <ScoutSLAAlerts userId={profile!.id} inline />}
       </div>
     </motion.header>
   );

@@ -21,6 +21,7 @@ export const LEAD_DOMAINS = [
 export const LEAD_FORM_STATUSES = [
   "new",
   "attempted",
+  "connected",
   "in_discussion",
   "nurturing",
 ] as const;

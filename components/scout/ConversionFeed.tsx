@@ -3,17 +3,8 @@
 import { motion } from "framer-motion";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { formatLeadSource } from "@/lib/utils/lead-source-mapper";
 import type { WinEntry } from "@/lib/actions/scout-analytics";
-
-// ── Campaign source display ───────────────────────────────────
-
-const SOURCE_CONFIG: Record<string, { label: string; color: string }> = {
-  meta_ad:      { label: "Meta",    color: "#1877F2" },
-  google_ad:    { label: "Google",  color: "#EA4335" },
-  website_form: { label: "Website", color: "#4A7C59" },
-  event:        { label: "Event",   color: "#D4AF37" },
-  referral:     { label: "Referral",color: "#6B4FBB" },
-};
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -79,8 +70,7 @@ export function ConversionFeed({ recentWins }: ConversionFeedProps) {
           </p>
         ) : (
           recentWins.map((win, i) => {
-            const source = win.source ?? "";
-            const srcCfg = SOURCE_CONFIG[source];
+            const { channel } = formatLeadSource(win.utm_source, win.utm_medium);
 
             return (
               <motion.div
@@ -109,22 +99,10 @@ export function ConversionFeed({ recentWins }: ConversionFeedProps) {
                     {abbreviateName((win.first_name + " " + (win.last_name ?? "")).trim())}
                   </p>
                   <div className="flex items-center gap-1.5 mt-1">
-                    {srcCfg ? (
-                      <span
-                        className="text-[9px] font-semibold px-1.5 py-0.5 rounded uppercase tracking-wider"
-                        style={{
-                          background: `${srcCfg.color}18`,
-                          color: srcCfg.color,
-                        }}
-                      >
-                        {srcCfg.label}
+                    {channel && (
+                      <span className="text-[10px] text-[#9E9E9E] truncate max-w-[80px]">
+                        {channel}
                       </span>
-                    ) : (
-                      source && (
-                        <span className="text-[10px] text-[#9E9E9E] truncate max-w-[80px]">
-                          {source}
-                        </span>
-                      )
                     )}
                     <span className="text-[#C8C8B8] text-[10px]">
                       {format(new Date(win.updated_at), "MMM d")}

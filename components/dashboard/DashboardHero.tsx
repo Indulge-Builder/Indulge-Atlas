@@ -3,26 +3,9 @@
 import { motion, useReducedMotion } from "framer-motion";
 import { MessageSquare } from "lucide-react";
 import { NotificationBell } from "@/components/layout/NotificationBell";
+import { ScoutSLAAlerts } from "@/components/sla/ScoutSLAAlerts";
 import { useChatDrawer } from "@/components/chat/ChatProvider";
-
-// ── Zen backgrounds — one per day of the week (0 = Sunday) ─
-// Curated minimalist scenes: sparse, dark, meditative.
-const ZEN_IMAGES: string[] = [
-  // Sun — sparse winter birch forest, monochrome
-  "https://images.unsplash.com/photo-1516912481808-3406841bd33c?w=1920&q=80&auto=format&fit=crop",
-  // Mon — serene misty lake reflection
-  "https://images.unsplash.com/photo-1532274402911-5a369e4c4bb5?w=1920&q=80&auto=format&fit=crop",
-  // Tue — dark rolling sand dunes, minimal horizon
-  "https://images.unsplash.com/photo-1509316785289-025f5b846b35?w=1920&q=80&auto=format&fit=crop",
-  // Wed — mountain ridge dissolving into mist
-  "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=1920&q=80&auto=format&fit=crop",
-  // Thu — pine forest in early morning fog
-  "https://images.unsplash.com/photo-1448375240586-882707db888b?w=1920&q=80&auto=format&fit=crop",
-  // Fri — dark volcanic rock, abstract texture
-  "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&q=80&auto=format&fit=crop",
-  // Sat — tranquil open ocean horizon at dusk
-  "https://images.unsplash.com/photo-1505459668311-8dfac7952bf0?w=1920&q=80&auto=format&fit=crop",
-];
+import { useProfile } from "@/components/sla/ProfileProvider";
 
 interface MetricCard {
   label: string;
@@ -32,7 +15,6 @@ interface MetricCard {
 interface DashboardHeroProps {
   firstName: string;
   timeOfDay: "Morning" | "Afternoon" | "Evening";
-  dayOfWeek: number; // 0–6
   metrics: {
     newLeads: number;
     active: number;
@@ -60,14 +42,21 @@ function ChatButton() {
   );
 }
 
+// ── Ambient orb animation config (staggered durations for organic feel) ─
+const ORB_ANIMATIONS = [
+  { duration: 20, x: [0, 30, -20, 0], y: [0, -40, 20, 0], scale: [1, 1.1, 0.9, 1] },
+  { duration: 25, x: [0, -25, 15, 0], y: [0, 30, -25, 0], scale: [1, 0.95, 1.08, 1] },
+  { duration: 30, x: [0, 20, -30, 0], y: [0, -20, 35, 0], scale: [1, 1.05, 0.92, 1] },
+];
+
 export function DashboardHero({
   firstName,
   timeOfDay,
-  dayOfWeek,
   metrics,
 }: DashboardHeroProps) {
   const prefersReducedMotion = useReducedMotion();
-  const zenImage = ZEN_IMAGES[dayOfWeek] ?? ZEN_IMAGES[0];
+  const profile = useProfile();
+  const showSLA = profile && (profile.role === "scout" || profile.role === "admin");
 
   const cards: MetricCard[] = [
     { label: "New Leads", value: metrics.newLeads },
@@ -77,25 +66,49 @@ export function DashboardHero({
   ];
 
   return (
-    <div className="relative overflow-hidden bg-[#080807]">
-      {/* ── Zen texture layer ─── image at whisper opacity ───── */}
-      <div
-        className="absolute inset-0 bg-cover bg-center opacity-[0.18]"
-        style={{ backgroundImage: `url(${zenImage})` }}
-      />
+    <div className="relative overflow-hidden bg-[#0A0A0A]">
+      {/* ── Phase 2: Ambient mood-lifting orbs (behind grain) ─ */}
+      <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
+        <motion.div
+          className="absolute -top-24 -left-24 w-96 h-96 rounded-full blur-[100px] bg-[#D4AF37]/10 will-change-transform"
+          animate={prefersReducedMotion ? {} : { x: ORB_ANIMATIONS[0].x, y: ORB_ANIMATIONS[0].y, scale: ORB_ANIMATIONS[0].scale }}
+          transition={prefersReducedMotion ? {} : { duration: ORB_ANIMATIONS[0].duration, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <motion.div
+          className="absolute -bottom-32 -right-32 w-[30rem] h-[30rem] rounded-full blur-[100px] bg-emerald-900/10 will-change-transform"
+          animate={prefersReducedMotion ? {} : { x: ORB_ANIMATIONS[1].x, y: ORB_ANIMATIONS[1].y, scale: ORB_ANIMATIONS[1].scale }}
+          transition={prefersReducedMotion ? {} : { duration: ORB_ANIMATIONS[1].duration, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <motion.div
+          className="absolute top-1/2 -translate-y-1/2 right-8 w-72 h-72 rounded-full blur-[100px] bg-indigo-900/10 will-change-transform"
+          animate={prefersReducedMotion ? {} : { x: ORB_ANIMATIONS[2].x, y: ORB_ANIMATIONS[2].y, scale: ORB_ANIMATIONS[2].scale }}
+          transition={prefersReducedMotion ? {} : { duration: ORB_ANIMATIONS[2].duration, repeat: Infinity, ease: "easeInOut" }}
+        />
+      </div>
 
-      {/* ── Dark overlay — kills the photo, leaves texture ──── */}
-      <div className="absolute inset-0 bg-cyan-300/10 backdrop-blur-[2px]" />
+      {/* ── Phase 1: Tactile noise overlay (digital grain, matte paper feel) ─ */}
+      <div
+        className="absolute inset-0 z-0 opacity-[0.15] mix-blend-overlay pointer-events-none"
+        aria-hidden
+      >
+        <svg className="w-full h-full opacity-100" xmlns="http://www.w3.org/2000/svg">
+          <filter id="grain">
+            <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="4" stitchTiles="stitch" />
+          </filter>
+          <rect width="100%" height="100%" filter="url(#grain)" />
+        </svg>
+      </div>
 
       {/* ── Soft bottom fade → blends into the paper below ──── */}
-      <div className="absolute bottom-0 inset-x-0 h-16 bg-linear-to-t from-surface/[0.07] to-transparent pointer-events-none" />
+      <div className="absolute bottom-0 inset-x-0 h-16 bg-gradient-to-t from-[#0A0A0A]/80 to-transparent pointer-events-none z-0" />
 
       {/* ── Content ─────────────────────────────────────────── */}
       <div className="relative z-10 px-8 pt-8 pb-8 space-y-8">
-        {/* Utility bar: chat + notifications */}
+        {/* Utility bar: chat + notifications + SLA (scout/admin) */}
         <div className="flex justify-end items-center gap-1 -mt-1 -mr-1">
           <ChatButton />
           <NotificationBell />
+          {showSLA && <ScoutSLAAlerts userId={profile!.id} inline darkBg />}
         </div>
 
         {/* Editorial greeting */}
@@ -128,7 +141,7 @@ export function DashboardHero({
           />
         </motion.div>
 
-        {/* Metric bento cards */}
+        {/* Metric bento cards — Phase 3: glassmorphism */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {cards.map((card, i) => (
             <motion.div
@@ -140,7 +153,7 @@ export function DashboardHero({
                 duration: 0.45,
                 ease: [0.22, 1, 0.36, 1],
               }}
-              className="bg-white/5 backdrop-blur-sm border border-white/8 rounded-xl px-4 py-4 hover:bg-white/8 hover:border-white/13 transition-colors duration-300"
+              className="bg-white/[0.02] backdrop-blur-md border border-white/5 rounded-xl px-4 py-4 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] hover:bg-white/[0.04] hover:border-white/10 transition-colors duration-300"
             >
               <p className="text-4xl font-serif text-white/90 leading-none tabular-nums">
                 {card.value}

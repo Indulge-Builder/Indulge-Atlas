@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Playfair_Display } from "next/font/google";
 import { Toaster } from "sonner";
@@ -28,6 +28,10 @@ export const metadata: Metadata = {
   title: "Indulge Atlas",
   description: "Bespoke lead management for Indulge Global concierge services",
   robots: { index: false, follow: false },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0D0C0A",
 };
 
 export default function RootLayout({

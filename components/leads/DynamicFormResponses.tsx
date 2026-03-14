@@ -3,7 +3,7 @@
 // =============================================================================
 // INDULGE ATLAS — Dynamic Form Responses Card
 // =============================================================================
-// Renders the raw JSONB `form_responses` blob from the `leads` table as a
+// Renders the raw JSONB `form_data` blob from the `leads` table as a
 // sleek "Intake Questionnaire" card in the "Quiet Luxury" dark aesthetic.
 // The section auto-hides when there are no responses.
 // =============================================================================

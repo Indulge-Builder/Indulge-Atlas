@@ -38,6 +38,7 @@ import {
   Repeat,
 } from "lucide-react";
 import { format } from "date-fns";
+import { LuxuryDatePicker } from "@/components/ui/LuxuryDatePicker";
 import { cn } from "@/lib/utils";
 import { createTask, completeTask } from "@/lib/actions/tasks";
 import { AGENT_TASK_TYPES } from "@/lib/types/database";
@@ -45,6 +46,7 @@ import type { TaskType, TaskWithLead, TaskStatus, UserRole } from "@/lib/types/d
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { formatLocalDateTime } from "@/lib/utils/date-format";
+import { useClientOnly } from "@/lib/hooks/useClientOnly";
 
 // ── Task type labels & icons ───────────────────────────────
 
@@ -83,7 +85,7 @@ const STATUS_STYLES: Record<TaskStatus, { icon: React.FC<{ className?: string }>
 const taskSchema = z.object({
   task_type: z.enum(AGENT_TASK_TYPES as [TaskType, ...TaskType[]]),
   title:     z.string().min(2, "Title is required"),
-  due_date:  z.string().min(1, "Due date is required"),
+  due_date:  z.date(),
   notes:     z.string().optional(),
 });
 
@@ -112,6 +114,7 @@ function QuickAddModal({
   role: UserRole;
   onSuccess: (task: TaskWithLead) => void;
 }) {
+  const mounted = useClientOnly();
   const [open, setOpen]             = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -120,6 +123,9 @@ function QuickAddModal({
     ...AGENT_TASK_TYPES,
     "campaign_review", "strategy_meeting", "budget_approval", "performance_analysis",
   ] as TaskType[];
+
+  const defaultDue = new Date();
+  defaultDue.setHours(9, 0, 0, 0);
 
   const {
     register,
@@ -134,7 +140,7 @@ function QuickAddModal({
     defaultValues: {
       task_type: "call",
       title:     DEFAULT_TITLES["call"],
-      due_date:  format(new Date(), "yyyy-MM-dd'T'09:00"),
+      due_date:  defaultDue,
       notes:     "",
     },
   });
@@ -150,7 +156,7 @@ function QuickAddModal({
     const result = await createTask({
       leadId,
       title:  values.title,
-      dueAt:  new Date(values.due_date),
+      dueAt:  values.due_date,
       type:   values.task_type as TaskType,
       notes:  values.notes?.trim() || null,
     });
@@ -172,20 +178,53 @@ function QuickAddModal({
       title:       values.title,
       task_type:   values.task_type as TaskType,
       status:      "pending",
-      due_date:    new Date(values.due_date).toISOString(),
+      due_date:    values.due_date.toISOString(),
       notes:       values.notes?.trim() || null,
       created_at:  now,
       updated_at:  now,
       lead:        null,
     };
 
-    reset();
+    reset({
+      task_type: "call",
+      title:     DEFAULT_TITLES["call"],
+      due_date:  new Date(new Date().setHours(9, 0, 0, 0)),
+      notes:     "",
+    });
     setOpen(false);
     onSuccess(optimisticTask);
   }
 
+  if (!mounted) {
+    return (
+      <button
+        type="button"
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1A1A1A] text-white text-xs font-medium"
+      >
+        <Plus className="w-3.5 h-3.5" />
+        Schedule Task
+      </button>
+    );
+  }
+
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) reset(); setServerError(null); setOpen(v); }}>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) {
+          const today = new Date();
+          today.setHours(9, 0, 0, 0);
+          reset({
+            task_type: "call",
+            title:     DEFAULT_TITLES["call"],
+            due_date:  today,
+            notes:     "",
+          });
+        }
+        setServerError(null);
+        setOpen(v);
+      }}
+    >
       <DialogPrimitive.Trigger asChild>
         <motion.button
           whileHover={{ scale: 1.02 }}
@@ -274,10 +313,19 @@ function QuickAddModal({
               {/* Due date */}
               <div className="space-y-1.5">
                 <FieldLabel required>Due Date & Time</FieldLabel>
-                <input
-                  type="datetime-local"
-                  {...register("due_date")}
-                  className={cn(inputCx, "appearance-none")}
+                <Controller
+                  name="due_date"
+                  control={control}
+                  render={({ field }) => (
+                    <LuxuryDatePicker
+                      value={field.value}
+                      onChange={(date) => field.onChange(date)}
+                      placeholder="Pick date & time…"
+                      disabled={(d) =>
+                        d < new Date(new Date().setHours(0, 0, 0, 0))
+                      }
+                    />
+                  )}
                 />
                 {errors.due_date && <FieldError message={errors.due_date.message} />}
               </div>

@@ -2,19 +2,31 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
+import { addDays } from "date-fns";
 import type { UserRole } from "@/lib/types/database";
 
-// ── SLA thresholds (hours) ───────────────────────────────────────────────────
-const LEVEL_1_HOURS = 3;
-const LEVEL_2_HOURS = 5;
+const IST = "Asia/Kolkata";
 
-export type SLABreachLevel = 1 | 2;
+// ── On-Duty SLA (Rule A): 5m, 10m, 15m ─────────────────────────────────────
+const ON_DUTY_LEVEL_1_MINS = 5;
+const ON_DUTY_LEVEL_2_MINS = 10;
+const ON_DUTY_LEVEL_3_MINS = 15;
+
+// ── Off-Duty SLA (Rule B): 60m, 90m, 120m from 9 AM IST ─────────────────────
+const OFF_DUTY_LEVEL_1_MINS = 60;  // 10:00 AM
+const OFF_DUTY_LEVEL_2_MINS = 90;  // 10:30 AM
+const OFF_DUTY_LEVEL_3_MINS = 120; // 11:00 AM
+
+export type SLABreachLevel = 1 | 2 | 3;
 
 export interface BreachedLead {
   id: string;
   first_name: string;
   last_name: string | null;
   assigned_at: string;
+  created_at: string;
+  is_off_duty: boolean;
   breachLevel: SLABreachLevel;
   assigned_agent?: { id: string; full_name: string } | null;
 }
@@ -26,11 +38,47 @@ interface UseSLA_MonitorReturn {
   refetch: () => void;
 }
 
-function computeBreachLevel(assignedAt: string): SLABreachLevel | null {
-  const diffMs = Date.now() - new Date(assignedAt).getTime();
-  const diffHours = diffMs / (60 * 60 * 1000);
-  if (diffHours >= LEVEL_2_HOURS) return 2;
-  if (diffHours >= LEVEL_1_HOURS) return 1;
+/** 9:00 AM IST anchor for off-duty leads. Lead created 18:00–08:59 → next 9 AM. */
+function getOffDutyAnchor(createdAt: string): Date {
+  const created = new Date(createdAt);
+  const h = parseInt(formatInTimeZone(created, IST, "H"), 10);
+  const y = parseInt(formatInTimeZone(created, IST, "yyyy"), 10);
+  const m = parseInt(formatInTimeZone(created, IST, "M"), 10);
+  const d = parseInt(formatInTimeZone(created, IST, "d"), 10);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const midnightIST = fromZonedTime(`${y}-${pad(m)}-${pad(d)}T00:00:00`, IST);
+  const anchorDate = addDays(midnightIST, h >= 18 ? 1 : 0);
+  const y2 = parseInt(formatInTimeZone(anchorDate, IST, "yyyy"), 10);
+  const m2 = parseInt(formatInTimeZone(anchorDate, IST, "M"), 10);
+  const d2 = parseInt(formatInTimeZone(anchorDate, IST, "d"), 10);
+  return fromZonedTime(`${y2}-${pad(m2)}-${pad(d2)}T09:00:00`, IST);
+}
+
+function computeBreachLevel(
+  assignedAt: string,
+  createdAt: string,
+  isOffDuty: boolean
+): SLABreachLevel | null {
+  const now = Date.now();
+
+  if (isOffDuty) {
+    const anchor = getOffDutyAnchor(createdAt);
+    const diffMs = now - anchor.getTime();
+    const diffMins = diffMs / 60_000;
+    if (diffMins < 0) return null; // Before 9 AM, no breach yet
+    if (diffMins >= OFF_DUTY_LEVEL_3_MINS) return 3;
+    if (diffMins >= OFF_DUTY_LEVEL_2_MINS) return 2;
+    if (diffMins >= OFF_DUTY_LEVEL_1_MINS) return 1;
+    return null;
+  }
+
+  // On-duty: clock starts at created_at (or assigned_at if we use that)
+  const clockStart = new Date(assignedAt).getTime();
+  const diffMs = now - clockStart;
+  const diffMins = diffMs / 60_000;
+  if (diffMins >= ON_DUTY_LEVEL_3_MINS) return 3;
+  if (diffMins >= ON_DUTY_LEVEL_2_MINS) return 2;
+  if (diffMins >= ON_DUTY_LEVEL_1_MINS) return 1;
   return null;
 }
 
@@ -44,8 +92,8 @@ function getLeadDisplayName(first: string, last: string | null): string {
  * - Scouts/Admins: sees all breached leads across all agents
  *
  * Rules:
- * - Level 1 Breach: assigned_at older than 3 hours, less than 5 hours
- * - Level 2 Breach: assigned_at older than 5 hours
+ * - On-Duty (is_off_duty=false): 5m / 10m / 15m escalation
+ * - Off-Duty (is_off_duty=true): 60m / 90m / 120m from 9 AM IST
  * - Only leads with status === 'new' are considered
  */
 export function useSLA_Monitor(
@@ -67,10 +115,9 @@ export function useSLA_Monitor(
 
     const isScoutOrAdmin = role === "scout" || role === "admin";
 
-    // Use assigned_at for SLA; fall back to created_at if column doesn't exist (migration 015)
     const selectCols = isScoutOrAdmin
-      ? "id, first_name, last_name, assigned_at, assigned_to, assigned_agent:profiles!assigned_to(id, full_name)"
-      : "id, first_name, last_name, assigned_at";
+      ? "id, first_name, last_name, assigned_at, created_at, is_off_duty, assigned_to, assigned_agent:profiles!assigned_to(id, full_name)"
+      : "id, first_name, last_name, assigned_at, created_at, is_off_duty";
 
     let query = supabase
       .from("leads")
@@ -82,35 +129,7 @@ export function useSLA_Monitor(
       query = query.eq("assigned_to", userId);
     }
 
-    let { data, error } = await query;
-
-    // Fallback: if assigned_at doesn't exist yet, use created_at (run: supabase db push)
-    if (error?.message?.includes("assigned_at does not exist")) {
-      if (typeof window !== "undefined") {
-        console.warn(
-          "[useSLA_Monitor] assigned_at missing — using created_at. Run: supabase db push"
-        );
-      }
-      const fallbackCols = isScoutOrAdmin
-        ? "id, first_name, last_name, created_at, assigned_to, assigned_agent:profiles!assigned_to(id, full_name)"
-        : "id, first_name, last_name, created_at";
-      query = supabase
-        .from("leads")
-        .select(fallbackCols)
-        .eq("status", "new")
-        .not("assigned_to", "is", null);
-      if (!isScoutOrAdmin) query = query.eq("assigned_to", userId);
-      const fallback = await query;
-      data = fallback.data;
-      error = fallback.error;
-      // Rename created_at → assigned_at in response for uniform handling below
-      if (data && Array.isArray(data)) {
-        data = data.map((r: Record<string, unknown>) => ({
-          ...r,
-          assigned_at: r.assigned_at ?? r.created_at,
-        }));
-      }
-    }
+    const { data, error } = await query;
 
     if (error) {
       console.error("[useSLA_Monitor] Fetch failed:", error.message);
@@ -124,26 +143,35 @@ export function useSLA_Monitor(
       first_name: string;
       last_name: string | null;
       assigned_at: string;
+      created_at: string;
+      is_off_duty?: boolean;
       assigned_agent?: { id: string; full_name: string } | null;
     };
     const rows: LeadRow[] = Array.isArray(data) ? (data as unknown as LeadRow[]) : [];
 
     const breached: BreachedLead[] = [];
     for (const row of rows) {
-      const level = computeBreachLevel(row.assigned_at);
+      const isOffDuty = row.is_off_duty ?? false;
+      const level = computeBreachLevel(
+        row.assigned_at,
+        row.created_at ?? row.assigned_at,
+        isOffDuty
+      );
       if (level) {
         breached.push({
           id: row.id,
           first_name: row.first_name,
           last_name: row.last_name,
           assigned_at: row.assigned_at,
+          created_at: row.created_at ?? row.assigned_at,
+          is_off_duty: isOffDuty,
           breachLevel: level,
           assigned_agent: row.assigned_agent ?? null,
         });
       }
     }
 
-    // Sort by breach level (2 first) then by assigned_at (oldest first)
+    // Sort: level 3 first, then 2, then 1; within same level, oldest first
     breached.sort((a, b) => {
       if (a.breachLevel !== b.breachLevel) return b.breachLevel - a.breachLevel;
       return new Date(a.assigned_at).getTime() - new Date(b.assigned_at).getTime();
@@ -151,10 +179,8 @@ export function useSLA_Monitor(
 
     setBreachedLeads(breached);
     setLoading(false);
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- createClient is stable
   }, [userId, role]);
 
-  // Initial fetch + 60-second interval
   useEffect(() => {
     fetchBreachedLeads();
     const interval = setInterval(fetchBreachedLeads, 60_000);
@@ -163,9 +189,11 @@ export function useSLA_Monitor(
 
   const breachLevel: SLABreachLevel | null =
     breachedLeads.length > 0
-      ? breachedLeads.some((l) => l.breachLevel === 2)
-        ? 2
-        : 1
+      ? breachedLeads.some((l) => l.breachLevel === 3)
+        ? 3
+        : breachedLeads.some((l) => l.breachLevel === 2)
+          ? 2
+          : 1
       : null;
 
   return {
@@ -176,4 +204,22 @@ export function useSLA_Monitor(
   };
 }
 
-export { getLeadDisplayName, LEVEL_1_HOURS, LEVEL_2_HOURS };
+export function getMinsWaiting(assignedAt: string, createdAt: string, isOffDuty: boolean): number {
+  const now = Date.now();
+  if (isOffDuty) {
+    const anchor = getOffDutyAnchor(createdAt);
+    const elapsed = now - anchor.getTime();
+    return Math.max(0, Math.floor(elapsed / 60_000));
+  }
+  return Math.floor((now - new Date(assignedAt).getTime()) / 60_000);
+}
+
+export {
+  getLeadDisplayName,
+  ON_DUTY_LEVEL_1_MINS,
+  ON_DUTY_LEVEL_2_MINS,
+  ON_DUTY_LEVEL_3_MINS,
+  OFF_DUTY_LEVEL_1_MINS,
+  OFF_DUTY_LEVEL_2_MINS,
+  OFF_DUTY_LEVEL_3_MINS,
+};

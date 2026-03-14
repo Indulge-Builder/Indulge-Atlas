@@ -84,7 +84,7 @@ export default async function WorkspacePage() {
   if (!user) redirect("/login");
 
   return (
-    <div className="min-h-screen bg-[#F9F9F6]">
+    <div className="bg-[#F9F9F6]">
       <Suspense fallback={<WorkspaceSkeleton />}>
         <WorkspaceContent userId={user.id} />
       </Suspense>

@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { LuxuryDatePicker } from "@/components/ui/LuxuryDatePicker";
 import { markAttemptedAndScheduleRetry } from "@/lib/actions/leads";
+import { toast } from "sonner";
 
 interface RetryScheduleModalProps {
   open: boolean;
@@ -50,6 +51,13 @@ export function RetryScheduleModal({
       setError(result.error ?? "Failed to schedule retry.");
       setLoading(false);
       return;
+    }
+
+    if (result.attemptCount === 3) {
+      toast.info(
+        "3 attempts reached. Consider moving this lead to Nurturing (Cold) to keep your pipeline clean.",
+        { duration: 5000 }
+      );
     }
 
     setLoading(false);

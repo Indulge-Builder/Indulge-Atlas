@@ -114,7 +114,7 @@ export default async function ScoutPage() {
   }
 
   return (
-    <div className="min-h-screen">
+    <div>
       <Suspense fallback={<BriefingSkeleton />}>
         <BriefingContent userId={user.id} />
       </Suspense>

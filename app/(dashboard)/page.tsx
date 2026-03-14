@@ -115,15 +115,12 @@ async function DashboardContent({ userId }: { userId: string }) {
   const timeOfDay: "Morning" | "Afternoon" | "Evening" =
     hour < 12 ? "Morning" : hour < 18 ? "Afternoon" : "Evening";
 
-  const dayOfWeek = now.getDay(); // 0 (Sun) – 6 (Sat)
-
   return (
     <>
       {/* ── Phase 1–3: Zen hero + editorial greeting + metric cards */}
       <DashboardHero
         firstName={firstName}
         timeOfDay={timeOfDay}
-        dayOfWeek={dayOfWeek}
         metrics={{
           newLeads:   newLeadsCount  ?? 0,
           active:     activeCount    ?? 0,

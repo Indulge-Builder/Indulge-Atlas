@@ -45,7 +45,8 @@ export interface WinEntry {
   first_name:  string;
   last_name:   string | null;
   deal_value:  number | null;
-  source:      string | null;
+  utm_source:  string | null;
+  utm_medium:  string | null;
   campaign_id: string | null;
   updated_at:  string;
 }
@@ -85,7 +86,7 @@ export async function getScoutAnalytics(): Promise<ScoutAnalyticsData> {
       supabase
         .from("leads")
         .select(
-          "id, first_name, last_name, deal_value, source, campaign_id, updated_at"
+          "id, first_name, last_name, deal_value, utm_source, utm_medium, campaign_id, updated_at"
         )
         .eq("status", "won")
         .not("deal_value", "is", null)

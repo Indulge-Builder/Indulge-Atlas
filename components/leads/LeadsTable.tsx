@@ -28,10 +28,10 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { LeadStatusBadge } from "@/components/leads/LeadStatusBadge";
 import { LeadSourceBadge } from "@/components/ui/LeadSourceBadge";
-import { formatLeadSource } from "@/lib/utils/lead-source-mapper";
 import { getInitials, formatDate } from "@/lib/utils";
 import {
   LEAD_STATUS_CONFIG,
+  LEAD_STATUS_ORDER,
   type Lead,
   type LeadStatus,
   type UserRole,
@@ -42,9 +42,9 @@ const PAGE_SIZE = 20;
 
 const STATUS_OPTIONS: { value: LeadStatus | "ALL"; label: string }[] = [
   { value: "ALL", label: "All statuses" },
-  ...Object.entries(LEAD_STATUS_CONFIG).map(([key, config]) => ({
-    value: key as LeadStatus,
-    label: config.label,
+  ...LEAD_STATUS_ORDER.map((status) => ({
+    value: status,
+    label: LEAD_STATUS_CONFIG[status].label,
   })),
 ];
 
@@ -385,7 +385,6 @@ function LeadRow({
           {/* Source */}
           <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
             <LeadSourceBadge
-              source={lead.source}
               utmSource={lead.utm_source}
               utmMedium={lead.utm_medium}
               utmCampaign={lead.utm_campaign}
@@ -411,24 +410,16 @@ function LeadRow({
 
           {/* Campaign */}
           <td className="px-4 py-4 max-w-[180px]">
-            {(() => {
-              const { campaign } = formatLeadSource(
-                lead.source,
-                lead.utm_source,
-                lead.utm_medium,
-                lead.utm_campaign,
-              );
-              return campaign ? (
-                <span
-                  className="text-xs text-[#6B6B6B] truncate block max-w-[160px]"
-                  title={campaign}
-                >
-                  {campaign}
-                </span>
-              ) : (
-                <span className="text-[#D0C8BE] text-xs select-none">—</span>
-              );
-            })()}
+            {lead.utm_campaign ? (
+              <span
+                className="text-xs text-[#6B6B6B] truncate block max-w-[160px]"
+                title={lead.utm_campaign}
+              >
+                {lead.utm_campaign}
+              </span>
+            ) : (
+              <span className="text-[#D0C8BE] text-xs select-none">—</span>
+            )}
           </td>
 
           {/* Agent */}

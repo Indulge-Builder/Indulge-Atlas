@@ -78,16 +78,31 @@ export async function createLead(input: AddLeadFormValues): Promise<ActionResult
     const domainRaw = input.domain ?? "Indulge Global";
     const domainDb  = DOMAIN_MAP[domainRaw] ?? "indulge_global";
 
+    // Map form source to utm_source + utm_medium for attribution
+    const SOURCE_TO_UTM: Record<string, { source: string; medium?: string }> = {
+      "Meta Ads":       { source: "meta", medium: "facebook" },
+      "Google Ads":     { source: "google", medium: "search" },
+      "Website Form":   { source: "website", medium: "organic" },
+      "Referral":       { source: "referral" },
+      "Direct/WhatsApp": { source: "whatsapp" },
+    };
+    const utmMapping = input.source ? SOURCE_TO_UTM[input.source] : null;
+    const utmSource = utmMapping?.source ?? (input.source ? input.source.toLowerCase().replace(/\s+/g, "_") : null);
+    const utmMedium = utmMapping?.medium ?? null;
+    const campaignName = input.campaign_name?.trim() || null;
+
     const { data: lead, error: leadError } = await serviceClient
       .from("leads")
       .insert({
-        first_name:  firstName,
-        last_name:   lastName,
+        first_name:   firstName,
+        last_name:    lastName,
         phone_number: input.phone.trim(),
         email:        input.email?.trim() || null,
         city:         input.city?.trim() || null,
-        source:       input.source || null,
-        campaign_id:  input.campaign_name?.trim() || null,
+        utm_source:   utmSource,
+        utm_medium:   utmMedium,
+        utm_campaign: campaignName,
+        campaign_id:  campaignName,
         domain:       domainDb,
         status:       "new",
         assigned_to:  assignedTo,
@@ -109,7 +124,7 @@ export async function createLead(input: AddLeadFormValues): Promise<ActionResult
       type:         "note",
       payload: {
         text:      "Lead created manually",
-        source:    input.source ?? "Manual entry",
+        utm_source: utmSource ?? "manual",
         timestamp: new Date().toISOString(),
       },
     });

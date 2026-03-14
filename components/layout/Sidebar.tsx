@@ -19,6 +19,7 @@ import {
   Award,
   Compass,
   Trophy,
+  AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -43,7 +44,7 @@ const navItems = [
     href: "/",
     label: "Dashboard",
     icon: LayoutDashboard,
-    roles: ["agent"],
+    roles: ["agent", "scout", "admin"],
     section: "main",
   },
   {
@@ -78,6 +79,13 @@ const navItems = [
     href: "/conversions",
     label: "My Conversions",
     icon: Trophy,
+    roles: ["agent"],
+    section: "main",
+  },
+  {
+    href: "/escalations",
+    label: "Escalations",
+    icon: AlertTriangle,
     roles: ["agent"],
     section: "main",
   },
@@ -254,20 +262,25 @@ export function Sidebar({ profile }: SidebarProps) {
     <aside className="fixed left-0 top-0 h-full w-60 flex flex-col z-40">
       {/* ── Logo mark ──────────────────────────────────── */}
       <div className="px-5 pt-7 pb-5 flex flex-col items-center">
-        <div
-          style={{
-            filter:
-              "drop-shadow(0 0 8px rgba(212,175,55,0.30)) drop-shadow(0 0 18px rgba(212,175,55,0.12))",
-          }}
+        <Link
+          href="/"
+          className="block cursor-pointer hover:opacity-90 transition-opacity"
         >
-          <img
-            src="/logo.svg"
-            alt="Indulge Global"
-            width={43}
-            height={46}
-            className="object-contain select-none"
-          />
-        </div>
+          <div
+            style={{
+              filter:
+                "drop-shadow(0 0 8px rgba(212,175,55,0.30)) drop-shadow(0 0 18px rgba(212,175,55,0.12))",
+            }}
+          >
+            <img
+              src="/logo.svg"
+              alt="Indulge Global"
+              width={43}
+              height={46}
+              className="object-contain select-none"
+            />
+          </div>
+        </Link>
 
         {/* Hairline divider */}
         <div

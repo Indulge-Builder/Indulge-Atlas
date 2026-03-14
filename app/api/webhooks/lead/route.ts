@@ -28,9 +28,12 @@ const pabblyPayloadSchema = z.object({
   last_name:    z.string().optional(),
   email:        z.string().email("Invalid email").optional().or(z.literal("")),
   phone_number: z.string().min(4, "phone_number is required"),
-  source:       z.string().min(1, "source is required"),
+  utm_source:   z.string().optional(),
+  utm_medium:   z.string().optional(),
+  utm_campaign: z.string().optional(),
   campaign_id:  z.string().optional(),
-});
+  source:       z.string().optional(), // legacy: map to utm_source if utm_source absent
+}).passthrough();
 
 type PabblyPayload = z.infer<typeof pabblyPayloadSchema>;
 
@@ -167,6 +170,10 @@ export async function POST(request: NextRequest) {
   // ── Step 4: Round-robin agent assignment ───────────────
   const assignedAgentId = await pickNextAgent();
 
+  // Map legacy "source" to utm_source when utm_source is absent
+  const utmSource = payload.utm_source?.trim() ?? payload.source?.trim() ?? null;
+  const utmCampaign = payload.utm_campaign?.trim() ?? payload.campaign_id?.trim() ?? null;
+
   // ── Step 5: Insert lead ────────────────────────────────
   const { data: lead, error: insertError } = await supabase
     .from("leads")
@@ -175,7 +182,9 @@ export async function POST(request: NextRequest) {
       last_name:    payload.last_name?.trim() || null,
       phone_number: payload.phone_number.trim(),
       email:        payload.email?.trim() || null,
-      source:       payload.source.trim(),
+      utm_source:   utmSource,
+      utm_medium:   payload.utm_medium?.trim() ?? null,
+      utm_campaign: utmCampaign,
       campaign_id:  payload.campaign_id?.trim() ?? null,
       status:       "new",
       assigned_to:  assignedAgentId,
@@ -205,8 +214,8 @@ export async function POST(request: NextRequest) {
         payload: {
           from:      null,
           to:        "new",
-          note:      `Lead ingested via Pabbly (source: ${payload.source}). Assigned via recency-based round-robin.`,
-          source:    payload.source,
+          note:      `Lead ingested via Pabbly (utm: ${utmSource ?? "none"}). Assigned via recency-based round-robin.`,
+          utm_source: utmSource,
           timestamp: new Date().toISOString(),
         },
       });

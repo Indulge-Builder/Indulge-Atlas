@@ -39,15 +39,29 @@ export interface Message {
 }
 
 // ── Enums — must match the PostgreSQL enum values exactly ──
+// Strict 8-stage pipeline: new → attempted → connected → in_discussion → won | nurturing | lost | trash
 
 export type LeadStatus =
   | "new"
   | "attempted"
+  | "connected"
   | "in_discussion"
   | "won"
-  | "lost"
   | "nurturing"
+  | "lost"
   | "trash";
+
+/** Logical pipeline order for dropdowns and filters */
+export const LEAD_STATUS_ORDER: LeadStatus[] = [
+  "new",
+  "attempted",
+  "connected",
+  "in_discussion",
+  "won",
+  "nurturing",
+  "lost",
+  "trash",
+];
 
 export type UserRole = "agent" | "scout" | "admin" | "finance";
 
@@ -124,6 +138,24 @@ export type LostReasonTag =
   | "went_with_competitor"
   | "ghosted_unresponsive";
 
+/** Lost deal modal options (Google Sheet tag mapping) */
+export type LostReason =
+  | "Not Interested"
+  | "Price Objection"
+  | "Bought Competitor"
+  | "Other";
+
+/** Trash modal options */
+export type TrashReason =
+  | "Incorrect Data"
+  | "Not our TG"
+  | "Spam";
+
+/** Nurture modal options */
+export type NurtureReason =
+  | "Future Prospect"
+  | "Cold";
+
 export interface Lead {
   id: string;
   first_name: string;
@@ -133,12 +165,9 @@ export interface Lead {
   email: string | null;
   city: string | null;
   address: string | null;
-  // Acquisition channel identifier: website | whatsapp | meta_lead_form | facebook | instagram
-  channel: string | null;
-  source: string | null;
   campaign_id: string | null;
-  // Raw JSONB from the lead capture form
-  form_responses: Record<string, unknown> | null;
+  // Raw JSONB from Meta Lead Ad, Pabbly passthrough, website form — all dynamic fields (incl. message)
+  form_data: Record<string, unknown> | null;
   // UTM attribution — joined to campaign_metrics.campaign_id via utm_campaign
   utm_source: string | null;
   utm_medium: string | null;
@@ -149,17 +178,24 @@ export interface Lead {
   status: LeadStatus;
   assigned_to: string | null;
   assigned_at: string | null;
+  is_off_duty: boolean;
+  agent_alert_sent?: boolean;
+  manager_alert_sent?: boolean;
   notes: string | null;
-  // Phase 1: Lost lead churn analysis
+  // Phase 1: Lost lead churn analysis (legacy)
   lost_reason_tag: LostReasonTag | null;
   lost_reason_notes: string | null;
+  // Pipeline overhaul: disposition reasons (TEXT from modals)
+  lost_reason: string | null;
+  trash_reason: string | null;
+  nurture_reason: string | null;
+  attempt_count?: number;
   // Phase 2: Agent-private scratchpad (never sent to scouts/admins)
   private_scratchpad: string | null;
-  // Phase 4: Client persona & lifestyle notes
+  // Phase 4: Client persona & lifestyle notes (birthday, hobbies, etc.)
   personal_details: string | null;
   // Phase 5: Executive Dossier fields
   company: string | null;
-  hobbies: string | null;
   created_at: string;
   updated_at: string;
   // Joined
@@ -272,52 +308,66 @@ export interface Database {
   };
 }
 
-// ── Lead status display config ─────────────────────────────
+// ── Lead status display config (Quiet Luxury color coding) ──
 
 export const LEAD_STATUS_CONFIG: Record<
   LeadStatus,
-  { label: string; color: string; bgColor: string; description: string }
+  { label: string; color: string; bgColor: string; description: string; className?: string }
 > = {
   new: {
     label: "New",
-    color: "#2C6FAC",
-    bgColor: "#E8F0FA",
+    color: "#D4AF37",
+    bgColor: "rgba(212, 175, 55, 0.2)",
     description: "Freshly assigned, not yet contacted",
+    className: "bg-amber-500/20 text-amber-500",
   },
   attempted: {
     label: "Attempted",
-    color: "#C5830A",
-    bgColor: "#FEF3D0",
+    color: "#3B82F6",
+    bgColor: "rgba(59, 130, 246, 0.2)",
     description: "Contact attempted, awaiting response",
+    className: "bg-blue-500/20 text-blue-500",
+  },
+  connected: {
+    label: "Connected",
+    color: "#818CF8",
+    bgColor: "rgba(129, 140, 248, 0.2)",
+    description: "First contact established",
+    className: "bg-indigo-500/20 text-indigo-400",
   },
   in_discussion: {
     label: "In Discussion",
-    color: "#6B4FBB",
-    bgColor: "#F0EBFF",
+    color: "#10B981",
+    bgColor: "rgba(16, 185, 129, 0.2)",
     description: "Actively engaged in conversation",
+    className: "bg-emerald-500/20 text-emerald-500",
   },
   won: {
     label: "Won",
-    color: "#4A7C59",
-    bgColor: "#EBF4EF",
+    color: "#D4AF37",
+    bgColor: "rgba(212, 175, 55, 0.2)",
     description: "Qualified and sent to Finance",
-  },
-  lost: {
-    label: "Lost",
-    color: "#C0392B",
-    bgColor: "#FAEAE8",
-    description: "Lead did not convert",
+    className: "bg-[#D4AF37]/20 text-[#D4AF37]",
   },
   nurturing: {
     label: "Nurturing",
-    color: "#8A8A6E",
-    bgColor: "#F4F4EE",
+    color: "#A78BFA",
+    bgColor: "rgba(167, 139, 250, 0.2)",
     description: "Long-term follow-up scheduled",
+    className: "bg-purple-500/20 text-purple-400",
+  },
+  lost: {
+    label: "Lost",
+    color: "#EF4444",
+    bgColor: "rgba(239, 68, 68, 0.2)",
+    description: "Lead did not convert",
+    className: "bg-red-500/20 text-red-500",
   },
   trash: {
     label: "Trash",
-    color: "#9E9E9E",
-    bgColor: "#F5F5F5",
+    color: "#6B7280",
+    bgColor: "rgba(107, 114, 128, 0.15)",
     description: "Invalid or irrelevant contact",
+    className: "bg-zinc-500/20 text-zinc-500",
   },
 };

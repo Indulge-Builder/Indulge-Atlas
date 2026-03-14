@@ -13,22 +13,21 @@ export function LeadStatusBadge({
   className,
 }: LeadStatusBadgeProps) {
   const config = LEAD_STATUS_CONFIG[status];
+  const useTailwind = !!config.className;
 
   return (
     <span
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full font-medium",
         size === "sm" ? "text-[11px] px-2 py-0.5" : "text-xs px-2.5 py-1",
+        useTailwind ? config.className : undefined,
         className
       )}
-      style={{
-        backgroundColor: config.bgColor,
-        color: config.color,
-      }}
+      style={!useTailwind ? { backgroundColor: config.bgColor, color: config.color } : undefined}
     >
       <span
-        className="w-1.5 h-1.5 rounded-full shrink-0"
-        style={{ backgroundColor: config.color }}
+        className="w-1.5 h-1.5 rounded-full shrink-0 bg-current opacity-80"
+        style={!useTailwind ? { backgroundColor: config.color, opacity: 1 } : undefined}
       />
       {config.label}
     </span>

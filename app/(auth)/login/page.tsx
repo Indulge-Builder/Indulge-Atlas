@@ -3,10 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Eye, EyeOff, ArrowRight, Loader2, ArrowLeft } from "lucide-react";
+import { Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { resetPasswordForEmail } from "@/lib/actions/auth";
-import { toast } from "sonner";
 
 // ── Quote corpus ───────────────────────────────────────────
 // 50 short reflections on luxury, mastery, and presence.
@@ -84,31 +82,11 @@ export default function LoginPage() {
     }
   }, []);
 
-  const [mode, setMode] = useState<"login" | "reset">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  async function handleResetSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    const result = await resetPasswordForEmail(email);
-    setLoading(false);
-    if (result.success) {
-      toast.success(
-        "If an account exists, a secure reset link has been dispatched.",
-        {
-          style: { borderColor: "rgba(212,175,55,0.4)" },
-        },
-      );
-      setMode("login");
-    } else {
-      setError(result.error ?? "Something went wrong.");
-    }
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -343,107 +321,17 @@ export default function LoginPage() {
                 letterSpacing: "-0.01em",
               }}
             >
-              {mode === "reset" ? "Reset your password." : "Welcome back."}
+              Welcome back.
             </h2>
           </div>
 
-          {/* Form — AnimatePresence for login ↔ reset transition */}
-          <AnimatePresence mode="wait">
-            {mode === "reset" ? (
-              <motion.form
-                key="reset"
-                initial={{ opacity: 0, x: 12 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -12 }}
-                transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                onSubmit={handleResetSubmit}
-                className="space-y-10"
-              >
-                <div className="group">
-                  <label className="block text-[#5A5550] text-[9px] tracking-[0.45em] uppercase font-medium mb-3">
-                    Email
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="email"
-                      placeholder="agent@indulgeglobal.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                      autoComplete="email"
-                      className="w-full bg-transparent text-[#F5F0E8] text-sm pb-3 pr-4 outline-none placeholder:text-[#2E2B27] border-b transition-all duration-300"
-                      style={{
-                        borderBottomColor: email
-                          ? "rgba(212,175,55,0.6)"
-                          : "rgba(255,255,255,0.08)",
-                        caretColor: "#D4AF37",
-                      }}
-                    />
-                  </div>
-                </div>
-                {error && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="flex items-center gap-2.5 text-xs"
-                    style={{ color: "#C0392B" }}
-                  >
-                    <div
-                      className="w-1 h-1 rounded-full shrink-0"
-                      style={{ background: "#C0392B" }}
-                    />
-                    {error}
-                  </motion.div>
-                )}
-                <div className="pt-2">
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="group relative w-full flex items-center justify-between px-6 py-4 text-[#090807] text-sm font-semibold tracking-widest uppercase overflow-hidden transition-all duration-300 disabled:opacity-50"
-                    style={{
-                      background:
-                        "linear-gradient(135deg, #D4AF37 0%, #E8D06A 50%, #D4AF37 100%)",
-                      backgroundSize: "200% 100%",
-                      letterSpacing: "0.12em",
-                    }}
-                  >
-                    {loading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Sending</span>
-                        <span />
-                      </>
-                    ) : (
-                      <>
-                        <span />
-                        <span>Send Reset Link</span>
-                        <ArrowRight className="w-4 h-4" />
-                      </>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMode("login");
-                      setError(null);
-                    }}
-                    className="mt-6 flex items-center gap-2 text-[#5A5550] hover:text-[#D4AF37]/80 text-xs tracking-wider uppercase transition-colors"
-                  >
-                    <ArrowLeft className="w-3.5 h-3.5" />
-                    Back to sign in
-                  </button>
-                </div>
-              </motion.form>
-            ) : (
-              <motion.form
-                key="auth"
-                initial={{ opacity: 0, x: -12 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 12 }}
-                transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                onSubmit={handleSubmit}
-                className="space-y-10"
-              >
+          <motion.form
+            initial={{ opacity: 0, x: -12 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+            onSubmit={handleSubmit}
+            className="space-y-10"
+          >
                 {/* Email field — underline style */}
                 <div className="group">
                   <label className="block text-[#5A5550] text-[9px] tracking-[0.45em] uppercase font-medium mb-3">
@@ -519,18 +407,13 @@ export default function LoginPage() {
                       )}
                     </button>
                   </div>
-                  {mode === "login" && (
-                    <button
+                  <button
                       type="button"
-                      onClick={() => {
-                        setMode("reset");
-                        setError(null);
-                      }}
+                      onClick={() => router.push("/forgot-password")}
                       className="mt-2.5 block w-full text-right text-[#5A5550] hover:text-[#D4AF37]/70 text-[11px] tracking-wider transition-colors"
                     >
                       Forgot your password?
                     </button>
-                  )}
                 </div>
 
                 {/* Error */}
@@ -594,8 +477,6 @@ export default function LoginPage() {
                   />
                 </div>
               </motion.form>
-            )}
-          </AnimatePresence>
 
           {/* Footer */}
         </div>

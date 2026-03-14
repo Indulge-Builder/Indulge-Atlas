@@ -51,6 +51,7 @@ export interface AgentPerformanceData {
 const STAGE_DEFS: { stage: string; status: LeadStatus; isWon: boolean }[] = [
   { stage: "New",        status: "new",          isWon: false },
   { stage: "Attempted",  status: "attempted",    isWon: false },
+  { stage: "Connected",  status: "connected",    isWon: false },
   { stage: "Discussion", status: "in_discussion", isWon: false },
   { stage: "Nurturing",  status: "nurturing",    isWon: false },
   { stage: "Won",        status: "won",          isWon: true  },
@@ -99,7 +100,7 @@ export async function getAgentPerformance(
   const recentWins = (recentWinsResult.data ?? []) as RecentWin[];
 
   const activePipeline = leads.filter((l) =>
-    ["attempted", "in_discussion"].includes(l.status)
+    ["attempted", "connected", "in_discussion"].includes(l.status)
   ).length;
 
   const wonLeads  = leads.filter((l) => l.status === "won");

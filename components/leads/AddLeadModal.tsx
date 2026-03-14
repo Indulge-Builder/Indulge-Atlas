@@ -76,6 +76,7 @@ const selectTriggerCx =
 const STATUS_OPTIONS = [
   { value: "new", label: "New" },
   { value: "attempted", label: "Attempted" },
+  { value: "connected", label: "Connected" },
   { value: "in_discussion", label: "In Discussion" },
   { value: "nurturing", label: "Nurturing" },
 ] as const;

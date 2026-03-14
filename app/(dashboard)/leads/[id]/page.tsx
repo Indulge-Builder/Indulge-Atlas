@@ -35,6 +35,8 @@ import { LeadSourceBadge } from "@/components/ui/LeadSourceBadge";
 import { DynamicFormResponses } from "@/components/leads/DynamicFormResponses";
 import { getLeadTasks } from "@/lib/actions/tasks";
 import type { Lead, LeadActivity, Profile, UserRole } from "@/lib/types/database";
+import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
+import { addDays } from "date-fns";
 
 export const dynamic = "force-dynamic";
 
@@ -42,9 +44,30 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-// ── SLA helpers ─────────────────────────────────────────────────────────────
+// ── SLA helpers (Speed-to-Lead: On-Duty 5/10/15m, Off-Duty 60/90/120m from 9 AM IST) ─
 
-function getSLAInfo(assignedAt: string | null): {
+const IST = "Asia/Kolkata";
+
+function getOffDutyAnchor(createdAt: string): Date {
+  const created = new Date(createdAt);
+  const h = parseInt(formatInTimeZone(created, IST, "H"), 10);
+  const y = parseInt(formatInTimeZone(created, IST, "yyyy"), 10);
+  const m = parseInt(formatInTimeZone(created, IST, "M"), 10);
+  const d = parseInt(formatInTimeZone(created, IST, "d"), 10);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const midnightIST = fromZonedTime(`${y}-${pad(m)}-${pad(d)}T00:00:00`, IST);
+  const anchorDate = addDays(midnightIST, h >= 18 ? 1 : 0);
+  const y2 = parseInt(formatInTimeZone(anchorDate, IST, "yyyy"), 10);
+  const m2 = parseInt(formatInTimeZone(anchorDate, IST, "M"), 10);
+  const d2 = parseInt(formatInTimeZone(anchorDate, IST, "d"), 10);
+  return fromZonedTime(`${y2}-${pad(m2)}-${pad(d2)}T09:00:00`, IST);
+}
+
+function getSLAInfo(
+  assignedAt: string | null,
+  createdAt: string | null,
+  isOffDuty: boolean
+): {
   label:     string;
   sublabel:  string;
   color:     string;
@@ -61,41 +84,34 @@ function getSLAInfo(assignedAt: string | null): {
     };
   }
 
-  const diffMs    = Date.now() - new Date(assignedAt).getTime();
-  const diffMins  = Math.floor(diffMs / 60_000);
+  const now = Date.now();
+  let diffMins: number;
+  if (isOffDuty && createdAt) {
+    const anchor = getOffDutyAnchor(createdAt);
+    const elapsed = now - anchor.getTime();
+    diffMins = Math.max(0, Math.floor(elapsed / 60_000));
+  } else {
+    diffMins = Math.floor((now - new Date(assignedAt).getTime()) / 60_000);
+  }
   const diffHours = Math.floor(diffMins / 60);
   const diffDays  = Math.floor(diffHours / 24);
 
   let label: string;
-  if (diffMins < 60)      label = `${diffMins}m ago`;
+  if (diffMins < 60)       label = `${diffMins}m ago`;
   else if (diffHours < 24) label = `${diffHours}h ${diffMins % 60}m ago`;
   else                     label = `${diffDays}d ago`;
 
-  if (diffHours >= 3) {
-    return {
-      label,
-      sublabel:  "Action required",
-      color:     "#C0392B",
-      bgColor:   "#FAEAE8",
-      showAlert: true,
-    };
+  const threshold = isOffDuty ? 120 : 15;
+  if (diffMins >= threshold) {
+    return { label, sublabel: "ESCALATED", color: "#C0392B", bgColor: "#FAEAE8", showAlert: true };
   }
-  if (diffHours >= 1) {
-    return {
-      label,
-      sublabel:  "Follow up soon",
-      color:     "#C5830A",
-      bgColor:   "#FEF3D0",
-      showAlert: false,
-    };
+  if (diffMins >= (isOffDuty ? 90 : 10)) {
+    return { label, sublabel: "SLA breaching soon", color: "#C0392B", bgColor: "#FAEAE8", showAlert: true };
   }
-  return {
-    label,
-    sublabel:  "Within SLA",
-    color:     "#4A7C59",
-    bgColor:   "#EBF4EF",
-    showAlert: false,
-  };
+  if (diffMins >= (isOffDuty ? 60 : 5)) {
+    return { label, sublabel: "Lead waiting", color: "#C5830A", bgColor: "#FEF3D0", showAlert: false };
+  }
+  return { label, sublabel: "Within SLA", color: "#4A7C59", bgColor: "#EBF4EF", showAlert: false };
 }
 
 export default async function LeadDetailPage({ params }: PageProps) {
@@ -164,13 +180,13 @@ export default async function LeadDetailPage({ params }: PageProps) {
   const canViewCampaignData =
     userRole === "scout" || userRole === "admin" || userRole === "finance";
 
-  const sla = getSLAInfo(lead.assigned_at);
+  const sla = getSLAInfo(lead.assigned_at, lead.created_at, lead.is_off_duty ?? false);
 
   return (
     <div className="min-h-screen bg-[#F9F9F6]">
       <TopBar
         title={[lead.first_name, lead.last_name].filter(Boolean).join(" ")}
-        subtitle={`Lead · ${lead.source ?? "Direct"}`}
+        subtitle={`Lead · ${lead.utm_campaign ?? lead.utm_source ?? "Direct"}`}
         actions={
           <Link href="/leads">
             <Button variant="ghost" size="sm" className="gap-1.5 text-[#9E9E9E]">
@@ -214,7 +230,6 @@ export default async function LeadDetailPage({ params }: PageProps) {
                       <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                         <LeadStatusBadge status={lead.status} />
                         <LeadSourceBadge
-                          source={lead.source}
                           utmSource={lead.utm_source}
                           utmMedium={lead.utm_medium}
                           utmCampaign={lead.utm_campaign}
@@ -256,7 +271,7 @@ export default async function LeadDetailPage({ params }: PageProps) {
                       <InfoRow
                         icon={Megaphone}
                         label="Campaign"
-                        value={lead.utm_campaign ?? lead.source ?? "—"}
+                        value={lead.utm_campaign ?? lead.utm_source ?? "—"}
                       />
                       {lead.utm_source && (
                         <InfoRow
@@ -354,7 +369,7 @@ export default async function LeadDetailPage({ params }: PageProps) {
                 />
 
                 {/* Lost Reason — display if lead is lost */}
-                {lead.status === "lost" && lead.lost_reason_tag && (
+                {lead.status === "lost" && (lead.lost_reason || lead.lost_reason_tag) && (
                   <>
                     <Separator className="my-4" />
                     <div>
@@ -363,7 +378,7 @@ export default async function LeadDetailPage({ params }: PageProps) {
                       </p>
                       <div className="bg-[#FAEAE8] border border-[#C0392B]/15 rounded-lg p-3">
                         <p className="text-xs font-semibold text-[#8B1A1A] uppercase tracking-wider">
-                          {LOST_REASON_LABELS[lead.lost_reason_tag] ?? lead.lost_reason_tag}
+                          {lead.lost_reason ?? LOST_REASON_LABELS[lead.lost_reason_tag!] ?? lead.lost_reason_tag}
                         </p>
                         {lead.lost_reason_notes && (
                           <p className="text-sm text-[#4A1A1A] mt-1.5 leading-relaxed">
@@ -403,7 +418,9 @@ export default async function LeadDetailPage({ params }: PageProps) {
             )}
 
             {/* Intake Questionnaire */}
-            <DynamicFormResponses responses={lead.form_responses} />
+            {lead.form_data && Object.keys(lead.form_data).length > 0 && (
+              <DynamicFormResponses responses={lead.form_data} />
+            )}
 
             {/* Scheduled Tasks — upcoming actions take priority over history */}
             <LeadTaskWidget
@@ -454,6 +471,7 @@ export default async function LeadDetailPage({ params }: PageProps) {
               leadId={lead.id}
               leadName={`${lead.first_name} ${lead.last_name ?? ""}`.trim()}
               currentStatus={lead.status}
+              attemptCount={lead.attempt_count ?? 0}
             />
 
             {/* Agent private scratchpad — only for the assigned agent */}

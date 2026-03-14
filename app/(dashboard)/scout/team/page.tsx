@@ -64,7 +64,7 @@ export default async function ScoutTeamPage() {
   await getAuthorisedProfile();
 
   return (
-    <div className="min-h-screen bg-[#F9F9F6]">
+    <div className="bg-[#F9F9F6]">
       <TopBar
         title="Our Team."
         subtitle="Conversion metrics and pipeline health."

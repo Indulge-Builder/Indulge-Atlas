@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { timingSafeEqual } from "crypto";
 import { z } from "zod";
+import { toZonedTime } from "date-fns-tz";
+import { getHours } from "date-fns";
 
 // ── Supabase admin client ──────────────────────────────────────────────────────
 // Service role key bypasses RLS — this is intentional for server-to-server intake.
@@ -12,6 +14,18 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
   { auth: { autoRefreshToken: false, persistSession: false } },
 );
+
+// ── IST timezone for Speed-to-Lead ────────────────────────────────────────
+const IST = "Asia/Kolkata";
+
+/** True if insertion time is off-duty: 6 PM – 8:59 AM IST */
+function isOffDutyInsertion(): boolean {
+  const now = new Date();
+  const istNow = toZonedTime(now, IST);
+  const h = getHours(istNow);
+  // Off-duty: 18:00–23:59 or 00:00–08:59. On-duty: 09:00–17:59
+  return h >= 18 || h < 9;
+}
 
 // ── Timing-safe secret comparison ─────────────────────────────────────────────
 // Prevents timing-oracle attacks where response latency leaks secret length/chars.
@@ -31,10 +45,9 @@ function secretsMatch(incoming: string, expected: string): boolean {
 // Only first_name and domain are hard requirements — everything else collapses
 // empty strings / undefined / null to null so the DB stays clean.
 //
-// .passthrough() is critical: unknown keys sent by Pabbly (e.g. `channel`,
-// custom Meta Lead Ad questions, chatbot answers) are preserved on parsed.data
-// so we can safely funnel them into the `form_responses` JSONB column below
-// rather than letting Supabase reject the whole row.
+// .passthrough() is critical: unknown keys sent by Pabbly (e.g. custom Meta Lead
+// Ad questions, chatbot answers) are preserved on parsed.data so we can safely
+// funnel them into the `form_data` JSONB column below.
 const emptyStringToNull = z
   .string()
   .trim()
@@ -91,12 +104,13 @@ const leadPayloadSchema = z
       .nullable()
       .optional(),
 
-    // ── Dynamic / non-column fields — validated here, stored in form_responses
-    // `channel`, `message`, `form_responses`, and any other keys Pabbly sends
-    // that are NOT explicit DB columns are destructured into `dynamicRest`
-    // below and packed into the `form_responses` JSONB column.
-    channel: emptyStringToNull,
+    // ── Standard columns: campaign_id ───────────────────────────────────
+    campaign_id: z.string().optional().nullable(),
+    // message: accepted from webhook, funneled into form_data (no separate column)
     message: emptyStringToNull,
+
+    // ── form_data + legacy form_responses (both merged into form_data column)
+    form_data: z.record(z.string(), z.any()).nullable().optional(),
     form_responses: z.record(z.string(), z.any()).nullable().optional(),
   })
   .passthrough(); // Preserve any extra keys not listed above
@@ -171,10 +185,9 @@ export async function POST(request: NextRequest) {
   const assignedAgentId = await pickNextAgent();
 
   // ── Step 5: Sanitize payload — only known DB columns go into dbPayload ─────
-  // Destructure every column that exists in the `leads` table as a first-class
-  // field. Everything else (channel, message, form_responses, random Meta Lead
-  // Ad questions, WA chatbot answers, etc.) lands in `dynamicRest` and is
-  // stored as-is in the `form_responses` JSONB column so zero data is lost.
+  // Destructure standard columns. ALL other dynamic data (Meta form questions,
+  // random Pabbly fields) goes into `dynamicRest` and is saved strictly into
+  // the `form_data` column.
   const {
     first_name,
     last_name,
@@ -188,21 +201,26 @@ export async function POST(request: NextRequest) {
     utm_source,
     utm_medium,
     utm_campaign,
-    // Non-column fields captured for form_responses / source derivation:
-    channel,
-    message,
-    form_responses,
-    ...extraFields // any remaining passthrough keys from Pabbly
+    campaign_id,
+    message, // funneled into form_data (no separate message column)
+    form_data: incomingFormData,
+    form_responses: legacyFormResponses, // Pabbly may still send this; merge into form_data
+    ...dynamicRest
   } = payload;
 
-  // Merge all non-column data into a single JSONB object.
-  // Omit null/undefined values to keep the stored JSON tidy.
-  const dynamicRest: Record<string, unknown> = {
-    ...(channel != null ? { channel } : {}),
-    ...(message != null ? { message } : {}),
-    ...(form_responses != null ? { form_responses } : {}),
-    ...extraFields,
+  // Merge: incoming form_data, legacy form_responses, message (if any), and passthrough keys
+  const formDataMerged: Record<string, unknown> = {
+    ...(typeof incomingFormData === "object" && incomingFormData != null
+      ? incomingFormData
+      : {}),
+    ...(typeof legacyFormResponses === "object" && legacyFormResponses != null
+      ? legacyFormResponses
+      : {}),
+    ...(message?.trim() ? { message: message.trim() } : {}),
+    ...dynamicRest,
   };
+
+  const isOffDuty = isOffDutyInsertion();
 
   const dbPayload = {
     first_name,
@@ -217,15 +235,14 @@ export async function POST(request: NextRequest) {
     utm_source: utm_source ?? null,
     utm_medium: utm_medium ?? null,
     utm_campaign: utm_campaign ?? null,
-    // `source` is the human-readable acquisition channel stored as plain text
-    source: (channel as string | null | undefined) ?? utm_source ?? null,
-    // All dynamic / non-column fields packed into JSONB — never lost
-    form_responses: Object.keys(dynamicRest).length > 0 ? dynamicRest : null,
+    campaign_id: campaign_id ?? null,
+    form_data: Object.keys(formDataMerged).length > 0 ? formDataMerged : null,
     assigned_to: assignedAgentId,
     assigned_at: assignedAgentId ? new Date().toISOString() : null,
+    is_off_duty: isOffDuty,
   };
 
-  console.log("[webhooks/leads] Payload sanitized. Campaign:", dbPayload.utm_campaign ?? "organic", "| Assigned to:", assignedAgentId ?? "unassigned");
+  console.log("[webhooks/leads] Payload sanitized. Campaign:", dbPayload.utm_campaign ?? "organic", "| Assigned to:", assignedAgentId ?? "unassigned", "| is_off_duty:", isOffDuty);
 
   // ── Step 6: Insert lead ─────────────────────────────────────────────────────
   const { data: lead, error: insertError } = await supabase

@@ -2,7 +2,6 @@
 
 import type { Profile } from "@/lib/types/database";
 import { AgentSLAAlert } from "./AgentSLAAlert";
-import { ScoutSLAAlerts } from "./ScoutSLAAlerts";
 
 interface SLAProviderProps {
   profile: Profile;
@@ -21,9 +20,7 @@ export function SLAProvider({ profile, children }: SLAProviderProps) {
       {profile.role === "agent" && (
         <AgentSLAAlert userId={profile.id} />
       )}
-      {(profile.role === "scout" || profile.role === "admin") && (
-        <ScoutSLAAlerts userId={profile.id} />
-      )}
+      {/* Scout SLA bell is rendered in TopBar (or DashboardHero for /) — not here */}
     </>
   );
 }

@@ -13,14 +13,20 @@ export async function GET(request: Request) {
   const next = searchParams.get("next") ?? "/";
 
   if (!code) {
-    return NextResponse.redirect(`${BASE_URL}/login?error=Invalid_Link`);
+    const isResetFlow = next === "/update-password";
+    return NextResponse.redirect(
+      `${BASE_URL}${isResetFlow ? "/update-password" : "/login"}?error=Invalid_Link`
+    );
   }
 
   const supabase = await createClient();
   const { error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error) {
-    return NextResponse.redirect(`${BASE_URL}/login?error=Invalid_Link`);
+    const isResetFlow = next === "/update-password";
+    return NextResponse.redirect(
+      `${BASE_URL}${isResetFlow ? "/update-password" : "/login"}?error=Invalid_Link`
+    );
   }
 
   const safePath =

@@ -10,6 +10,10 @@ const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 export type AuthActionResult = { success: boolean; error?: string };
 
 export async function resetPasswordForEmail(email: string): Promise<AuthActionResult> {
+  return requestPasswordReset(email);
+}
+
+export async function requestPasswordReset(email: string): Promise<AuthActionResult> {
   try {
     const supabase = await createClient();
 
@@ -43,7 +47,10 @@ export async function updatePassword(newPassword: string): Promise<AuthActionRes
 
     if (error) return { success: false, error: error.message };
 
+    // Sign out after password change so user logs in with new password (security best practice)
+    await supabase.auth.signOut();
     revalidatePath("/profile");
+    revalidatePath("/login");
     return { success: true };
   } catch (e) {
     const message = e instanceof Error ? e.message : "Unexpected error";

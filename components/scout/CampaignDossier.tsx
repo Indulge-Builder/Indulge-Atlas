@@ -19,13 +19,14 @@ import type { LeadStatus } from "@/lib/types/database";
 import { getCampaignDossier } from "@/lib/actions/campaigns";
 
 const STATUS_COLOURS: Record<LeadStatus, string> = {
-  new:           "bg-[#D4AF37]/15 text-[#D4AF37]",
-  attempted:     "bg-blue-500/15 text-blue-400",
-  in_discussion: "bg-violet-500/15 text-violet-400",
-  won:           "bg-emerald-500/15 text-emerald-400",
-  lost:          "bg-red-500/15 text-red-400",
-  nurturing:     "bg-orange-500/15 text-orange-400",
-  trash:         "bg-zinc-700/30 text-zinc-500",
+  new:           "bg-amber-500/20 text-amber-500",
+  attempted:     "bg-blue-500/20 text-blue-500",
+  connected:     "bg-indigo-500/20 text-indigo-400",
+  in_discussion: "bg-emerald-500/20 text-emerald-500",
+  won:           "bg-[#D4AF37]/20 text-[#D4AF37]",
+  nurturing:     "bg-purple-500/20 text-purple-400",
+  lost:          "bg-red-500/20 text-red-500",
+  trash:         "bg-zinc-500/20 text-zinc-500",
 };
 
 // ── Formatters ─────────────────────────────────────────────────────────────────
@@ -71,6 +72,7 @@ function MetricChip({
 const STATUS_LABELS: Record<LeadStatus, string> = {
   new:           "New",
   attempted:     "Attempted",
+  connected:     "Connected",
   in_discussion: "In Discussion",
   won:           "Won",
   lost:          "Lost",

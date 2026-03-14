@@ -55,7 +55,6 @@ const ICON_COLOURS: Record<LeadIconType, string> = {
 // ── Component ──────────────────────────────────────────────────────────────────
 
 interface LeadSourceBadgeProps {
-  source:       string | null | undefined;
   utmSource:    string | null | undefined;
   utmMedium:    string | null | undefined;
   utmCampaign?: string | null | undefined;
@@ -68,13 +67,12 @@ interface LeadSourceBadgeProps {
 }
 
 export function LeadSourceBadge({
-  source,
   utmSource,
   utmMedium,
   utmCampaign,
   variant = "light",
 }: LeadSourceBadgeProps) {
-  const info  = formatLeadSource(source, utmSource, utmMedium, utmCampaign);
+  const info  = formatLeadSource(utmSource, utmMedium, utmCampaign);
   const Icon  = ICON_MAP[info.iconType];
   const label = info.platform ? `${info.channel} · ${info.platform}` : info.channel;
 
@@ -129,12 +127,11 @@ export function LeadSourceBadge({
 // ── Inline text-only variant ───────────────────────────────────────────────────
 
 export function LeadSourceText({
-  source,
   utmSource,
   utmMedium,
   utmCampaign,
 }: Omit<LeadSourceBadgeProps, "variant">) {
-  const info = formatLeadSource(source, utmSource, utmMedium, utmCampaign);
+  const info = formatLeadSource(utmSource, utmMedium, utmCampaign);
   return (
     <span className="text-xs text-[#6B6B6B]">
       {info.channel}

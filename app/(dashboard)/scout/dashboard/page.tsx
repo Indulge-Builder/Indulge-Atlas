@@ -218,7 +218,7 @@ export default async function ScoutDashboardPage({
     : "this_month";
 
   return (
-    <div className="min-h-screen bg-[#F9F9F6]">
+    <div className="bg-[#F9F9F6]">
       <TopBar
         title="Command Center."
         actions={<MonthSelector initialPeriod={period} />}

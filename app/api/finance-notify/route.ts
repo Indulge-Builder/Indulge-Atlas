@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { formatDateTime } from "@/lib/utils";
+import { formatLeadSource } from "@/lib/utils/lead-source-mapper";
 import { timingSafeEqual } from "crypto";
 
 /**
@@ -139,7 +140,7 @@ Name:       ${[lead.first_name, lead.last_name].filter(Boolean).join(" ")}
 Phone:      ${lead.phone_number}
 Email:      ${lead.email ?? "—"}
 City:       ${lead.city ?? "—"}
-Source:     ${lead.source ?? "—"}
+Source:     ${formatLeadSource(lead.utm_source as string | null, lead.utm_medium as string | null).channel ?? "—"}
 Lead ID:    ${lead.id}
 
 ASSIGNED AGENT
@@ -196,7 +197,7 @@ function buildHtmlEmail(lead: Record<string, unknown>): string {
         <tr><td>Phone</td><td>${lead.phone_number}</td></tr>
         <tr><td>Email</td><td>${lead.email ?? "—"}</td></tr>
         <tr><td>City</td><td>${lead.city ?? "—"}</td></tr>
-        <tr><td>Source</td><td>${lead.source ?? "—"}</td></tr>
+        <tr><td>Source</td><td>${formatLeadSource(lead.utm_source as string | null, lead.utm_medium as string | null).channel ?? "—"}</td></tr>
         <tr><td>Lead ID</td><td>${lead.id}</td></tr>
       </table>
       <p class="section-title">Assigned Agent</p>

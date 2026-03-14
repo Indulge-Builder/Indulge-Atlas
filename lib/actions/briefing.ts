@@ -76,7 +76,7 @@ export async function getBriefingData(_callerUserId?: string): Promise<BriefingD
     supabase
       .from("leads")
       .select("id, status")
-      .in("status", ["in_discussion", "attempted"]),
+      .in("status", ["in_discussion", "connected", "attempted"]),
   ]);
 
   const profile   = profileR.data;

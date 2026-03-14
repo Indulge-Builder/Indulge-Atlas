@@ -21,9 +21,19 @@ async function getAuthUser() {
 
 // ── Fetch Tasks for Reminder Engine ─────────────────────────
 // Returns pending tasks due today or in the future, for the current user.
+// Called from client components (TaskReminderProvider, NotificationBell) on mount —
+// may run before auth cookies are available; return [] instead of throwing.
 
 export async function getTasksForReminders(): Promise<TaskWithLead[]> {
-  const { supabase, user } = await getAuthUser();
+  let supabase: Awaited<ReturnType<typeof createClient>>;
+  let user: { id: string };
+  try {
+    const auth = await getAuthUser();
+    supabase = auth.supabase;
+    user = auth.user;
+  } catch {
+    return [];
+  }
 
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());

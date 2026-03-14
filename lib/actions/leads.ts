@@ -2,13 +2,20 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import type { LeadStatus, LostReasonTag } from "@/lib/types/database";
+import type {
+  LeadStatus,
+  LostReason,
+  LostReasonTag,
+  NurtureReason,
+  TrashReason,
+} from "@/lib/types/database";
 import { addMonths } from "date-fns";
 import { z } from "zod";
 
 interface ActionResult {
   success: boolean;
   error?: string;
+  attemptCount?: number;
 }
 
 async function getAuthUser() {
@@ -45,7 +52,7 @@ export async function updateLeadStatus(
 
     const { data: lead, error: fetchError } = await supabase
       .from("leads")
-      .select("status, assigned_to")
+      .select("status, assigned_to, attempt_count")
       .eq("id", leadId)
       .single();
 
@@ -56,10 +63,16 @@ export async function updateLeadStatus(
     }
 
     const oldStatus = lead.status;
+    const currentAttemptCount = (lead as { attempt_count?: number }).attempt_count ?? 0;
+
+    const updatePayload: Record<string, unknown> = { status: newStatus };
+    if (newStatus === "attempted") {
+      updatePayload.attempt_count = currentAttemptCount + 1;
+    }
 
     const { error: updateError } = await supabase
       .from("leads")
-      .update({ status: newStatus })
+      .update(updatePayload)
       .eq("id", leadId);
 
     if (updateError)
@@ -70,10 +83,11 @@ export async function updateLeadStatus(
       performed_by: user.id,
       type:         "status_change",
       payload: {
-        from:      oldStatus,
-        to:        newStatus,
-        note:      note ?? null,
-        timestamp: new Date().toISOString(),
+        from:           oldStatus,
+        to:             newStatus,
+        note:           note ?? null,
+        attempt_count:  newStatus === "attempted" ? currentAttemptCount + 1 : undefined,
+        timestamp:     new Date().toISOString(),
       },
     });
 
@@ -89,7 +103,7 @@ export async function updateLeadStatus(
     revalidatePath("/leads");
     revalidatePath("/");
 
-    return { success: true };
+    return { success: true, attemptCount: newStatus === "attempted" ? currentAttemptCount + 1 : undefined };
   } catch {
     return { success: false, error: "An unexpected error occurred" };
   }
@@ -106,7 +120,7 @@ export async function markAttemptedAndScheduleRetry(
 
     const { data: lead, error: fetchError } = await supabase
       .from("leads")
-      .select("assigned_to")
+      .select("assigned_to, attempt_count")
       .eq("id", leadId)
       .single();
 
@@ -116,9 +130,12 @@ export async function markAttemptedAndScheduleRetry(
       return { success: false, error: "Unauthorised" };
     }
 
+    const currentAttemptCount = (lead as { attempt_count?: number }).attempt_count ?? 0;
+    const newAttemptCount = currentAttemptCount + 1;
+
     const { error: updateError } = await supabase
       .from("leads")
-      .update({ status: "attempted" })
+      .update({ status: "attempted", attempt_count: newAttemptCount })
       .eq("id", leadId);
 
     if (updateError) return { success: false, error: "Failed to update lead" };
@@ -158,7 +175,7 @@ export async function markAttemptedAndScheduleRetry(
     revalidatePath(`/leads/${leadId}`);
     revalidatePath("/");
 
-    return { success: true };
+    return { success: true, attemptCount: newAttemptCount };
   } catch {
     return { success: false, error: "An unexpected error occurred" };
   }
@@ -264,7 +281,6 @@ export async function updateLeadDemographics(
     city?:             string | null;
     personal_details?: string | null;
     company?:          string | null;
-    hobbies?:          string | null;
   }
 ): Promise<ActionResult> {
   try {
@@ -286,7 +302,6 @@ export async function updateLeadDemographics(
     if ("city"             in data) patch.city             = data.city?.trim()             || null;
     if ("personal_details" in data) patch.personal_details = data.personal_details?.trim() || null;
     if ("company"          in data) patch.company          = data.company?.trim()          || null;
-    if ("hobbies"          in data) patch.hobbies          = data.hobbies?.trim()          || null;
 
     if (Object.keys(patch).length === 0) return { success: true };
 
@@ -349,7 +364,244 @@ export async function updateLeadEmail(
   }
 }
 
-// ── Mark Lead as Lost (with churn analysis) ───────────────
+// ── Mark Lead SLA Alert Sent (for escalation history) ────────────────────────
+
+export async function markLeadSLAAlertSent(
+  leadId: string,
+  agentLevel: boolean,
+  managerLevel: boolean
+): Promise<ActionResult> {
+  try {
+    const { supabase, user, role } = await getAuthUser();
+
+    const { data: lead, error: fetchError } = await supabase
+      .from("leads")
+      .select("assigned_to")
+      .eq("id", leadId)
+      .single();
+
+    if (fetchError || !lead) return { success: false, error: "Lead not found" };
+
+    if (!isPrivilegedRole(role) && lead.assigned_to !== user.id) {
+      return { success: false, error: "Unauthorised" };
+    }
+
+    const update: Record<string, boolean> = {};
+    if (agentLevel) update.agent_alert_sent = true;
+    if (managerLevel) update.manager_alert_sent = true;
+    if (Object.keys(update).length === 0) return { success: true };
+
+    const { error } = await supabase
+      .from("leads")
+      .update(update)
+      .eq("id", leadId);
+
+    if (error) return { success: false, error: "Failed to update" };
+
+    revalidatePath("/escalations");
+    return { success: true };
+  } catch {
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+// ── Disposition actions (Trash, Lost, Nurturing) with required reasons ───────
+
+const VALID_LOST_REASONS: LostReason[] = [
+  "Not Interested",
+  "Price Objection",
+  "Bought Competitor",
+  "Other",
+];
+
+const VALID_TRASH_REASONS: TrashReason[] = [
+  "Incorrect Data",
+  "Not our TG",
+  "Spam",
+];
+
+const VALID_NURTURE_REASONS: NurtureReason[] = [
+  "Future Prospect",
+  "Cold",
+];
+
+// ── Mark Lead as Trash ───────────────────────────────────────────────────────
+
+export async function markLeadTrash(
+  leadId: string,
+  reason: TrashReason
+): Promise<ActionResult> {
+  try {
+    if (!VALID_TRASH_REASONS.includes(reason)) {
+      return { success: false, error: "Invalid trash reason" };
+    }
+
+    const { supabase, user, role } = await getAuthUser();
+
+    const { data: lead, error: fetchError } = await supabase
+      .from("leads")
+      .select("status, assigned_to")
+      .eq("id", leadId)
+      .single();
+
+    if (fetchError || !lead) return { success: false, error: "Lead not found" };
+
+    if (!isPrivilegedRole(role) && lead.assigned_to !== user.id) {
+      return { success: false, error: "Unauthorised" };
+    }
+
+    const oldStatus = lead.status;
+
+    const { error: updateError } = await supabase
+      .from("leads")
+      .update({ status: "trash", trash_reason: reason })
+      .eq("id", leadId);
+
+    if (updateError) return { success: false, error: "Failed to update lead" };
+
+    await supabase.from("lead_activities").insert({
+      lead_id:      leadId,
+      performed_by: user.id,
+      type:         "status_change",
+      payload: {
+        from:         oldStatus,
+        to:           "trash",
+        trash_reason: reason,
+        timestamp:    new Date().toISOString(),
+      },
+    });
+
+    revalidatePath(`/leads/${leadId}`);
+    revalidatePath("/leads");
+    revalidatePath("/");
+
+    return { success: true };
+  } catch {
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+// ── Mark Lead as Lost (new disposition flow) ─────────────────────────────────
+
+export async function markLeadLost(
+  leadId: string,
+  reason: LostReason,
+  notes?: string
+): Promise<ActionResult> {
+  try {
+    if (!VALID_LOST_REASONS.includes(reason)) {
+      return { success: false, error: "Invalid lost reason" };
+    }
+
+    const { supabase, user, role } = await getAuthUser();
+
+    const { data: lead, error: fetchError } = await supabase
+      .from("leads")
+      .select("status, assigned_to")
+      .eq("id", leadId)
+      .single();
+
+    if (fetchError || !lead) return { success: false, error: "Lead not found" };
+
+    if (!isPrivilegedRole(role) && lead.assigned_to !== user.id) {
+      return { success: false, error: "Unauthorised" };
+    }
+
+    const oldStatus = lead.status;
+
+    const { error: updateError } = await supabase
+      .from("leads")
+      .update({
+        status:       "lost",
+        lost_reason:  reason,
+        lost_reason_notes: notes?.trim() || null,
+      })
+      .eq("id", leadId);
+
+    if (updateError) return { success: false, error: "Failed to update lead" };
+
+    await supabase.from("lead_activities").insert({
+      lead_id:      leadId,
+      performed_by: user.id,
+      type:         "status_change",
+      payload: {
+        from:        oldStatus,
+        to:          "lost",
+        lost_reason: reason,
+        note:        notes?.trim() ?? null,
+        timestamp:   new Date().toISOString(),
+      },
+    });
+
+    revalidatePath(`/leads/${leadId}`);
+    revalidatePath("/leads");
+    revalidatePath("/");
+
+    return { success: true };
+  } catch {
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+// ── Mark Lead as Nurturing (with reason) ────────────────────────────────────
+
+export async function markLeadNurturing(
+  leadId: string,
+  reason: NurtureReason
+): Promise<ActionResult> {
+  try {
+    if (!VALID_NURTURE_REASONS.includes(reason)) {
+      return { success: false, error: "Invalid nurture reason" };
+    }
+
+    const { supabase, user, role } = await getAuthUser();
+
+    const { data: lead, error: fetchError } = await supabase
+      .from("leads")
+      .select("status, assigned_to")
+      .eq("id", leadId)
+      .single();
+
+    if (fetchError || !lead) return { success: false, error: "Lead not found" };
+
+    if (!isPrivilegedRole(role) && lead.assigned_to !== user.id) {
+      return { success: false, error: "Unauthorised" };
+    }
+
+    const oldStatus = lead.status;
+
+    const { error: updateError } = await supabase
+      .from("leads")
+      .update({ status: "nurturing", nurture_reason: reason })
+      .eq("id", leadId);
+
+    if (updateError) return { success: false, error: "Failed to update lead" };
+
+    await supabase.from("lead_activities").insert({
+      lead_id:        leadId,
+      performed_by:   user.id,
+      type:           "status_change",
+      payload: {
+        from:           oldStatus,
+        to:             "nurturing",
+        nurture_reason: reason,
+        timestamp:      new Date().toISOString(),
+      },
+    });
+
+    await createNurturingTask(leadId, user.id);
+
+    revalidatePath(`/leads/${leadId}`);
+    revalidatePath("/leads");
+    revalidatePath("/");
+
+    return { success: true };
+  } catch {
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+// ── Legacy: Mark Lead as Lost (old tag-based, kept for backward compat) ──────
 
 const VALID_LOST_TAGS = [
   "budget_exceeded",
@@ -359,23 +611,12 @@ const VALID_LOST_TAGS = [
   "ghosted_unresponsive",
 ] as const;
 
-const markLeadLostSchema = z.object({
-  leadId: z.string().uuid(),
-  tag:    z.enum(VALID_LOST_TAGS),
-  notes:  z.string().max(1000).optional(),
-});
-
-export async function markLeadLost(
+export async function markLeadLostLegacy(
   leadId: string,
   tag: LostReasonTag,
   notes?: string
 ): Promise<ActionResult> {
   try {
-    const parsed = markLeadLostSchema.safeParse({ leadId, tag, notes });
-    if (!parsed.success) {
-      return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
-    }
-
     const { supabase, user, role } = await getAuthUser();
 
     const { data: lead, error: fetchError } = await supabase
@@ -527,6 +768,7 @@ export async function reassignLead(
 
     revalidatePath(`/leads/${leadId}`);
     revalidatePath("/leads");
+    revalidatePath("/");
 
     return { success: true };
   } catch {
@@ -621,8 +863,7 @@ export async function getDashboardData() {
       .select("*, assigned_agent:profiles!assigned_to(id, full_name)")
       .eq("assigned_to", user.id)
       .eq("status", "new")
-      .order("created_at", { ascending: true })
-      .limit(10),
+      .limit(30),
 
     supabase
       .from("leads")
@@ -652,8 +893,14 @@ export async function getDashboardData() {
       .limit(6),
   ]);
 
+  // Speed-to-Lead: On-Duty first (newest first), Off-Duty second (oldest first)
+  const raw = (unattainedLeads ?? []) as Array<{ is_off_duty?: boolean; created_at: string }>;
+  const onDuty = raw.filter((l) => !l.is_off_duty).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  const offDuty = raw.filter((l) => l.is_off_duty).sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  const unattainedLeadsSorted = [...onDuty, ...offDuty].slice(0, 10);
+
   return {
-    unattainedLeads: unattainedLeads ?? [],
+    unattainedLeads: unattainedLeadsSorted,
     pastLeads:       pastLeads ?? [],
     upcomingTasks:   upcomingTasks ?? [],
     wonLeads:        wonLeads ?? [],

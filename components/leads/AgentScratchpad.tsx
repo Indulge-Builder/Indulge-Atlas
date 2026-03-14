@@ -119,7 +119,7 @@ export function AgentScratchpad({
             onChange={(e) => handleChange(e.target.value)}
             placeholder="Your private notes — objections, conversation details."
             rows={6}
-            className="w-full bg-transparent text-[#B8A88A] text-[13px] leading-relaxed
+            className="w-full bg-transparent text-[#1A1A1A] text-[13px] leading-relaxed
                        resize-none focus:outline-none px-3 py-2.5
                        placeholder:text-[#3A3228]
                        selection:bg-[#D4AF37]/20"

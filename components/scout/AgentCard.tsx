@@ -86,6 +86,7 @@ export function AgentCard({ agent, index, onClick }: AgentCardProps) {
   const wonLeads = agent.stats.byStatus["won"] ?? 0;
   const activeLeads =
     (agent.stats.byStatus["in_discussion"] ?? 0) +
+    (agent.stats.byStatus["connected"] ?? 0) +
     (agent.stats.byStatus["attempted"] ?? 0) +
     (agent.stats.byStatus["new"] ?? 0);
 

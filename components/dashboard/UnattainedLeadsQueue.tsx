@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { PhoneCall, ArrowRight, Clock, MapPin } from "lucide-react";
+import { formatLeadSource } from "@/lib/utils/lead-source-mapper";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { LeadStatusBadge } from "@/components/leads/LeadStatusBadge";
@@ -72,16 +73,25 @@ export function UnattainedLeadsQueue({ leads }: UnattainedLeadsQueueProps) {
                         <p className="text-sm font-medium text-[#1A1A1A] truncate">
                           {lead.first_name} {lead.last_name ?? ""}
                         </p>
-                        <div className="flex items-center gap-2 mt-0.5">
+                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                          {lead.is_off_duty ? (
+                            <span className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded bg-[#E8E6E3] text-[#8A8A6E] font-medium">
+                              🌙 Overnight
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded bg-[#FEF3D0] text-[#C5830A] font-medium shadow-[0_0_8px_rgba(197,131,10,0.25)]">
+                              🔥 LIVE
+                            </span>
+                          )}
                           {lead.city && (
                             <span className="flex items-center gap-0.5 text-[10px] text-[#B5A99A]">
                               <MapPin className="w-2.5 h-2.5" />
                               {lead.city}
                             </span>
                           )}
-                          {lead.source && (
+                          {(lead.utm_source || lead.utm_campaign) && (
                             <span className="text-[10px] text-[#B5A99A]">
-                              · {lead.source}
+                              · {formatLeadSource(lead.utm_source, lead.utm_medium).channel}
                             </span>
                           )}
                         </div>

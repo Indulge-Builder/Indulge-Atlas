@@ -13,42 +13,38 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { X, Loader2, TrendingDown } from "lucide-react";
+import { X, Loader2, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { markLeadLost } from "@/lib/actions/leads";
+import { markLeadTrash } from "@/lib/actions/leads";
 import { toast } from "sonner";
-import type { LostReason } from "@/lib/types/database";
+import type { TrashReason } from "@/lib/types/database";
 
-const LOST_REASONS: { id: LostReason; label: string; description: string }[] = [
-  { id: "Not Interested", label: "Not Interested", description: "Declined or not interested" },
-  { id: "Price Objection", label: "Price Objection", description: "Cost was a barrier" },
-  { id: "Bought Competitor", label: "Bought Competitor", description: "Chose an alternative" },
-  { id: "Other", label: "Other", description: "Other reason" },
+const TRASH_REASONS: { id: TrashReason; label: string; description: string }[] = [
+  { id: "Incorrect Data", label: "Incorrect Data", description: "Wrong number / fake" },
+  { id: "Not our TG", label: "Not our TG", description: "Unqualified / Student" },
+  { id: "Spam", label: "Spam", description: "Spam or irrelevant" },
 ];
 
-interface LostLeadModalProps {
+interface TrashLeadModalProps {
   open: boolean;
   onClose: () => void;
   leadId: string;
   onSuccess: () => void;
 }
 
-export function LostLeadModal({
+export function TrashLeadModal({
   open,
   onClose,
   leadId,
   onSuccess,
-}: LostLeadModalProps) {
+}: TrashLeadModalProps) {
   const prefersReducedMotion = useReducedMotion();
-  const [selectedReason, setSelectedReason] = useState<LostReason | null>(null);
-  const [notes, setNotes] = useState("");
+  const [selectedReason, setSelectedReason] = useState<TrashReason | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   function handleOpenChange(v: boolean) {
     if (!v) {
       setSelectedReason(null);
-      setNotes("");
       onClose();
     }
   }
@@ -57,18 +53,17 @@ export function LostLeadModal({
     if (!selectedReason) return;
     setSubmitting(true);
 
-    const result = await markLeadLost(leadId, selectedReason, notes || undefined);
+    const result = await markLeadTrash(leadId, selectedReason);
 
     setSubmitting(false);
 
     if (!result.success) {
-      toast.error(result.error ?? "Failed to log lost analysis.");
+      toast.error(result.error ?? "Failed to mark as trash.");
       return;
     }
 
-    toast.success("Lead marked as lost with analysis logged.");
+    toast.success("Lead marked as trash.");
     setSelectedReason(null);
-    setNotes("");
     onSuccess();
   }
 
@@ -96,24 +91,24 @@ export function LostLeadModal({
                        bg-[#1A1814] rounded-2xl shadow-[0_20px_60px_-12px_rgba(0,0,0,0.5)]
                        border border-white/10 overflow-hidden"
           >
-            {/* Crimson accent strip */}
-            <div className="h-1 w-full bg-red-500/50" />
+            {/* Dark charcoal accent strip */}
+            <div className="h-1 w-full bg-zinc-600/50" />
 
             <div className="p-6">
               <div className="flex items-start justify-between mb-5">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-red-500/20 flex items-center justify-center border border-red-500/30">
-                    <TrendingDown className="w-4.5 h-4.5 text-red-400" />
+                  <div className="w-9 h-9 rounded-xl bg-white/5 flex items-center justify-center border border-white/10">
+                    <Trash2 className="w-4.5 h-4.5 text-white/50" />
                   </div>
                   <div>
                     <DialogTitle
                       className="text-white/90 text-base font-semibold"
                       style={{ fontFamily: "var(--font-playfair)" }}
                     >
-                      Log Lost Deal
+                      Mark as Trash
                     </DialogTitle>
                     <DialogDescription className="text-white/50 text-xs mt-0.5">
-                      Select a reason to record this loss for reporting.
+                      Select a reason to keep your pipeline clean.
                     </DialogDescription>
                   </div>
                 </div>
@@ -124,12 +119,12 @@ export function LostLeadModal({
                 </DialogClose>
               </div>
 
-              <div className="mb-4">
+              <div className="mb-5">
                 <p className="text-[10px] font-semibold text-white/40 uppercase tracking-widest mb-2.5">
-                  Primary Reason <span className="text-red-400">*</span>
+                  Reason <span className="text-[#D4AF37]">*</span>
                 </p>
                 <div className="grid grid-cols-1 gap-2">
-                  {LOST_REASONS.map((r) => (
+                  {TRASH_REASONS.map((r) => (
                     <button
                       key={r.id}
                       type="button"
@@ -137,7 +132,7 @@ export function LostLeadModal({
                       className={cn(
                         "flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all duration-300",
                         selectedReason === r.id
-                          ? "border-red-500/50 bg-red-500/10"
+                          ? "border-[#D4AF37]/50 bg-[#D4AF37]/10"
                           : "border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/[0.07]"
                       )}
                     >
@@ -145,7 +140,7 @@ export function LostLeadModal({
                         className={cn(
                           "w-4 h-4 rounded-full border-2 shrink-0 transition-colors",
                           selectedReason === r.id
-                            ? "border-red-400 bg-red-400"
+                            ? "border-[#D4AF37] bg-[#D4AF37]"
                             : "border-white/20"
                         )}
                       >
@@ -162,21 +157,6 @@ export function LostLeadModal({
                     </button>
                   ))}
                 </div>
-              </div>
-
-              <div className="mb-5">
-                <p className="text-[10px] font-semibold text-white/40 uppercase tracking-widest mb-2">
-                  Agent Notes
-                  <span className="normal-case font-normal text-white/30 ml-1.5">(optional)</span>
-                </p>
-                <Textarea
-                  placeholder="Add any additional context…"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  rows={3}
-                  className="text-sm bg-white/5 border-white/10 text-white/90 placeholder:text-white/30
-                             focus-visible:ring-1 focus-visible:ring-red-500/30 rounded-xl resize-none"
-                />
               </div>
 
               <div className="flex gap-3">
@@ -196,17 +176,17 @@ export function LostLeadModal({
                   className={cn(
                     "flex-1 h-10 rounded-xl text-sm font-medium transition-all",
                     selectedReason
-                      ? "bg-red-600 hover:bg-red-500 text-white"
+                      ? "bg-zinc-600 hover:bg-zinc-500 text-white"
                       : "bg-white/10 text-white/30 cursor-not-allowed"
                   )}
                 >
                   {submitting ? (
                     <span className="flex items-center gap-2">
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      Logging…
+                      Saving…
                     </span>
                   ) : (
-                    "Confirm Lost"
+                    "Confirm Trash"
                   )}
                 </Button>
               </div>
