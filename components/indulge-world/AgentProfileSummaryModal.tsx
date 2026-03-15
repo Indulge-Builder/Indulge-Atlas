@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, CheckSquare, Users, IndianRupee, BarChart3 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { TermTooltip } from "./TermTooltip";
+import { AdminCreateTaskModal } from "@/components/tasks/AdminCreateTaskModal";
 
 export type Employee = {
   id: string;
@@ -237,61 +238,57 @@ export function AgentProfileSummaryModal({ employee, onClose }: AgentProfileSumm
   return (
     <AnimatePresence>
       {employee && (
-        <>
-          {/* Backdrop */}
-          <motion.div
-            key="agent-profile-backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-50 bg-stone-900/10 backdrop-blur-sm"
-            onClick={onClose}
-            aria-hidden
-          />
-          {/* Modal Card — bottom sheet on mobile, centered on desktop */}
+        <motion.div
+          key="agent-profile-backdrop"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-stone-900/20 backdrop-blur-sm"
+          onClick={onClose}
+          aria-hidden
+        >
           <motion.div
             key="agent-profile-modal"
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 24 }}
-            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed inset-x-0 bottom-0 z-[60] md:inset-0 md:flex md:items-center md:justify-center w-full max-w-md md:p-6"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ type: "spring", duration: 0.5, bounce: 0.3 }}
+            className="relative w-full max-w-md bg-white/95 backdrop-blur-2xl ring-1 ring-black/[0.03] shadow-2xl rounded-3xl p-6 overflow-hidden flex flex-col max-h-[90vh]"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="relative bg-white/95 backdrop-blur-2xl ring-1 ring-black/[0.03] shadow-2xl rounded-t-3xl md:rounded-3xl max-h-[85vh] overflow-y-auto scrollbar-hide flex flex-col w-full md:max-w-md md:mx-auto">
-              {/* Drag handle — mobile only */}
-              <div className="block md:hidden w-12 h-1.5 bg-stone-300 rounded-full mx-auto mt-4 mb-2 flex-shrink-0" aria-hidden />
-              {/* Close button */}
-              <button
-                onClick={onClose}
-                className="absolute right-4 top-4 z-10 p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100/80 transition-colors shrink-0"
-                aria-label="Close"
+            {/* Close button */}
+            <button
+              onClick={onClose}
+              className="absolute right-4 top-4 z-10 p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100/80 transition-colors shrink-0"
+              aria-label="Close"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            {/* Section 1: Header — fixed, non-scrolling */}
+            <div className="flex flex-col items-center text-center pb-4 shrink-0">
+              <Avatar className="w-20 h-20 rounded-full ring-2 ring-stone-200/80 mb-3">
+                <AvatarFallback className="bg-stone-100 text-stone-700 text-xl font-medium">
+                  {employee.name
+                    .split(" ")
+                    .map((n) => n[0])
+                    .join("")
+                    .slice(0, 2)}
+                </AvatarFallback>
+              </Avatar>
+              <h3 className="text-xl text-stone-900 font-medium">{employee.name}</h3>
+              <span
+                className={`mt-1.5 inline-flex px-3 py-1 rounded-full text-xs font-medium ring-1 ${deptStyle}`}
               >
-                <X className="w-4 h-4" />
-              </button>
+                {employee.role}
+              </span>
+            </div>
 
-              {/* Section 1: Header */}
-              <div className="flex flex-col items-center text-center p-6 pb-0 shrink-0">
-                <Avatar className="w-20 h-20 rounded-full ring-2 ring-stone-200/80 mb-3">
-                  <AvatarFallback className="bg-stone-100 text-stone-700 text-xl font-medium">
-                    {employee.name
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")
-                      .slice(0, 2)}
-                  </AvatarFallback>
-                </Avatar>
-                <h3 className="text-xl text-stone-900 font-medium">{employee.name}</h3>
-                <span
-                  className={`mt-1.5 inline-flex px-3 py-1 rounded-full text-xs font-medium ring-1 ${deptStyle}`}
-                >
-                  {employee.role}
-                </span>
-              </div>
-
+            {/* Scrollable content — metrics, kingdom, SOPs */}
+            <div className="overflow-y-auto hidden-scrollbar flex-1 min-h-0">
               {/* Section 2: Live Metrics (2x2 grid) */}
-              <div className="grid grid-cols-2 gap-3 px-6 pt-6">
+              <div className="grid grid-cols-2 gap-3 pt-4">
                 {metrics.map((m, i) => (
                   <div
                     key={i}
@@ -310,7 +307,7 @@ export function AgentProfileSummaryModal({ employee, onClose }: AgentProfileSumm
 
               {/* Section 2b: Kingdom Structure (Queens only) */}
               {isQueen && (
-                <div className="px-6 pt-6">
+                <div className="pt-6">
                   <h4 className="text-[11px] font-bold uppercase tracking-widest text-stone-400 mb-4">
                     Per Kingdom
                   </h4>
@@ -344,7 +341,7 @@ export function AgentProfileSummaryModal({ employee, onClose }: AgentProfileSumm
               )}
 
               {/* Section 3: Core Responsibilities (SOP) */}
-              <div className="px-6 pt-6 pb-6">
+              <div className="pt-6 pb-2">
                 <h4 className="text-[11px] font-bold uppercase tracking-widest text-stone-400 mb-4">
                   Core Responsibilities (SOP)
                 </h4>
@@ -360,8 +357,31 @@ export function AgentProfileSummaryModal({ employee, onClose }: AgentProfileSumm
                 </div>
               </div>
             </div>
+
+            {/* Footer — Assign Task + Close */}
+            <div className="flex gap-3 pt-4 mt-4 border-t border-stone-100 shrink-0">
+              <AdminCreateTaskModal
+                defaultDepartment={employee.department ?? undefined}
+                onSuccess={onClose}
+                trigger={
+                  <button
+                    type="button"
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-600 text-white text-sm font-medium hover:bg-amber-700 transition-colors shadow-[0_0_15px_rgba(245,158,11,0.2)]"
+                  >
+                    <CheckSquare className="w-4 h-4" strokeWidth={2} />
+                    Assign Task
+                  </button>
+                }
+              />
+              <button
+                onClick={onClose}
+                className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-stone-100 hover:bg-stone-200/80 text-stone-700 transition-colors"
+              >
+                Close
+              </button>
+            </div>
           </motion.div>
-        </>
+        </motion.div>
       )}
     </AnimatePresence>
   );
