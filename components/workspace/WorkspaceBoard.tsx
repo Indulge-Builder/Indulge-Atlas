@@ -2,10 +2,10 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 import { DailyAnchor } from "./DailyAnchor";
-import { TodaysPath } from "./TodaysPath";
+import { PrimaryFocus } from "./PrimaryFocus";
 import { Scratchpad } from "./Scratchpad";
 import { WhisperBox } from "./WhisperBox";
-import type { TaskWithLead } from "@/lib/types/database";
+import type { PersonalTodo } from "@/lib/actions/todos";
 
 // ── Minimalist Bodhi tree SVG ─────────────────────────────
 // Rendered as a large abstract silhouette positioned bottom-right.
@@ -311,10 +311,10 @@ export function GlassCard({ children, className = "", style }: CardProps) {
 // ── Props ─────────────────────────────────────────────────
 
 interface WorkspaceBoardProps {
-  greeting:      string;
-  firstName:     string;
-  todaysTasks:   TaskWithLead[];
-  currentUserId: string;
+  greeting:       string;
+  firstName:      string;
+  initialTodos:   PersonalTodo[];
+  currentUserId:  string;
 }
 
 // ── Component ─────────────────────────────────────────────
@@ -322,7 +322,7 @@ interface WorkspaceBoardProps {
 export function WorkspaceBoard({
   greeting,
   firstName,
-  todaysTasks,
+  initialTodos,
   currentUserId,
 }: WorkspaceBoardProps) {
   return (
@@ -352,7 +352,7 @@ export function WorkspaceBoard({
             </GlassCard>
           </motion.div>
 
-          {/* Panel 2: Today's Path — today's tasks */}
+          {/* Panel 2: Primary Focus — personal to-do list */}
           <motion.div
             layout
             initial={{ opacity: 0, y: 12 }}
@@ -363,9 +363,10 @@ export function WorkspaceBoard({
               ease: [0.16, 1, 0.3, 1],
             }}
           >
-            <GlassCard>
-              <TodaysPath tasks={todaysTasks} />
-            </GlassCard>
+            <PrimaryFocus
+              initialTodos={initialTodos}
+              currentUserId={currentUserId}
+            />
           </motion.div>
 
           {/* Panel 3: Scratchpad — free-form brain dump (self-contained dark widget) */}

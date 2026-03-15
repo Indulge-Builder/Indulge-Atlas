@@ -14,11 +14,13 @@ import {
   Trash2,
   Clock,
   Pencil,
+  Crown,
 } from "lucide-react";
 import { format } from "date-fns";
 import { formatLocalTime } from "@/lib/utils/date-format";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { AvatarStack } from "@/components/ui/avatar-stack";
 import type { TaskWithLead, TaskType, UserRole } from "@/lib/types/database";
 
 // ── Task type display config ───────────────────────────────
@@ -159,6 +161,7 @@ interface TaskCardProps {
   onComplete: (id: string) => void;
   onDelete?: (id: string) => void;
   onEdit?: (task: TaskWithLead) => void;
+  onOpenDetail?: (task: TaskWithLead) => void;
   isCompleting?: boolean;
   isExpanded?: boolean;
   onToggleExpand?: () => void;
@@ -170,12 +173,24 @@ export function TaskCard({
   onComplete,
   onDelete,
   onEdit,
+  onOpenDetail,
   isCompleting = false,
   isExpanded = false,
   onToggleExpand,
 }: TaskCardProps) {
   const config = TASK_CONFIG[task.task_type];
   const isDone = task.status === "completed" || isCompleting;
+
+  const createdByRole = (task as TaskWithLead & { created_by_profile?: { role?: string } | null })
+    ?.created_by_profile?.role;
+  const assignees = (task as TaskWithLead & { assigned_to_profiles?: { id: string; full_name: string; role?: string }[] })
+    ?.assigned_to_profiles ?? [];
+  const primaryAssignee = (task as TaskWithLead & { assigned_to_profile?: { role?: string } | null })
+    ?.assigned_to_profile;
+  const assignedRole = primaryAssignee?.role;
+  const isFoundersTask =
+    createdByRole === "admin" &&
+    (assignedRole === "agent" || assignedRole === "scout");
 
   const timeLabel = formatLocalTime(task.due_date);
 
@@ -195,14 +210,17 @@ export function TaskCard({
         isDone
           ? "border-[#EAEAEA] grayscale"
           : "border-[#EAEAEA] hover:border-[#D4D0C8] hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)]",
-        onToggleExpand && "cursor-pointer"
+        (onToggleExpand || onOpenDetail) && "cursor-pointer",
+        isFoundersTask && !isDone && "border-l-amber-400/50"
       )}
-      onClick={onToggleExpand}
+      onClick={() => (onOpenDetail ? onOpenDetail(task) : onToggleExpand?.())}
     >
-      {/* Left accent bar */}
+      {/* Left accent bar — gold for Founder's Task */}
       <div
         className="absolute left-0 top-3 bottom-3 w-[3px] rounded-full"
-        style={{ background: isDone ? "#D0CEC8" : config.color }}
+        style={{
+          background: isFoundersTask && !isDone ? "#D4AF37" : isDone ? "#D0CEC8" : config.color,
+        }}
       />
 
       <div className="pl-5 pr-4 py-4">
@@ -218,8 +236,14 @@ export function TaskCard({
           </span>
 
           <div className="flex-1 min-w-0">
-            {/* Task type badge + time */}
-            <div className="flex items-center gap-2 mb-1.5">
+            {/* Task type badge + time + Founder's Task + Assignees */}
+            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+              {isFoundersTask && !isDone && (
+                <span className="px-2 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 ring-1 ring-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.15)] flex items-center gap-1">
+                  <Crown size={12} />
+                  Founder&apos;s Task
+                </span>
+              )}
               <span
                 className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider"
                 style={{
@@ -234,6 +258,11 @@ export function TaskCard({
                 <Clock className="w-2.5 h-2.5" />
                 {timeLabel}
               </span>
+              {assignees.length > 0 && (
+                <div className="ml-auto">
+                  <AvatarStack assignees={assignees} maxVisible={3} size="sm" />
+                </div>
+              )}
             </div>
 
             {/* Title */}

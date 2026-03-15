@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getTodaysTasks } from "@/lib/actions/workspace";
+import { getTodos } from "@/lib/actions/todos";
 import { TopBar } from "@/components/layout/TopBar";
 import { WorkspaceBoard } from "@/components/workspace/WorkspaceBoard";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -36,18 +36,18 @@ function WorkspaceSkeleton() {
   );
 }
 
-// ── Async content — fetches profile + today's tasks ───────
+// ── Async content — fetches profile + personal todos ───────
 
 async function WorkspaceContent({ userId }: { userId: string }) {
   const supabase = await createClient();
 
-  const [{ data: profile }, tasks] = await Promise.all([
+  const [{ data: profile }, todos] = await Promise.all([
     supabase
       .from("profiles")
       .select("full_name, role")
       .eq("id", userId)
       .single(),
-    getTodaysTasks(),
+    getTodos(),
   ]);
 
   const firstName = profile?.full_name?.split(" ")[0] ?? "there";
@@ -66,7 +66,7 @@ async function WorkspaceContent({ userId }: { userId: string }) {
       <WorkspaceBoard
         greeting={greeting}
         firstName={firstName}
-        todaysTasks={tasks}
+        initialTodos={todos}
         currentUserId={userId}
       />
     </>

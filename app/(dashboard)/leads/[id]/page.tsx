@@ -10,6 +10,7 @@ import { InlineEmailEdit } from "@/components/leads/InlineEmailEdit";
 import { InlineCityEdit } from "@/components/leads/InlineCityEdit";
 import { InlinePersonaEdit } from "@/components/leads/InlinePersonaEdit";
 import { InlineCompanyEdit } from "@/components/leads/InlineDossierFields";
+import { InlineTagsEdit } from "@/components/leads/InlineTagsEdit";
 import { AgentScratchpad } from "@/components/leads/AgentScratchpad";
 import { LeadTaskWidget } from "@/components/tasks/LeadTaskWidget";
 import { LeadContextChat } from "@/components/chat/LeadContextChat";
@@ -133,7 +134,7 @@ export default async function LeadDetailPage({ params }: PageProps) {
 
   // Fetch lead with agent — exclude private_scratchpad until we verify viewer is assigned agent
   const LEAD_COLS =
-    "id, first_name, last_name, phone_number, secondary_phone, email, city, address, campaign_id, form_data, utm_source, utm_medium, utm_campaign, deal_value, deal_duration, domain, status, assigned_to, assigned_at, is_off_duty, agent_alert_sent, manager_alert_sent, notes, lost_reason_tag, lost_reason_notes, lost_reason, trash_reason, nurture_reason, attempt_count, personal_details, company, created_at, updated_at";
+    "id, first_name, last_name, phone_number, secondary_phone, email, city, address, campaign_id, form_data, utm_source, utm_medium, utm_campaign, deal_value, deal_duration, domain, status, assigned_to, assigned_at, is_off_duty, agent_alert_sent, manager_alert_sent, notes, lost_reason_tag, lost_reason_notes, lost_reason, trash_reason, nurture_reason, attempt_count, personal_details, company, tags, created_at, updated_at";
   const { data: rawLead, error } = await supabase
     .from("leads")
     .select(
@@ -373,6 +374,9 @@ export default async function LeadDetailPage({ params }: PageProps) {
                   {/* Company — double-click inline edit */}
                   <InlineCompanyEdit leadId={lead.id} currentCompany={lead.company ?? null} />
                 </div>
+
+                {/* Tags — multi-input badge component */}
+                <InlineTagsEdit leadId={lead.id} initialTags={lead.tags ?? []} />
 
                 {/* Client Persona & Interests — always-active auto-save textarea */}
                 <InlinePersonaEdit

@@ -46,7 +46,7 @@ export async function createSmartTask(params: unknown): Promise<{ success: boole
     const { data, error } = await supabase
       .from("tasks")
       .insert({
-        assigned_to: user.id,
+        assigned_to_users: [user.id],
         title: parsed.data.title,
         due_date: parsed.data.dueAt,
         task_type: parsed.data.type,
@@ -118,7 +118,7 @@ export async function linkTaskToLead(
       .from("tasks")
       .update({ lead_id: parsed.data.leadId })
       .eq("id", parsed.data.taskId)
-      .eq("assigned_to", user.id);
+      .contains("assigned_to_users", [user.id]);
 
     if (error) return { success: false, error: "Failed to link lead" };
 
@@ -159,7 +159,7 @@ export async function saveTaskContextNotes(
       .from("tasks")
       .update({ notes: parsed.data.notes.trim() || null })
       .eq("id", parsed.data.taskId)
-      .eq("assigned_to", user.id);
+      .contains("assigned_to_users", [user.id]);
 
     if (error) return { success: false, error: "Failed to save notes" };
 
@@ -183,7 +183,7 @@ export async function getCalendarTasks(): Promise<TaskWithLead[]> {
       .select(
         "*, lead:leads!lead_id(id, first_name, last_name, phone_number, email, status)",
       )
-      .eq("assigned_to", user.id)
+      .contains("assigned_to_users", [user.id])
       .order("due_date", { ascending: true });
 
     if (error) return [];

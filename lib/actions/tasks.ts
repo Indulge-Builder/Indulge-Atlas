@@ -3,7 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
-import type { TaskType, TaskWithLead } from "@/lib/types/database";
+import type {
+  TaskType,
+  TaskWithLead,
+  TaskProgressUpdate,
+  Profile,
+} from "@/lib/types/database";
 
 const uuidSchema = z.string().uuid();
 const taskTypeSchema = z.enum([
@@ -21,6 +26,8 @@ const createTaskSchema = z.object({
   dueAt: z.union([z.date(), z.string().datetime()]).transform((v) => (typeof v === "string" ? new Date(v) : v)),
   type: taskTypeSchema,
   notes: z.string().max(5000).nullable().optional(),
+  assignedTo: z.string().uuid().optional(),
+  assignedToUsers: z.array(z.string().uuid()).min(1).optional(),
 });
 
 interface ActionResult {
@@ -61,15 +68,47 @@ export async function getTasksForReminders(): Promise<TaskWithLead[]> {
   const { data, error } = await supabase
     .from("tasks")
     .select(
-      "*, lead:leads!lead_id(id, first_name, last_name, phone_number, email, status)",
+      "*, lead:leads!lead_id(id, first_name, last_name, phone_number, email, status), created_by_profile:profiles!created_by(id, full_name, role)",
     )
-    .eq("assigned_to", user.id)
+    .contains("assigned_to_users", [user.id])
     .eq("status", "pending")
     .gte("due_date", todayStartIso)
     .order("due_date", { ascending: true });
 
   if (error) return [];
-  return (data ?? []) as TaskWithLead[];
+  return (await enrichTasksWithAssignees(supabase, data ?? [])) as TaskWithLead[];
+}
+
+// ── Enrich tasks with assignee profiles (assigned_to_users → assigned_to_profiles) ──
+async function enrichTasksWithAssignees(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  tasks: Record<string, unknown>[],
+): Promise<Record<string, unknown>[]> {
+  const userIds = new Set<string>();
+  for (const t of tasks) {
+    const arr = (t.assigned_to_users as string[] | null) ?? [];
+    for (const id of arr) userIds.add(id);
+  }
+  if (userIds.size === 0) return tasks.map((t) => ({ ...t, assigned_to_profiles: [], assigned_to_profile: null }));
+
+  const { data: profiles } = await supabase
+    .from("profiles")
+    .select("id, full_name, role")
+    .in("id", [...userIds]);
+
+  const profileMap = new Map<string | null, { id: string; full_name: string; role: string }>();
+  for (const p of profiles ?? []) profileMap.set(p.id, p);
+
+  return tasks.map((t) => {
+    const arr = ((t.assigned_to_users as string[] | null) ?? []) as string[];
+    const profilesList = arr.map((id) => profileMap.get(id)).filter(Boolean) as { id: string; full_name: string; role: string }[];
+    const first = profilesList[0] ?? null;
+    return {
+      ...t,
+      assigned_to_profiles: profilesList,
+      assigned_to_profile: first,
+    };
+  });
 }
 
 // ── Fetch All User Tasks ───────────────────────────────────
@@ -80,13 +119,13 @@ export async function getMyTasks(): Promise<TaskWithLead[]> {
   const { data, error } = await supabase
     .from("tasks")
     .select(
-      "*, lead:leads!lead_id(id, first_name, last_name, phone_number, email, status)",
+      "*, lead:leads!lead_id(id, first_name, last_name, phone_number, email, status), created_by_profile:profiles!created_by(id, full_name, role)",
     )
-    .eq("assigned_to", user.id)
+    .contains("assigned_to_users", [user.id])
     .order("due_date", { ascending: true });
 
   if (error) return [];
-  return (data ?? []) as TaskWithLead[];
+  return (await enrichTasksWithAssignees(supabase, data ?? [])) as TaskWithLead[];
 }
 
 // ── Fetch Tasks for a Specific Lead ───────────────────────
@@ -97,13 +136,13 @@ export async function getLeadTasks(leadId: string): Promise<TaskWithLead[]> {
   const { data, error } = await supabase
     .from("tasks")
     .select(
-      "*, lead:leads!lead_id(id, first_name, last_name, phone_number, email, status)"
+      "*, lead:leads!lead_id(id, first_name, last_name, phone_number, email, status), created_by_profile:profiles!created_by(id, full_name, role)",
     )
     .eq("lead_id", leadId)
     .order("due_date", { ascending: true });
 
   if (error) return [];
-  return (data ?? []) as TaskWithLead[];
+  return (await enrichTasksWithAssignees(supabase, data ?? [])) as TaskWithLead[];
 }
 
 // ── Fetch Leads for Task Modal ─────────────────────────────
@@ -152,7 +191,7 @@ export async function completeTask(taskId: unknown): Promise<ActionResult> {
       .from("tasks")
       .update({ status: "completed" })
       .eq("id", parsed.data)
-      .eq("assigned_to", user.id);
+      .contains("assigned_to_users", [user.id]);
 
     if (error) return { success: false, error: "Failed to complete task" };
 
@@ -177,7 +216,7 @@ export async function deleteTask(taskId: unknown): Promise<ActionResult> {
       .from("tasks")
       .delete()
       .eq("id", parsed.data)
-      .eq("assigned_to", user.id);
+      .contains("assigned_to_users", [user.id]);
 
     if (error) return { success: false, error: "Failed to delete task" };
 
@@ -205,7 +244,7 @@ export async function updateTask(params: unknown): Promise<ActionResult> {
         due_date: parsed.data.dueAt.toISOString(),
       })
       .eq("id", parsed.data.taskId)
-      .eq("assigned_to", user.id);
+      .contains("assigned_to_users", [user.id]);
 
     if (error) return { success: false, error: "Failed to update task" };
 
@@ -221,6 +260,7 @@ export async function updateTask(params: unknown): Promise<ActionResult> {
 
 // ── Create Task ────────────────────────────────────────────
 // leadId is optional — scout tasks may not be linked to a lead.
+// When currentUser.role === 'admin', assignedTo may be set to delegate to any team member.
 
 export async function createTask(params: unknown): Promise<ActionResult> {
   const parsed = createTaskSchema.safeParse(params);
@@ -228,14 +268,30 @@ export async function createTask(params: unknown): Promise<ActionResult> {
   try {
     const { supabase, user } = await getAuthUser();
 
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    const isAdmin = profile?.role === "admin";
+    const assignedToUsers =
+      isAdmin && parsed.data.assignedToUsers && parsed.data.assignedToUsers.length > 0
+        ? parsed.data.assignedToUsers
+        : isAdmin && parsed.data.assignedTo
+          ? [parsed.data.assignedTo]
+          : [user.id];
+
     const { error } = await supabase.from("tasks").insert({
       lead_id: parsed.data.leadId ?? null,
-      assigned_to: user.id,
+      assigned_to_users: assignedToUsers,
+      created_by: user.id,
       title: parsed.data.title,
       due_date: parsed.data.dueAt.toISOString(),
       task_type: parsed.data.type,
       status: "pending",
       notes: parsed.data.notes ?? null,
+      progress_updates: [],
     });
 
     if (error) return { success: false, error: "Failed to create task" };
@@ -261,5 +317,188 @@ export async function createTask(params: unknown): Promise<ActionResult> {
     return { success: true };
   } catch {
     return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+// ── Add Task Progress Update ────────────────────────────────
+// Appends a new update to progress_updates JSONB. Callable by assignee or admin.
+
+export async function addTaskProgress(
+  taskId: unknown,
+  message: string,
+): Promise<ActionResult & { update?: TaskProgressUpdate }> {
+  const parsed = uuidSchema.safeParse(taskId);
+  if (!parsed.success) return { success: false, error: "Invalid task" };
+  const trimmed = message?.trim();
+  if (!trimmed || trimmed.length > 2000)
+    return { success: false, error: "Message must be 1–2000 characters" };
+
+  try {
+    const { supabase, user } = await getAuthUser();
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", user.id)
+      .single();
+
+    const { data: task } = await supabase
+      .from("tasks")
+      .select("assigned_to_users, progress_updates")
+      .eq("id", parsed.data)
+      .single();
+
+    if (!task) return { success: false, error: "Task not found" };
+
+    const assignees = (task.assigned_to_users as string[] | null) ?? [];
+    const isAssignee = assignees.includes(user.id);
+    const { data: currentUserProfile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+    const isAdmin = currentUserProfile?.role === "admin";
+
+    if (!isAssignee && !isAdmin)
+      return { success: false, error: "Only the assignee or an admin can add progress" };
+
+    const updates = (task.progress_updates ?? []) as TaskProgressUpdate[];
+    const newUpdate: TaskProgressUpdate = {
+      timestamp: new Date().toISOString(),
+      message: trimmed,
+      user_id: user.id,
+      user_name: profile?.full_name ?? "Unknown",
+    };
+    const nextUpdates = [...updates, newUpdate];
+
+    const { error } = await supabase
+      .from("tasks")
+      .update({ progress_updates: nextUpdates })
+      .eq("id", parsed.data);
+
+    if (error) return { success: false, error: "Failed to add progress" };
+
+    revalidatePath("/");
+    revalidatePath("/tasks");
+
+    return { success: true, update: newUpdate };
+  } catch {
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+// ── Get Task by ID (for TaskDetailSheet) ────────────────────
+
+export async function getTaskById(
+  taskId: string,
+): Promise<TaskWithLead | null> {
+  try {
+    const { supabase, user } = await getAuthUser();
+
+    const { data, error } = await supabase
+      .from("tasks")
+      .select(
+        "*, lead:leads!lead_id(id, first_name, last_name, phone_number, email, status), created_by_profile:profiles!created_by(id, full_name, role)",
+      )
+      .eq("id", taskId)
+      .single();
+
+    if (error || !data) return null;
+
+    const [enriched] = await enrichTasksWithAssignees(supabase, [data]);
+    const task = enriched as TaskWithLead & {
+      created_by_profile?: Pick<Profile, "id" | "full_name" | "role"> | null;
+      assigned_to_profile?: Pick<Profile, "id" | "full_name" | "role"> | null;
+    };
+
+    const assignees = (task.assigned_to_users as string[] | null) ?? [];
+    const isAssignee = assignees.includes(user.id);
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+    const isAdmin = profile?.role === "admin";
+
+    if (!isAssignee && !isAdmin) return null;
+
+    return {
+      ...task,
+      progress_updates: task.progress_updates ?? [],
+    } as TaskWithLead;
+  } catch {
+    return null;
+  }
+}
+
+// ── Get Team Members for Admin Assignee Picker ──────────────
+
+export interface TeamMemberForPicker {
+  id: string;
+  full_name: string;
+  department: string;
+}
+
+const NAME_TO_DEPARTMENT: Record<string, string> = {
+  Smruti: "Marketing",
+  Manaswini: "Marketing",
+  Prajith: "Marketing",
+  Pixel: "Marketing",
+  Danish: "Marketing",
+  Vikram: "Shop",
+  Harsh: "Shop",
+  Katya: "Shop",
+  Nikita: "Shop",
+  Samson: "Onboarding",
+  Amit: "Onboarding",
+  Meghna: "Onboarding",
+  Kanika: "Onboarding",
+  Kaniisha: "Onboarding",
+  Ananishri: "Concierge",
+  Anishka: "Concierge",
+  Ananyashree: "Concierge",
+  Anishqa: "Concierge",
+  Shruti: "Concierge",
+  Lillian: "Concierge",
+  Anil: "Concierge",
+  Mallika: "Tech",
+  Arfam: "Tech",
+  Ethan: "Tech",
+  Charan: "Tech",
+};
+
+export async function getTeamMembersForAdmin(): Promise<TeamMemberForPicker[]> {
+  try {
+    const { supabase, user } = await getAuthUser();
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    if (profile?.role !== "admin") return [];
+
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, full_name")
+      .eq("is_active", true)
+      .in("role", ["agent", "scout", "admin"])
+      .order("full_name");
+
+    if (!profiles || profiles.length === 0) return [];
+
+    return profiles.map((p) => {
+      const firstName = p.full_name?.split(" ")[0] ?? p.full_name ?? "Unknown";
+      const department =
+        NAME_TO_DEPARTMENT[firstName] ?? NAME_TO_DEPARTMENT[p.full_name ?? ""] ?? "Other";
+      return {
+        id: p.id,
+        full_name: p.full_name ?? "Unknown",
+        department,
+      };
+    });
+  } catch {
+    return [];
   }
 }

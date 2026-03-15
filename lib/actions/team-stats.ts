@@ -149,3 +149,155 @@ export async function getScoutDashboardData(): Promise<ScoutDashboardMetrics> {
 
   return { totalSpend, totalRevenue, roas, cpa, wonCount: wonCount ?? 0, monthlyTrend };
 }
+
+// ── Onboarding Oversight: extended agent stats for founder dashboard ────────
+
+export interface OnboardingAgentStats extends AgentStats {
+  todayLeads: number;
+  todayCalls: number;
+  todayConverted: number;
+  monthCalls: number;
+  lostReasons: { reason: string; count: number }[];
+}
+
+export interface AgentWithOnboardingStats extends Profile {
+  stats: OnboardingAgentStats;
+}
+
+export async function getOnboardingAgentsWithStats(): Promise<
+  AgentWithOnboardingStats[]
+> {
+  const { supabase } = await requireScout();
+
+  // Include both agents and scouts for founder oversight
+  const { data: profiles } = await supabase
+    .from("profiles")
+    .select("*")
+    .in("role", ["agent", "scout"])
+    .eq("is_active", true)
+    .order("role")
+    .order("full_name");
+
+  if (!profiles || profiles.length === 0) return [];
+
+  const memberIds = profiles.map((p) => p.id);
+
+  const { data: allLeads } = await supabase
+    .from("leads")
+    .select("assigned_to, status, deal_value")
+    .in("assigned_to", memberIds);
+
+  const leadMap = new Map<string, Array<{ status: string; deal_value: number | null }>>();
+  for (const lead of allLeads ?? []) {
+    if (!lead.assigned_to) continue;
+    const bucket = leadMap.get(lead.assigned_to) ?? [];
+    bucket.push(lead);
+    leadMap.set(lead.assigned_to, bucket);
+  }
+
+  const baseAgents: AgentWithStats[] = profiles.map((p) => ({
+    ...(p as Profile),
+    stats: computeStats(leadMap.get(p.id) ?? []),
+  }));
+  const agentIds = baseAgents.map((a) => a.id);
+
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+  const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
+
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
+
+  const [
+    { data: todayLeadsData },
+    { data: callActivities },
+    { data: monthCallActivities },
+    { data: lostLeads },
+  ] = await Promise.all([
+    supabase
+      .from("leads")
+      .select("assigned_to")
+      .in("assigned_to", agentIds)
+      .gte("assigned_at", todayStart)
+      .lte("assigned_at", todayEnd),
+    supabase
+      .from("lead_activities")
+      .select("performed_by")
+      .eq("type", "call_attempt")
+      .in("performed_by", agentIds)
+      .gte("created_at", todayStart)
+      .lte("created_at", todayEnd),
+    supabase
+      .from("lead_activities")
+      .select("performed_by")
+      .eq("type", "call_attempt")
+      .in("performed_by", agentIds)
+      .gte("created_at", monthStart)
+      .lte("created_at", monthEnd),
+    supabase
+      .from("leads")
+      .select("assigned_to, lost_reason")
+      .eq("status", "lost")
+      .in("assigned_to", agentIds)
+      .not("lost_reason", "is", null),
+  ]);
+
+  const todayLeadsMap = new Map<string, number>();
+  for (const row of todayLeadsData ?? []) {
+    if (row.assigned_to) {
+      todayLeadsMap.set(row.assigned_to, (todayLeadsMap.get(row.assigned_to) ?? 0) + 1);
+    }
+  }
+
+  const todayCallsMap = new Map<string, number>();
+  for (const row of callActivities ?? []) {
+    todayCallsMap.set(row.performed_by, (todayCallsMap.get(row.performed_by) ?? 0) + 1);
+  }
+
+  const monthCallsMap = new Map<string, number>();
+  for (const row of monthCallActivities ?? []) {
+    monthCallsMap.set(row.performed_by, (monthCallsMap.get(row.performed_by) ?? 0) + 1);
+  }
+
+  const lostReasonsMap = new Map<string, Map<string, number>>();
+  for (const row of lostLeads ?? []) {
+    if (!row.assigned_to || !row.lost_reason) continue;
+    const reason = String(row.lost_reason).trim();
+    const agentMap = lostReasonsMap.get(row.assigned_to) ?? new Map();
+    agentMap.set(reason, (agentMap.get(reason) ?? 0) + 1);
+    lostReasonsMap.set(row.assigned_to, agentMap);
+  }
+
+  const { data: todayWonRows } = await supabase
+    .from("leads")
+    .select("assigned_to")
+    .eq("status", "won")
+    .in("assigned_to", agentIds)
+    .gte("updated_at", todayStart)
+    .lte("updated_at", todayEnd);
+
+  const todayConvertedMap = new Map<string, number>();
+  for (const row of todayWonRows ?? []) {
+    if (row.assigned_to) {
+      todayConvertedMap.set(row.assigned_to, (todayConvertedMap.get(row.assigned_to) ?? 0) + 1);
+    }
+  }
+
+  return baseAgents.map((agent) => {
+    const lostReasons = Array.from(lostReasonsMap.get(agent.id)?.entries() ?? [])
+      .map(([reason, count]) => ({ reason, count }))
+      .sort((a, b) => b.count - a.count);
+
+    return {
+      ...agent,
+      stats: {
+        ...agent.stats,
+        todayLeads: todayLeadsMap.get(agent.id) ?? 0,
+        todayCalls: todayCallsMap.get(agent.id) ?? 0,
+        todayConverted: todayConvertedMap.get(agent.id) ?? 0,
+        monthCalls: monthCallsMap.get(agent.id) ?? 0,
+        lostReasons,
+      },
+    };
+  });
+}

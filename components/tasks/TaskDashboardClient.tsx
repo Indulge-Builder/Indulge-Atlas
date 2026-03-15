@@ -6,7 +6,9 @@ import { isSameDay } from "date-fns";
 import { LuxuryCalendar } from "./LuxuryCalendar";
 import { TaskList } from "./TaskList";
 import { AddTaskModal } from "./AddTaskModal";
+import { AdminCreateTaskModal } from "./AdminCreateTaskModal";
 import { EditTaskModal } from "./EditTaskModal";
+import { TaskDetailSheet } from "./TaskDetailSheet";
 import { completeTask, deleteTask } from "@/lib/actions/tasks";
 import type { TaskWithLead, UserRole } from "@/lib/types/database";
 
@@ -33,6 +35,7 @@ export function TaskDashboardClient({
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [completingIds, setCompletingIds] = useState<string[]>([]);
   const [editingTask, setEditingTask] = useState<TaskWithLead | null>(null);
+  const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
   useEffect(() => {
@@ -92,6 +95,11 @@ export function TaskDashboardClient({
         onSuccess={() => router.refresh()}
       />
     )}
+    <TaskDetailSheet
+      taskId={detailTaskId}
+      onClose={() => setDetailTaskId(null)}
+      onProgressAdded={() => router.refresh()}
+    />
     <div className="px-8 py-6">
       <div className="flex gap-6 h-[calc(100vh-130px)]">
         {/* ── Left pane: Calendar ────────────────────────────── */}
@@ -144,13 +152,22 @@ export function TaskDashboardClient({
               onComplete={handleComplete}
               onDelete={handleDelete}
               onEdit={(task) => setEditingTask(task)}
+              onOpenDetail={(task) => setDetailTaskId(task.id)}
               headerAction={
-                <AddTaskModal
-                  role={profile.role}
-                  leads={leads}
-                  defaultDate={selectedDate}
-                  onSuccess={() => router.refresh()}
-                />
+                <div className="flex items-center gap-2">
+                  {profile.role === "admin" && (
+                    <AdminCreateTaskModal
+                      defaultDate={selectedDate}
+                      onSuccess={() => router.refresh()}
+                    />
+                  )}
+                  <AddTaskModal
+                    role={profile.role}
+                    leads={leads}
+                    defaultDate={selectedDate}
+                    onSuccess={() => router.refresh()}
+                  />
+                </div>
               }
             />
           </div>

@@ -44,9 +44,24 @@ function ChatButton() {
 
 // ── Ambient orb animation config (staggered durations for organic feel) ─
 const ORB_ANIMATIONS = [
-  { duration: 20, x: [0, 30, -20, 0], y: [0, -40, 20, 0], scale: [1, 1.1, 0.9, 1] },
-  { duration: 25, x: [0, -25, 15, 0], y: [0, 30, -25, 0], scale: [1, 0.95, 1.08, 1] },
-  { duration: 30, x: [0, 20, -30, 0], y: [0, -20, 35, 0], scale: [1, 1.05, 0.92, 1] },
+  {
+    duration: 20,
+    x: [0, 30, -20, 0],
+    y: [0, -40, 20, 0],
+    scale: [1, 1.1, 0.9, 1],
+  },
+  {
+    duration: 25,
+    x: [0, -25, 15, 0],
+    y: [0, 30, -25, 0],
+    scale: [1, 0.95, 1.08, 1],
+  },
+  {
+    duration: 30,
+    x: [0, 20, -30, 0],
+    y: [0, -20, 35, 0],
+    scale: [1, 1.05, 0.92, 1],
+  },
 ];
 
 export function DashboardHero({
@@ -56,7 +71,8 @@ export function DashboardHero({
 }: DashboardHeroProps) {
   const prefersReducedMotion = useReducedMotion();
   const profile = useProfile();
-  const showSLA = profile && (profile.role === "scout" || profile.role === "admin");
+  const showSLA =
+    profile && (profile.role === "scout" || profile.role === "admin");
 
   const cards: MetricCard[] = [
     { label: "New Leads", value: metrics.newLeads },
@@ -71,18 +87,66 @@ export function DashboardHero({
       <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
         <motion.div
           className="absolute -top-24 -left-24 w-96 h-96 rounded-full blur-[100px] bg-[#D4AF37]/10 will-change-transform"
-          animate={prefersReducedMotion ? {} : { x: ORB_ANIMATIONS[0].x, y: ORB_ANIMATIONS[0].y, scale: ORB_ANIMATIONS[0].scale }}
-          transition={prefersReducedMotion ? {} : { duration: ORB_ANIMATIONS[0].duration, repeat: Infinity, ease: "easeInOut" }}
+          animate={
+            prefersReducedMotion
+              ? {}
+              : {
+                  x: ORB_ANIMATIONS[0].x,
+                  y: ORB_ANIMATIONS[0].y,
+                  scale: ORB_ANIMATIONS[0].scale,
+                }
+          }
+          transition={
+            prefersReducedMotion
+              ? {}
+              : {
+                  duration: ORB_ANIMATIONS[0].duration,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }
+          }
         />
         <motion.div
           className="absolute -bottom-32 -right-32 w-[30rem] h-[30rem] rounded-full blur-[100px] bg-emerald-900/10 will-change-transform"
-          animate={prefersReducedMotion ? {} : { x: ORB_ANIMATIONS[1].x, y: ORB_ANIMATIONS[1].y, scale: ORB_ANIMATIONS[1].scale }}
-          transition={prefersReducedMotion ? {} : { duration: ORB_ANIMATIONS[1].duration, repeat: Infinity, ease: "easeInOut" }}
+          animate={
+            prefersReducedMotion
+              ? {}
+              : {
+                  x: ORB_ANIMATIONS[1].x,
+                  y: ORB_ANIMATIONS[1].y,
+                  scale: ORB_ANIMATIONS[1].scale,
+                }
+          }
+          transition={
+            prefersReducedMotion
+              ? {}
+              : {
+                  duration: ORB_ANIMATIONS[1].duration,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }
+          }
         />
         <motion.div
           className="absolute top-1/2 -translate-y-1/2 right-8 w-72 h-72 rounded-full blur-[100px] bg-indigo-900/10 will-change-transform"
-          animate={prefersReducedMotion ? {} : { x: ORB_ANIMATIONS[2].x, y: ORB_ANIMATIONS[2].y, scale: ORB_ANIMATIONS[2].scale }}
-          transition={prefersReducedMotion ? {} : { duration: ORB_ANIMATIONS[2].duration, repeat: Infinity, ease: "easeInOut" }}
+          animate={
+            prefersReducedMotion
+              ? {}
+              : {
+                  x: ORB_ANIMATIONS[2].x,
+                  y: ORB_ANIMATIONS[2].y,
+                  scale: ORB_ANIMATIONS[2].scale,
+                }
+          }
+          transition={
+            prefersReducedMotion
+              ? {}
+              : {
+                  duration: ORB_ANIMATIONS[2].duration,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }
+          }
         />
       </div>
 
@@ -91,9 +155,17 @@ export function DashboardHero({
         className="absolute inset-0 z-0 opacity-[0.15] mix-blend-overlay pointer-events-none"
         aria-hidden
       >
-        <svg className="w-full h-full opacity-100" xmlns="http://www.w3.org/2000/svg">
+        <svg
+          className="w-full h-full opacity-100"
+          xmlns="http://www.w3.org/2000/svg"
+        >
           <filter id="grain">
-            <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="4" stitchTiles="stitch" />
+            <feTurbulence
+              type="fractalNoise"
+              baseFrequency="0.8"
+              numOctaves="4"
+              stitchTiles="stitch"
+            />
           </filter>
           <rect width="100%" height="100%" filter="url(#grain)" />
         </svg>
@@ -136,8 +208,16 @@ export function DashboardHero({
           {/* Pulsing accent dot */}
           <motion.div
             className="w-3 h-3 rounded-full bg-rose-200/60 mb-2 ml-2 shrink-0"
-            animate={prefersReducedMotion ? { opacity: 0.6 } : { opacity: [0.3, 1, 0.3] }}
-            transition={prefersReducedMotion ? {} : { duration: 3, repeat: Infinity, ease: "easeInOut" }}
+            animate={
+              prefersReducedMotion
+                ? { opacity: 0.6 }
+                : { opacity: [0.3, 1, 0.3] }
+            }
+            transition={
+              prefersReducedMotion
+                ? {}
+                : { duration: 3, repeat: Infinity, ease: "easeInOut" }
+            }
           />
         </motion.div>
 

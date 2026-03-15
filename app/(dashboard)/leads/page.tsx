@@ -71,11 +71,12 @@ async function LeadsContent({ searchParams }: PageProps) {
 
   if (params.q) {
     // Strip PostgREST filter special characters to prevent filter injection
-    const sanitized = params.q.replace(/[(),'"]/g, "");
+    const sanitized = params.q.replace(/[(),'"]/g, "").trim();
     const q = `%${sanitized}%`;
-    query = query.or(
-      `first_name.ilike.${q},last_name.ilike.${q},phone_number.ilike.${q},email.ilike.${q},city.ilike.${q}`,
-    );
+    // Search: name, phone, email, city, and tags (via tags_searchable for partial match)
+    const baseFilters = `first_name.ilike.${q},last_name.ilike.${q},phone_number.ilike.${q},email.ilike.${q},city.ilike.${q}`;
+    const tagsFilter = sanitized ? `,tags_searchable.ilike.${q}` : "";
+    query = query.or(`${baseFilters}${tagsFilter}`);
   }
 
   if (params.campaign && params.campaign !== "ALL") {

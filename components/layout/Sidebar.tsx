@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   LayoutDashboard,
   Users,
@@ -20,6 +20,8 @@ import {
   Compass,
   Trophy,
   AlertTriangle,
+  Globe,
+  ShoppingBag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -44,7 +46,7 @@ const navItems = [
     href: "/",
     label: "Dashboard",
     icon: LayoutDashboard,
-    roles: ["agent", "scout", "admin"],
+    roles: ["agent", "scout"],
     section: "main",
   },
   {
@@ -93,7 +95,7 @@ const navItems = [
     href: "/scout",
     label: "Morning Briefing",
     icon: Coffee,
-    roles: ["scout", "admin"],
+    roles: ["scout"],
     section: "scout",
     exact: true, // /scout must not match /scout/dashboard etc.
   },
@@ -101,36 +103,67 @@ const navItems = [
     href: "/scout/dashboard",
     label: "Command Center",
     icon: BarChart3,
-    roles: ["scout", "admin"],
+    roles: ["scout"],
     section: "scout",
   },
   {
     href: "/scout/team",
     label: "Team Roster",
     icon: UsersRound,
-    roles: ["scout", "admin"],
+    roles: ["scout"],
     section: "scout",
   },
   {
     href: "/scout/planner",
     label: "Ad Planner",
     icon: Sparkles,
-    roles: ["scout", "admin"],
+    roles: ["scout"],
     section: "scout",
   },
   {
     href: "/scout/campaigns",
     label: "Live Campaigns",
     icon: Megaphone,
-    roles: ["scout", "admin"],
+    roles: ["scout"],
     section: "scout",
   },
+  {
+    href: "/indulge-world",
+    label: "Indulge Eco",
+    icon: Globe,
+    roles: ["admin"],
+    section: "admin",
+  },
+
+  {
+    href: "/admin/onboarding",
+    label: "Onboarding Oversight",
+    icon: BarChart3,
+    roles: ["admin"],
+    section: "admin",
+  },
+  {
+    href: "/admin/shop",
+    label: "Shop Operations",
+    icon: ShoppingBag,
+    roles: ["admin"],
+    section: "admin",
+  },
+  {
+    href: "/admin/marketing",
+    label: "Marketing Oversight",
+    icon: Megaphone,
+    roles: ["admin"],
+    section: "admin",
+  },
+
   {
     href: "/admin",
     label: "User Management",
     icon: ShieldCheck,
-    roles: ["admin"], // strictly admin — scouts must not see this
+    roles: ["admin"],
     section: "admin",
+    exact: true, // /admin must not match /admin/onboarding, /admin/shop, etc.
   },
 ];
 
@@ -329,44 +362,6 @@ export function Sidebar({ profile }: SidebarProps) {
           items={adminItems}
           pathname={pathname}
         />
-
-        {/* Module switcher — admin only */}
-        <AnimatePresence>
-          {profile.role === "admin" && (
-            <motion.div
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 6 }}
-              transition={{ duration: 0.25 }}
-              className="pt-4"
-            >
-              <div className="h-px bg-white/[0.07] mx-2 mb-3" />
-              <p className="px-3 mb-2 text-[10px] font-semibold text-white/[0.2] uppercase tracking-[0.12em]">
-                Module
-              </p>
-              <motion.div
-                whileHover={{ x: 3 }}
-                transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-                className="
-                  flex items-center gap-3 px-3 py-2.5 rounded-xl
-                  bg-[#D4AF37]/[0.06] border border-[#D4AF37]/[0.12]
-                  cursor-pointer hover:bg-[#D4AF37]/[0.10]
-                  transition-colors duration-300
-                "
-              >
-                <Sparkles className="w-[15px] h-[15px] text-[#D4AF37]/50" />
-                <div>
-                  <p className="text-[13px] text-[#D4AF37]/80 font-medium">
-                    Indulge Global
-                  </p>
-                  <p className="text-[10px] text-white/[0.2] mt-0.5">
-                    Concierge
-                  </p>
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </nav>
 
       {/* ── User profile footer ─────────────────────────── */}

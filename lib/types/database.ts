@@ -20,22 +20,22 @@ export interface ConversationParticipant {
 
 // Minimal lead info embedded in a message when a lead is attached
 export interface MessageLeadPreview {
-  id:        string;
+  id: string;
   full_name: string;
-  status:    LeadStatus;
-  city:      string | null;
+  status: LeadStatus;
+  city: string | null;
 }
 
 export interface Message {
-  id:              string;
+  id: string;
   conversation_id: string;
-  sender_id:       string;
-  content:         string;
-  lead_id:         string | null;
-  created_at:      string;
+  sender_id: string;
+  content: string;
+  lead_id: string | null;
+  created_at: string;
   // Enriched client-side
   sender?: Pick<Profile, "id" | "full_name" | "role">;
-  lead?:   MessageLeadPreview | null;
+  lead?: MessageLeadPreview | null;
 }
 
 // ── Enums — must match the PostgreSQL enum values exactly ──
@@ -123,7 +123,7 @@ export interface Profile {
   full_name: string;
   email: string;
   phone: string | null;
-  dob: string | null;   // ISO date "YYYY-MM-DD"
+  dob: string | null; // ISO date "YYYY-MM-DD"
   role: UserRole;
   domain: IndulgeDomain;
   is_active: boolean;
@@ -146,15 +146,10 @@ export type LostReason =
   | "Other";
 
 /** Trash modal options */
-export type TrashReason =
-  | "Incorrect Data"
-  | "Not our TG"
-  | "Spam";
+export type TrashReason = "Incorrect Data" | "Not our TG" | "Spam";
 
 /** Nurture modal options */
-export type NurtureReason =
-  | "Future Prospect"
-  | "Cold";
+export type NurtureReason = "Future Prospect" | "Cold";
 
 export interface Lead {
   id: string;
@@ -172,7 +167,7 @@ export interface Lead {
   utm_source: string | null;
   utm_medium: string | null;
   utm_campaign: string | null;
-  deal_value:    number | null;
+  deal_value: number | null;
   deal_duration: string | null;
   domain: IndulgeDomain;
   status: LeadStatus;
@@ -196,6 +191,8 @@ export interface Lead {
   personal_details: string | null;
   // Phase 5: Executive Dossier fields
   company: string | null;
+  // Tagging system — e.g. griffin_event, furak_party
+  tags: string[];
   created_at: string;
   updated_at: string;
   // Joined
@@ -246,23 +243,44 @@ export interface LeadActivity {
   agent?: Profile;
 }
 
+/** Single progress update in the task timeline */
+export interface TaskProgressUpdate {
+  timestamp: string;
+  message: string;
+  user_id: string;
+  user_name: string;
+}
+
 export interface Task {
   id: string;
   lead_id: string | null;
-  assigned_to: string;
+  assigned_to_users: string[];
+  created_by: string | null;
   title: string;
   task_type: TaskType;
   status: TaskStatus;
   due_date: string;
   notes: string | null;
+  progress_updates: TaskProgressUpdate[];
   created_at: string;
   updated_at: string;
   // Joined
-  lead?: Pick<Lead, "id" | "first_name" | "last_name" | "phone_number" | "email" | "status"> | null;
+  lead?: Pick<
+    Lead,
+    "id" | "first_name" | "last_name" | "phone_number" | "email" | "status"
+  > | null;
+  created_by_profile?: Pick<Profile, "id" | "full_name" | "role"> | null;
+  /** Primary assignee (first in array) — for backward compat. Prefer assigned_to_profiles. */
+  assigned_to_profile?: Pick<Profile, "id" | "full_name" | "role"> | null;
+  /** All assignees when fetched with join. */
+  assigned_to_profiles?: Pick<Profile, "id" | "full_name" | "role">[];
 }
 
 export type TaskWithLead = Task & {
-  lead: Pick<Lead, "id" | "first_name" | "last_name" | "phone_number" | "email" | "status"> | null;
+  lead: Pick<
+    Lead,
+    "id" | "first_name" | "last_name" | "phone_number" | "email" | "status"
+  > | null;
 };
 
 // ── Database shape (used by Supabase client generics) ──────
@@ -277,7 +295,10 @@ export interface Database {
       };
       leads: {
         Row: Lead;
-        Insert: Omit<Lead, "id" | "created_at" | "updated_at" | "assigned_agent">;
+        Insert: Omit<
+          Lead,
+          "id" | "created_at" | "updated_at" | "assigned_agent"
+        >;
         Update: Partial<Omit<Lead, "id" | "created_at" | "assigned_agent">>;
       };
       lead_activities: {
@@ -287,8 +308,13 @@ export interface Database {
       };
       tasks: {
         Row: Task;
-        Insert: Omit<Task, "id" | "created_at" | "updated_at" | "lead">;
-        Update: Partial<Omit<Task, "id" | "created_at" | "lead">>;
+        Insert: Omit<
+          Task,
+          "id" | "created_at" | "updated_at" | "lead" | "created_by_profile" | "assigned_to_profile" | "assigned_to_profiles"
+        > & { created_by?: string | null; progress_updates?: TaskProgressUpdate[] };
+        Update: Partial<
+          Omit<Task, "id" | "created_at" | "lead" | "created_by_profile" | "assigned_to_profile" | "assigned_to_profiles">
+        >;
       };
     };
     Enums: {
@@ -312,7 +338,13 @@ export interface Database {
 
 export const LEAD_STATUS_CONFIG: Record<
   LeadStatus,
-  { label: string; color: string; bgColor: string; description: string; className?: string }
+  {
+    label: string;
+    color: string;
+    bgColor: string;
+    description: string;
+    className?: string;
+  }
 > = {
   new: {
     label: "New",

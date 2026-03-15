@@ -72,8 +72,9 @@ export async function createLead(input: AddLeadFormValues): Promise<ActionResult
     const firstName = spaceIdx === -1 ? trimmed : trimmed.slice(0, spaceIdx);
     const lastName  = spaceIdx === -1 ? null : trimmed.slice(spaceIdx + 1).trim() || null;
 
+    // Agents: force self-assignment. Scouts/Admins: use dropdown value or default to self.
     const assignedTo =
-      role === "agent" ? user.id : (input.assigned_to || null);
+      role === "agent" ? user.id : (input.assigned_to?.trim() || user.id);
 
     const domainRaw = input.domain ?? "Indulge Global";
     const domainDb  = DOMAIN_MAP[domainRaw] ?? "indulge_global";

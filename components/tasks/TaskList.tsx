@@ -17,6 +17,7 @@ interface TaskListProps {
   onComplete: (id: string) => void;
   onDelete: (id: string) => void;
   onEdit: (task: TaskWithLead) => void;
+  onOpenDetail?: (task: TaskWithLead) => void;
   headerAction?: React.ReactNode;
 }
 
@@ -29,6 +30,7 @@ export function TaskList({
   onComplete,
   onDelete,
   onEdit,
+  onOpenDetail,
   headerAction,
 }: TaskListProps) {
   const [completedOpen, setCompletedOpen] = useState(false);
@@ -91,6 +93,7 @@ export function TaskList({
                   onComplete={onComplete}
                   onDelete={onDelete}
                   onEdit={onEdit}
+                  onOpenDetail={onOpenDetail}
                   isCompleting={completingIds.includes(task.id)}
                   isExpanded={expandedTaskId === task.id}
                   onToggleExpand={() => toggleExpand(task.id)}
@@ -171,6 +174,7 @@ export function TaskList({
                         task={task}
                         role={role}
                         onComplete={onComplete}
+                        onOpenDetail={onOpenDetail}
                         isCompleting={completingIds.includes(task.id)}
                         isExpanded={expandedTaskId === task.id}
                         onToggleExpand={() => toggleExpand(task.id)}

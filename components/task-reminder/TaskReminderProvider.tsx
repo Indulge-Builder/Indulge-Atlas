@@ -156,7 +156,7 @@ export function TaskReminderProvider({ children }: TaskReminderProviderProps) {
             event: "*",
             schema: "public",
             table: "tasks",
-            filter: `assigned_to=eq.${user.id}`,
+            filter: `assigned_to_users=cs.{${user.id}}`,
           },
           (payload) => {
             console.log("[Task Engine] Realtime Payload Received:", payload);

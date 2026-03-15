@@ -2,36 +2,36 @@
 
 @theme inline {
   /* Brand Colors */
-  --color-brand-black: #0A0A0A;
-  --color-brand-gold: #D4AF37;
-  --color-brand-gold-light: #E8D06A;
-  --color-brand-gold-dark: #A88B25;
+  --color-brand-black: #0a0a0a;
+  --color-brand-gold: #d4af37;
+  --color-brand-gold-light: #e8d06a;
+  --color-brand-gold-dark: #a88b25;
 
   /* Surface / Working Area */
-  --color-surface: #F9F9F6;
-  --color-surface-subtle: #F2F2EE;
-  --color-surface-border: #E5E4DF;
+  --color-surface: #f9f9f6;
+  --color-surface-subtle: #f2f2ee;
+  --color-surface-border: #e5e4df;
 
   /* Earth Tones */
-  --color-taupe: #B5A99A;
-  --color-taupe-light: #D0C8BE;
-  --color-muted-olive: #8A8A6E;
+  --color-taupe: #b5a99a;
+  --color-taupe-light: #d0c8be;
+  --color-muted-olive: #8a8a6e;
 
   /* Semantic */
-  --color-success: #4A7C59;
-  --color-success-light: #EBF4EF;
-  --color-warning: #C5830A;
-  --color-warning-light: #FEF3D0;
-  --color-danger: #C0392B;
-  --color-danger-light: #FAEAE8;
-  --color-info: #2C6FAC;
-  --color-info-light: #E8F0FA;
+  --color-success: #4a7c59;
+  --color-success-light: #ebf4ef;
+  --color-warning: #c5830a;
+  --color-warning-light: #fef3d0;
+  --color-danger: #c0392b;
+  --color-danger-light: #faeae8;
+  --color-info: #2c6fac;
+  --color-info-light: #e8f0fa;
 
   /* Sidebar */
-  --color-sidebar-bg: #0A0A0A;
-  --color-sidebar-hover: #1A1A1A;
-  --color-sidebar-active: #1E1A0A;
-  --color-sidebar-border: #2A2A2A;
+  --color-sidebar-bg: #0a0a0a;
+  --color-sidebar-hover: #1a1a1a;
+  --color-sidebar-active: #1e1a0a;
+  --color-sidebar-border: #2a2a2a;
 
   /* Typography */
   --font-serif: var(--font-playfair), "Playfair Display", Georgia, serif;
@@ -45,18 +45,21 @@
   --radius-xl: 1rem;
 
   /* Shadows */
-  --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.04);
-  --shadow-elevated: 0 4px 16px 0 rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.06);
-  --shadow-gold: 0 0 0 1px rgb(212 175 55 / 0.3), 0 4px 16px rgb(212 175 55 / 0.12);
+  --shadow-card:
+    0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.04);
+  --shadow-elevated:
+    0 4px 16px 0 rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.06);
+  --shadow-gold:
+    0 0 0 1px rgb(212 175 55 / 0.3), 0 4px 16px rgb(212 175 55 / 0.12);
 }
 
 :root {
   --background: var(--color-surface);
-  --foreground: #1A1A1A;
-  --card: #FFFFFF;
-  --card-foreground: #1A1A1A;
+  --foreground: #1a1a1a;
+  --card: #ffffff;
+  --card-foreground: #1a1a1a;
   --muted: var(--color-surface-subtle);
-  --muted-foreground: #6B6B6B;
+  --muted-foreground: #6b6b6b;
   --border: var(--color-surface-border);
   --input: var(--color-surface-subtle);
   --ring: var(--color-brand-gold);
@@ -68,12 +71,12 @@
 
 @layer base {
   html {
-    background-color: #0D0C0A;
+    background-color: #0d0c0a;
     color-scheme: dark;
     min-height: 100%;
   }
   body {
-    background-color: #0D0C0A;
+    background-color: #0d0c0a;
     color: rgb(255 255 255 / 0.9);
     min-height: 100vh;
   }
@@ -95,12 +98,24 @@ body {
    Opacity on the noise is kept at 5 % so it is felt, not seen.
 ─────────────────────────────────────────────────────────────── */
 .layout-canvas {
-  background-color: #0D0C0A;
+  background-color: #0d0c0a;
   background-image:
     url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n' x='0' y='0'><feTurbulence type='fractalNoise' baseFrequency='0.68' numOctaves='4' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='200' height='200' filter='url(%23n)' opacity='0.055'/></svg>"),
-    radial-gradient(ellipse 70% 55% at 8% 8%,  rgba(130, 95, 52, 0.16) 0%, transparent 60%),
-    radial-gradient(ellipse 55% 70% at 92% 92%, rgba(72, 78, 56, 0.13)  0%, transparent 60%),
-    radial-gradient(ellipse 18% 100% at 0% 50%, rgba(212, 175, 55, 0.04) 0%, transparent 100%);
+    radial-gradient(
+      ellipse 70% 55% at 8% 8%,
+      rgba(130, 95, 52, 0.16) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 55% 70% at 92% 92%,
+      rgba(72, 78, 56, 0.13) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 18% 100% at 0% 50%,
+      rgba(212, 175, 55, 0.04) 0%,
+      transparent 100%
+    );
 }
 
 /* ── Paper Shadow ─────────────────────────────────────────────
@@ -140,11 +155,13 @@ body {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: #D4AF37;
+  background: #d4af37;
   border: 2px solid rgba(255, 255, 255, 0.2);
   box-shadow: 0 2px 8px rgba(212, 175, 55, 0.45);
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .luxury-slider::-webkit-slider-thumb:hover {
@@ -156,15 +173,19 @@ body {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: #D4AF37;
+  background: #d4af37;
   border: 2px solid rgba(255, 255, 255, 0.2);
   box-shadow: 0 2px 8px rgba(212, 175, 55, 0.45);
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .luxury-slider:focus-visible::-webkit-slider-thumb {
-  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.25), 0 2px 8px rgba(212, 175, 55, 0.45);
+  box-shadow:
+    0 0 0 3px rgba(212, 175, 55, 0.25),
+    0 2px 8px rgba(212, 175, 55, 0.45);
 }
 
 /* ── Scratchpad textarea — sage placeholder colour ────────────────────────────
@@ -172,8 +193,17 @@ body {
    for inline-styled textareas, so we target by data-attribute instead.
 ──────────────────────────────────────────────────────────────────────────── */
 .scratchpad-textarea::placeholder {
-  color: #B0CCA8;
+  color: #b0cca8;
   font-style: italic;
+}
+
+/* Hide scrollbar (for pill nav, horizontal scroll areas) */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }
 
 /* Scrollbar styling */
@@ -195,5 +225,5 @@ body {
 /* Selection */
 ::selection {
   background: rgb(212 175 55 / 0.2);
-  color: #1A1A1A;
+  color: #1a1a1a;
 }

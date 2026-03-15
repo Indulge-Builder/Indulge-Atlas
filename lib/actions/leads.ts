@@ -364,6 +364,54 @@ export async function updateLeadEmail(
   }
 }
 
+// ── Update Lead Tags ───────────────────────────────────────
+
+const updateTagsSchema = z.object({
+  leadId: z.string().uuid(),
+  tags:   z.array(z.string().min(1).max(80)).max(50),
+});
+
+export async function updateLeadTags(
+  leadId: string,
+  tags: string[]
+): Promise<ActionResult> {
+  try {
+    const parsed = updateTagsSchema.safeParse({ leadId, tags });
+    if (!parsed.success) {
+      return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+    }
+
+    const { supabase, user, role } = await getAuthUser();
+
+    const { data: lead, error: fetchError } = await supabase
+      .from("leads")
+      .select("assigned_to")
+      .eq("id", leadId)
+      .single();
+
+    if (fetchError || !lead) return { success: false, error: "Lead not found" };
+
+    if (!isPrivilegedRole(role) && lead.assigned_to !== user.id) {
+      return { success: false, error: "Unauthorised" };
+    }
+
+    const deduped = [...new Set(parsed.data.tags.map((t) => t.trim().toLowerCase()).filter(Boolean))];
+
+    const { error } = await supabase
+      .from("leads")
+      .update({ tags: deduped })
+      .eq("id", leadId);
+
+    if (error) return { success: false, error: "Failed to update tags" };
+
+    revalidatePath(`/leads/${leadId}`);
+    revalidatePath("/leads");
+    return { success: true };
+  } catch {
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
 // ── Mark Lead SLA Alert Sent (for escalation history) ────────────────────────
 
 export async function markLeadSLAAlertSent(
@@ -799,7 +847,7 @@ export async function closeWonDeal(
 
     const { data: lead, error: fetchError } = await supabase
       .from("leads")
-      .select("status, assigned_to")
+      .select("status, assigned_to, first_name, last_name, phone_number, email")
       .eq("id", leadId)
       .single();
 
@@ -821,6 +869,21 @@ export async function closeWonDeal(
       .eq("id", leadId);
 
     if (updateError) return { success: false, error: "Failed to close deal" };
+
+    // Promote won lead to clients table
+    const { error: clientError } = await supabase.from("clients").insert({
+      first_name:         lead.first_name,
+      last_name:          lead.last_name ?? null,
+      phone_number:       lead.phone_number,
+      email:              lead.email ?? null,
+      lead_origin_id:     leadId,
+      membership_status: "active",
+    });
+
+    if (clientError) {
+      // Log but don't fail the deal close — client insert is secondary
+      console.error("[closeWonDeal] Failed to insert client:", clientError);
+    }
 
     await supabase.from("lead_activities").insert({
       lead_id:      leadId,

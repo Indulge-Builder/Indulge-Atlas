@@ -67,7 +67,7 @@ function FieldError({ message }: { message?: string }) {
 const inputCx = (hasError?: boolean) =>
   cn(
     "h-10 px-3.5 text-sm bg-white focus:ring-[#7A6652]/20 focus:border-[#7A6652]",
-    hasError && "border-danger/50 focus:border-danger focus:ring-danger/15"
+    hasError && "border-danger/50 focus:border-danger focus:ring-danger/15",
   );
 
 const selectTriggerCx =
@@ -124,6 +124,7 @@ export function AddLeadModal({
     handleSubmit,
     control,
     reset,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<AddLeadFormValues>({
     resolver: zodResolver(addLeadSchema),
@@ -152,7 +153,11 @@ export function AddLeadModal({
         setCallerRole(profile.role);
         setAgents(agentList);
         setAgentsLoading(false);
-      }
+        // Scouts/Admins: default Assign To to self when left blank
+        if (profile.role === "scout" || profile.role === "admin") {
+          setValue("assigned_to", profile.id);
+        }
+      },
     );
 
     setAgentsLoading(true);
@@ -263,7 +268,6 @@ export function AddLeadModal({
                   {/* ── Form ───────────────────────────── */}
                   <form onSubmit={handleSubmit(onSubmit)} noValidate>
                     <div className="space-y-5">
-
                       {/* ── CONTACT DETAILS ────────────── */}
                       <SectionLabel>Contact Details</SectionLabel>
 
@@ -396,7 +400,10 @@ export function AddLeadModal({
                                 </SelectTrigger>
                                 <SelectContent>
                                   {STATUS_OPTIONS.map((opt) => (
-                                    <SelectItem key={opt.value} value={opt.value}>
+                                    <SelectItem
+                                      key={opt.value}
+                                      value={opt.value}
+                                    >
                                       {opt.label}
                                     </SelectItem>
                                   ))}

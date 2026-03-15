@@ -15,10 +15,16 @@ interface EditTaskModalProps {
   onSuccess?: () => void;
 }
 
-export function EditTaskModal({ task, onClose, onSuccess }: EditTaskModalProps) {
+export function EditTaskModal({
+  task,
+  onClose,
+  onSuccess,
+}: EditTaskModalProps) {
   const prefersReducedMotion = useReducedMotion();
   const [notes, setNotes] = useState(task.notes ?? "");
-  const [dueDate, setDueDate] = useState<Date | undefined>(new Date(task.due_date));
+  const [dueDate, setDueDate] = useState<Date | undefined>(
+    new Date(task.due_date),
+  );
   const [saving, setSaving] = useState(false);
 
   async function handleSave() {
@@ -48,9 +54,17 @@ export function EditTaskModal({ task, onClose, onSuccess }: EditTaskModalProps) 
 
       <motion.div
         key="edit-task-modal"
-        initial={{ opacity: 0, scale: prefersReducedMotion ? 1 : 0.96, y: prefersReducedMotion ? 0 : 10 }}
+        initial={{
+          opacity: 0,
+          scale: prefersReducedMotion ? 1 : 0.96,
+          y: prefersReducedMotion ? 0 : 10,
+        }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: prefersReducedMotion ? 1 : 0.96, y: prefersReducedMotion ? 0 : 10 }}
+        exit={{
+          opacity: 0,
+          scale: prefersReducedMotion ? 1 : 0.96,
+          y: prefersReducedMotion ? 0 : 10,
+        }}
         transition={{ duration: 0.5, ease: luxuryEasing }}
         style={{ willChange: "transform, opacity" }}
         className="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none px-4"
@@ -62,7 +76,10 @@ export function EditTaskModal({ task, onClose, onSuccess }: EditTaskModalProps) 
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
             <div className="flex items-center gap-2.5">
-              <Pencil className="w-4 h-4 text-[#D4AF37]/70" strokeWidth={1.75} />
+              <Pencil
+                className="w-4 h-4 text-[#D4AF37]/70"
+                strokeWidth={1.75}
+              />
               <h2
                 className="text-[15px] font-semibold text-white/85"
                 style={{ fontFamily: "var(--font-playfair)" }}
@@ -86,7 +103,9 @@ export function EditTaskModal({ task, onClose, onSuccess }: EditTaskModalProps) 
               <p className="text-[10px] font-semibold text-white/30 uppercase tracking-widest mb-1.5">
                 Task
               </p>
-              <p className="text-[14px] text-white/70 font-medium leading-snug">{task.title}</p>
+              <p className="text-[14px] text-white/70 font-medium leading-snug">
+                {task.title}
+              </p>
             </div>
 
             {/* Due date & time */}

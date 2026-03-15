@@ -172,17 +172,20 @@ function QuickAddModal({
     // Build an optimistic task so the list updates instantly
     const now = new Date().toISOString();
     const optimisticTask: TaskWithLead = {
-      id:          `optimistic-${Date.now()}`,
-      lead_id:     leadId,
-      assigned_to: "",
-      title:       values.title,
-      task_type:   values.task_type as TaskType,
-      status:      "pending",
-      due_date:    values.due_date.toISOString(),
-      notes:       values.notes?.trim() || null,
-      created_at:  now,
-      updated_at:  now,
-      lead:        null,
+      id:                `optimistic-${Date.now()}`,
+      lead_id:           leadId,
+      assigned_to_users: [],
+      created_by:       null,
+      title:            values.title,
+      task_type:        values.task_type as TaskType,
+      status:           "pending",
+      due_date:         values.due_date.toISOString(),
+      notes:            values.notes?.trim() || null,
+      progress_updates: [],
+      created_at:       now,
+      updated_at:       now,
+      lead:             null,
+      assigned_to_profiles: [],
     };
 
     reset({

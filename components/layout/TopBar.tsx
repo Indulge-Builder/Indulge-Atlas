@@ -11,16 +11,21 @@ interface TopBarProps {
   title: string;
   subtitle?: string;
   actions?: React.ReactNode;
+  variant?: "default" | "dark";
 }
 
-function ChatTriggerButton() {
+function ChatTriggerButton({ dark }: { dark?: boolean }) {
   const { openChat, unreadCount } = useChatDrawer();
   return (
     <motion.button
       onClick={openChat}
       whileHover={{ scale: 1.08 }}
       whileTap={{ scale: 0.94 }}
-      className="relative w-9 h-9 rounded-xl flex items-center justify-center text-[#9E9E9E] hover:text-[#1A1A1A] hover:bg-black/[0.04] transition-colors duration-150"
+      className={
+        dark
+          ? "relative w-9 h-9 rounded-xl flex items-center justify-center text-white/40 hover:text-white/80 hover:bg-white/8 transition-colors duration-150"
+          : "relative w-9 h-9 rounded-xl flex items-center justify-center text-[#9E9E9E] hover:text-[#1A1A1A] hover:bg-black/[0.04] transition-colors duration-150"
+      }
       aria-label="Open messages"
     >
       <MessageSquare className="w-4 h-4" strokeWidth={1.75} />
@@ -49,9 +54,16 @@ function GoldDotTitle({ text }: { text: string }) {
   return <>{text}</>;
 }
 
-export function TopBar({ title, subtitle, actions }: TopBarProps) {
+export function TopBar({
+  title,
+  subtitle,
+  actions,
+  variant = "default",
+}: TopBarProps) {
   const profile = useProfile();
-  const showSLA = profile && (profile.role === "scout" || profile.role === "admin");
+  const showSLA =
+    profile && (profile.role === "scout" || profile.role === "admin");
+  const isDark = variant === "dark";
 
   return (
     <motion.header
@@ -64,21 +76,21 @@ export function TopBar({ title, subtitle, actions }: TopBarProps) {
        * The bottom separator is a hairline — 4 % black — just enough to
        * signal stickiness without a harsh line.
        */
-      className="
-        sticky top-0 z-30
-        bg-[#F9F9F6]/80 backdrop-blur-xl
-        border-b border-black/[0.05]
-        px-8 py-4
-        flex items-center justify-between
-      "
+      className={
+        isDark
+          ? "sticky top-0 z-30 bg-[#0D0C0A]/90 backdrop-blur-xl border-b border-white/6 px-8 py-4 flex items-center justify-between"
+          : "sticky top-0 z-30 bg-[#F9F9F6]/80 backdrop-blur-xl border-b border-black/[0.05] px-8 py-4 flex items-center justify-between"
+      }
     >
       {/* Left: title + optional subtitle */}
       <div>
         <h1
-          className="
-            text-[#1A1A1A] text-xl font-semibold leading-tight tracking-tight
-          "
-          style={{ fontFamily: "var(--font-playfair)" }}
+          className={
+            isDark
+              ? "text-white/95 text-xl font-semibold leading-tight tracking-tight"
+              : "text-[#1A1A1A] text-xl font-semibold leading-tight tracking-tight"
+          }
+          style={!isDark ? { fontFamily: "var(--font-playfair)" } : undefined}
         >
           <GoldDotTitle text={title} />
         </h1>
@@ -88,7 +100,11 @@ export function TopBar({ title, subtitle, actions }: TopBarProps) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.4, delay: 0.1 }}
-            className="text-[13px] text-[#9E9E9E] mt-0.5 font-normal tracking-wide"
+            className={
+              isDark
+                ? "text-[13px] text-white/45 mt-0.5 font-normal tracking-wide"
+                : "text-[13px] text-[#9E9E9E] mt-0.5 font-normal tracking-wide"
+            }
           >
             {subtitle}
           </motion.p>
@@ -99,7 +115,7 @@ export function TopBar({ title, subtitle, actions }: TopBarProps) {
       <div className="flex items-center gap-3">
         {actions}
 
-        <ChatTriggerButton />
+        <ChatTriggerButton dark={isDark} />
 
         <NotificationBell />
 
