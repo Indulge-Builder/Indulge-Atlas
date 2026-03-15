@@ -198,11 +198,13 @@ body {
 }
 
 /* Hide scrollbar (for pill nav, horizontal scroll areas) */
-.scrollbar-hide {
+.scrollbar-hide,
+.hidden-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
-.scrollbar-hide::-webkit-scrollbar {
+.scrollbar-hide::-webkit-scrollbar,
+.hidden-scrollbar::-webkit-scrollbar {
   display: none;
 }
 

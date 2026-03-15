@@ -8,7 +8,7 @@ const PILLOWY_CONTAINER =
 export function CompanyStructureView() {
   return (
     <div className={`${PILLOWY_CONTAINER} text-center w-full`}>
-      <h2 className="text-lg font-semibold text-sidebar-active tracking-tight mb-1">
+      <h2 className="text-xl md:text-2xl lg:text-3xl font-semibold text-sidebar-active tracking-tight mb-1">
         Company Structure
       </h2>
       <p className="text-sm text-stone-600 mb-10">

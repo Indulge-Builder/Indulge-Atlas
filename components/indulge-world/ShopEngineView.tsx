@@ -86,7 +86,7 @@ export function ShopEngineView() {
   return (
     <div className="max-w-3xl mx-auto text-center w-full">
       <h2
-        className={`text-lg font-semibold ${SOFT_ACCENT} tracking-tight mb-4`}
+        className={`text-xl md:text-2xl font-semibold ${SOFT_ACCENT} tracking-tight mb-4`}
       >
         Cyclical Workflow
       </h2>

@@ -144,9 +144,9 @@ export function MarketingOversightClient() {
   const [selectedAgent, setSelectedAgent] = useState<(typeof MOCK_MARKETING_TEAM)[number] | null>(null);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 md:space-y-8">
       {/* Phase 3: Apex Metrics — top row of glass cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 md:gap-6">
         {/* Card 1: Total Posts */}
         <div
           className={cn(
@@ -183,7 +183,7 @@ export function MarketingOversightClient() {
           <AdminCreateTaskModal defaultDepartment="marketing" />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
           {MOCK_MARKETING_TEAM.map((agent, i) => (
             <motion.button
               key={agent.id}

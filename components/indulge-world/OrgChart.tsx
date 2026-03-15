@@ -241,11 +241,13 @@ export function OrgChart() {
         className="flex flex-col items-center"
       >
         {/* Tier 1: The Apex — Founders (split into two nodes) */}
-        <motion.div
-          variants={itemVariants}
-          className="relative flex flex-col items-center"
-        >
-          <div className="relative flex flex-row justify-center gap-8 items-center">
+        <motion.div variants={itemVariants} className="relative flex flex-col items-center">
+          <div className="relative flex justify-center gap-8 md:gap-16 mb-8">
+            {/* Horizontal bracket between Karan and Advita */}
+            <div
+              className="absolute top-1/2 left-[25%] right-[25%] h-0.5 bg-stone-800 -z-10 -translate-y-1/2"
+              aria-hidden
+            />
             {FOUNDERS.map((founder) => (
               <OrgNode
                 key={founder.id}
@@ -254,57 +256,47 @@ export function OrgChart() {
                 onClick={() => setSelectedEmployee(founder)}
               />
             ))}
-            {/* Horizontal bracket between Karan and Advita */}
+            {/* Vertical drop from center down to POC */}
             <div
-              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-px border-t-2 border-dashed border-stone-800 pointer-events-none"
+              className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-0.5 h-8 bg-stone-800"
               aria-hidden
             />
           </div>
-          {/* Vertical line down from center of founders container to Sindhya */}
-          <div
-            className="w-0 h-20 border-l-2 border-dashed border-stone-800 self-center"
-            aria-hidden
-          />
         </motion.div>
 
-        {/* Tier 2: The Gateway — POC Sindhya */}
-        <motion.div variants={itemVariants} className="relative mt-0">
+        {/* Tier 2: The Gateway — POC Syndia */}
+        <motion.div variants={itemVariants} className="relative flex justify-center mb-8">
           <OrgNode
             employee={POC}
             variants={itemVariants}
             onClick={() => setSelectedEmployee(POC)}
           />
-          {/* Vertical line down from Sindhya to branch */}
+          {/* Vertical drop from POC down to department row */}
           <div
-            className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-16 border-l-2 border-dashed border-stone-800"
+            className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-0.5 h-8 bg-stone-800"
             aria-hidden
           />
         </motion.div>
 
-        {/* Tier 3 & 4: Departments — horizontal scroll with branch connector */}
-        <div className="w-full mt-0 overflow-x-auto scrollbar-hide pb-6 -mx-2 px-2">
+        {/* Tier 3 & 4: Departments — horizontal scroll with snap for mobile/tablet */}
+        <div className="w-full overflow-x-auto hidden-scrollbar snap-x snap-mandatory pb-4 md:pb-6 -mx-2 px-2">
           <div className="flex flex-col items-center min-w-max">
-            {/* Vertical stem from Sindhya down to horizontal branch */}
-            <div
-              className="w-0 h-12 border-l-2 border-dashed border-stone-800 self-center"
-              aria-hidden
-            />
-            {/* Horizontal branch line — soft dashed */}
-            <div
-              className="w-full h-px border-t-2 border-dashed border-stone-800"
-              aria-hidden
-            />
-            {/* Department columns — each with vertical connector from branch */}
-            <div className="flex gap-10 mt-0">
+            {/* Department row: upward stems + horizontal connector */}
+            <div className="relative pt-8 flex justify-center gap-6 md:gap-8 min-w-max">
+              {/* Horizontal line connecting all department stems */}
+              <div
+                className="absolute top-0 left-0 right-0 h-0.5 bg-stone-800"
+                aria-hidden
+              />
               {DEPARTMENTS.map((dept) => (
                 <motion.div
                   key={dept.name}
                   variants={departmentVariants}
-                  className="flex flex-col items-center shrink-0"
+                  className="relative flex flex-col items-center shrink-0 snap-center snap-always min-w-[140px]"
                 >
-                  {/* Vertical connector from horizontal branch to department lead */}
+                  {/* Upward stem from department to horizontal line */}
                   <div
-                    className="w-0 h-5 border-l-2 border-dashed border-stone-800 shrink-0"
+                    className="absolute -top-8 left-1/2 -translate-x-1/2 w-0.5 h-8 bg-stone-800"
                     aria-hidden
                   />
                   {/* Department label */}

@@ -98,9 +98,9 @@ export function OnboardingOversightClient({
         actions={activeTab === "leads" ? <AddLeadModal /> : undefined}
       />
 
-      <div className="px-8 py-6 space-y-6">
+      <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 space-y-4 md:space-y-6">
         {/* Apex Metrics */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 md:gap-6">
           {APEX_METRICS.map((metric, i) => (
             <motion.div
               key={metric.label}

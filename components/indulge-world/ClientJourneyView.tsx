@@ -188,7 +188,7 @@ export function ClientJourneyView() {
   return (
     <div className="max-w-5xl mx-auto text-center w-full">
       <h2
-        className={`text-lg font-semibold ${SOFT_ACCENT} tracking-tight mb-1`}
+        className={`text-xl md:text-2xl lg:text-3xl font-semibold ${SOFT_ACCENT} tracking-tight mb-1`}
       >
         The Client Journey
       </h2>
@@ -289,15 +289,20 @@ export function ClientJourneyView() {
               </div>
             </motion.div>
 
-            {/* Flow label — clear visual break with soft backgrounds */}
+            {/* Flow label — clear visual break; vertical connector on mobile, horizontal on desktop */}
             <motion.div
               variants={itemVariants}
-              className="flex flex-col items-center justify-center my-10 md:my-14 gap-4"
+              className="flex flex-col items-center justify-center my-8 md:my-12 lg:my-14 gap-4"
             >
+              {/* Connector: vertical on mobile, horizontal on desktop */}
+              <div
+                className="w-px h-8 mx-auto lg:w-full lg:h-px lg:mx-0 border-stone-200/60 border-l lg:border-l-0 lg:border-t"
+                aria-hidden
+              />
               <span className="px-4 py-2 rounded-full bg-stone-100/80 text-xs font-medium text-stone-500 uppercase tracking-widest ring-1 ring-stone-200/40">
                 Then access to
               </span>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-col sm:flex-row items-center gap-3">
                 <span className="px-5 py-2.5 rounded-xl bg-sky-50/90 text-sky-600 text-sm font-semibold ring-1 ring-sky-200/50">
                   The App
                 </span>
@@ -308,8 +313,8 @@ export function ClientJourneyView() {
               </div>
             </motion.div>
 
-            {/* Two pillars: The App & Concierge */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+            {/* Two pillars: The App & Concierge — vertical on mobile, horizontal on desktop */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
               {/* Pillar 1: The App */}
               <motion.div
                 variants={itemVariants}
@@ -379,9 +384,9 @@ export function ClientJourneyView() {
             animate="show"
             className="relative max-w-2xl mx-auto"
           >
-            {/* Vertical connector — soft dashed with pulse */}
+            {/* Vertical connector — soft dashed with pulse (mobile-first stepping stones) */}
             <motion.div
-              className="absolute left-[19px] top-6 bottom-24 w-0 border-l-2 border-dashed border-stone-200/50"
+              className="absolute left-[19px] top-6 bottom-24 w-px border-l-2 border-dashed border-stone-200/50"
               aria-hidden
               animate={{ opacity: [0.5, 1, 0.5] }}
               transition={{

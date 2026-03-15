@@ -279,9 +279,9 @@ export function ShopOversightClient() {
         }
       />
 
-      <div className="px-8 py-6 space-y-6">
+      <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 space-y-4 md:space-y-6">
         {/* Phase 2: Apex Metrics */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 md:gap-6">
           {[
             {
               label: "Total Product Revenue",
@@ -350,8 +350,9 @@ export function ShopOversightClient() {
           ))}
         </div>
 
-        {/* Phase 3: Tab Navigation */}
-        <div className="flex gap-1 p-1 rounded-2xl bg-stone-200/40 backdrop-blur-md ring-1 ring-stone-300/40 shadow-sm w-fit">
+        {/* Phase 3: Tab Navigation — scrollable on mobile if tabs overflow */}
+        <div className="overflow-x-auto hidden-scrollbar whitespace-nowrap -mx-1">
+          <div className="flex gap-1 p-1 rounded-2xl bg-stone-200/40 backdrop-blur-md ring-1 ring-stone-300/40 shadow-sm w-fit inline-flex">
           {TABS.map((tab) => (
             <motion.button
               key={tab.id}
@@ -376,6 +377,7 @@ export function ShopOversightClient() {
               </span>
             </motion.button>
           ))}
+          </div>
         </div>
 
         {/* Phase 4–6: Tab Content */}
@@ -548,7 +550,7 @@ export function ShopOversightClient() {
                 </h2>
                 <AdminCreateTaskModal defaultDepartment="shop" />
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
                 {MOCK_TEAM.map((agent, i) => (
                   <motion.button
                     key={agent.id}

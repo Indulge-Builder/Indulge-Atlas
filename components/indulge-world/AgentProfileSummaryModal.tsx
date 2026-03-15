@@ -249,17 +249,19 @@ export function AgentProfileSummaryModal({ employee, onClose }: AgentProfileSumm
             onClick={onClose}
             aria-hidden
           />
-          {/* Modal Card */}
+          {/* Modal Card — bottom sheet on mobile, centered on desktop */}
           <motion.div
             key="agent-profile-modal"
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 24 }}
             transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed left-1/2 top-1/2 z-[60] -translate-x-1/2 -translate-y-1/2 w-full max-w-md p-6"
+            className="fixed inset-x-0 bottom-0 z-[60] md:inset-0 md:flex md:items-center md:justify-center w-full max-w-md md:p-6"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="relative bg-white/95 backdrop-blur-2xl ring-1 ring-black/[0.03] shadow-2xl rounded-3xl max-h-[85vh] overflow-y-auto scrollbar-hide flex flex-col">
+            <div className="relative bg-white/95 backdrop-blur-2xl ring-1 ring-black/[0.03] shadow-2xl rounded-t-3xl md:rounded-3xl max-h-[85vh] overflow-y-auto scrollbar-hide flex flex-col w-full md:max-w-md md:mx-auto">
+              {/* Drag handle — mobile only */}
+              <div className="block md:hidden w-12 h-1.5 bg-stone-300 rounded-full mx-auto mt-4 mb-2 flex-shrink-0" aria-hidden />
               {/* Close button */}
               <button
                 onClick={onClose}

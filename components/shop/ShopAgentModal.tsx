@@ -93,13 +93,15 @@ export function ShopAgentModal({ agent, onClose }: ShopAgentModalProps) {
           exit={{ opacity: 0, scale: 0.96, y: 12 }}
           transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
           className={cn(
-            "fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2",
-            "w-[min(480px,calc(100vw-2rem))] max-h-[85vh]",
-            "bg-white rounded-2xl overflow-hidden flex flex-col",
+            "fixed z-50 inset-x-0 bottom-0 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2",
+            "w-full md:w-[min(480px,calc(100vw-2rem))] max-h-[85vh]",
+            "bg-white rounded-t-3xl md:rounded-2xl overflow-hidden flex flex-col",
             "shadow-[0_24px_60px_rgba(0,0,0,0.12),0_0_0_1px_rgba(0,0,0,0.04)]",
             "ring-1 ring-stone-200/50"
           )}
         >
+          {/* Drag handle — mobile only */}
+          <div className="block md:hidden w-12 h-1.5 bg-stone-300 rounded-full mx-auto mt-4 mb-2 flex-shrink-0" aria-hidden />
           {/* Header */}
           <div className="relative bg-stone-900 px-6 pt-6 pb-7 shrink-0">
             <button

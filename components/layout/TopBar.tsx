@@ -78,8 +78,8 @@ export function TopBar({
        */
       className={
         isDark
-          ? "sticky top-0 z-30 bg-[#0D0C0A]/90 backdrop-blur-xl border-b border-white/6 px-8 py-4 flex items-center justify-between"
-          : "sticky top-0 z-30 bg-[#F9F9F6]/80 backdrop-blur-xl border-b border-black/[0.05] px-8 py-4 flex items-center justify-between"
+          ? "sticky top-0 z-30 bg-[#0D0C0A]/90 backdrop-blur-xl border-b border-white/6 px-4 md:px-6 lg:px-8 py-4 flex items-center justify-between"
+          : "sticky top-0 z-30 bg-[#F9F9F6]/80 backdrop-blur-xl border-b border-black/[0.05] px-4 md:px-6 lg:px-8 py-4 flex items-center justify-between"
       }
     >
       {/* Left: title + optional subtitle */}
@@ -87,8 +87,8 @@ export function TopBar({
         <h1
           className={
             isDark
-              ? "text-white/95 text-xl font-semibold leading-tight tracking-tight"
-              : "text-[#1A1A1A] text-xl font-semibold leading-tight tracking-tight"
+              ? "text-white/95 text-2xl md:text-3xl lg:text-4xl font-semibold leading-tight tracking-tight"
+              : "text-[#1A1A1A] text-2xl md:text-3xl lg:text-4xl font-semibold leading-tight tracking-tight"
           }
           style={!isDark ? { fontFamily: "var(--font-playfair)" } : undefined}
         >

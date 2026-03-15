@@ -43,7 +43,7 @@ export default async function AdminPage() {
         subtitle="Create and manage CRM access for your team"
       />
 
-      <div className="px-8 py-6">
+      <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6">
         {/* Page intro */}
         <div className="bg-white rounded-xl border border-[#E5E4DF] p-5 mb-6 shadow-[0_1px_3px_0_rgb(0_0_0/0.04)]">
           <div className="flex items-start gap-4">

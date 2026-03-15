@@ -57,7 +57,7 @@ export function BrandOnboardingView() {
     <div className="max-w-4xl mx-auto w-full">
       <motion.div
         layout
-        className="flex flex-col items-center gap-8"
+        className="flex flex-col items-center gap-6 md:gap-8"
         transition={LAYOUT_TRANSITION}
       >
         <AnimatePresence mode="wait">
@@ -131,7 +131,7 @@ export function BrandOnboardingView() {
               className="w-full flex flex-col gap-8"
             >
               <div className="text-center">
-                <h2 className="text-lg font-semibold text-slate-800 tracking-tight mb-1">
+                <h2 className="text-xl md:text-2xl font-semibold text-slate-800 tracking-tight mb-1">
                   Our 3-Tiers
                 </h2>
                 <p className="text-sm text-slate-500">
@@ -139,7 +139,7 @@ export function BrandOnboardingView() {
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                 {PLANS.map((plan) => {
                   const isActive = selectedPlan === plan.id;
                   const isPaidOrPremium =

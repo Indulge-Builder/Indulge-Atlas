@@ -37,10 +37,10 @@ export default function IndulgeWorldPage() {
         variant="default"
       />
 
-      {/* Pill navigation — horizontally scrolling, center-aligned */}
-      <div className="sticky top-[65px] z-20 px-8 py-4 bg-[#F9F9F6]/95 backdrop-blur-md border-b border-stone-200/80">
-        <div className="flex justify-center overflow-x-auto scrollbar-hide">
-          <div className="flex items-center gap-1.5 py-1.5 px-2 rounded-2xl bg-stone-200/40 backdrop-blur-md ring-1 ring-stone-300/40 shadow-sm">
+      {/* Pill navigation — horizontally scrolling, swipeable on mobile */}
+      <div className="sticky top-[65px] z-20 px-4 md:px-6 lg:px-8 py-4 bg-[#F9F9F6]/95 backdrop-blur-md border-b border-stone-200/80">
+        <div className="flex justify-center overflow-x-auto hidden-scrollbar whitespace-nowrap -mx-1">
+          <div className="flex items-center gap-1.5 py-1.5 px-2 rounded-2xl bg-stone-200/40 backdrop-blur-md ring-1 ring-stone-300/40 shadow-sm inline-flex">
             {PILLS.map((pill) => (
               <button
                 key={pill.id}
@@ -73,8 +73,8 @@ export default function IndulgeWorldPage() {
         </div>
       </div>
 
-      {/* Content area — centrally aligned */}
-      <div className="px-8 py-8 flex flex-col items-center">
+      {/* Content area — centrally aligned, fluid padding */}
+      <div className="px-4 md:px-6 lg:px-8 py-6 md:py-8 flex flex-col items-center">
         <TooltipProvider delayDuration={200}>
           <AnimatePresence mode="wait">
             <motion.div

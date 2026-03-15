@@ -48,7 +48,7 @@ export default async function DashboardLayout({
               <div className="ml-60 min-h-screen p-3">
                 <main
                   className="
-                    relative min-h-0
+                    relative min-h-0 overflow-x-hidden
                     bg-[#F9F9F6] rounded-2xl overflow-hidden
                     paper-shadow
                   "
