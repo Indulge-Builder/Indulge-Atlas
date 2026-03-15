@@ -76,7 +76,7 @@ export async function getTasksForReminders(): Promise<TaskWithLead[]> {
     .order("due_date", { ascending: true });
 
   if (error) return [];
-  return (await enrichTasksWithAssignees(supabase, data ?? [])) as TaskWithLead[];
+  return (await enrichTasksWithAssignees(supabase, data ?? [])) as unknown as TaskWithLead[];
 }
 
 // ── Enrich tasks with assignee profiles (assigned_to_users → assigned_to_profiles) ──
@@ -125,7 +125,7 @@ export async function getMyTasks(): Promise<TaskWithLead[]> {
     .order("due_date", { ascending: true });
 
   if (error) return [];
-  return (await enrichTasksWithAssignees(supabase, data ?? [])) as TaskWithLead[];
+  return (await enrichTasksWithAssignees(supabase, data ?? [])) as unknown as TaskWithLead[];
 }
 
 // ── Fetch Tasks for a Specific Lead ───────────────────────
@@ -142,7 +142,7 @@ export async function getLeadTasks(leadId: string): Promise<TaskWithLead[]> {
     .order("due_date", { ascending: true });
 
   if (error) return [];
-  return (await enrichTasksWithAssignees(supabase, data ?? [])) as TaskWithLead[];
+  return (await enrichTasksWithAssignees(supabase, data ?? [])) as unknown as TaskWithLead[];
 }
 
 // ── Fetch Leads for Task Modal ─────────────────────────────
@@ -406,7 +406,7 @@ export async function getTaskById(
     if (error || !data) return null;
 
     const [enriched] = await enrichTasksWithAssignees(supabase, [data]);
-    const task = enriched as TaskWithLead & {
+    const task = enriched as unknown as TaskWithLead & {
       created_by_profile?: Pick<Profile, "id" | "full_name" | "role"> | null;
       assigned_to_profile?: Pick<Profile, "id" | "full_name" | "role"> | null;
     };
