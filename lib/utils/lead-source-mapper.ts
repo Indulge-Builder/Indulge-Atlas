@@ -49,8 +49,8 @@ export function formatLeadSource(
   const um = lc(utmMedium);
   const campaign = utmCampaign?.trim() || null;
 
-  // ── Meta: fb, facebook, ig, instagram ───────────────────────────────────
-  if (us.includes("fb") || us.includes("facebook") || us === "ig" || us.includes("instagram")) {
+  // ── Meta: meta, meta_ads, fb, facebook, ig, instagram ─────────────────────
+  if (us.includes("meta") || us.includes("fb") || us.includes("facebook") || us === "ig" || us.includes("instagram")) {
     const isInstagram =
       us === "ig" || us.includes("instagram") ||
       um.includes("instagram") || um.includes("reels");

@@ -53,9 +53,9 @@ export function RetryScheduleModal({
       return;
     }
 
-    if (result.attemptCount === 3) {
+    if (result.showNurtureToast) {
       toast.info(
-        "3 attempts reached. Consider moving this lead to Nurturing (Cold) to keep your pipeline clean.",
+        "3 follow-ups done. Consider moving this lead to Nurturing (Cold) to keep your pipeline clean.",
         { duration: 5000 }
       );
     }

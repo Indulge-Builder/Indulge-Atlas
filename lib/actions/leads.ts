@@ -16,6 +16,8 @@ interface ActionResult {
   success: boolean;
   error?: string;
   attemptCount?: number;
+  /** True when this is the 3rd scheduled retry (3rd call_attempt) — show nurture toast */
+  showNurtureToast?: boolean;
 }
 
 async function getAuthUser() {
@@ -133,6 +135,13 @@ export async function markAttemptedAndScheduleRetry(
     const currentAttemptCount = (lead as { attempt_count?: number }).attempt_count ?? 0;
     const newAttemptCount = currentAttemptCount + 1;
 
+    // Count existing call_attempt activities — toast only on 3rd scheduled retry
+    const { count: existingRetryCount } = await supabase
+      .from("lead_activities")
+      .select("*", { count: "exact", head: true })
+      .eq("lead_id", leadId)
+      .eq("type", "call_attempt");
+
     const { error: updateError } = await supabase
       .from("leads")
       .update({ status: "attempted", attempt_count: newAttemptCount })
@@ -175,7 +184,11 @@ export async function markAttemptedAndScheduleRetry(
     revalidatePath(`/leads/${leadId}`);
     revalidatePath("/");
 
-    return { success: true, attemptCount: newAttemptCount };
+    // Show nurture toast only when this is the 3rd scheduled retry (3rd call_attempt)
+    const totalRetriesAfterThis = (existingRetryCount ?? 0) + 1;
+    const showNurtureToast = totalRetriesAfterThis === 3;
+
+    return { success: true, attemptCount: newAttemptCount, showNurtureToast };
   } catch {
     return { success: false, error: "An unexpected error occurred" };
   }

@@ -161,6 +161,9 @@ export interface Lead {
   city: string | null;
   address: string | null;
   campaign_id: string | null;
+  campaign_name: string | null;
+  ad_name: string | null;
+  platform: string | null;
   // Raw JSONB from Meta Lead Ad, Pabbly passthrough, website form — all dynamic fields (incl. message)
   form_data: Record<string, unknown> | null;
   // UTM attribution — joined to campaign_metrics.campaign_id via utm_campaign

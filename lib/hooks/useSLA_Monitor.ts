@@ -54,7 +54,7 @@ function getOffDutyAnchor(createdAt: string): Date {
   return fromZonedTime(`${y2}-${pad(m2)}-${pad(d2)}T09:00:00`, IST);
 }
 
-function computeBreachLevel(
+export function computeBreachLevel(
   assignedAt: string,
   createdAt: string,
   isOffDuty: boolean

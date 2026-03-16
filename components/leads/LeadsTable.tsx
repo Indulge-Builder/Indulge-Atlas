@@ -107,6 +107,11 @@ export function LeadsTable({
       `${pathname}?${createQueryString({ campaign: value === "ALL" ? null : value, page: "1" })}`,
     );
 
+  const handleSourceFilter = (value: string) =>
+    router.push(
+      `${pathname}?${createQueryString({ source: value === "ALL" ? null : value, page: "1" })}`,
+    );
+
   const handlePage = (newPage: number) =>
     router.push(`${pathname}?${createQueryString({ page: String(newPage) })}`);
 
@@ -114,6 +119,16 @@ export function LeadsTable({
   const currentStatus = searchParams.get("status") ?? "ALL";
   const currentAgent = searchParams.get("agent") ?? "ALL";
   const currentCampaign = searchParams.get("campaign") ?? "ALL";
+  const currentSource = searchParams.get("source") ?? "ALL";
+
+  const SOURCE_OPTIONS = [
+    { value: "ALL", label: "All sources" },
+    { value: "meta", label: "Meta Ads" },
+    { value: "google", label: "Google Ads" },
+    { value: "website", label: "Website" },
+    { value: "events", label: "Events" },
+    { value: "referral", label: "Referral" },
+  ];
 
   // ── Column definitions ────────────────────────────────────────────────────
   // Agent:        Client · Contact · Status · Next Action · Added           (5)
@@ -128,7 +143,7 @@ export function LeadsTable({
         <div className="relative flex-1 min-w-[220px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#B5A99A]" />
           <Input
-            placeholder="Search name, phone, email…"
+            placeholder="Search name, phone, email, source, campaign…"
             defaultValue={currentSearch}
             onChange={(e) => {
               const val = e.target.value;
@@ -183,6 +198,24 @@ export function LeadsTable({
               {campaigns.map((c) => (
                 <SelectItem key={c} value={c}>
                   {c}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+
+        {isScout && (
+          <Select
+            defaultValue={currentSource}
+            onValueChange={handleSourceFilter}
+          >
+            <SelectTrigger className="w-40 bg-white border-[#E5E4DF]">
+              <SelectValue placeholder="Source" />
+            </SelectTrigger>
+            <SelectContent>
+              {SOURCE_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
                 </SelectItem>
               ))}
             </SelectContent>

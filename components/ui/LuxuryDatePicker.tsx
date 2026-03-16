@@ -118,12 +118,14 @@ function LuxuryDatePickerInner(
           side="bottom"
           align="start"
           sideOffset={6}
-          collisionPadding={16}
-          className="z-[200] outline-none p-0"
+          collisionPadding={{ top: 24, right: 16, bottom: 24, left: 16 }}
+          sticky="always"
+          avoidCollisions={true}
+          className="z-[200] outline-none p-0 min-w-[280px] max-w-[min(320px,calc(100vw-32px))]"
           onOpenAutoFocus={(e) => e.preventDefault()}
         >
           <div
-            className="rounded-xl border border-[#C0D4B8] bg-[#EEF6EA] shadow-lg overflow-hidden"
+            className="rounded-xl border border-[#C0D4B8] bg-[#EEF6EA] shadow-lg overflow-y-auto overflow-x-hidden max-h-[min(420px,75vh)]"
             style={{ boxShadow: "0 12px 40px rgba(0,0,0,0.12)" }}
           >
             {/* Calendar */}

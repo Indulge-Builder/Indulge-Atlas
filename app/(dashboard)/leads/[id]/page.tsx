@@ -33,9 +33,14 @@ import {
   Share2,
 } from "lucide-react";
 import { LeadSourceBadge } from "@/components/ui/LeadSourceBadge";
-import { DynamicFormResponses } from "@/components/leads/DynamicFormResponses";
+import { MarketingIntakeCard } from "@/components/leads/MarketingIntakeCard";
 import { getLeadTasks } from "@/lib/actions/tasks";
-import type { Lead, LeadActivity, Profile, UserRole } from "@/lib/types/database";
+import type {
+  Lead,
+  LeadActivity,
+  Profile,
+  UserRole,
+} from "@/lib/types/database";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import { addDays } from "date-fns";
 
@@ -67,20 +72,20 @@ function getOffDutyAnchor(createdAt: string): Date {
 function getSLAInfo(
   assignedAt: string | null,
   createdAt: string | null,
-  isOffDuty: boolean
+  isOffDuty: boolean,
 ): {
-  label:     string;
-  sublabel:  string;
-  color:     string;
-  bgColor:   string;
+  label: string;
+  sublabel: string;
+  color: string;
+  bgColor: string;
   showAlert: boolean;
 } {
   if (!assignedAt) {
     return {
-      label:     "Not set",
-      sublabel:  "",
-      color:     "#9E9E9E",
-      bgColor:   "#F5F5F5",
+      label: "Not set",
+      sublabel: "",
+      color: "#9E9E9E",
+      bgColor: "#F5F5F5",
       showAlert: false,
     };
   }
@@ -95,24 +100,48 @@ function getSLAInfo(
     diffMins = Math.floor((now - new Date(assignedAt).getTime()) / 60_000);
   }
   const diffHours = Math.floor(diffMins / 60);
-  const diffDays  = Math.floor(diffHours / 24);
+  const diffDays = Math.floor(diffHours / 24);
 
   let label: string;
-  if (diffMins < 60)       label = `${diffMins}m ago`;
+  if (diffMins < 60) label = `${diffMins}m ago`;
   else if (diffHours < 24) label = `${diffHours}h ${diffMins % 60}m ago`;
-  else                     label = `${diffDays}d ago`;
+  else label = `${diffDays}d ago`;
 
   const threshold = isOffDuty ? 120 : 15;
   if (diffMins >= threshold) {
-    return { label, sublabel: "ESCALATED", color: "#C0392B", bgColor: "#FAEAE8", showAlert: true };
+    return {
+      label,
+      sublabel: "ESCALATED",
+      color: "#C0392B",
+      bgColor: "#FAEAE8",
+      showAlert: true,
+    };
   }
   if (diffMins >= (isOffDuty ? 90 : 10)) {
-    return { label, sublabel: "SLA breaching soon", color: "#C0392B", bgColor: "#FAEAE8", showAlert: true };
+    return {
+      label,
+      sublabel: "SLA breaching soon",
+      color: "#C0392B",
+      bgColor: "#FAEAE8",
+      showAlert: true,
+    };
   }
   if (diffMins >= (isOffDuty ? 60 : 5)) {
-    return { label, sublabel: "Lead waiting", color: "#C5830A", bgColor: "#FEF3D0", showAlert: false };
+    return {
+      label,
+      sublabel: "Lead waiting",
+      color: "#C5830A",
+      bgColor: "#FEF3D0",
+      showAlert: false,
+    };
   }
-  return { label, sublabel: "Within SLA", color: "#4A7C59", bgColor: "#EBF4EF", showAlert: false };
+  return {
+    label,
+    sublabel: "Within SLA",
+    color: "#4A7C59",
+    bgColor: "#EBF4EF",
+    showAlert: false,
+  };
 }
 
 export default async function LeadDetailPage({ params }: PageProps) {
@@ -134,18 +163,19 @@ export default async function LeadDetailPage({ params }: PageProps) {
 
   // Fetch lead with agent — exclude private_scratchpad until we verify viewer is assigned agent
   const LEAD_COLS =
-    "id, first_name, last_name, phone_number, secondary_phone, email, city, address, campaign_id, form_data, utm_source, utm_medium, utm_campaign, deal_value, deal_duration, domain, status, assigned_to, assigned_at, is_off_duty, agent_alert_sent, manager_alert_sent, notes, lost_reason_tag, lost_reason_notes, lost_reason, trash_reason, nurture_reason, attempt_count, personal_details, company, tags, created_at, updated_at";
+    "id, first_name, last_name, phone_number, secondary_phone, email, city, address, campaign_id, campaign_name, ad_name, platform, form_data, utm_source, utm_medium, utm_campaign, deal_value, deal_duration, domain, status, assigned_to, assigned_at, is_off_duty, agent_alert_sent, manager_alert_sent, notes, lost_reason_tag, lost_reason_notes, lost_reason, trash_reason, nurture_reason, attempt_count, personal_details, company, tags, created_at, updated_at";
   const { data: rawLead, error } = await supabase
     .from("leads")
     .select(
-      `${LEAD_COLS}, assigned_agent:profiles!assigned_to(id, full_name, email, role)`
+      `${LEAD_COLS}, assigned_agent:profiles!assigned_to(id, full_name, email, role)`,
     )
     .eq("id", id)
     .single();
 
   if (error || !rawLead) notFound();
 
-  const canViewScratchpad = user.id === (rawLead as { assigned_to: string | null }).assigned_to;
+  const canViewScratchpad =
+    user.id === (rawLead as { assigned_to: string | null }).assigned_to;
   let scratchpadValue: string | null = null;
   if (canViewScratchpad) {
     const { data: scratch } = await supabase
@@ -175,15 +205,16 @@ export default async function LeadDetailPage({ params }: PageProps) {
   }
 
   // Fetch activity timeline, tasks, and lead conversation in parallel
-  const [{ data: rawActivities }, leadTasks, { conversationId }] = await Promise.all([
-    supabase
-      .from("lead_activities")
-      .select("*, agent:profiles!performed_by(id, full_name)")
-      .eq("lead_id", id)
-      .order("created_at", { ascending: false }),
-    getLeadTasks(id),
-    getOrCreateLeadConversation(id),
-  ]);
+  const [{ data: rawActivities }, leadTasks, { conversationId }] =
+    await Promise.all([
+      supabase
+        .from("lead_activities")
+        .select("*, agent:profiles!performed_by(id, full_name)")
+        .eq("lead_id", id)
+        .order("created_at", { ascending: false }),
+      getLeadTasks(id),
+      getOrCreateLeadConversation(id),
+    ]);
 
   const activities = (rawActivities ?? []) as LeadActivity[];
 
@@ -193,7 +224,11 @@ export default async function LeadDetailPage({ params }: PageProps) {
   const canViewCampaignData =
     userRole === "scout" || userRole === "admin" || userRole === "finance";
 
-  const sla = getSLAInfo(lead.assigned_at, lead.created_at, lead.is_off_duty ?? false);
+  const sla = getSLAInfo(
+    lead.assigned_at,
+    lead.created_at,
+    lead.is_off_duty ?? false,
+  );
 
   return (
     <div className="min-h-screen bg-[#F9F9F6]">
@@ -202,7 +237,11 @@ export default async function LeadDetailPage({ params }: PageProps) {
         subtitle={`Lead · ${lead.utm_campaign ?? lead.utm_source ?? "Direct"}`}
         actions={
           <Link href="/leads">
-            <Button variant="ghost" size="sm" className="gap-1.5 text-[#9E9E9E]">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1.5 text-[#9E9E9E]"
+            >
               <ArrowLeft className="w-3.5 h-3.5" />
               Back
             </Button>
@@ -214,11 +253,13 @@ export default async function LeadDetailPage({ params }: PageProps) {
         <div className="grid grid-cols-3 gap-6">
           {/* ══ LEFT: Lead information + timeline ══════════════════════════════ */}
           <div className="col-span-2 space-y-5">
-
             {/* ── Lead info card ─────────────────────────────────────────────── */}
             <div className="bg-white rounded-xl border border-[#E5E4DF] overflow-hidden shadow-[0_1px_3px_0_rgb(0_0_0/0.04)]">
               {/* Status accent strip */}
-              <div className="h-1.5 w-full" style={{ backgroundColor: statusConfig.color }} />
+              <div
+                className="h-1.5 w-full"
+                style={{ backgroundColor: statusConfig.color }}
+              />
 
               <div className="p-6">
                 {/* Identity header */}
@@ -228,10 +269,14 @@ export default async function LeadDetailPage({ params }: PageProps) {
                       className="w-14 h-14 rounded-2xl flex items-center justify-center text-xl font-semibold border-2 border-white shadow-sm"
                       style={{
                         backgroundColor: statusConfig.bgColor,
-                        color:           statusConfig.color,
+                        color: statusConfig.color,
                       }}
                     >
-                      {getInitials([lead.first_name, lead.last_name].filter(Boolean).join(" "))}
+                      {getInitials(
+                        [lead.first_name, lead.last_name]
+                          .filter(Boolean)
+                          .join(" "),
+                      )}
                     </div>
                     <div>
                       <h2
@@ -274,7 +319,10 @@ export default async function LeadDetailPage({ params }: PageProps) {
                       <p className="text-[10px] text-[#B5A99A] uppercase tracking-wider font-medium">
                         Email
                       </p>
-                      <InlineEmailEdit leadId={lead.id} currentEmail={lead.email} />
+                      <InlineEmailEdit
+                        leadId={lead.id}
+                        currentEmail={lead.email}
+                      />
                     </div>
                   </div>
 
@@ -317,7 +365,9 @@ export default async function LeadDetailPage({ params }: PageProps) {
                         <InlineAgentSelect
                           leadId={lead.id}
                           currentAgentId={lead.assigned_to}
-                          currentAgentName={lead.assigned_agent?.full_name ?? "Unassigned"}
+                          currentAgentName={
+                            lead.assigned_agent?.full_name ?? "Unassigned"
+                          }
                           agents={agents}
                         />
                       ) : (
@@ -334,10 +384,17 @@ export default async function LeadDetailPage({ params }: PageProps) {
                       className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5"
                       style={{ backgroundColor: sla.bgColor }}
                     >
-                      {sla.showAlert
-                        ? <AlertTriangle className="w-3.5 h-3.5" style={{ color: sla.color }} />
-                        : <Clock className="w-3.5 h-3.5" style={{ color: sla.color }} />
-                      }
+                      {sla.showAlert ? (
+                        <AlertTriangle
+                          className="w-3.5 h-3.5"
+                          style={{ color: sla.color }}
+                        />
+                      ) : (
+                        <Clock
+                          className="w-3.5 h-3.5"
+                          style={{ color: sla.color }}
+                        />
+                      )}
                     </div>
                     <div>
                       <p className="text-[10px] text-[#B5A99A] uppercase tracking-wider font-medium">
@@ -345,11 +402,17 @@ export default async function LeadDetailPage({ params }: PageProps) {
                       </p>
                       {lead.assigned_at ? (
                         <div className="mt-0.5">
-                          <p className="text-sm font-semibold" style={{ color: sla.color }}>
+                          <p
+                            className="text-sm font-semibold"
+                            style={{ color: sla.color }}
+                          >
                             {sla.label}
                           </p>
                           {sla.sublabel && (
-                            <p className="text-[11px]" style={{ color: sla.color }}>
+                            <p
+                              className="text-[11px]"
+                              style={{ color: sla.color }}
+                            >
                               {sla.sublabel}
                             </p>
                           )}
@@ -372,11 +435,17 @@ export default async function LeadDetailPage({ params }: PageProps) {
                   {/* City — double-click inline edit */}
                   <InlineCityEdit leadId={lead.id} currentCity={lead.city} />
                   {/* Company — double-click inline edit */}
-                  <InlineCompanyEdit leadId={lead.id} currentCompany={lead.company ?? null} />
+                  <InlineCompanyEdit
+                    leadId={lead.id}
+                    currentCompany={lead.company ?? null}
+                  />
                 </div>
 
                 {/* Tags — multi-input badge component */}
-                <InlineTagsEdit leadId={lead.id} initialTags={lead.tags ?? []} />
+                <InlineTagsEdit
+                  leadId={lead.id}
+                  initialTags={lead.tags ?? []}
+                />
 
                 {/* Client Persona & Interests — always-active auto-save textarea */}
                 <InlinePersonaEdit
@@ -385,26 +454,29 @@ export default async function LeadDetailPage({ params }: PageProps) {
                 />
 
                 {/* Lost Reason — display if lead is lost */}
-                {lead.status === "lost" && (lead.lost_reason || lead.lost_reason_tag) && (
-                  <>
-                    <Separator className="my-4" />
-                    <div>
-                      <p className="text-[11px] font-semibold text-[#9E9E9E] uppercase tracking-wider mb-2">
-                        Loss Analysis
-                      </p>
-                      <div className="bg-[#FAEAE8] border border-[#C0392B]/15 rounded-lg p-3">
-                        <p className="text-xs font-semibold text-[#8B1A1A] uppercase tracking-wider">
-                          {lead.lost_reason ?? LOST_REASON_LABELS[lead.lost_reason_tag!] ?? lead.lost_reason_tag}
+                {lead.status === "lost" &&
+                  (lead.lost_reason || lead.lost_reason_tag) && (
+                    <>
+                      <Separator className="my-4" />
+                      <div>
+                        <p className="text-[11px] font-semibold text-[#9E9E9E] uppercase tracking-wider mb-2">
+                          Loss Analysis
                         </p>
-                        {lead.lost_reason_notes && (
-                          <p className="text-sm text-[#4A1A1A] mt-1.5 leading-relaxed">
-                            {lead.lost_reason_notes}
+                        <div className="bg-[#FAEAE8] border border-[#C0392B]/15 rounded-lg p-3">
+                          <p className="text-xs font-semibold text-[#8B1A1A] uppercase tracking-wider">
+                            {lead.lost_reason ??
+                              LOST_REASON_LABELS[lead.lost_reason_tag!] ??
+                              lead.lost_reason_tag}
                           </p>
-                        )}
+                          {lead.lost_reason_notes && (
+                            <p className="text-sm text-[#4A1A1A] mt-1.5 leading-relaxed">
+                              {lead.lost_reason_notes}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </>
-                )}
+                    </>
+                  )}
               </div>
             </div>
 
@@ -428,15 +500,20 @@ export default async function LeadDetailPage({ params }: PageProps) {
                   </div>
                 </div>
                 <div className="px-6 py-4">
-                  <p className="text-sm text-white/75 leading-relaxed">{lead.notes}</p>
+                  <p className="text-sm text-white/75 leading-relaxed">
+                    {lead.notes}
+                  </p>
                 </div>
               </div>
             )}
 
-            {/* Intake Questionnaire */}
-            {lead.form_data && Object.keys(lead.form_data).length > 0 && (
-              <DynamicFormResponses responses={lead.form_data} />
-            )}
+            {/* Marketing Intake & Profiling — attribution + form_data */}
+            <MarketingIntakeCard
+              campaignName={lead.campaign_name}
+              adName={lead.ad_name}
+              platform={lead.platform}
+              formData={lead.form_data}
+            />
 
             {/* Scheduled Tasks — upcoming actions take priority over history */}
             <LeadTaskWidget
@@ -472,7 +549,10 @@ export default async function LeadDetailPage({ params }: PageProps) {
                   style={{ backgroundColor: statusConfig.color }}
                 />
                 <div>
-                  <p className="text-sm font-semibold" style={{ color: statusConfig.color }}>
+                  <p
+                    className="text-sm font-semibold"
+                    style={{ color: statusConfig.color }}
+                  >
                     {statusConfig.label}
                   </p>
                   <p className="text-xs text-[#9E9E9E] mt-0.5">
@@ -515,11 +595,11 @@ export default async function LeadDetailPage({ params }: PageProps) {
 // ── Lost reason display labels ───────────────────────────────────────────────
 
 const LOST_REASON_LABELS: Record<string, string> = {
-  budget_exceeded:        "Budget Exceeded",
+  budget_exceeded: "Budget Exceeded",
   irrelevant_unqualified: "Irrelevant / Unqualified",
-  timing_not_ready:       "Timing / Not Ready",
-  went_with_competitor:   "Went with Competitor",
-  ghosted_unresponsive:   "Ghosted / Unresponsive",
+  timing_not_ready: "Timing / Not Ready",
+  went_with_competitor: "Went with Competitor",
+  ghosted_unresponsive: "Ghosted / Unresponsive",
 };
 
 // ── InfoRow ──────────────────────────────────────────────────────────────────
