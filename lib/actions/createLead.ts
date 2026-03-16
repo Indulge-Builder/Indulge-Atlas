@@ -136,12 +136,12 @@ export async function createLead(input: AddLeadFormValues): Promise<ActionResult
       dueAt.setDate(dueAt.getDate() + 1);
 
       const { error: taskError } = await serviceClient.from("tasks").insert({
-        lead_id:     lead.id,
-        assigned_to: taskAgentId,
-        title:       input.initial_notes.trim(),
-        due_date:    dueAt.toISOString(),
-        task_type:   "general_follow_up",
-        status:      "pending",
+        lead_id:           lead.id,
+        assigned_to_users: [taskAgentId],
+        title:             input.initial_notes.trim(),
+        due_date:          dueAt.toISOString(),
+        task_type:         "general_follow_up",
+        status:            "pending",
       });
 
       if (!taskError) {

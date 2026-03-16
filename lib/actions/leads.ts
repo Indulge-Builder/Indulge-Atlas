@@ -152,12 +152,12 @@ export async function markAttemptedAndScheduleRetry(
     });
 
     const { error: taskError } = await supabase.from("tasks").insert({
-      lead_id:     leadId,
-      assigned_to: user.id,
-      title:       "Follow-up call",
-      due_date:    retryAt.toISOString(),
-      task_type:   "call",
-      status:      "pending",
+      lead_id:            leadId,
+      assigned_to_users:  [user.id],
+      title:              "Follow-up call",
+      due_date:           retryAt.toISOString(),
+      task_type:          "call",
+      status:             "pending",
     });
 
     if (taskError) return { success: false, error: "Failed to create task" };
@@ -234,12 +234,12 @@ async function createNurturingTask(leadId: string, agentId: string) {
   const threeMonthsOut = addMonths(new Date(), 3);
 
   await supabase.from("tasks").insert({
-    lead_id:     leadId,
-    assigned_to: agentId,
-    title:       "Nurture follow-up",
-    due_date:    threeMonthsOut.toISOString(),
-    task_type:   "general_follow_up",
-    status:      "pending",
+    lead_id:           leadId,
+    assigned_to_users: [agentId],
+    title:             "Nurture follow-up",
+    due_date:          threeMonthsOut.toISOString(),
+    task_type:         "general_follow_up",
+    status:            "pending",
   });
 
   await supabase.from("lead_activities").insert({
