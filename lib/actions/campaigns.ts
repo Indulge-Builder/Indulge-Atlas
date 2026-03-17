@@ -144,12 +144,13 @@ export async function getLeadsForCampaign(
   const page = Math.max(1, opts.page ?? 1);
   const offset = (page - 1) * PAGE_SIZE;
 
+  // Match leads where utm_campaign OR campaign_id equals the campaign (closed-loop attribution)
   let query = supabase
     .from("leads")
     .select("*, assigned_agent:profiles!assigned_to(id, full_name, email)", {
       count: "exact",
     })
-    .eq("utm_campaign", campaignId);
+    .or(`utm_campaign.eq.${campaignId},campaign_id.eq.${campaignId}`);
 
   if (opts.status && opts.status !== "ALL") {
     query = query.eq("status", opts.status as import("@/lib/types/database").LeadStatus);

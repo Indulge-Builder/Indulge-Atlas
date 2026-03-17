@@ -41,6 +41,7 @@ import { format } from "date-fns";
 import { LuxuryDatePicker } from "@/components/ui/LuxuryDatePicker";
 import { cn } from "@/lib/utils";
 import { createTask, completeTask } from "@/lib/actions/tasks";
+import { FollowUpModal } from "@/components/tasks/FollowUpModal";
 import { AGENT_TASK_TYPES } from "@/lib/types/database";
 import type { TaskType, TaskWithLead, TaskStatus, UserRole } from "@/lib/types/database";
 import { toast } from "sonner";
@@ -182,6 +183,8 @@ function QuickAddModal({
       due_date:         values.due_date.toISOString(),
       notes:            values.notes?.trim() || null,
       progress_updates: [],
+      follow_up_step:   1,
+      follow_up_history: [],
       created_at:       now,
       updated_at:       now,
       lead:             null,
@@ -390,19 +393,41 @@ function QuickAddModal({
   );
 }
 
+// ── Follow-up task types (3-Strike Engine) ──────────────────
+const FOLLOW_UP_TASK_TYPES: TaskType[] = ["call", "general_follow_up"];
+
+function isFollowUpTask(task: TaskWithLead): boolean {
+  return FOLLOW_UP_TASK_TYPES.includes(task.task_type as TaskType);
+}
+
 // ── Task row ────────────────────────────────────────────────
 
-function TaskRow({ task, onComplete }: { task: TaskWithLead; onComplete?: (id: string) => void }) {
+function TaskRow({
+  task,
+  onComplete,
+  role,
+}: {
+  task: TaskWithLead;
+  onComplete?: (id: string) => void;
+  role: UserRole;
+}) {
   const [completing, setCompleting] = useState(false);
+  const [followUpOpen, setFollowUpOpen] = useState(false);
   const router = useRouter();
 
   const TypeIcon = TASK_ICONS[task.task_type as TaskType] ?? CalendarDays;
   const statusStyle = STATUS_STYLES[task.status as TaskStatus] ?? STATUS_STYLES.pending;
-  const StatusIcon  = statusStyle.icon;
+  const StatusIcon = statusStyle.icon;
+  const isFollowUp = isFollowUpTask(task);
 
-  async function handleComplete() {
+  async function handleComplete(e?: React.MouseEvent) {
+    if (isFollowUp && task.status === "pending") {
+      e?.stopPropagation();
+      setFollowUpOpen(true);
+      return;
+    }
     setCompleting(true);
-    onComplete?.(task.id); // optimistic — mark done instantly in parent
+    onComplete?.(task.id);
     const result = await completeTask(task.id);
     setCompleting(false);
     if (!result.success) {
@@ -413,7 +438,11 @@ function TaskRow({ task, onComplete }: { task: TaskWithLead; onComplete?: (id: s
     router.refresh();
   }
 
-  return (
+  function handleFollowUpSuccess() {
+    router.refresh(); // Refetch to get updated task (completed or rescheduled)
+  }
+
+  const rowContent = (
     <div className="flex items-start gap-3 py-3 border-b border-[#F2F2EE] last:border-0 group">
       {/* Type icon */}
       <div className="w-7 h-7 rounded-lg bg-[#F4F4F0] flex items-center justify-center shrink-0 mt-0.5">
@@ -422,39 +451,95 @@ function TaskRow({ task, onComplete }: { task: TaskWithLead; onComplete?: (id: s
 
       {/* Content */}
       <div className="flex-1 min-w-0">
-        <p className={cn(
-          "text-sm font-medium text-[#1A1A1A] leading-snug",
-          task.status === "completed" && "line-through text-[#B5A99A]"
-        )}>
+        <p
+          className={cn(
+            "text-sm font-medium text-[#1A1A1A] leading-snug",
+            task.status === "completed" && "line-through text-[#B5A99A]"
+          )}
+        >
           {task.title}
         </p>
+        {(() => {
+          const history = (task as { follow_up_history?: { note?: string }[] }).follow_up_history;
+          const latestNote =
+            Array.isArray(history) && history.length > 0
+              ? history[history.length - 1]?.note
+              : null;
+          if (latestNote) {
+            return (
+              <p className="text-xs text-stone-400 line-clamp-1 italic mt-0.5">
+                {latestNote}
+              </p>
+            );
+          }
+          if (task.notes) {
+            return (
+              <p className="text-xs text-[#9E9E9E] mt-0.5 truncate">{task.notes}</p>
+            );
+          }
+          return null;
+        })()}
         <div className="flex items-center gap-2 mt-0.5">
           <StatusIcon className={cn("w-3 h-3 shrink-0", statusStyle.cls)} />
           <span className="text-xs text-[#B5A99A]">
             {formatLocalDateTime(task.due_date)}
           </span>
         </div>
-        {task.notes && (
-          <p className="text-xs text-[#9E9E9E] mt-1 truncate">{task.notes}</p>
-        )}
       </div>
 
-      {/* Complete button */}
+      {/* Complete / Log follow-up button */}
       {task.status === "pending" && (
         <button
-          onClick={handleComplete}
+          onClick={(e) => handleComplete(e)}
           disabled={completing}
-          className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold text-emerald-600 hover:bg-emerald-50 border border-emerald-200"
+          className={cn(
+            "shrink-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold",
+            isFollowUp
+              ? "text-indigo-600 hover:bg-indigo-50 border border-indigo-200"
+              : "text-emerald-600 hover:bg-emerald-50 border border-emerald-200"
+          )}
         >
           {completing ? (
             <Loader2 className="w-3 h-3 animate-spin" />
+          ) : isFollowUp ? (
+            "Log"
           ) : (
-            <CheckCircle2 className="w-3 h-3" />
+            <>
+              <CheckCircle2 className="w-3 h-3" />
+              Done
+            </>
           )}
-          Done
         </button>
       )}
     </div>
+  );
+
+  const canOpenModal = isFollowUp && (task.status === "pending" || role === "scout");
+  return (
+    <>
+      {canOpenModal ? (
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => setFollowUpOpen(true)}
+          onKeyDown={(e) => e.key === "Enter" && setFollowUpOpen(true)}
+          className="cursor-pointer hover:bg-[#FAFAF8]/50 -mx-2 px-2 rounded-lg transition-colors"
+        >
+          {rowContent}
+        </div>
+      ) : (
+        rowContent
+      )}
+      {isFollowUp && (
+        <FollowUpModal
+          open={followUpOpen}
+          onClose={() => setFollowUpOpen(false)}
+          task={task}
+          onSuccess={handleFollowUpSuccess}
+          userRole={role}
+        />
+      )}
+    </>
   );
 }
 
@@ -528,7 +613,7 @@ export function LeadTaskWidget({ leadId, role, initialTasks }: LeadTaskWidgetPro
                 exit={{ opacity: 0, height: 0 }}
                 transition={{ delay: i * 0.04 }}
               >
-                <TaskRow task={task} onComplete={onTaskCompleted} />
+                <TaskRow task={task} onComplete={onTaskCompleted} role={role} />
               </motion.div>
             ))}
 
@@ -540,7 +625,7 @@ export function LeadTaskWidget({ leadId, role, initialTasks }: LeadTaskWidgetPro
                 </summary>
                 <div className="opacity-60">
                   {completed.map((task) => (
-                    <TaskRow key={task.id} task={task} />
+                    <TaskRow key={task.id} task={task} role={role} />
                   ))}
                 </div>
               </details>

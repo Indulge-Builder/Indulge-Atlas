@@ -85,16 +85,45 @@ const leadPayloadSchema = z.object({
 
 type LeadPayload = z.infer<typeof leadPayloadSchema>;
 
-async function pickNextAgent(): Promise<string | null> {
-  const { data, error } = await supabase.rpc("pick_next_agent_capped");
+const VALID_DOMAINS = [
+  "indulge_global",
+  "indulge_house",
+  "indulge_shop",
+  "indulge_legacy",
+] as const;
+
+async function pickNextAgentForDomain(domain: string): Promise<string | null> {
+  const safeDomain = VALID_DOMAINS.includes(
+    domain as (typeof VALID_DOMAINS)[number],
+  )
+    ? domain
+    : "indulge_global";
+
+  const { data, error } = await supabase.rpc("pick_next_agent_for_domain", {
+    p_domain: safeDomain,
+  });
+
   if (error) {
-    console.error("[leadIngestion] pick_next_agent_capped failed:", error.message);
+    console.error(
+      "[leadIngestion] pick_next_agent_for_domain failed:",
+      error.message,
+    );
     return null;
   }
+
+  if (!data) {
+    console.warn(
+      `[leadIngestion] CRITICAL: No agent found for domain "${safeDomain}". Lead will be unassigned.`,
+    );
+  }
+
   return data as string | null;
 }
 
-function splitFullName(fullName: string | null | undefined): { first_name: string; last_name: string | null } {
+function splitFullName(fullName: string | null | undefined): {
+  first_name: string;
+  last_name: string | null;
+} {
   const trimmed = (fullName ?? "").trim();
   if (!trimmed) return { first_name: "Unknown Lead", last_name: null };
   const spaceIdx = trimmed.indexOf(" ");
@@ -124,7 +153,7 @@ export type ProcessLeadError = {
  */
 export async function processAndInsertLead(
   payload: Record<string, unknown>,
-  sourceTag: "meta" | "google" | "website"
+  sourceTag: "meta" | "google" | "website",
 ): Promise<ProcessLeadResult | ProcessLeadError> {
   const parsed = leadPayloadSchema.safeParse(payload);
   if (!parsed.success) {
@@ -145,17 +174,28 @@ export async function processAndInsertLead(
   }
 
   if (!first_name) {
-    first_name = sourceTag === "meta" ? "Unknown Meta Lead" : sourceTag === "google" ? "Unknown Google Lead" : "Unknown Lead";
+    first_name =
+      sourceTag === "meta"
+        ? "Unknown Meta Lead"
+        : sourceTag === "google"
+          ? "Unknown Google Lead"
+          : "Unknown Lead";
   }
 
-  const assignedAgentId = await pickNextAgent();
+  const assignedAgentId = await pickNextAgentForDomain(
+    data.domain ?? "indulge_global",
+  );
   const isOffDuty = isOffDutyInsertion();
 
-  const formData = data.form_data && typeof data.form_data === "object"
-    ? { ...data.form_data, ...(data.message?.trim() ? { message: data.message.trim() } : {}) }
-    : data.message?.trim()
-      ? { message: data.message.trim() }
-      : null;
+  const formData =
+    data.form_data && typeof data.form_data === "object"
+      ? {
+          ...data.form_data,
+          ...(data.message?.trim() ? { message: data.message.trim() } : {}),
+        }
+      : data.message?.trim()
+        ? { message: data.message.trim() }
+        : null;
 
   const dbPayload = {
     first_name,
@@ -188,27 +228,38 @@ export async function processAndInsertLead(
 
   if (insertError || !lead) {
     console.error("[leadIngestion] Insert failed:", insertError?.message);
-    return { success: false, error: "Lead could not be saved. Retry queued.", status: 500 };
+    return {
+      success: false,
+      error: "Lead could not be saved. Retry queued.",
+      status: 500,
+    };
   }
 
   if (assignedAgentId) {
-    const { error: activityErr } = await supabase.from("lead_activities").insert({
-      lead_id: lead.id,
-      performed_by: assignedAgentId,
-      type: "status_change",
-      payload: {
-        from: null,
-        to: "new",
-        note: `Lead ingested via ${sourceTag}. UTM campaign: ${data.utm_campaign ?? "none"}. Assigned via round-robin.`,
-        timestamp: new Date().toISOString(),
-      },
-    });
+    const { error: activityErr } = await supabase
+      .from("lead_activities")
+      .insert({
+        lead_id: lead.id,
+        performed_by: assignedAgentId,
+        type: "status_change",
+        payload: {
+          from: null,
+          to: "new",
+          note: `Lead ingested via ${sourceTag}. UTM campaign: ${data.utm_campaign ?? "none"}. Assigned via round-robin.`,
+          timestamp: new Date().toISOString(),
+        },
+      });
     if (activityErr) {
-      console.error("[leadIngestion] Activity log failed (non-fatal):", activityErr.message);
+      console.error(
+        "[leadIngestion] Activity log failed (non-fatal):",
+        activityErr.message,
+      );
     }
   }
 
-  console.info(`[leadIngestion] Lead ${lead.id} created. Source: ${sourceTag}. Agent: ${assignedAgentId ?? "unassigned"}`);
+  console.info(
+    `[leadIngestion] Lead ${lead.id} created. Source: ${sourceTag}. Agent: ${assignedAgentId ?? "unassigned"}`,
+  );
 
   return {
     success: true,

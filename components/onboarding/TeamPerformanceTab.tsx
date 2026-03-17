@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { OnboardingAgentPerformanceModal } from "@/components/onboarding/OnboardingAgentPerformanceModal";
+import { AgentPerformanceModal } from "@/components/team/AgentPerformanceModal";
 import { AdminCreateTaskModal } from "@/components/tasks/AdminCreateTaskModal";
 import type { AgentWithOnboardingStats } from "@/lib/actions/team-stats";
 import { cn } from "@/lib/utils";
@@ -28,7 +28,7 @@ function getInitials(name: string): string {
 }
 
 export function TeamPerformanceTab({ agents }: TeamPerformanceTabProps) {
-  const [selectedAgent, setSelectedAgent] = useState<AgentWithOnboardingStats | null>(null);
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
 
   if (agents.length === 0) {
     return (
@@ -66,7 +66,7 @@ export function TeamPerformanceTab({ agents }: TeamPerformanceTabProps) {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: i * 0.06, ease: [0.22, 1, 0.36, 1] }}
-              onClick={() => setSelectedAgent(agent)}
+              onClick={() => setSelectedAgentId(agent.id)}
               className={cn(
                 "rounded-2xl p-5 text-left",
                 "bg-white/80 backdrop-blur-2xl",
@@ -104,9 +104,9 @@ export function TeamPerformanceTab({ agents }: TeamPerformanceTabProps) {
         })}
       </div>
 
-      <OnboardingAgentPerformanceModal
-        agent={selectedAgent}
-        onClose={() => setSelectedAgent(null)}
+      <AgentPerformanceModal
+        agentId={selectedAgentId}
+        onClose={() => setSelectedAgentId(null)}
       />
     </>
   );

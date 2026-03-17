@@ -28,6 +28,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getInitials } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import type { Profile } from "@/lib/types/database";
+import { DOMAIN_DISPLAY_CONFIG } from "@/lib/types/database";
 
 // ── Nav definition ─────────────────────────────────────────
 // `exact: true` forces pathname === href for active detection.
@@ -324,6 +325,23 @@ export function Sidebar({ profile }: SidebarProps) {
               "linear-gradient(to right, transparent, rgba(212,175,55,0.22) 30%, rgba(212,175,55,0.22) 70%, transparent)",
           }}
         />
+
+        {/* ── Domain badge (glassmorphic) ─────────────────── */}
+        {profile.domain && (
+          <div
+            className="mt-4 px-3 py-2 rounded-xl bg-white/[0.04] backdrop-blur-sm border border-white/[0.08]"
+            style={{
+              boxShadow: `0 0 0 1px ${DOMAIN_DISPLAY_CONFIG[profile.domain]?.ringColor ?? "rgba(212,175,55,0.2)"}40`,
+            }}
+          >
+            <p className="text-[10px] font-semibold text-white/[0.35] uppercase tracking-[0.14em]">
+              Workspace
+            </p>
+            <p className="text-[13px] font-medium text-white/90 mt-0.5">
+              {DOMAIN_DISPLAY_CONFIG[profile.domain]?.label ?? profile.domain.replace(/_/g, " ")}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* ── Navigation ─────────────────────────────────── */}

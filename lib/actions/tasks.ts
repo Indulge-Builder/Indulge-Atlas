@@ -8,7 +8,10 @@ import type {
   TaskWithLead,
   TaskProgressUpdate,
   Profile,
+  FollowUpHistoryEntry,
 } from "@/lib/types/database";
+import { updateLeadStatus } from "@/lib/actions/leads";
+import { markLeadNurturing, markLeadTrash } from "@/lib/actions/leads";
 
 const uuidSchema = z.string().uuid();
 const taskTypeSchema = z.enum([
@@ -113,16 +116,23 @@ async function enrichTasksWithAssignees(
 
 // ── Fetch All User Tasks ───────────────────────────────────
 
-export async function getMyTasks(): Promise<TaskWithLead[]> {
+export async function getMyTasks(opts?: { domainFilter?: string | null }): Promise<TaskWithLead[]> {
   const { supabase, user } = await getAuthUser();
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("tasks")
     .select(
-      "*, lead:leads!lead_id(id, first_name, last_name, phone_number, email, status), created_by_profile:profiles!created_by(id, full_name, role)",
+      "*, lead:leads!lead_id(id, first_name, last_name, phone_number, email, status, domain), created_by_profile:profiles!created_by(id, full_name, role)",
     )
     .contains("assigned_to_users", [user.id])
     .order("due_date", { ascending: true });
+
+  // Scout/Admin domain filter: only tasks with no lead or lead in selected domain
+  if (opts?.domainFilter) {
+    query = query.or(`lead_id.is.null,lead.domain.eq.${opts.domainFilter}`);
+  }
+
+  const { data, error } = await query;
 
   if (error) return [];
   return (await enrichTasksWithAssignees(supabase, data ?? [])) as unknown as TaskWithLead[];
@@ -147,7 +157,9 @@ export async function getLeadTasks(leadId: string): Promise<TaskWithLead[]> {
 
 // ── Fetch Leads for Task Modal ─────────────────────────────
 
-export async function getLeadsForTaskModal(): Promise<
+export async function getLeadsForTaskModal(opts?: {
+  domainFilter?: string | null;
+}): Promise<
   {
     id: string;
     first_name: string;
@@ -160,7 +172,7 @@ export async function getLeadsForTaskModal(): Promise<
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role, domain")
     .eq("id", user.id)
     .single();
 
@@ -172,7 +184,9 @@ export async function getLeadsForTaskModal(): Promise<
     .limit(100);
 
   if (profile?.role === "agent") {
-    query = query.eq("assigned_to", user.id);
+    query = query.eq("assigned_to", user.id).eq("domain", profile?.domain ?? "indulge_global");
+  } else if (opts?.domainFilter) {
+    query = query.eq("domain", opts.domainFilter);
   }
 
   const { data } = await query;
@@ -428,6 +442,199 @@ export async function getTaskById(
     } as TaskWithLead;
   } catch {
     return null;
+  }
+}
+
+// ── 3-Strike Follow-Up Engine ──────────────────────────────
+
+const followUpProcessSchema = z.object({
+  taskId: z.string().uuid(),
+  note: z.string().max(2000).optional(),
+});
+
+/** Move to Connected: update lead status, save note, complete task */
+export async function processFollowUpAttempted(params: unknown): Promise<ActionResult> {
+  const parsed = followUpProcessSchema.safeParse(params);
+  if (!parsed.success) return { success: false, error: "Invalid input" };
+  try {
+    const { supabase, user } = await getAuthUser();
+
+    const { data: task, error: taskErr } = await supabase
+      .from("tasks")
+      .select("id, lead_id, assigned_to_users")
+      .eq("id", parsed.data.taskId)
+      .single();
+
+    if (taskErr || !task) return { success: false, error: "Task not found" };
+    const leadId = task.lead_id as string | null;
+    if (!leadId) return { success: false, error: "Task has no lead" };
+
+    const assignees = (task.assigned_to_users as string[] | null) ?? [];
+    if (!assignees.includes(user.id)) return { success: false, error: "Not assigned to this task" };
+
+    const note = parsed.data.note?.trim();
+    const statusResult = await updateLeadStatus(leadId, "connected", note ?? undefined);
+    if (!statusResult.success) return statusResult;
+
+    const { error: completeErr } = await supabase
+      .from("tasks")
+      .update({ status: "completed" })
+      .eq("id", parsed.data.taskId);
+
+    if (completeErr) return { success: false, error: "Failed to complete task" };
+
+    revalidatePath("/");
+    revalidatePath("/tasks");
+    revalidatePath(`/leads/${leadId}`);
+    return { success: true };
+  } catch {
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+/** Create Follow-up N+1: append note to history, increment step, update due date */
+export async function processFollowUpNext(params: unknown): Promise<ActionResult> {
+  const parsed = z.object({
+    taskId: z.string().uuid(),
+    note: z.string().max(2000).optional(),
+    dueAt: z.union([z.date(), z.string().datetime()]).transform((v) => (typeof v === "string" ? new Date(v) : v)),
+  }).safeParse(params);
+  if (!parsed.success) return { success: false, error: "Invalid input" };
+  try {
+    const { supabase, user } = await getAuthUser();
+
+    const { data: task, error: taskErr } = await supabase
+      .from("tasks")
+      .select("id, lead_id, assigned_to_users, follow_up_step, follow_up_history")
+      .eq("id", parsed.data.taskId)
+      .single();
+
+    if (taskErr || !task) return { success: false, error: "Task not found" };
+    const leadId = task.lead_id as string | null;
+    if (!leadId) return { success: false, error: "Task has no lead" };
+
+    const assignees = (task.assigned_to_users as string[] | null) ?? [];
+    if (!assignees.includes(user.id)) return { success: false, error: "Not assigned to this task" };
+
+    const step = (task.follow_up_step as number) ?? 1;
+    if (step >= 3) return { success: false, error: "Already at max follow-up step" };
+
+    const history = (task.follow_up_history ?? []) as FollowUpHistoryEntry[];
+    const note = parsed.data.note?.trim() ?? "";
+    const newEntry: FollowUpHistoryEntry = {
+      step,
+      note,
+      date: new Date().toISOString().slice(0, 10),
+    };
+    const nextHistory = [...history, newEntry];
+    const nextStep = step + 1;
+
+    const { error: updateErr } = await supabase
+      .from("tasks")
+      .update({
+        follow_up_step: nextStep,
+        follow_up_history: nextHistory,
+        due_date: parsed.data.dueAt.toISOString(),
+        notes: note || null,
+      })
+      .eq("id", parsed.data.taskId);
+
+    if (updateErr) return { success: false, error: "Failed to schedule next follow-up" };
+
+    await supabase.from("lead_activities").insert({
+      lead_id: leadId,
+      performed_by: user.id,
+      type: "call_attempt",
+      payload: {
+        outcome: "no_answer",
+        retry_scheduled_at: parsed.data.dueAt.toISOString(),
+        follow_up_step: nextStep,
+        note,
+        timestamp: new Date().toISOString(),
+      },
+    });
+
+    revalidatePath("/");
+    revalidatePath("/tasks");
+    revalidatePath(`/leads/${leadId}`);
+    return { success: true };
+  } catch {
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+/** Step 3 disposition: Cold, Trash, or Connected */
+export async function processFollowUpDisposition(params: unknown): Promise<ActionResult> {
+  const parsed = z.object({
+    taskId: z.string().uuid(),
+    note: z.string().max(2000).optional(),
+    disposition: z.enum(["cold", "trash", "connected"]),
+  }).safeParse(params);
+  if (!parsed.success) return { success: false, error: "Invalid input" };
+  try {
+    const { supabase, user } = await getAuthUser();
+
+    const { data: task, error: taskErr } = await supabase
+      .from("tasks")
+      .select("id, lead_id, assigned_to_users, follow_up_step, follow_up_history")
+      .eq("id", parsed.data.taskId)
+      .single();
+
+    if (taskErr || !task) return { success: false, error: "Task not found" };
+    const leadId = task.lead_id as string | null;
+    if (!leadId) return { success: false, error: "Task has no lead" };
+
+    const assignees = (task.assigned_to_users as string[] | null) ?? [];
+    if (!assignees.includes(user.id)) return { success: false, error: "Not assigned to this task" };
+
+    const step = (task.follow_up_step as number) ?? 1;
+    if (step < 3) return { success: false, error: "Use disposition only on final follow-up" };
+
+    const note = parsed.data.note?.trim();
+    const history = (task.follow_up_history ?? []) as FollowUpHistoryEntry[];
+    const newEntry: FollowUpHistoryEntry = {
+      step: 3,
+      note: note ?? "",
+      date: new Date().toISOString().slice(0, 10),
+    };
+    const nextHistory = [...history, newEntry];
+
+    const { error: taskUpdateErr } = await supabase
+      .from("tasks")
+      .update({
+        follow_up_history: nextHistory,
+        status: "completed",
+      })
+      .eq("id", parsed.data.taskId);
+
+    if (taskUpdateErr) return { success: false, error: "Failed to update task" };
+
+    if (note) {
+      await supabase.from("lead_activities").insert({
+        lead_id: leadId,
+        performed_by: user.id,
+        type: "note",
+        payload: { text: note, timestamp: new Date().toISOString() },
+      });
+    }
+
+    if (parsed.data.disposition === "cold") {
+      const r = await markLeadNurturing(leadId, "Cold");
+      if (!r.success) return r;
+    } else if (parsed.data.disposition === "trash") {
+      const r = await markLeadTrash(leadId, "Not our TG");
+      if (!r.success) return r;
+    } else {
+      const r = await updateLeadStatus(leadId, "connected", note ?? undefined);
+      if (!r.success) return r;
+    }
+
+    revalidatePath("/");
+    revalidatePath("/tasks");
+    revalidatePath(`/leads/${leadId}`);
+    return { success: true };
+  } catch {
+    return { success: false, error: "An unexpected error occurred" };
   }
 }
 

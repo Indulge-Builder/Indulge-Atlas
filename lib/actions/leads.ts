@@ -30,12 +30,13 @@ async function getAuthUser() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role, domain")
     .eq("id", user.id)
     .single();
 
   const role = (profile as { role: string } | null)?.role ?? "agent";
-  return { supabase, user, role };
+  const domain = (profile as { domain?: string } | null)?.domain ?? "indulge_global";
+  return { supabase, user, role, domain };
 }
 
 function isPrivilegedRole(role: string): boolean {
@@ -954,7 +955,7 @@ export async function getDashboardData() {
       .select(
         "*, lead:leads!lead_id(id, first_name, last_name, phone_number, status)"
       )
-      .eq("assigned_to", user.id)
+      .contains("assigned_to_users", [user.id])
       .eq("status", "pending")
       .gte("due_date", new Date().toISOString())
       .order("due_date", { ascending: true })

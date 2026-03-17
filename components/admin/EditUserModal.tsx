@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, Save, Shield, User, Briefcase } from "lucide-react";
 import {
@@ -14,9 +14,25 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { updateUserProfile } from "@/lib/actions/admin";
-import type { Profile, UserRole } from "@/lib/types/database";
+import { updateUserProfileSchema } from "@/lib/validations/user";
+import type { IndulgeDomain, Profile, UserRole } from "@/lib/types/database";
+import { DOMAIN_DISPLAY_CONFIG } from "@/lib/types/database";
 import { cn } from "@/lib/utils";
+
+const DOMAIN_OPTIONS: IndulgeDomain[] = [
+  "indulge_global",
+  "indulge_house",
+  "indulge_shop",
+  "indulge_legacy",
+];
 
 interface EditUserModalProps {
   open: boolean;
@@ -41,18 +57,47 @@ const ROLE_OPTIONS: {
 export function EditUserModal({ open, onClose, onSuccess, profile }: EditUserModalProps) {
   const [fullName, setFullName] = useState(profile.full_name);
   const [role, setRole] = useState<UserRole>(profile.role);
+  const [domain, setDomain] = useState<IndulgeDomain>(() => {
+    const d = profile.domain as string;
+    if (d === "the_indulge_house") return "indulge_house";
+    return DOMAIN_OPTIONS.includes(d as IndulgeDomain) ? (d as IndulgeDomain) : "indulge_global";
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open && profile) {
+      setFullName(profile.full_name);
+      setRole(profile.role);
+      const d = profile.domain as string;
+      setDomain(
+        d === "the_indulge_house"
+          ? "indulge_house"
+          : DOMAIN_OPTIONS.includes(d as IndulgeDomain)
+            ? (d as IndulgeDomain)
+            : "indulge_global"
+      );
+    }
+  }, [open, profile]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    setLoading(true);
 
-    const result = await updateUserProfile(profile.id, {
+    const parsed = updateUserProfileSchema.safeParse({
       full_name: fullName.trim(),
       role,
+      domain,
     });
+
+    if (!parsed.success) {
+      setError(parsed.error.issues[0]?.message ?? "Please check your input.");
+      return;
+    }
+
+    setLoading(true);
+
+    const result = await updateUserProfile(profile.id, parsed.data);
 
     setLoading(false);
 
@@ -83,6 +128,22 @@ export function EditUserModal({ open, onClose, onSuccess, profile }: EditUserMod
               onChange={(e) => setFullName(e.target.value)}
               required
             />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Department</Label>
+            <Select value={domain} onValueChange={(v) => setDomain(v as IndulgeDomain)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select department" />
+              </SelectTrigger>
+              <SelectContent>
+                {DOMAIN_OPTIONS.map((d) => (
+                  <SelectItem key={d} value={d}>
+                    {DOMAIN_DISPLAY_CONFIG[d]?.shortLabel ?? d.replace(/_/g, " ")}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-1.5">

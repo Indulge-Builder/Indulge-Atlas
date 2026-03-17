@@ -65,10 +65,21 @@ function TasksPageSkeleton() {
   );
 }
 
+const VALID_DOMAINS = ["indulge_global", "indulge_house", "indulge_shop", "indulge_legacy", "the_indulge_house"];
+
 // ── Async data component ───────────────────────────────────
 
-async function TasksContent({ userId }: { userId: string }) {
+async function TasksContent({
+  userId,
+  domain,
+}: {
+  userId: string;
+  domain?: string | null;
+}) {
   const supabase = await createClient();
+
+  const domainFilter =
+    domain && VALID_DOMAINS.includes(domain) ? domain : null;
 
   const [{ data: rawProfile }, tasks, leads] = await Promise.all([
     supabase
@@ -76,8 +87,8 @@ async function TasksContent({ userId }: { userId: string }) {
       .select("full_name, role")
       .eq("id", userId)
       .single(),
-    getMyTasks(),
-    getLeadsForTaskModal(),
+    getMyTasks({ domainFilter }),
+    getLeadsForTaskModal({ domainFilter }),
   ]);
 
   const profile = rawProfile as Pick<Profile, "full_name" | "role"> | null;
@@ -94,7 +105,11 @@ async function TasksContent({ userId }: { userId: string }) {
 
 // ── Page entry point ───────────────────────────────────────
 
-export default async function TasksPage() {
+interface PageProps {
+  searchParams: Promise<{ domain?: string }>;
+}
+
+export default async function TasksPage(props: PageProps) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -102,11 +117,13 @@ export default async function TasksPage() {
 
   if (!user) redirect("/login");
 
+  const params = await props.searchParams;
+
   return (
     <div className="min-h-screen bg-[#F9F9F6]">
       <TopBar title="My Tasks" subtitle="Schedule and track your follow-ups" />
       <Suspense fallback={<TasksPageSkeleton />}>
-        <TasksContent userId={user.id} />
+        <TasksContent userId={user.id} domain={params.domain} />
       </Suspense>
     </div>
   );

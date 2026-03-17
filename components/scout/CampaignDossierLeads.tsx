@@ -40,6 +40,7 @@ export async function CampaignDossierLeads({
       nextTaskMap={nextTaskMap}
       embedCampaignId={campaignId}
       embedQueryParams={{ tab: "leads" }}
+      variant="dossier"
     />
   );
 }

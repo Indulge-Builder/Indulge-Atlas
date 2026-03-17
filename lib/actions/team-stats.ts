@@ -301,3 +301,13 @@ export async function getOnboardingAgentsWithStats(): Promise<
     };
   });
 }
+
+// ── Single agent fetch (for shared AgentPerformanceModal) ────────
+
+export async function getAgentPerformanceById(
+  agentId: string | null
+): Promise<AgentWithOnboardingStats | null> {
+  if (!agentId) return null;
+  const agents = await getOnboardingAgentsWithStats();
+  return agents.find((a) => a.id === agentId) ?? null;
+}

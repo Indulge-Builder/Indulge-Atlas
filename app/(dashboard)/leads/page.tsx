@@ -17,6 +17,8 @@ export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 20;
 
+const VALID_DOMAINS = ["indulge_global", "indulge_house", "indulge_shop", "indulge_legacy", "the_indulge_house"];
+
 interface PageProps {
   searchParams: Promise<{
     q?: string;
@@ -25,6 +27,7 @@ interface PageProps {
     campaign?: string;
     source?: string;
     page?: string;
+    domain?: string;
   }>;
 }
 
@@ -39,13 +42,17 @@ async function LeadsContent({ searchParams }: PageProps) {
 
   const { data: rawProfile } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role, domain")
     .eq("id", user.id)
     .single();
 
-  const profile = rawProfile as { role: UserRole } | null;
+  const profile = rawProfile as { role: UserRole; domain?: string } | null;
   const userRole: UserRole = profile?.role ?? "agent";
   const isAdmin = userRole === "admin" || userRole === "scout" || userRole === "finance";
+
+  // Scout/Admin domain filter from URL
+  const domainFilter =
+    isAdmin && params.domain && VALID_DOMAINS.includes(params.domain) ? params.domain : null;
 
   const currentPage = Math.max(1, parseInt(params.page ?? "1", 10));
   const offset = (currentPage - 1) * PAGE_SIZE;
@@ -57,9 +64,11 @@ async function LeadsContent({ searchParams }: PageProps) {
       { count: "exact" },
     );
 
-  // Agents only see their own leads
+  // Agents only see their own leads (RLS enforces domain; explicit filter for clarity)
   if (!isAdmin) {
-    query = query.eq("assigned_to", user.id);
+    query = query.eq("assigned_to", user.id).eq("domain", profile?.domain ?? "indulge_global");
+  } else if (domainFilter) {
+    query = query.eq("domain", domainFilter);
   }
 
   if (params.status && params.status !== "ALL") {
@@ -113,14 +122,18 @@ async function LeadsContent({ searchParams }: PageProps) {
     });
   }
 
-  // Fetch agents list for admin filter
+  // Fetch agents list for admin filter (scoped to domain when filtering)
   let agents: { id: string; full_name: string }[] = [];
   if (isAdmin) {
-    const { data } = await supabase
+    let agentQuery = supabase
       .from("profiles")
       .select("id, full_name")
       .eq("role", "agent")
       .eq("is_active", true);
+    if (domainFilter) {
+      agentQuery = agentQuery.eq("domain", domainFilter);
+    }
+    const { data } = await agentQuery;
     agents = (data ?? []) as { id: string; full_name: string }[];
   }
 

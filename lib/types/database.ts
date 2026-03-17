@@ -51,6 +51,48 @@ export type LeadStatus =
   | "lost"
   | "trash";
 
+/** Domain display config for sidebar badge, switcher, and table pills (Quiet Luxury) */
+export const DOMAIN_DISPLAY_CONFIG: Record<
+  string,
+  { label: string; ringColor: string; shortLabel: string; pillBg: string; pillColor: string }
+> = {
+  indulge_global: {
+    label: "Indulge Global Workspace",
+    shortLabel: "Global",
+    ringColor: "rgba(99, 102, 241, 0.5)",
+    pillBg: "#EEF2FF",
+    pillColor: "#4F46E5",
+  },
+  indulge_house: {
+    label: "Indulge House Workspace",
+    shortLabel: "House",
+    ringColor: "rgba(212, 175, 55, 0.4)",
+    pillBg: "#FEF3C7",
+    pillColor: "#A88B25",
+  },
+  indulge_shop: {
+    label: "Indulge Shop Workspace",
+    shortLabel: "Shop",
+    ringColor: "rgba(16, 185, 129, 0.45)",
+    pillBg: "#D1FAE5",
+    pillColor: "#0D9488",
+  },
+  indulge_legacy: {
+    label: "Indulge Legacy Workspace",
+    shortLabel: "Legacy",
+    ringColor: "rgba(107, 114, 128, 0.4)",
+    pillBg: "#F4F4F5",
+    pillColor: "#6B7280",
+  },
+  the_indulge_house: {
+    label: "Indulge House Workspace",
+    shortLabel: "House",
+    ringColor: "rgba(212, 175, 55, 0.4)",
+    pillBg: "#FEF3C7",
+    pillColor: "#A88B25",
+  },
+};
+
 /** Logical pipeline order for dropdowns and filters */
 export const LEAD_STATUS_ORDER: LeadStatus[] = [
   "new",
@@ -88,11 +130,12 @@ export type ActivityType =
   | "call_attempt"
   | "task_created";
 
+/** Multi-tenant domain — must match PostgreSQL indulge_domain enum */
 export type IndulgeDomain =
   | "indulge_global"
+  | "indulge_house"
   | "indulge_shop"
-  | "the_indulge_house"
-  | "indulge_legacy";
+  | "indulge_legacy"; // Legacy; prefer indulge_house
 
 // ── Task type groupings ────────────────────────────────────
 
@@ -258,6 +301,13 @@ export interface TaskProgressUpdate {
   user_name: string;
 }
 
+/** Single entry in follow-up history (3-Strike Engine) */
+export interface FollowUpHistoryEntry {
+  step: number;
+  note: string;
+  date: string; // ISO date "YYYY-MM-DD"
+}
+
 export interface Task {
   id: string;
   lead_id: string | null;
@@ -269,6 +319,8 @@ export interface Task {
   due_date: string;
   notes: string | null;
   progress_updates: TaskProgressUpdate[];
+  follow_up_step: number;
+  follow_up_history: FollowUpHistoryEntry[];
   created_at: string;
   updated_at: string;
   // Joined
@@ -317,10 +369,29 @@ export interface Database {
         Row: Task;
         Insert: Omit<
           Task,
-          "id" | "created_at" | "updated_at" | "lead" | "created_by_profile" | "assigned_to_profile" | "assigned_to_profiles"
-        > & { created_by?: string | null; progress_updates?: TaskProgressUpdate[] };
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "lead"
+          | "created_by_profile"
+          | "assigned_to_profile"
+          | "assigned_to_profiles"
+        > & {
+          created_by?: string | null;
+          progress_updates?: TaskProgressUpdate[];
+          follow_up_step?: number;
+          follow_up_history?: FollowUpHistoryEntry[];
+        };
         Update: Partial<
-          Omit<Task, "id" | "created_at" | "lead" | "created_by_profile" | "assigned_to_profile" | "assigned_to_profiles">
+          Omit<
+            Task,
+            | "id"
+            | "created_at"
+            | "lead"
+            | "created_by_profile"
+            | "assigned_to_profile"
+            | "assigned_to_profiles"
+          >
         >;
       };
     };

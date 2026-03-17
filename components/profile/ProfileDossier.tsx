@@ -8,6 +8,7 @@ import { getInitials } from "@/lib/utils";
 import { EditProfileModal } from "./EditProfileModal";
 import { ChangePasswordModal } from "./ChangePasswordModal";
 import type { Profile, UserRole } from "@/lib/types/database";
+import { DOMAIN_DISPLAY_CONFIG } from "@/lib/types/database";
 
 // ── Role display names ────────────────────────────────────────
 
@@ -16,13 +17,6 @@ const ROLE_DISPLAY: Record<UserRole, string> = {
   scout:   "Strategic Scout",
   admin:   "System Administrator",
   finance: "Finance",
-};
-
-const ROLE_DIVISION: Record<UserRole, string> = {
-  agent:   "Indulge Global · Onboarding",
-  scout:   "Indulge Global · Performance",
-  admin:   "Indulge Global · Administration",
-  finance: "Indulge Global · Finance",
 };
 
 // ── Date helpers ──────────────────────────────────────────────
@@ -176,7 +170,14 @@ export function ProfileDossier({ profile }: ProfileDossierProps) {
               muted={!profile.dob}
             />
 
-            <Field label="Division" value={ROLE_DIVISION[profile.role]} />
+            <Field
+              label="Division"
+              value={
+                profile.domain && DOMAIN_DISPLAY_CONFIG[profile.domain]
+                  ? DOMAIN_DISPLAY_CONFIG[profile.domain].label
+                  : profile.domain?.replace(/_/g, " ") ?? "Not assigned"
+              }
+            />
 
             <Field
               label="Member Since"

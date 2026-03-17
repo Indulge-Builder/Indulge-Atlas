@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { AgentCard } from "./AgentCard";
-import { AgentPerformanceModal } from "./AgentPerformanceModal";
+import { AgentPerformanceModal } from "@/components/team/AgentPerformanceModal";
 import type { AgentWithStats } from "@/lib/actions/team-stats";
 
 interface TeamGridProps {
@@ -10,7 +10,7 @@ interface TeamGridProps {
 }
 
 export function TeamGrid({ agents }: TeamGridProps) {
-  const [selected, setSelected] = useState<AgentWithStats | null>(null);
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
 
   return (
     <>
@@ -25,15 +25,15 @@ export function TeamGrid({ agents }: TeamGridProps) {
               key={agent.id}
               agent={agent}
               index={i}
-              onClick={setSelected}
+              onClick={(a) => setSelectedAgentId(a.id)}
             />
           ))}
         </div>
       )}
 
       <AgentPerformanceModal
-        agent={selected}
-        onClose={() => setSelected(null)}
+        agentId={selectedAgentId}
+        onClose={() => setSelectedAgentId(null)}
       />
     </>
   );

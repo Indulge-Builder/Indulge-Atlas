@@ -4,7 +4,7 @@
 
 -- 1. Custom Enum Types
 CREATE TYPE user_role AS ENUM ('sales_agent', 'manager', 'admin', 'finance');
-CREATE TYPE indulge_domain AS ENUM ('indulge_global', 'indulge_shop', 'the_indulge_house', 'indulge_legacy');
+CREATE TYPE indulge_domain AS ENUM ('indulge_global', 'indulge_shop', 'indulge_house', 'indulge_legacy');
 CREATE TYPE lead_status AS ENUM ('new', 'attempted', 'in_discussion', 'won', 'lost', 'nurturing', 'trash');
 CREATE TYPE task_type AS ENUM ('call', 'whatsapp_message', 'email', 'file_dispatch', 'general_follow_up');
 CREATE TYPE task_status AS ENUM ('pending', 'completed', 'overdue');

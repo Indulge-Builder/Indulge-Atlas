@@ -53,6 +53,10 @@ export async function POST() {
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Meta fetch failed";
     errors.push(`Meta: ${msg}`);
+    console.error("[campaigns/sync] Meta API failed — error.message:", msg);
+    if (e instanceof Error && e.stack) {
+      console.error("[campaigns/sync] Meta stack:", e.stack);
+    }
   }
 
   try {
@@ -61,6 +65,7 @@ export async function POST() {
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Google fetch failed";
     errors.push(`Google: ${msg}`);
+    console.error("[campaigns/sync] Google API failed — error.message:", msg);
   }
 
   if (allRows.length === 0) {

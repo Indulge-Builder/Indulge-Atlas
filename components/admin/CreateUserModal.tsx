@@ -14,8 +14,17 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { createUser } from "@/lib/actions/admin";
-import type { UserRole } from "@/lib/types/database";
+import { createUserSchema } from "@/lib/validations/user";
+import type { IndulgeDomain, UserRole } from "@/lib/types/database";
+import { DOMAIN_DISPLAY_CONFIG } from "@/lib/types/database";
 import { cn } from "@/lib/utils";
 
 interface CreateUserModalProps {
@@ -23,6 +32,13 @@ interface CreateUserModalProps {
   onClose: () => void;
   onSuccess: () => void;
 }
+
+const DOMAIN_OPTIONS: IndulgeDomain[] = [
+  "indulge_global",
+  "indulge_house",
+  "indulge_shop",
+  "indulge_legacy",
+];
 
 const ROLE_OPTIONS: {
   value: UserRole;
@@ -71,6 +87,7 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<UserRole>("agent");
+  const [domain, setDomain] = useState<IndulgeDomain>("indulge_global");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -80,6 +97,7 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
     setEmail("");
     setPassword("");
     setRole("agent");
+    setDomain("indulge_global");
     setShowPassword(false);
     setError(null);
   }
@@ -93,14 +111,22 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
     e.preventDefault();
     setError(null);
 
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
+    const parsed = createUserSchema.safeParse({
+      email,
+      password,
+      full_name: fullName,
+      role,
+      domain,
+    });
+
+    if (!parsed.success) {
+      setError(parsed.error.issues[0]?.message ?? "Please check your input.");
       return;
     }
 
     setLoading(true);
 
-    const result = await createUser({ email, password, full_name: fullName, role });
+    const result = await createUser(parsed.data);
 
     setLoading(false);
 
@@ -152,6 +178,26 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
               required
               autoComplete="email"
             />
+          </div>
+
+          {/* Department */}
+          <div className="space-y-1.5">
+            <Label>Department</Label>
+            <Select value={domain} onValueChange={(v) => setDomain(v as IndulgeDomain)} required>
+              <SelectTrigger>
+                <SelectValue placeholder="Select department" />
+              </SelectTrigger>
+              <SelectContent>
+                {DOMAIN_OPTIONS.map((d) => (
+                  <SelectItem key={d} value={d}>
+                    {DOMAIN_DISPLAY_CONFIG[d]?.shortLabel ?? d.replace(/_/g, " ")}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-[#B5A99A]">
+              Determines which leads and tasks the user can access.
+            </p>
           </div>
 
           {/* Password */}

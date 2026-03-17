@@ -33,7 +33,7 @@ export async function getTodaysTasks(): Promise<TaskWithLead[]> {
     .select(
       "*, lead:leads!lead_id(id, first_name, last_name, phone_number, email, status)"
     )
-    .eq("assigned_to", user.id)
+    .contains("assigned_to_users", [user.id])
     .gte("due_date", startOfToday)
     .lt("due_date", startOfTomorrow)
     .order("due_date", { ascending: true });

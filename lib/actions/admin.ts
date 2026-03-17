@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
-import type { UserRole, Profile } from "@/lib/types/database";
+import type { UserRole, Profile, IndulgeDomain } from "@/lib/types/database";
+import { createUserSchema, updateUserProfileSchema } from "@/lib/validations/user";
 import { z } from "zod";
 
 interface ActionResult<T = void> {
@@ -86,19 +87,26 @@ export async function createUser(params: {
   password: string;
   full_name: string;
   role: UserRole;
+  domain: IndulgeDomain;
 }): Promise<ActionResult<{ id: string }>> {
   try {
+    const parsed = createUserSchema.safeParse(params);
+    if (!parsed.success) {
+      return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+    }
+
     const { serviceClient } = await requireAdminOnly();
 
     // Create auth user
     const { data: authData, error: authError } =
       await serviceClient.auth.admin.createUser({
-        email: params.email.trim().toLowerCase(),
-        password: params.password,
+        email: parsed.data.email,
+        password: parsed.data.password,
         email_confirm: true, // auto-confirm so they can log in immediately
         user_metadata: {
-          full_name: params.full_name.trim(),
-          role: params.role,
+          full_name: parsed.data.full_name,
+          role: parsed.data.role,
+          domain: parsed.data.domain,
         },
       });
 
@@ -111,10 +119,14 @@ export async function createUser(params: {
     }
 
     // The handle_new_user trigger will create the profile.
-    // We update role explicitly in case the trigger runs before metadata is set.
+    // We update role and domain explicitly in case the trigger runs before metadata is set.
     await serviceClient
       .from("profiles")
-      .update({ role: params.role, full_name: params.full_name.trim() })
+      .update({
+        role: parsed.data.role,
+        full_name: parsed.data.full_name,
+        domain: parsed.data.domain,
+      })
       .eq("id", authData.user.id);
 
     revalidatePath("/admin");
@@ -133,6 +145,7 @@ export async function updateUserProfile(
   updates: {
     full_name?: string;
     role?: UserRole;
+    domain?: IndulgeDomain;
     is_active?: boolean;
   }
 ): Promise<ActionResult> {
@@ -140,24 +153,29 @@ export async function updateUserProfile(
     const parsed = uuidSchema.safeParse(userId);
     if (!parsed.success) return { success: false, error: "Invalid user ID" };
 
+    const validated = updateUserProfileSchema.safeParse(updates);
+    if (!validated.success) {
+      return { success: false, error: validated.error.issues[0]?.message ?? "Invalid input" };
+    }
+
     const { serviceClient } = await requireAdminOnly();
 
     const { error } = await serviceClient
       .from("profiles")
-      .update(updates)
+      .update(validated.data)
       .eq("id", userId);
 
     if (error) return { success: false, error: error.message };
 
     // If deactivating, also disable the auth user to prevent login
-    if (updates.is_active === false) {
+    if (validated.data.is_active === false) {
       await serviceClient.auth.admin.updateUserById(userId, {
         ban_duration: "876600h", // effectively permanent — ~100 years
       });
     }
 
     // If re-activating, unban
-    if (updates.is_active === true) {
+    if (validated.data.is_active === true) {
       await serviceClient.auth.admin.updateUserById(userId, {
         ban_duration: "none",
       });

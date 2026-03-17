@@ -1,9 +1,9 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { AgentWithOnboardingStats } from "@/lib/actions/team-stats";
+import type { CampaignWithAttribution } from "@/lib/actions/campaigns";
 import {
   Users,
   TrendingUp,
@@ -60,12 +60,14 @@ const APEX_METRICS = [
 
 interface OnboardingOversightClientProps {
   agents: AgentWithOnboardingStats[];
+  campaigns: CampaignWithAttribution[];
   searchParams: Record<string, string | undefined>;
   children: React.ReactNode;
 }
 
 export function OnboardingOversightClient({
   agents,
+  campaigns,
   searchParams,
   children,
 }: OnboardingOversightClientProps) {
@@ -73,18 +75,9 @@ export function OnboardingOversightClient({
   const urlSearchParams = useSearchParams();
   const tabFromUrl = (urlSearchParams.get("tab") as TabId) || "team";
   const isValidTab = TABS.some((t) => t.id === tabFromUrl);
-  const [activeTab, setActiveTab] = useState<TabId>(
-    isValidTab ? tabFromUrl : "team",
-  );
-
-  useEffect(() => {
-    if (isValidTab && tabFromUrl !== activeTab) {
-      setActiveTab(tabFromUrl);
-    }
-  }, [tabFromUrl, isValidTab, activeTab]);
+  const activeTab: TabId = isValidTab ? tabFromUrl : "team";
 
   const handleTabClick = (tabId: TabId) => {
-    setActiveTab(tabId);
     const next = new URLSearchParams(urlSearchParams.toString());
     next.set("tab", tabId);
     router.push(`/admin/onboarding?${next.toString()}`);
@@ -192,7 +185,7 @@ export function OnboardingOversightClient({
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.25 }}
             >
-              <CampaignsTab />
+              <CampaignsTab campaigns={campaigns} />
             </motion.div>
           )}
           {activeTab === "leads" && (

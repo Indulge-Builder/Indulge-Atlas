@@ -1,11 +1,13 @@
 "use client";
 
+import { Suspense } from "react";
 import { motion } from "framer-motion";
 import { MessageSquare } from "lucide-react";
 import { NotificationBell } from "./NotificationBell";
 import { ScoutSLAAlerts } from "@/components/sla/ScoutSLAAlerts";
 import { useChatDrawer } from "@/components/chat/ChatProvider";
 import { useProfile } from "@/components/sla/ProfileProvider";
+import { DomainSwitcher } from "@/components/domain/DomainSwitcher";
 
 interface TopBarProps {
   title: string;
@@ -111,8 +113,11 @@ export function TopBar({
         )}
       </div>
 
-      {/* Right: page-specific actions + chat drawer trigger + notification bell + SLA (scout/admin) */}
+      {/* Right: domain switcher (scout/admin) + actions + chat + notification + SLA */}
       <div className="flex items-center gap-3">
+        <Suspense fallback={null}>
+          <DomainSwitcher variant={variant} />
+        </Suspense>
         {actions}
 
         <ChatTriggerButton dark={isDark} />

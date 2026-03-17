@@ -37,6 +37,7 @@ import {
 import { getInitials, formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import type { Profile, UserRole } from "@/lib/types/database";
+import { DOMAIN_DISPLAY_CONFIG } from "@/lib/types/database";
 
 const ROLE_CONFIG: Record<
   UserRole,
@@ -187,6 +188,9 @@ export function UsersTable({ profiles: initialProfiles, currentUserId }: UsersTa
                 Role
               </th>
               <th className="text-left px-4 py-3 text-[11px] font-semibold text-[#9E9E9E] uppercase tracking-wider">
+                Department
+              </th>
+              <th className="text-left px-4 py-3 text-[11px] font-semibold text-[#9E9E9E] uppercase tracking-wider">
                 Status
               </th>
               <th className="text-left px-4 py-3 text-[11px] font-semibold text-[#9E9E9E] uppercase tracking-wider">
@@ -260,6 +264,23 @@ export function UsersTable({ profiles: initialProfiles, currentUserId }: UsersTa
                       </span>
                     </td>
 
+                    {/* Department */}
+                    <td className="px-4 py-3.5">
+                      {profile.domain ? (
+                        <span
+                          className="inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-full"
+                          style={{
+                            backgroundColor: DOMAIN_DISPLAY_CONFIG[profile.domain]?.pillBg ?? "#F4F4F5",
+                            color: DOMAIN_DISPLAY_CONFIG[profile.domain]?.pillColor ?? "#6B7280",
+                          }}
+                        >
+                          {DOMAIN_DISPLAY_CONFIG[profile.domain]?.shortLabel ?? profile.domain.replace(/_/g, " ")}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-[#9E9E9E]">—</span>
+                      )}
+                    </td>
+
                     {/* Status */}
                     <td className="px-4 py-3.5">
                       <span
@@ -312,7 +333,7 @@ export function UsersTable({ profiles: initialProfiles, currentUserId }: UsersTa
                               onClick={() => setEditTarget(profile)}
                             >
                               <Pencil className="w-3.5 h-3.5 text-[#6B6B6B]" />
-                              Edit name &amp; role
+                              Edit name, role &amp; department
                             </DropdownMenuItem>
 
                             <DropdownMenuItem

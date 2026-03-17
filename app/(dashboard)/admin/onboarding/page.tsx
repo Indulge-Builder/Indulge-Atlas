@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getOnboardingAgentsWithStats } from "@/lib/actions/team-stats";
+import { getCampaignsWithAttribution } from "@/lib/actions/campaigns";
 import { OnboardingOversightClient } from "./OnboardingOversightClient";
 import { OnboardingLeadsContent } from "@/components/onboarding/OnboardingLeadsContent";
 import { LeadsTableSkeleton } from "@/components/leads/LeadsTable";
@@ -37,10 +38,17 @@ export default async function OnboardingOversightPage(props: PageProps) {
   }
 
   const searchParams = await props.searchParams;
-  const agents = await getOnboardingAgentsWithStats();
+  const [agents, campaigns] = await Promise.all([
+    getOnboardingAgentsWithStats(),
+    getCampaignsWithAttribution(),
+  ]);
 
   return (
-    <OnboardingOversightClient agents={agents} searchParams={searchParams}>
+    <OnboardingOversightClient
+      agents={agents}
+      campaigns={campaigns}
+      searchParams={searchParams}
+    >
       <Suspense fallback={<LeadsTableSkeleton />}>
         <OnboardingLeadsContent searchParams={searchParams} />
       </Suspense>

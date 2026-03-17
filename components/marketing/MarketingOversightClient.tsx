@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AdminCreateTaskModal } from "@/components/tasks/AdminCreateTaskModal";
-import { MarketingAgentPerformanceModal } from "@/components/marketing/MarketingAgentPerformanceModal";
+import { AgentPerformanceModal } from "@/components/team/AgentPerformanceModal";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 // ── Glass card base style ────────────────────────────────────
@@ -223,8 +223,9 @@ export function MarketingOversightClient() {
         </div>
       </div>
 
-      <MarketingAgentPerformanceModal
-        agent={selectedAgent}
+      <AgentPerformanceModal
+        agentId={null}
+        agentData={selectedAgent}
         onClose={() => setSelectedAgent(null)}
       />
     </div>

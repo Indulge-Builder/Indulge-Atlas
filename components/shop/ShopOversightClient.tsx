@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { ShopAgentModal } from "@/components/shop/ShopAgentModal";
+import { AgentPerformanceModal } from "@/components/team/AgentPerformanceModal";
 import { AdminCreateTaskModal } from "@/components/tasks/AdminCreateTaskModal";
 import { cn } from "@/lib/utils";
 import { useClientOnly } from "@/lib/hooks/useClientOnly";
@@ -605,8 +605,9 @@ export function ShopOversightClient() {
         </AnimatePresence>
       </div>
 
-      <ShopAgentModal
-        agent={selectedAgent}
+      <AgentPerformanceModal
+        agentId={null}
+        agentData={selectedAgent}
         onClose={() => setSelectedAgent(null)}
       />
     </div>
