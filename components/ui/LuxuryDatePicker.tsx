@@ -3,7 +3,7 @@
 import * as React from "react";
 import { forwardRef, useState, useEffect } from "react";
 import { DayPicker } from "react-day-picker";
-import * as PopoverPrimitive from "@radix-ui/react-popover";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { format } from "date-fns";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -95,8 +95,8 @@ function LuxuryDatePickerInner(
   const displayLabel = value ? format(value, "MMM d, yyyy · h:mm a") : placeholder;
 
   return (
-    <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
-      <PopoverPrimitive.Trigger asChild>
+    <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
+      <DialogPrimitive.Trigger asChild>
         <button
           ref={ref}
           type="button"
@@ -111,21 +111,25 @@ function LuxuryDatePickerInner(
           <CalendarDays className="w-4 h-4 shrink-0 text-[#4A4A4A]" />
           <span className="flex-1 truncate">{displayLabel}</span>
         </button>
-      </PopoverPrimitive.Trigger>
+      </DialogPrimitive.Trigger>
 
-      <PopoverPrimitive.Portal>
-        <PopoverPrimitive.Content
-          side="bottom"
-          align="start"
-          sideOffset={6}
-          collisionPadding={{ top: 24, right: 16, bottom: 24, left: 16 }}
-          sticky="always"
-          avoidCollisions={true}
-          className="z-[200] outline-none p-0 min-w-[280px] max-w-[min(320px,calc(100vw-32px))]"
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay className="fixed inset-0 z-[199] bg-black/20 backdrop-blur-[2px] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+        <DialogPrimitive.Content
+          className={cn(
+            "fixed left-[50%] top-[50%] z-[200] w-[min(320px,calc(100vw-32px))] min-w-[280px]",
+            "translate-x-[-50%] translate-y-[-50%] outline-none p-0",
+            "data-[state=open]:animate-in data-[state=closed]:animate-out",
+            "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+            "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+          )}
           onOpenAutoFocus={(e) => e.preventDefault()}
         >
+          <DialogPrimitive.Title className="sr-only">
+            {placeholder}
+          </DialogPrimitive.Title>
           <div
-            className="rounded-xl border border-[#C0D4B8] bg-[#EEF6EA] shadow-lg overflow-y-auto overflow-x-hidden max-h-[min(420px,75vh)]"
+            className="rounded-xl border border-[#C0D4B8] bg-[#EEF6EA] shadow-lg overflow-y-auto overflow-x-hidden max-h-[min(520px,80vh)]"
             style={{ boxShadow: "0 12px 40px rgba(0,0,0,0.12)" }}
           >
             {/* Calendar */}
@@ -231,9 +235,9 @@ function LuxuryDatePickerInner(
               </button>
             </div>
           </div>
-        </PopoverPrimitive.Content>
-      </PopoverPrimitive.Portal>
-    </PopoverPrimitive.Root>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }
 
