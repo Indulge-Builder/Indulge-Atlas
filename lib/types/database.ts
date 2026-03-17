@@ -227,6 +227,10 @@ export interface CampaignMetric {
   cpc: number;
   last_synced_at: string;
   created_at: string;
+  /** Campaign status from ad platform: active | paused */
+  status?: string;
+  /** Lead form submissions / conversions from Meta/Google Ads API */
+  conversions?: number;
 }
 
 export interface CampaignWithStats extends CampaignMetric {

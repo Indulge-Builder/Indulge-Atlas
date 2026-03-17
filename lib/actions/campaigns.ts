@@ -2,6 +2,8 @@
 
 import { createClient } from "@/lib/supabase/server";
 import type { CampaignMetric, Lead } from "@/lib/types/database";
+import type { CampaignTableRow } from "@/lib/types/campaigns";
+import { MOCK_CAMPAIGNS } from "@/lib/data/campaigns-mock";
 
 // ── Auth guard ─────────────────────────────────────────────────────────────────
 async function requireScoutOrAdmin() {
@@ -87,6 +89,146 @@ export async function getCampaignsWithAttribution(): Promise<CampaignWithAttribu
       stats.leads_count > 0 ? c.amount_spent / stats.leads_count : 0;
     return { ...c, ...stats, cpl };
   });
+}
+
+/** Convert to table row format; use mock data when DB is empty */
+export async function getCampaignsForTable(): Promise<CampaignTableRow[]> {
+  const db = await getCampaignsWithAttribution();
+  if (db.length > 0) {
+    return db.map((c) => {
+      const leadsCount = c.leads_count;
+      const conversions = c.conversions ?? leadsCount;
+      return {
+        id: c.id,
+        campaign_id: c.campaign_id,
+        campaign_name: c.campaign_name,
+        platform: c.platform,
+        status: (c.status ?? "active") as "active" | "paused",
+        total_impressions: c.impressions,
+        total_spend: c.amount_spent,
+        total_conversions: conversions,
+        leads_generated: leadsCount,
+        cpa: c.cpl,
+        last_synced_at: c.last_synced_at,
+      };
+    });
+  }
+  return MOCK_CAMPAIGNS;
+}
+
+export interface NextTask {
+  id: string;
+  lead_id: string;
+  title: string;
+  due_date: string;
+  task_type: string;
+}
+
+/** Fetch leads for a specific campaign (for dossier Leads tab) */
+export async function getLeadsForCampaign(
+  campaignId: string,
+  opts: {
+    page?: number;
+    q?: string;
+    status?: string;
+    agent?: string;
+  }
+): Promise<{
+  leads: import("@/lib/types/database").Lead[];
+  totalCount: number;
+  agents: { id: string; full_name: string }[];
+  nextTaskMap: Record<string, NextTask>;
+}> {
+  const { supabase } = await requireScoutOrAdmin();
+  const PAGE_SIZE = 20;
+  const page = Math.max(1, opts.page ?? 1);
+  const offset = (page - 1) * PAGE_SIZE;
+
+  let query = supabase
+    .from("leads")
+    .select("*, assigned_agent:profiles!assigned_to(id, full_name, email)", {
+      count: "exact",
+    })
+    .eq("utm_campaign", campaignId);
+
+  if (opts.status && opts.status !== "ALL") {
+    query = query.eq("status", opts.status as import("@/lib/types/database").LeadStatus);
+  }
+  if (opts.agent && opts.agent !== "ALL") {
+    query = query.eq("assigned_to", opts.agent);
+  }
+  if (opts.q?.trim()) {
+    const sanitized = opts.q.replace(/[(),'"]/g, "").trim();
+    const q = `%${sanitized}%`;
+    query = query.or(
+      `first_name.ilike.${q},last_name.ilike.${q},phone_number.ilike.${q},email.ilike.${q},city.ilike.${q},utm_campaign.ilike.${q}`
+    );
+  }
+
+  const { data: rawLeads, count } = await query
+    .order("created_at", { ascending: false })
+    .range(offset, offset + PAGE_SIZE - 1);
+
+  const leads = (rawLeads ?? []) as import("@/lib/types/database").Lead[];
+  const leadIds = leads.map((l) => l.id);
+  let nextTaskMap: Record<string, NextTask> = {};
+
+  if (leadIds.length > 0) {
+    const { data: taskRows } = await supabase
+      .from("tasks")
+      .select("id, lead_id, title, due_date, task_type")
+      .in("lead_id", leadIds)
+      .neq("status", "completed")
+      .order("due_date", { ascending: true });
+    (taskRows ?? []).forEach((t) => {
+      if (t.lead_id && !nextTaskMap[t.lead_id]) {
+        nextTaskMap[t.lead_id] = t as NextTask;
+      }
+    });
+  }
+
+  const { data: agentRows } = await supabase
+    .from("profiles")
+    .select("id, full_name")
+    .eq("role", "agent")
+    .eq("is_active", true);
+  const agents = (agentRows ?? []) as { id: string; full_name: string }[];
+
+  return {
+    leads,
+    totalCount: count ?? 0,
+    agents,
+    nextTaskMap,
+  };
+}
+
+/** Get campaign dossier — from DB or mock when not found */
+export async function getCampaignDossierOrMock(
+  campaignId: string
+): Promise<CampaignDossierData | null> {
+  try {
+    return await getCampaignDossier(campaignId);
+  } catch {
+    const mock = MOCK_CAMPAIGNS.find((c) => c.campaign_id === campaignId);
+    if (!mock) return null;
+    return {
+      campaign: {
+        id: mock.id,
+        platform: mock.platform,
+        campaign_id: mock.campaign_id,
+        campaign_name: mock.campaign_name,
+        amount_spent: mock.total_spend,
+        impressions: mock.total_impressions,
+        clicks: mock.total_conversions * 3,
+        cpc: mock.cpa / 3,
+        last_synced_at: mock.last_synced_at,
+        created_at: mock.last_synced_at,
+      },
+      pipeline: [],
+      trophyCase: [],
+      totalRevenue: 0,
+    };
+  }
 }
 
 // ── Campaign dossier detail (leads for a specific campaign) ────────────────────

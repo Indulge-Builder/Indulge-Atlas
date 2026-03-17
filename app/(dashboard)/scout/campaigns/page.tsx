@@ -1,14 +1,13 @@
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
-import { getCampaignsWithAttribution } from "@/lib/actions/campaigns";
-import { CampaignGrid } from "@/components/scout/CampaignDossier";
+import { getCampaignsForTable } from "@/lib/actions/campaigns";
+import { CampaignsPageClient } from "@/components/scout/CampaignsPageClient";
 import { TopBar } from "@/components/layout/TopBar";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export const dynamic = "force-dynamic";
 
-// ── Role guard ─────────────────────────────────────────────────────────────────
 async function requireScout() {
   const supabase = await createClient();
   const {
@@ -28,53 +27,55 @@ async function requireScout() {
   }
 }
 
-// ── Loading skeleton ───────────────────────────────────────────────────────────
 function CampaignsSkeleton() {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
-      {Array.from({ length: 6 }).map((_, i) => (
-        <div
-          key={i}
-          className="bg-[#111111] border border-white/[0.07] rounded-2xl p-6 space-y-4"
-        >
-          <div className="flex items-center justify-between">
-            <Skeleton className="h-3 w-16 bg-white/[0.07]" />
-            <Skeleton className="h-3 w-3 bg-white/[0.07]" />
-          </div>
-          <Skeleton className="h-5 w-3/4 bg-white/[0.07]" />
-          <div className="grid grid-cols-3 gap-3">
-            {[0, 1, 2].map((j) => (
-              <div key={j} className="space-y-1">
-                <Skeleton className="h-4 w-12 bg-white/[0.07]" />
-                <Skeleton className="h-2.5 w-8 bg-white/[0.07]" />
-              </div>
-            ))}
-          </div>
-          <div className="flex items-center justify-between pt-3 border-t border-white/[0.06]">
-            <Skeleton className="h-3 w-20 bg-white/[0.07]" />
-            <Skeleton className="h-3 w-24 bg-white/[0.07]" />
-          </div>
+    <div className="space-y-8">
+      <div className="inline-flex gap-0.5 p-1 rounded-full bg-white/40 border border-[#E5E4DF]">
+        {[1, 2, 3].map((i) => (
+          <Skeleton key={i} className="h-9 w-24 rounded-full" />
+        ))}
+      </div>
+      <div className="bg-white/40 rounded-2xl border border-[#E5E4DF] overflow-hidden">
+        <div className="px-6 py-3.5 border-b border-[#EEEDE9] bg-[#FAFAF8]/60 flex gap-10">
+          {["Campaign", "Status", "Impressions", "Spend", "Leads", "CPA"].map(
+            (col) => (
+              <Skeleton key={col} className="h-2.5 w-16" />
+            )
+          )}
         </div>
-      ))}
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div
+            key={i}
+            className="flex items-center gap-10 px-6 py-4 border-b border-[#F4F3EF] last:border-0"
+          >
+            <div className="flex items-center gap-3">
+              <Skeleton className="w-16 h-6 rounded-full" />
+              <Skeleton className="h-4 w-40" />
+            </div>
+            <Skeleton className="h-5 w-14 rounded-full" />
+            <Skeleton className="h-4 w-12" />
+            <Skeleton className="h-4 w-14" />
+            <Skeleton className="h-4 w-12" />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
-// ── Data component ─────────────────────────────────────────────────────────────
 async function CampaignsContent() {
-  const campaigns = await getCampaignsWithAttribution();
-  return <CampaignGrid campaigns={campaigns} />;
+  const campaigns = await getCampaignsForTable();
+  return <CampaignsPageClient campaigns={campaigns} />;
 }
 
-// ── Page ───────────────────────────────────────────────────────────────────────
 export default async function CampaignsPage() {
   await requireScout();
 
   return (
-    <div className="min-h-screen bg-[#0A0A0A]">
+    <div className="min-h-screen bg-[#F9F9F6]">
       <TopBar
-        title="Live Campaigns."
-        subtitle="Closed-loop attribution — ad spend linked directly to revenue."
+        title="Campaigns."
+        subtitle="Performance Marketing Command Center — closed-loop attribution."
       />
 
       <div className="px-8 py-8">

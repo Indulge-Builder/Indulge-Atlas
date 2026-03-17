@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useRef, useEffect } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -56,6 +56,10 @@ interface LeadsTableProps {
   agents?: { id: string; full_name: string }[];
   campaigns?: string[];
   nextTaskMap?: Record<string, NextTask>;
+  /** When set, campaign filter is fixed and campaign dropdown is hidden */
+  embedCampaignId?: string;
+  /** Params to preserve in URL when embedded (e.g. { tab: "leads" }) */
+  embedQueryParams?: Record<string, string>;
 }
 
 export function LeadsTable({
@@ -66,6 +70,8 @@ export function LeadsTable({
   agents = [],
   campaigns = [],
   nextTaskMap = {},
+  embedCampaignId,
+  embedQueryParams,
 }: LeadsTableProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -82,9 +88,12 @@ export function LeadsTable({
       Object.entries(params).forEach(([key, value]) => {
         value === null ? current.delete(key) : current.set(key, value);
       });
+      if (embedQueryParams) {
+        Object.entries(embedQueryParams).forEach(([k, v]) => current.set(k, v));
+      }
       return current.toString();
     },
-    [searchParams],
+    [searchParams, embedQueryParams],
   );
 
   const handleSearch = (value: string) =>
@@ -102,10 +111,12 @@ export function LeadsTable({
       `${pathname}?${createQueryString({ agent: value === "ALL" ? null : value, page: "1" })}`,
     );
 
-  const handleCampaignFilter = (value: string) =>
+  const handleCampaignFilter = (value: string) => {
+    if (embedCampaignId) return;
     router.push(
       `${pathname}?${createQueryString({ campaign: value === "ALL" ? null : value, page: "1" })}`,
     );
+  };
 
   const handleSourceFilter = (value: string) =>
     router.push(
@@ -115,10 +126,17 @@ export function LeadsTable({
   const handlePage = (newPage: number) =>
     router.push(`${pathname}?${createQueryString({ page: String(newPage) })}`);
 
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+  }, []);
+
   const currentSearch = searchParams.get("q") ?? "";
   const currentStatus = searchParams.get("status") ?? "ALL";
   const currentAgent = searchParams.get("agent") ?? "ALL";
-  const currentCampaign = searchParams.get("campaign") ?? "ALL";
+  const currentCampaign =
+    embedCampaignId ?? searchParams.get("campaign") ?? "ALL";
   const currentSource = searchParams.get("source") ?? "ALL";
 
   const SOURCE_OPTIONS = [
@@ -147,8 +165,8 @@ export function LeadsTable({
             defaultValue={currentSearch}
             onChange={(e) => {
               const val = e.target.value;
-              const t = setTimeout(() => handleSearch(val), 380);
-              return () => clearTimeout(t);
+              if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+              searchTimeoutRef.current = setTimeout(() => handleSearch(val), 380);
             }}
             className="pl-9 bg-white border-[#E5E4DF] focus-visible:ring-1 focus-visible:ring-[#D4AF37]/40"
           />
@@ -184,7 +202,7 @@ export function LeadsTable({
           </Select>
         )}
 
-        {isScout && campaigns.length > 0 && (
+        {isScout && campaigns.length > 0 && !embedCampaignId && (
           <Select
             defaultValue={currentCampaign}
             onValueChange={handleCampaignFilter}
@@ -358,7 +376,11 @@ function LeadRow({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ delay: Math.min(index, 7) * 0.03, duration: 0.35, ease: luxuryEasing }}
+      transition={{
+        delay: Math.min(index, 7) * 0.03,
+        duration: 0.35,
+        ease: luxuryEasing,
+      }}
       onClick={onClick}
       className="border-b border-[#F4F3EF] last:border-0 hover:bg-[#FAFAF8] transition-colors duration-300 cursor-pointer group"
     >

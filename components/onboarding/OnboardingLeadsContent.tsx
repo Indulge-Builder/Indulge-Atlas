@@ -66,8 +66,7 @@ export async function OnboardingLeadsContent({
     const sanitized = params.q.replace(/[(),'"]/g, "").trim();
     const q = `%${sanitized}%`;
     const baseFilters = `first_name.ilike.${q},last_name.ilike.${q},phone_number.ilike.${q},email.ilike.${q},city.ilike.${q}`;
-    const tagsFilter = sanitized ? `,tags_searchable.ilike.${q}` : "";
-    query = query.or(`${baseFilters}${tagsFilter}`);
+    query = query.or(baseFilters);
   }
 
   if (params.campaign && params.campaign !== "ALL") {
