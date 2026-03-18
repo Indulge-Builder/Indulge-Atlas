@@ -93,6 +93,20 @@ const navItems = [
     section: "main",
   },
   {
+    href: "/scout/campaigns",
+    label: "Live Campaigns",
+    icon: Megaphone,
+    roles: ["scout"],
+    section: "scout",
+  },
+  {
+    href: "/scout/team",
+    label: "Team Roster",
+    icon: UsersRound,
+    roles: ["scout"],
+    section: "scout",
+  },
+  {
     href: "/scout",
     label: "Morning Briefing",
     icon: Coffee,
@@ -107,13 +121,7 @@ const navItems = [
     roles: ["scout"],
     section: "scout",
   },
-  {
-    href: "/scout/team",
-    label: "Team Roster",
-    icon: UsersRound,
-    roles: ["scout"],
-    section: "scout",
-  },
+
   {
     href: "/scout/planner",
     label: "Ad Planner",
@@ -121,13 +129,7 @@ const navItems = [
     roles: ["scout"],
     section: "scout",
   },
-  {
-    href: "/scout/campaigns",
-    label: "Live Campaigns",
-    icon: Megaphone,
-    roles: ["scout"],
-    section: "scout",
-  },
+
   {
     href: "/indulge-world",
     label: "Indulge Eco",
@@ -338,7 +340,8 @@ export function Sidebar({ profile }: SidebarProps) {
               Workspace
             </p>
             <p className="text-[13px] font-medium text-white/90 mt-0.5">
-              {DOMAIN_DISPLAY_CONFIG[profile.domain]?.label ?? profile.domain.replace(/_/g, " ")}
+              {DOMAIN_DISPLAY_CONFIG[profile.domain]?.label ??
+                profile.domain.replace(/_/g, " ")}
             </p>
           </div>
         )}

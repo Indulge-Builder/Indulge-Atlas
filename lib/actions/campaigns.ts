@@ -124,7 +124,9 @@ export interface NextTask {
   task_type: string;
 }
 
-/** Fetch leads for a specific campaign (for dossier Leads tab) */
+/** Fetch leads for a specific campaign (for dossier Leads tab).
+ * Matches leads by utm_campaign = campaign_id OR campaign_name = campaign_name
+ * so that leads attributed by any of these fields appear in the tab. */
 export async function getLeadsForCampaign(
   campaignId: string,
   opts: {
@@ -144,13 +146,33 @@ export async function getLeadsForCampaign(
   const page = Math.max(1, opts.page ?? 1);
   const offset = (page - 1) * PAGE_SIZE;
 
-  // Match leads where utm_campaign OR campaign_id equals the campaign (closed-loop attribution)
+  // Fetch campaign to get campaign_name for matching
+  const { data: campaign } = await supabase
+    .from("campaign_metrics")
+    .select("campaign_name")
+    .eq("campaign_id", campaignId)
+    .single();
+
+  const campaignName = campaign?.campaign_name ?? null;
+
   let query = supabase
     .from("leads")
     .select("*, assigned_agent:profiles!assigned_to(id, full_name, email)", {
       count: "exact",
-    })
-    .or(`utm_campaign.eq.${campaignId},campaign_id.eq.${campaignId}`);
+    });
+
+  // Match leads by utm_campaign = campaign_id OR utm_campaign = campaign_name OR campaign_name = campaign_name
+  // Escape values with spaces/special chars for PostgREST
+  const esc = (v: string) =>
+    /^[a-zA-Z0-9_-]+$/.test(v) ? v : `"${String(v).replace(/"/g, '""')}"`;
+
+  if (campaignName) {
+    query = query.or(
+      `utm_campaign.eq.${esc(campaignId)},utm_campaign.eq.${esc(campaignName)},campaign_name.eq.${esc(campaignName)}`,
+    );
+  } else {
+    query = query.eq("utm_campaign", campaignId);
+  }
 
   if (opts.status && opts.status !== "ALL") {
     query = query.eq("status", opts.status as import("@/lib/types/database").LeadStatus);

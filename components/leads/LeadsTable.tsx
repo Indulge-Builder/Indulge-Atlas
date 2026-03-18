@@ -15,7 +15,6 @@ import {
   Megaphone,
   CalendarClock,
   Plus,
-  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -61,8 +60,6 @@ interface LeadsTableProps {
   embedCampaignId?: string;
   /** Params to preserve in URL when embedded (e.g. { tab: "leads" }) */
   embedQueryParams?: Record<string, string>;
-  /** Compact "dossier" layout: Name & Email | Status | Date | Agent (for campaign closed-loop attribution) */
-  variant?: "default" | "dossier";
 }
 
 export function LeadsTable({
@@ -75,7 +72,6 @@ export function LeadsTable({
   nextTaskMap = {},
   embedCampaignId,
   embedQueryParams,
-  variant = "default",
 }: LeadsTableProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -83,7 +79,6 @@ export function LeadsTable({
 
   const isScout = role === "scout" || role === "admin" || role === "finance";
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
-  const isDossier = variant === "dossier";
 
   // ── Query helpers ────────────────────────────────────────
 
@@ -156,9 +151,8 @@ export function LeadsTable({
   // ── Column definitions ────────────────────────────────────────────────────
   // Agent:        Client · Contact · Status · Next Action · Added           (5)
   // Scout/Admin:  Client · Contact · Status · Source · Notes · Campaign · Agent · Added (8)
-  // Dossier:      Name & Email · Status · Date Created · Agent · (chevron)   (5)
 
-  const totalColCount = isDossier ? 5 : isScout ? 8 : 5;
+  const totalColCount = isScout ? 8 : 5;
 
   return (
     <div className="space-y-4">
@@ -228,7 +222,7 @@ export function LeadsTable({
           </Select>
         )}
 
-        {isScout && !isDossier && (
+        {isScout && (
           <Select
             defaultValue={currentSource}
             onValueChange={handleSourceFilter}
@@ -256,38 +250,27 @@ export function LeadsTable({
         <div className="overflow-x-auto overflow-y-hidden">
           <table
             className="w-full text-sm"
-            style={{
-              minWidth: isDossier ? "640px" : isScout ? "1280px" : "820px",
-            }}
+            style={{ minWidth: isScout ? "1280px" : "820px" }}
           >
             <thead>
               <tr className="border-b border-[#EEEDE9] bg-[#FAFAF8]">
-                {isDossier ? (
+                <Th>Client</Th>
+                <Th>Contact</Th>
+                <Th tight>Status</Th>
+
+                {isScout ? (
                   <>
-                    <Th>Lead</Th>
-                    <Th tight>Status</Th>
-                    <Th align="right">Date Created</Th>
-                    <Th tight>Assigned Agent</Th>
-                    <Th tight className="w-10" />
+                    {/* Scout/Admin/Finance: Source · Notes · Campaign · Agent */}
+                    <Th tight>Source</Th>
+                    <Th tight>Notes</Th>
+                    <Th tight>Campaign</Th>
+                    <Th tight>Agent</Th>
                   </>
                 ) : (
-                  <>
-                    <Th>Client</Th>
-                    <Th>Contact</Th>
-                    <Th tight>Status</Th>
-                    {isScout ? (
-                      <>
-                        <Th tight>Source</Th>
-                        <Th tight>Notes</Th>
-                        <Th tight>Campaign</Th>
-                        <Th tight>Agent</Th>
-                      </>
-                    ) : (
-                      <Th>Next Action</Th>
-                    )}
-                    <Th align="right">Added</Th>
-                  </>
+                  <Th>Next Action</Th>
                 )}
+
+                <Th align="right">Added</Th>
               </tr>
             </thead>
 
@@ -299,36 +282,20 @@ export function LeadsTable({
                       colSpan={totalColCount}
                       className="text-center py-20 text-[#C8C4BC] text-sm"
                     >
-                      {isDossier ? (
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Users className="w-8 h-8 text-[#E5E4DF]" />
-                          <span>No leads attributed to this campaign yet.</span>
-                        </div>
-                      ) : (
-                        "No leads found matching your criteria."
-                      )}
+                      No leads found matching your criteria.
                     </td>
                   </tr>
                 ) : (
-                  leads.map((lead, i) =>
-                    isDossier ? (
-                      <DossierLeadRow
-                        key={lead.id}
-                        lead={lead}
-                        index={i}
-                        onClick={() => router.push(`/leads/${lead.id}`)}
-                      />
-                    ) : (
-                      <LeadRow
-                        key={lead.id}
-                        lead={lead}
-                        index={i}
-                        isScout={isScout}
-                        nextTask={nextTaskMap[lead.id] ?? null}
-                        onClick={() => router.push(`/leads/${lead.id}`)}
-                      />
-                    )
-                  )
+                  leads.map((lead, i) => (
+                    <LeadRow
+                      key={lead.id}
+                      lead={lead}
+                      index={i}
+                      isScout={isScout}
+                      nextTask={nextTaskMap[lead.id] ?? null}
+                      onClick={() => router.push(`/leads/${lead.id}`)}
+                    />
+                  ))
                 )}
               </AnimatePresence>
             </tbody>
@@ -382,64 +349,6 @@ export function LeadsTable({
         )}
       </div>
     </div>
-  );
-}
-
-// ── DossierLeadRow (compact: Name & Email | Status | Date | Agent) ───────────
-
-function DossierLeadRow({
-  lead,
-  index,
-  onClick,
-}: {
-  lead: Lead;
-  index: number;
-  onClick: () => void;
-}) {
-  const assignedAgent = (
-    lead as Lead & { assigned_agent?: { full_name: string } }
-  ).assigned_agent;
-
-  return (
-    <motion.tr
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{
-        delay: Math.min(index, 7) * 0.03,
-        duration: 0.35,
-        ease: luxuryEasing,
-      }}
-      onClick={onClick}
-      className="border-b border-[#F4F3EF] last:border-0 hover:bg-stone-50 transition-colors duration-300 cursor-pointer group"
-    >
-      <td className="px-6 py-4">
-        <div className="flex flex-col gap-0.5">
-          <span className="font-medium text-[#1A1A1A] truncate max-w-[200px]">
-            {lead.first_name} {lead.last_name ?? ""}
-          </span>
-          {lead.email && (
-            <span className="text-xs text-[#9E9E9E] truncate max-w-[200px]">
-              {lead.email}
-            </span>
-          )}
-        </div>
-      </td>
-      <td className="px-4 py-4 whitespace-nowrap">
-        <LeadStatusBadge status={lead.status} size="sm" />
-      </td>
-      <td className="px-6 py-4 text-xs text-[#B5A99A] text-right whitespace-nowrap">
-        {formatDate(lead.created_at)}
-      </td>
-      <td className="px-4 py-4 text-xs text-[#6B6B6B] whitespace-nowrap">
-        {assignedAgent?.full_name ?? (
-          <span className="text-[#D0C8BE]">—</span>
-        )}
-      </td>
-      <td className="px-4 py-4 w-10">
-        <ChevronRight className="w-4 h-4 text-[#C8C4BC] group-hover:text-[#D4AF37] transition-colors" />
-      </td>
-    </motion.tr>
   );
 }
 
@@ -698,18 +607,16 @@ function Th({
   children,
   align = "left",
   tight = false,
-  className,
 }: {
   children?: React.ReactNode;
   align?: "left" | "right";
   tight?: boolean;
-  className?: string;
 }) {
   return (
     <th
       className={`${tight ? "px-4" : "px-6"} py-3.5 text-[10px] font-semibold text-[#B5A99A] uppercase tracking-widest whitespace-nowrap ${
         align === "right" ? "text-right" : "text-left"
-      } ${className ?? ""}`}
+      }`}
     >
       {children}
     </th>
