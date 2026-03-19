@@ -24,7 +24,7 @@ const STATUS_COLOURS: Record<LeadStatus, string> = {
   connected:     "bg-indigo-500/20 text-indigo-400",
   in_discussion: "bg-emerald-500/20 text-emerald-500",
   won:           "bg-[#D4AF37]/20 text-[#D4AF37]",
-  nurturing:     "bg-purple-500/20 text-purple-400",
+  nurturing:     "bg-cyan-600/20 text-cyan-700",
   lost:          "bg-red-500/20 text-red-500",
   trash:         "bg-zinc-500/20 text-zinc-500",
 };

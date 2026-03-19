@@ -26,10 +26,18 @@ const ACTIVITY_COLORS: Record<string, { bg: string; icon: string }> = {
   task_created: { bg: "#F0EBFF", icon: "#6B4FBB" },
 };
 
-function getActivityDescription(activity: LeadActivity): string {
-  const payload = activity.payload as Record<string, unknown>;
+function activityKind(activity: LeadActivity): string {
+  return activity.type ?? activity.action_type ?? "note";
+}
 
-  switch (activity.type) {
+function getActivityDescription(activity: LeadActivity): string {
+  const payload = (activity.payload ?? activity.details ?? {}) as Record<
+    string,
+    unknown
+  >;
+  const kind = activityKind(activity);
+
+  switch (kind) {
     case "status_change":
       return `Status changed from ${payload.from} → ${payload.to}${
         payload.note ? `: "${payload.note}"` : ""
@@ -42,6 +50,12 @@ function getActivityDescription(activity: LeadActivity): string {
         : `Call attempt recorded`;
     case "task_created":
       return `Task scheduled: ${payload.title ?? payload.task_type}`;
+    case "status_changed":
+      return `Status changed from ${payload.old_status} → ${payload.new_status}${
+        payload.note ? `: "${payload.note}"` : ""
+      }`;
+    case "note_added":
+      return (payload.note as string) ?? "Note added";
     default:
       return "Activity recorded";
   }
@@ -70,9 +84,16 @@ export function LeadJourneyTimeline({ activities }: LeadJourneyTimelineProps) {
 
       <div className="space-y-4">
         {activities.map((activity, i) => {
-          const Icon = ACTIVITY_ICONS[activity.type] ?? GitBranch;
+          const kind = activityKind(activity);
+          const mappedKind =
+            kind === "status_changed"
+              ? "status_change"
+              : kind === "note_added"
+                ? "note"
+                : kind;
+          const Icon = ACTIVITY_ICONS[mappedKind] ?? GitBranch;
           const colors =
-            ACTIVITY_COLORS[activity.type] ?? ACTIVITY_COLORS.note;
+            ACTIVITY_COLORS[mappedKind] ?? ACTIVITY_COLORS.note;
 
           return (
             <motion.div

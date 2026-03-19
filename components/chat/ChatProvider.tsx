@@ -6,9 +6,10 @@ import {
   useState,
   useCallback,
   useEffect,
+  useMemo,
   ReactNode,
 } from "react";
-import { GlobalChatDrawer } from "./GlobalChatDrawer";
+import dynamic from "next/dynamic";
 import {
   getTotalUnreadCount,
   getOrCreateDirectConversation,
@@ -53,6 +54,12 @@ export function useChatDrawer() {
   return useContext(ChatContext);
 }
 
+const GlobalChatDrawerLazy = dynamic(
+  () =>
+    import("./GlobalChatDrawer").then((m) => m.GlobalChatDrawer),
+  { ssr: false, loading: () => null },
+);
+
 export function ChatProvider({
   children,
   currentUserId,
@@ -63,12 +70,16 @@ export function ChatProvider({
   const [open, setOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [pendingThread, setPendingThread] = useState<PendingThread | null>(null);
+  const [drawerMounted, setDrawerMounted] = useState(false);
 
   const refreshUnread = useCallback(() => {
     getTotalUnreadCount().then(setUnreadCount);
   }, []);
 
-  const openChat = useCallback(() => setOpen(true), []);
+  const openChat = useCallback(() => {
+    setDrawerMounted(true);
+    setOpen(true);
+  }, []);
 
   const closeChat = useCallback(() => {
     setOpen(false);
@@ -80,6 +91,7 @@ export function ChatProvider({
       const { conversationId, error } = await getOrCreateDirectConversation(userId);
       if (error || !conversationId) return;
       setPendingThread({ conversationId, peerName: fullName, peerRole: role });
+      setDrawerMounted(true);
       setOpen(true);
     },
     []
@@ -92,25 +104,47 @@ export function ChatProvider({
     getTotalUnreadCount().then(setUnreadCount);
   }, []);
 
+  useEffect(() => {
+    if (open) setDrawerMounted(true);
+  }, [open]);
+
+  useEffect(() => {
+    if (pendingThread) setDrawerMounted(true);
+  }, [pendingThread]);
+
+  const contextValue = useMemo(
+    () => ({
+      openChat,
+      closeChat,
+      openChatWithUser,
+      isOpen: open,
+      unreadCount,
+      pendingThread,
+      clearPendingThread,
+      refreshUnread,
+    }),
+    [
+      openChat,
+      closeChat,
+      openChatWithUser,
+      open,
+      unreadCount,
+      pendingThread,
+      clearPendingThread,
+      refreshUnread,
+    ],
+  );
+
   return (
-    <ChatContext.Provider
-      value={{
-        openChat,
-        closeChat,
-        openChatWithUser,
-        isOpen: open,
-        unreadCount,
-        pendingThread,
-        clearPendingThread,
-        refreshUnread,
-      }}
-    >
+    <ChatContext.Provider value={contextValue}>
       {children}
-      <GlobalChatDrawer
-        currentUserId={currentUserId}
-        externalOpen={open}
-        onExternalClose={closeChat}
-      />
+      {drawerMounted && (
+        <GlobalChatDrawerLazy
+          currentUserId={currentUserId}
+          externalOpen={open}
+          onExternalClose={closeChat}
+        />
+      )}
     </ChatContext.Provider>
   );
 }

@@ -1,4 +1,3 @@
-import { createClient } from "@/lib/supabase/server";
 import { getLeadsForCampaign } from "@/lib/actions/campaigns";
 import { LeadsTable } from "@/components/leads/LeadsTable";
 import type { UserRole } from "@/lib/types/database";

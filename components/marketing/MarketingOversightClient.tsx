@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
 import {
   FileText,
@@ -9,8 +10,15 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AdminCreateTaskModal } from "@/components/tasks/AdminCreateTaskModal";
-import { AgentPerformanceModal } from "@/components/team/AgentPerformanceModal";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+
+const AgentPerformanceModal = dynamic(
+  () =>
+    import("@/components/team/AgentPerformanceModal").then((mod) => ({
+      default: mod.AgentPerformanceModal,
+    })),
+  { ssr: false },
+);
 
 // ── Glass card base style ────────────────────────────────────
 
@@ -184,16 +192,15 @@ export function MarketingOversightClient() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
-          {MOCK_MARKETING_TEAM.map((agent, i) => (
-            <motion.button
+          {MOCK_MARKETING_TEAM.map((agent) => (
+            <button
               key={agent.id}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: i * 0.06, ease: [0.22, 1, 0.36, 1] }}
+              type="button"
               onClick={() => setSelectedAgent(agent)}
               className={cn(
                 "rounded-2xl p-5 text-left",
                 PILLOWY_CARD,
+                "animate-in fade-in slide-in-from-bottom-2 duration-300",
                 "hover:-translate-y-1 hover:shadow-[0_8px_40px_rgb(0,0,0,0.06)] transition-all duration-300 cursor-pointer",
               )}
             >
@@ -218,7 +225,7 @@ export function MarketingOversightClient() {
                   </p>
                 </div>
               </div>
-            </motion.button>
+            </button>
           ))}
         </div>
       </div>

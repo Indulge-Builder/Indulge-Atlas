@@ -15,7 +15,7 @@ const badgeVariants = cva(
         in_discussion: "bg-[#F0EBFF] text-[#6B4FBB]",
         won: "bg-[#EBF4EF] text-[#4A7C59]",
         lost: "bg-[#FAEAE8] text-[#C0392B]",
-        nurturing: "bg-[#F4F4EE] text-[#8A8A6E]",
+        nurturing: "bg-cyan-50 text-cyan-800 border border-cyan-200/60",
         junk: "bg-[#F5F5F5] text-[#9E9E9E]",
       },
     },

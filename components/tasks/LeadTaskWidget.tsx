@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import dynamic from "next/dynamic";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -41,13 +42,21 @@ import { format } from "date-fns";
 import { LuxuryDatePicker } from "@/components/ui/LuxuryDatePicker";
 import { cn } from "@/lib/utils";
 import { createTask, completeTask } from "@/lib/actions/tasks";
-import { FollowUpModal } from "@/components/tasks/FollowUpModal";
+import { dispatchTaskAlertAfterCompleteOrDelete } from "@/lib/task-alert-refresh";
 import { AGENT_TASK_TYPES } from "@/lib/types/database";
 import type { TaskType, TaskWithLead, TaskStatus, UserRole } from "@/lib/types/database";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { formatLocalDateTime } from "@/lib/utils/date-format";
 import { useClientOnly } from "@/lib/hooks/useClientOnly";
+
+const FollowUpModal = dynamic(
+  () =>
+    import("@/components/tasks/FollowUpModal").then((mod) => ({
+      default: mod.FollowUpModal,
+    })),
+  { ssr: false },
+);
 
 // ── Task type labels & icons ───────────────────────────────
 
@@ -435,6 +444,10 @@ function TaskRow({
       return;
     }
     toast.success("Task marked as done.");
+    dispatchTaskAlertAfterCompleteOrDelete({
+      status: task.status,
+      due_date: task.due_date,
+    });
     router.refresh();
   }
 
@@ -571,8 +584,14 @@ export function LeadTaskWidget({ leadId, role, initialTasks }: LeadTaskWidgetPro
     );
   }
 
-  const pending   = tasks.filter((t) => t.status === "pending");
-  const completed = tasks.filter((t) => t.status === "completed");
+  const pending = useMemo(
+    () => tasks.filter((t) => t.status === "pending"),
+    [tasks],
+  );
+  const completed = useMemo(
+    () => tasks.filter((t) => t.status === "completed"),
+    [tasks],
+  );
 
   return (
     <div className="bg-white rounded-xl border border-[#E5E4DF] overflow-hidden shadow-[0_1px_3px_0_rgb(0_0_0/0.04)]">

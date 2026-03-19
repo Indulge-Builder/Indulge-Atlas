@@ -2,11 +2,13 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getDashboardData } from "@/lib/actions/leads";
+import { getAgentDailyRoster } from "@/lib/actions/tasks";
 import { DashboardHero } from "@/components/dashboard/DashboardHero";
 import { UnattainedLeadsQueue } from "@/components/dashboard/UnattainedLeadsQueue";
 import { MyTasksWidget } from "@/components/dashboard/MyTasksWidget";
 import { ConversionHistory } from "@/components/dashboard/ConversionHistory";
 import { PastLeadsList } from "@/components/dashboard/PastLeadsList";
+import { DailyRoster } from "@/components/tasks/DailyRoster";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Lead, Task } from "@/lib/types/database";
 
@@ -53,6 +55,7 @@ async function DashboardContent({ userId }: { userId: string }) {
   const [
     { data: rawProfile },
     { unattainedLeads, pastLeads, upcomingTasks },
+    dailyRoster,
     { count: newLeadsCount },
     { count: activeCount },
     { count: tasksTodayCount },
@@ -68,6 +71,8 @@ async function DashboardContent({ userId }: { userId: string }) {
 
     // Grid-widget data (unattained queue + past leads + tasks)
     getDashboardData(),
+
+    getAgentDailyRoster(userId),
 
     // Live metric: new leads assigned to me
     supabase
@@ -131,6 +136,7 @@ async function DashboardContent({ userId }: { userId: string }) {
 
       {/* ── Phase 4 + existing widgets ──────────────────────── */}
       <div className="px-8 py-6 space-y-5">
+        <DailyRoster roster={dailyRoster} />
         <div className="grid grid-cols-3 gap-5">
           {/* New leads queue + conversion feed */}
           <UnattainedLeadsQueue leads={unattainedLeads as Lead[]} />

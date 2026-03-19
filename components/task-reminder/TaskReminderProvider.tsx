@@ -1,10 +1,19 @@
 "use client";
 
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import { getTasksForReminders } from "@/lib/actions/tasks";
+import { playNotificationSound } from "@/lib/utils/audio";
 import { TaskReminderNotification } from "./TaskReminderNotification";
 import type { TaskWithLead } from "@/lib/types/database";
 
@@ -41,7 +50,16 @@ export function TaskReminderProvider({ children }: TaskReminderProviderProps) {
     setPortalTarget(document.body);
   }, []);
 
-  function scheduleTask(task: TaskWithLead) {
+  const clearScheduledTask = useCallback((taskId: string) => {
+    const timeoutId = activeTimers.current.get(taskId);
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+      activeTimers.current.delete(taskId);
+      console.log("[Task Engine] Cleared timer for task:", taskId);
+    }
+  }, []);
+
+  const scheduleTask = useCallback((task: TaskWithLead) => {
     const now = Date.now();
     const due = new Date(task.due_date).getTime();
     const delayMs = due - now;
@@ -80,58 +98,44 @@ export function TaskReminderProvider({ children }: TaskReminderProviderProps) {
       activeTimers.current.delete(id);
       console.log("[Task Engine] RINGING! Triggering UI for:", taskLabel);
 
-      try {
-        const chime = new Audio("/sounds/chime.mp3");
-        chime.volume = 0.4;
-        chime.play().catch(() => {
-          console.warn("[Task Engine] Audio blocked by browser policy, proceeding to UI popup.");
-        });
-      } catch {
-        console.warn("[Task Engine] Audio failed, proceeding to UI popup.");
-      }
+      playNotificationSound();
 
       setActiveTask(task);
     }, delayMs);
 
     activeTimers.current.set(id, timeoutId);
-  }
+  }, []);
 
-  function queueTask(task: TaskWithLead) {
-    if (task.status !== "pending") return;
-    const due = new Date(task.due_date).getTime();
-    const now = Date.now();
-    if (due <= now) return;
-    scheduleTask(task);
-  }
+  const queueTask = useCallback(
+    (task: TaskWithLead) => {
+      if (task.status !== "pending") return;
+      const due = new Date(task.due_date).getTime();
+      const now = Date.now();
+      if (due <= now) return;
+      scheduleTask(task);
+    },
+    [scheduleTask],
+  );
 
-  function clearScheduledTask(taskId: string) {
-    const timeoutId = activeTimers.current.get(taskId);
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-      activeTimers.current.delete(taskId);
-      console.log("[Task Engine] Cleared timer for task:", taskId);
-    }
-  }
-
-  function dismissNotification() {
+  const dismissNotification = useCallback(() => {
     setActiveTask(null);
-  }
+  }, []);
 
-  function loadAndScheduleTasks() {
+  const loadAndScheduleTasks = useCallback(() => {
     getTasksForReminders()
       .then((tasks) => {
         if (!Array.isArray(tasks)) {
           console.warn("[Task Engine] getTasksForReminders returned non-array:", tasks);
           return;
         }
-        activeTimers.current.forEach((id) => clearTimeout(id));
+        activeTimers.current.forEach((timeoutId) => clearTimeout(timeoutId));
         activeTimers.current.clear();
         tasks.forEach((task) => scheduleTask(task));
       })
       .catch((err) => {
         console.warn("[Task Engine] Failed to fetch tasks:", err);
       });
-  }
+  }, [scheduleTask]);
 
   useEffect(() => {
     console.log("[Task Engine] Initializing. Fetching pending tasks...");
@@ -140,7 +144,10 @@ export function TaskReminderProvider({ children }: TaskReminderProviderProps) {
     let intervalId: ReturnType<typeof setInterval> | null = null;
     let cancelled = false;
 
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    void supabase.auth
+      .getUser()
+      .then((authRes: { data: { user: { id: string } | null } }) => {
+      const user = authRes.data.user;
       if (cancelled || !user) return;
       setUserId(user.id);
 
@@ -158,7 +165,11 @@ export function TaskReminderProvider({ children }: TaskReminderProviderProps) {
             table: "tasks",
             filter: `assigned_to_users=cs.{${user.id}}`,
           },
-          (payload) => {
+          (payload: {
+            eventType: string;
+            new: Record<string, unknown> | null;
+            old: Record<string, unknown> | null;
+          }) => {
             console.log("[Task Engine] Realtime Payload Received:", payload);
 
             const { eventType, new: newRow, old: oldRow } = payload;
@@ -206,7 +217,7 @@ export function TaskReminderProvider({ children }: TaskReminderProviderProps) {
             }
           }
         )
-        .subscribe((status) => {
+        .subscribe((status: string) => {
           if (status === "SUBSCRIBED") {
             console.log("[Task Engine] Realtime: Subscribed to custom-task-channel");
           }
@@ -226,7 +237,9 @@ export function TaskReminderProvider({ children }: TaskReminderProviderProps) {
       }
       console.log("[Task Engine] Cleanup complete. All timers cleared.");
     };
-  }, []);
+  }, [loadAndScheduleTasks, queueTask]);
+
+  const reminderContextValue = useMemo(() => ({ queueTask }), [queueTask]);
 
   const notification = (
     <AnimatePresence>
@@ -241,7 +254,7 @@ export function TaskReminderProvider({ children }: TaskReminderProviderProps) {
   );
 
   return (
-    <TaskReminderContext.Provider value={{ queueTask }}>
+    <TaskReminderContext.Provider value={reminderContextValue}>
       {children}
       {portalTarget && createPortal(notification, portalTarget)}
     </TaskReminderContext.Provider>

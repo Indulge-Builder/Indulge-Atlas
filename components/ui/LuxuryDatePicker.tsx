@@ -31,6 +31,7 @@ export interface LuxuryDatePickerProps {
   placeholder?: string;
   disabled?: (date: Date) => boolean;
   className?: string;
+  hideTime?: boolean;
 }
 
 function LuxuryDatePickerInner(
@@ -40,6 +41,7 @@ function LuxuryDatePickerInner(
     placeholder = "Select date & time",
     disabled,
     className,
+    hideTime = false,
   }: LuxuryDatePickerProps,
   ref: React.ForwardedRef<HTMLButtonElement>,
 ) {
@@ -92,7 +94,11 @@ function LuxuryDatePickerInner(
     if (selectedDay) compose(selectedDay, hour, minute, p);
   }
 
-  const displayLabel = value ? format(value, "MMM d, yyyy · h:mm a") : placeholder;
+  const displayLabel = value
+    ? hideTime
+      ? format(value, "MMM d, yyyy")
+      : format(value, "MMM d, yyyy · h:mm a")
+    : placeholder;
 
   return (
     <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
@@ -178,51 +184,55 @@ function LuxuryDatePickerInner(
               />
             </div>
 
-            {/* Divider */}
-            <div className="h-px bg-[#C8DCC0] mx-4" />
+            {!hideTime && (
+              <>
+                {/* Divider */}
+                <div className="h-px bg-[#C8DCC0] mx-4" />
 
-            {/* Time picker */}
-            <div className="p-4">
-              <p className="text-[10px] font-semibold text-[#4A4A4A] uppercase tracking-wider mb-2 text-center">
-                Time
-              </p>
-              <div className="flex items-center justify-center gap-2">
-                <select
-                  value={hour}
-                  onChange={(e) => handleHour(e.target.value)}
-                  className="h-9 w-14 rounded-lg border border-[#C0D4B8] bg-white px-2 text-[13px] text-[#1A1A1A] focus:outline-none focus:ring-1 focus:ring-[#6B8F5A]/50"
-                >
-                  {HOURS.map((h) => (
-                    <option key={h} value={h}>
-                      {h}
-                    </option>
-                  ))}
-                </select>
-                <span className="text-[#4A4A4A] font-medium">:</span>
-                <select
-                  value={minute}
-                  onChange={(e) => handleMinute(e.target.value)}
-                  className="h-9 w-14 rounded-lg border border-[#C0D4B8] bg-white px-2 text-[13px] text-[#1A1A1A] focus:outline-none focus:ring-1 focus:ring-[#6B8F5A]/50"
-                >
-                  {MINUTES.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={period}
-                  onChange={(e) => handlePeriod(e.target.value as "AM" | "PM")}
-                  className="h-9 w-14 rounded-lg border border-[#C0D4B8] bg-white px-2 text-[13px] text-[#1A1A1A] focus:outline-none focus:ring-1 focus:ring-[#6B8F5A]/50"
-                >
-                  {PERIODS.map((p) => (
-                    <option key={p} value={p}>
-                      {p}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
+                {/* Time picker */}
+                <div className="p-4">
+                  <p className="text-[10px] font-semibold text-[#4A4A4A] uppercase tracking-wider mb-2 text-center">
+                    Time
+                  </p>
+                  <div className="flex items-center justify-center gap-2">
+                    <select
+                      value={hour}
+                      onChange={(e) => handleHour(e.target.value)}
+                      className="h-9 w-14 rounded-lg border border-[#C0D4B8] bg-white px-2 text-[13px] text-[#1A1A1A] focus:outline-none focus:ring-1 focus:ring-[#6B8F5A]/50"
+                    >
+                      {HOURS.map((h) => (
+                        <option key={h} value={h}>
+                          {h}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="text-[#4A4A4A] font-medium">:</span>
+                    <select
+                      value={minute}
+                      onChange={(e) => handleMinute(e.target.value)}
+                      className="h-9 w-14 rounded-lg border border-[#C0D4B8] bg-white px-2 text-[13px] text-[#1A1A1A] focus:outline-none focus:ring-1 focus:ring-[#6B8F5A]/50"
+                    >
+                      {MINUTES.map((m) => (
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={period}
+                      onChange={(e) => handlePeriod(e.target.value as "AM" | "PM")}
+                      className="h-9 w-14 rounded-lg border border-[#C0D4B8] bg-white px-2 text-[13px] text-[#1A1A1A] focus:outline-none focus:ring-1 focus:ring-[#6B8F5A]/50"
+                    >
+                      {PERIODS.map((p) => (
+                        <option key={p} value={p}>
+                          {p}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </>
+            )}
 
             {/* Confirm */}
             <div className="px-4 pb-4 pt-0 flex justify-end">

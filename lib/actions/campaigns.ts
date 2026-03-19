@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { CampaignMetric, Lead } from "@/lib/types/database";
 import type { CampaignTableRow } from "@/lib/types/campaigns";
 import { MOCK_CAMPAIGNS } from "@/lib/data/campaigns-mock";
+import { LEADS_TABLE_SELECT } from "@/lib/leads/leadsTableSelect";
 
 // ── Auth guard ─────────────────────────────────────────────────────────────────
 async function requireScoutOrAdmin() {
@@ -157,7 +158,7 @@ export async function getLeadsForCampaign(
 
   let query = supabase
     .from("leads")
-    .select("*, assigned_agent:profiles!assigned_to(id, full_name, email)", {
+    .select(LEADS_TABLE_SELECT, {
       count: "exact",
     });
 
@@ -192,7 +193,7 @@ export async function getLeadsForCampaign(
     .order("created_at", { ascending: false })
     .range(offset, offset + PAGE_SIZE - 1);
 
-  const leads = (rawLeads ?? []) as import("@/lib/types/database").Lead[];
+  const leads = (rawLeads ?? []) as unknown as import("@/lib/types/database").Lead[];
   const leadIds = leads.map((l) => l.id);
   let nextTaskMap: Record<string, NextTask> = {};
 

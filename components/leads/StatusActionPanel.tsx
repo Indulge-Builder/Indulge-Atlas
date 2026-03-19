@@ -52,14 +52,20 @@ const WonDealModal = dynamic(
 
 import { toast } from "sonner";
 import { useClientOnly } from "@/lib/hooks/useClientOnly";
+import { LeadStatusBadge } from "@/components/leads/LeadStatusBadge";
+import { LeadFollowUpAccordion } from "@/components/leads/LeadFollowUpAccordion";
 import { LEAD_STATUS_CONFIG, LEAD_STATUS_ORDER } from "@/lib/types/database";
-import type { LeadStatus } from "@/lib/types/database";
+import type { LeadStatus, UserRole } from "@/lib/types/database";
+
+type FollowUpDraftSlot = 1 | 2 | 3;
 
 interface StatusActionPanelProps {
   leadId: string;
   leadName: string;
   currentStatus: LeadStatus;
   attemptCount?: number;
+  viewerRole: UserRole;
+  initialFollowUpDrafts: Record<FollowUpDraftSlot, string>;
 }
 
 export function StatusActionPanel({
@@ -67,6 +73,8 @@ export function StatusActionPanel({
   leadName,
   currentStatus,
   attemptCount = 0,
+  viewerRole,
+  initialFollowUpDrafts,
 }: StatusActionPanelProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -80,6 +88,8 @@ export function StatusActionPanel({
   const [showNurtureModal, setShowNurtureModal] = useState(false);
   const [note, setNote] = useState("");
   const mounted = useClientOnly();
+  const canManualStatusChange =
+    viewerRole === "scout" || viewerRole === "admin";
 
   useEffect(() => {
     setDisplayStatus(currentStatus);
@@ -130,10 +140,15 @@ export function StatusActionPanel({
   function handleSaveNote() {
     if (!note.trim()) return;
     const savedNote = note.trim();
-    setNote(""); // clear immediately
 
     startNoteTransition(async () => {
-      await addLeadNote(leadId, savedNote);
+      const result = await addLeadNote(leadId, savedNote);
+      if (!result.success) {
+        toast.error(result.error ?? "Could not save note");
+        return;
+      }
+      setNote("");
+      toast.success("Note saved");
       router.refresh();
     });
   }
@@ -155,6 +170,31 @@ export function StatusActionPanel({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Read-only status for finance / other viewers — agents use main card + journey; scout/admin use dropdown */}
+      {!canManualStatusChange && viewerRole !== "agent" && (
+        <div className="rounded-xl border border-stone-200 bg-linear-to-b from-stone-50/90 to-white p-4">
+          <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-stone-400">
+            Lead status
+          </p>
+          <div className="flex justify-center py-1">
+            <LeadStatusBadge
+              status={displayStatus}
+              size="md"
+              className="border border-stone-200/80 px-4 py-1.5 text-[13px] shadow-none ring-0"
+            />
+          </div>
+          <p className="mt-3 text-center text-[11px] leading-relaxed text-stone-500">
+            Progress this lead using the workflow actions below.
+          </p>
+        </div>
+      )}
+
+      <LeadFollowUpAccordion
+        leadId={leadId}
+        role={viewerRole}
+        initialDrafts={initialFollowUpDrafts}
+      />
 
       {/* Actions by status — uses optimistic displayStatus for instant feedback */}
       {displayStatus === "new" && (
@@ -252,7 +292,7 @@ export function StatusActionPanel({
               onClick={() => setShowNurtureModal(true)}
               disabled={isPending}
             >
-              <Leaf className="w-4 h-4 text-purple-400" />
+              <Leaf className="w-4 h-4 text-cyan-600" />
               Nurturing — Set 3-Month Reminder
             </Button>
             <Button
@@ -299,7 +339,7 @@ export function StatusActionPanel({
               onClick={() => setShowNurtureModal(true)}
               disabled={isPending}
             >
-              <Leaf className="w-4 h-4 text-purple-400" />
+              <Leaf className="w-4 h-4 text-cyan-600" />
               Nurturing — Set 3-Month Reminder
             </Button>
             <Button
@@ -334,14 +374,14 @@ export function StatusActionPanel({
               displayStatus === "won"
                 ? "bg-[#EBF4EF] border border-[#4A7C59]/20"
                 : displayStatus === "nurturing"
-                ? "bg-[#F4F4EE] border border-[#8A8A6E]/20"
+                ? "bg-cyan-50/90 border border-cyan-700/15"
                 : "bg-[#F5F5F5] border border-[#E5E4DF]"
             }`}
           >
             {displayStatus === "won" ? (
               <Trophy className="w-5 h-5 text-[#4A7C59] shrink-0" />
             ) : displayStatus === "nurturing" ? (
-              <Leaf className="w-5 h-5 text-[#8A8A6E] shrink-0" />
+              <Leaf className="w-5 h-5 text-cyan-700 shrink-0" />
             ) : (
               <XCircle className="w-5 h-5 text-[#9E9E9E] shrink-0" />
             )}
@@ -387,31 +427,33 @@ export function StatusActionPanel({
         </Button>
       </ActionSection>
 
-      {/* Status dropdown — intercepts trash/lost/nurturing (deferred to avoid Radix hydration mismatch) */}
-      <ActionSection title="Change Status">
-        {mounted ? (
-          <Select
-            value={displayStatus}
-            onValueChange={handleStatusDropdownChange}
-            disabled={isPending}
-          >
-            <SelectTrigger className="w-full bg-white border-[#E5E4DF]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {LEAD_STATUS_ORDER.map((s) => (
-                <SelectItem key={s} value={s}>
-                  {LEAD_STATUS_CONFIG[s].label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        ) : (
-          <div className="flex h-9 w-full items-center justify-between rounded-md border border-[#E5E4DF] bg-white px-3 py-2 text-sm text-[#1A1A1A]">
-            <span>{LEAD_STATUS_CONFIG[displayStatus].label}</span>
-          </div>
-        )}
-      </ActionSection>
+      {/* Status dropdown — scout/admin only; intercepts trash/lost/nurturing */}
+      {canManualStatusChange && (
+        <ActionSection title="Change Status">
+          {mounted ? (
+            <Select
+              value={displayStatus}
+              onValueChange={handleStatusDropdownChange}
+              disabled={isPending}
+            >
+              <SelectTrigger className="w-full bg-white border-[#E5E4DF]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {LEAD_STATUS_ORDER.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {LEAD_STATUS_CONFIG[s].label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <div className="flex h-9 w-full items-center justify-between rounded-md border border-[#E5E4DF] bg-white px-3 py-2 text-sm text-[#1A1A1A]">
+              <span>{LEAD_STATUS_CONFIG[displayStatus].label}</span>
+            </div>
+          )}
+        </ActionSection>
+      )}
 
       {/* Retry modal */}
       <RetryScheduleModal

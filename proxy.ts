@@ -40,7 +40,13 @@ export async function proxy(request: NextRequest) {
   // Webhook routes use their own secret-based auth — keep them public
   const isWebhookRoute = pathname.startsWith("/api/webhooks");
 
-  if (!user && !isPublicRoute && !isWebhookRoute) {
+  // Server Actions POST with `next-action`. Redirecting here returns HTML and
+  // breaks fetchServerAction (expects text/x-component). Let the action run;
+  // each action enforces auth and returns a serialisable result.
+  const isServerAction =
+    request.method === "POST" && request.headers.has("next-action");
+
+  if (!user && !isPublicRoute && !isWebhookRoute && !isServerAction) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.searchParams.set("redirectedFrom", pathname);

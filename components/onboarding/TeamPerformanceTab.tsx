@@ -1,12 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { AgentPerformanceModal } from "@/components/team/AgentPerformanceModal";
 import { AdminCreateTaskModal } from "@/components/tasks/AdminCreateTaskModal";
 import type { AgentWithOnboardingStats } from "@/lib/actions/team-stats";
 import { cn } from "@/lib/utils";
+
+const AgentPerformanceModal = dynamic(
+  () =>
+    import("@/components/team/AgentPerformanceModal").then((mod) => ({
+      default: mod.AgentPerformanceModal,
+    })),
+  { ssr: false },
+);
 
 interface TeamPerformanceTabProps {
   agents: AgentWithOnboardingStats[];

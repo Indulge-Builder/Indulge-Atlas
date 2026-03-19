@@ -10,7 +10,13 @@ import { AdminCreateTaskModal } from "./AdminCreateTaskModal";
 import { EditTaskModal } from "./EditTaskModal";
 import { TaskDetailSheet } from "./TaskDetailSheet";
 import { completeTask, deleteTask } from "@/lib/actions/tasks";
+import {
+  dispatchTaskAlertAfterCompleteOrDelete,
+  dispatchTaskAlertRefresh,
+} from "@/lib/task-alert-refresh";
 import type { TaskWithLead, UserRole } from "@/lib/types/database";
+import { surfaceCardVariants } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 type LeadOption = {
   id: string;
@@ -76,13 +82,23 @@ export function TaskDashboardClient({
   function handleComplete(id: string) {
     setCompletingIds((prev) => [...prev, id]);
     startTransition(() => {
-      completeTask(id);
+      void completeTask(id).then((r) => {
+        if (!r.success) return;
+        const t = tasks.find((x) => x.id === id);
+        if (t) dispatchTaskAlertAfterCompleteOrDelete({ status: t.status, due_date: t.due_date });
+        else dispatchTaskAlertRefresh({ action: "fetch" });
+      });
     });
   }
 
   function handleDelete(id: string) {
     startTransition(() => {
-      deleteTask(id);
+      void deleteTask(id).then((r) => {
+        if (!r.success) return;
+        const t = tasks.find((x) => x.id === id);
+        if (t) dispatchTaskAlertAfterCompleteOrDelete({ status: t.status, due_date: t.due_date });
+        else dispatchTaskAlertRefresh({ action: "fetch" });
+      });
     });
   }
 
@@ -111,7 +127,16 @@ export function TaskDashboardClient({
           />
 
           {/* Summary card */}
-          <div className="bg-white rounded-2xl border border-[#EAEAEA] px-5 py-4">
+          <div
+            className={cn(
+              surfaceCardVariants({
+                tone: "subtle",
+                elevation: "none",
+                overflow: "visible",
+              }),
+              "px-5 py-4",
+            )}
+          >
             <p className="text-[10px] font-semibold text-[#9E9E9E] uppercase tracking-widest mb-3">
               This Month
             </p>

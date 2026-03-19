@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -17,8 +18,35 @@ import {
 import { cn } from "@/lib/utils";
 import { saveCampaignDraft } from "@/lib/actions/planner";
 import type { CampaignDraft, AdPlatform } from "@/lib/types/database";
-import { OraclePane } from "./OraclePane";
-import { DraftBoard } from "./DraftBoard";
+import type { Projections } from "./OraclePane";
+
+const OraclePaneLazy = dynamic(
+  () => import("./OraclePane").then((m) => m.OraclePane),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="rounded-2xl border border-[#EAEAE5] bg-[#F9F9F6] p-6 space-y-4">
+        <div className="h-4 w-24 animate-pulse rounded-md bg-stone-100/90" />
+        <div className="h-32 animate-pulse rounded-xl bg-stone-100/70" />
+        <div className="h-8 animate-pulse rounded-lg bg-stone-100/60" />
+      </div>
+    ),
+  },
+);
+
+const DraftBoardLazy = dynamic(
+  () => import("./DraftBoard").then((m) => m.DraftBoard),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="space-y-3 rounded-xl border border-white/[0.06] bg-[#0D0C0A]/40 p-6">
+        <div className="h-4 w-32 animate-pulse rounded-md bg-stone-600/40" />
+        <div className="h-24 animate-pulse rounded-lg bg-stone-700/30" />
+        <div className="h-24 animate-pulse rounded-lg bg-stone-700/20" />
+      </div>
+    ),
+  },
+);
 
 // ── Validation schema ─────────────────────────────────────────
 
@@ -453,8 +481,8 @@ export function PlannerStudio({
 
         {/* ── Right: Oracle ─────────────────────────────────── */}
         <div className="lg:col-span-2 lg:sticky lg:top-24">
-          <OraclePane
-            projections={projections}
+          <OraclePaneLazy
+            projections={projections as Projections}
             avgDealValue={avgDealValue}
             winRate={isFinite(Number(winRate)) ? Number(winRate) : defaultWinRate}
           />
@@ -469,7 +497,7 @@ export function PlannerStudio({
           "backdrop-blur-sm"
         )}
       >
-        <DraftBoard drafts={drafts} />
+        <DraftBoardLazy drafts={drafts} />
       </div>
     </div>
   );

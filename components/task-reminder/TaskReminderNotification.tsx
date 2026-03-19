@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { Check } from "lucide-react";
 import { completeTask } from "@/lib/actions/tasks";
+import { dispatchTaskAlertAfterCompleteOrDelete } from "@/lib/task-alert-refresh";
 import type { TaskWithLead, TaskType } from "@/lib/types/database";
 
 const TASK_TYPE_LABELS: Record<TaskType, string> = {
@@ -42,6 +43,10 @@ export function TaskReminderNotification({
   async function handleMarkDone() {
     const result = await completeTask(task.id);
     if (result.success) {
+      dispatchTaskAlertAfterCompleteOrDelete({
+        status: task.status,
+        due_date: task.due_date,
+      });
       onDismiss();
     }
   }

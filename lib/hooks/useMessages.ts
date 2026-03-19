@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Message, MessageLeadPreview, LeadStatus, Profile } from "@/lib/types/database";
 
@@ -10,6 +10,15 @@ type SenderInfo  = Pick<Profile, "id" | "full_name" | "role">;
 type SenderMap   = Record<string, SenderInfo>;
 type LeadMap     = Record<string, MessageLeadPreview>;
 type RawMessage  = Omit<Message, "sender" | "lead">;
+
+/** Row shape from `leads` select before mapping to MessageLeadPreview */
+type LeadRowForMessages = {
+  id: string;
+  first_name: string;
+  last_name: string | null;
+  status: string;
+  city: string | null;
+};
 
 interface UseMessagesReturn {
   messages:       Message[];
@@ -26,7 +35,7 @@ export function useMessages(conversationId: string | null): UseMessagesReturn {
   const [leadMap,     setLeadMap]     = useState<LeadMap>({});
   const [loading,     setLoading]     = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const supabase  = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   const scrollToBottom = useCallback(() => {
     const el = bottomRef.current;
@@ -80,9 +89,9 @@ export function useMessages(conversationId: string | null): UseMessagesReturn {
       .select("id, conversation_id, sender_id, content, lead_id, created_at")
       .eq("conversation_id", conversationId)
       .order("created_at", { ascending: true })
-      .then(({ data }) => {
+      .then(({ data }: { data: RawMessage[] | null }) => {
         if (!cancelled) {
-          setRawMessages((data ?? []) as RawMessage[]);
+          setRawMessages(data ?? []);
           setLoading(false);
         }
       });
@@ -104,7 +113,7 @@ export function useMessages(conversationId: string | null): UseMessagesReturn {
       .from("leads")
       .select("id, first_name, last_name, status, city")
       .in("id", missingIds)
-      .then(({ data }) => {
+      .then(({ data }: { data: LeadRowForMessages[] | null }) => {
         if (!data?.length) return;
         const entries: LeadMap = {};
         data.forEach((l) => {
@@ -134,7 +143,7 @@ export function useMessages(conversationId: string | null): UseMessagesReturn {
           table:  "messages",
           filter: `conversation_id=eq.${conversationId}`,
         },
-        (payload) => {
+        (payload: { new: Record<string, unknown> }) => {
           const raw = payload.new as RawMessage;
           setRawMessages((prev) => {
             if (prev.some((m) => m.id === raw.id)) return prev;

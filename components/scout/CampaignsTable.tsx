@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { CampaignPlatformBadge } from "@/components/scout/CampaignPlatformBadge";
 import type { CampaignTableRow } from "@/lib/types/campaigns";
 import type { AdPlatform } from "@/lib/types/database";
+import { surfaceCardVariants } from "@/components/ui/card";
 
 const luxuryEasing = [0.22, 1, 0.36, 1] as const;
 
@@ -89,7 +90,13 @@ export function CampaignsTable({
         />
       </div>
 
-      <div className="bg-white/60 backdrop-blur-xl rounded-2xl border border-white/80 shadow-[0_1px_4px_0_rgb(0_0_0/0.03)] overflow-hidden">
+      <div
+        className={surfaceCardVariants({
+          tone: "glass",
+          elevation: "xs",
+          overflow: "hidden",
+        })}
+      >
         <div className="overflow-x-auto">
           <table className="w-full text-sm" style={{ minWidth: "900px" }}>
             <thead>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   IndianRupee,
@@ -20,10 +21,17 @@ import {
 } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { AgentPerformanceModal } from "@/components/team/AgentPerformanceModal";
 import { AdminCreateTaskModal } from "@/components/tasks/AdminCreateTaskModal";
 import { cn } from "@/lib/utils";
 import { useClientOnly } from "@/lib/hooks/useClientOnly";
+
+const AgentPerformanceModal = dynamic(
+  () =>
+    import("@/components/team/AgentPerformanceModal").then((mod) => ({
+      default: mod.AgentPerformanceModal,
+    })),
+  { ssr: false },
+);
 
 // ── Tab definitions ─────────────────────────────────────────
 const TABS = [

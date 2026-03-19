@@ -80,7 +80,7 @@ export function ConversionHistory({ wonLeads }: ConversionsFeedProps) {
                 }}
               >
                 <Link href={`/leads/${lead.id}`}>
-                  <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-brand-gold/8 transition-colors group border border-transparent hover:border-brand-gold/15">
+                  <div className="group flex items-center gap-3 rounded-lg px-3 py-2.5 ring-1 ring-transparent transition-[background-color,box-shadow] duration-150 hover:bg-brand-gold/8 hover:ring-brand-gold/20 hover:ring-inset">
                     {/* Trophy avatar */}
                     <div className="w-7 h-7 rounded-full bg-success-light flex items-center justify-center shrink-0">
                       <Trophy className="w-3.5 h-3.5 text-success" />

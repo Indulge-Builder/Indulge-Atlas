@@ -4,6 +4,10 @@ import { useState, useTransition } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { isToday, isPast, isTomorrow, format } from "date-fns";
 import { completeTask } from "@/lib/actions/tasks";
+import {
+  dispatchTaskAlertAfterCompleteOrDelete,
+  dispatchTaskAlertRefresh,
+} from "@/lib/task-alert-refresh";
 import { cn } from "@/lib/utils";
 import type { TaskWithLead } from "@/lib/types/database";
 
@@ -106,6 +110,7 @@ export function StrategicTaskPanel({ initialTasks }: StrategicTaskPanelProps) {
   const [, startTransition] = useTransition();
 
   function handleComplete(taskId: string) {
+    const snapshot = tasks.find((t) => t.id === taskId);
     setCompleting((prev) => new Set(prev).add(taskId));
 
     // Remove from list after the fade animation
@@ -119,7 +124,15 @@ export function StrategicTaskPanel({ initialTasks }: StrategicTaskPanelProps) {
     }, 680);
 
     startTransition(() => {
-      completeTask(taskId);
+      void completeTask(taskId).then((r) => {
+        if (!r.success) return;
+        if (snapshot)
+          dispatchTaskAlertAfterCompleteOrDelete({
+            status: snapshot.status,
+            due_date: snapshot.due_date,
+          });
+        else dispatchTaskAlertRefresh({ action: "fetch" });
+      });
     });
   }
 

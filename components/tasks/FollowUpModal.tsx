@@ -21,6 +21,10 @@ import {
   processFollowUpNext,
   processFollowUpDisposition,
 } from "@/lib/actions/tasks";
+import {
+  dispatchTaskAlertAfterCompleteOrDelete,
+  dispatchTaskAlertRefresh,
+} from "@/lib/task-alert-refresh";
 import type { TaskWithLead, FollowUpHistoryEntry, UserRole } from "@/lib/types/database";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
@@ -79,6 +83,10 @@ export function FollowUpModal({
       return;
     }
     toast.success("Lead marked as Connected.");
+    dispatchTaskAlertAfterCompleteOrDelete({
+      status: task.status,
+      due_date: task.due_date,
+    });
     onSuccess();
     onClose();
   }
@@ -101,6 +109,7 @@ export function FollowUpModal({
       return;
     }
     toast.success(`Follow-up ${step + 1} scheduled.`);
+    dispatchTaskAlertRefresh({ action: "fetch" });
     onSuccess();
     onClose();
   }
@@ -124,6 +133,10 @@ export function FollowUpModal({
       connected: "Lead marked as Connected.",
     };
     toast.success(messages[disposition]);
+    dispatchTaskAlertAfterCompleteOrDelete({
+      status: task.status,
+      due_date: task.due_date,
+    });
     onSuccess();
     onClose();
   }

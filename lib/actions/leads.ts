@@ -43,6 +43,36 @@ function isPrivilegedRole(role: string): boolean {
   return role === "admin" || role === "scout";
 }
 
+async function logLeadActivity(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  params: {
+    leadId: string;
+    actionType: "lead_created" | "status_changed" | "note_added" | "agent_assigned";
+    actorId?: string | null;
+    details?: Record<string, unknown>;
+  },
+) {
+  await supabase.from("lead_activities").insert({
+    lead_id: params.leadId,
+    actor_id: params.actorId ?? null,
+    action_type: params.actionType,
+    details: params.details ?? {},
+  });
+}
+
+export async function getLeadActivities(leadId: string) {
+  const { supabase } = await getAuthUser();
+
+  const { data, error } = await supabase
+    .from("lead_activities")
+    .select("id, lead_id, actor_id, action_type, details, created_at, actor:actor_id(id, full_name)")
+    .eq("lead_id", leadId)
+    .order("created_at", { ascending: false });
+
+  if (error) return [];
+  return data ?? [];
+}
+
 // ── Update Lead Status ─────────────────────────────────────
 
 export async function updateLeadStatus(
@@ -81,16 +111,16 @@ export async function updateLeadStatus(
     if (updateError)
       return { success: false, error: "Failed to update lead status" };
 
-    await supabase.from("lead_activities").insert({
-      lead_id:      leadId,
-      performed_by: user.id,
-      type:         "status_change",
-      payload: {
-        from:           oldStatus,
-        to:             newStatus,
-        note:           note ?? null,
-        attempt_count:  newStatus === "attempted" ? currentAttemptCount + 1 : undefined,
-        timestamp:     new Date().toISOString(),
+    await logLeadActivity(supabase, {
+      leadId,
+      actorId: user.id,
+      actionType: "status_changed",
+      details: {
+        old_status: oldStatus,
+        new_status: newStatus,
+        note: note ?? null,
+        attempt_count:
+          newStatus === "attempted" ? currentAttemptCount + 1 : undefined,
       },
     });
 
@@ -218,20 +248,23 @@ export async function addLeadNote(
       return { success: false, error: "Unauthorised" };
     }
 
-    await supabase.from("lead_activities").insert({
-      lead_id:      leadId,
-      performed_by: user.id,
-      type:         "note",
-      payload: {
-        text:      noteText.trim(),
-        timestamp: new Date().toISOString(),
-      },
-    });
+    const trimmed = noteText.trim();
 
-    await supabase
+    const { error: updateError } = await supabase
       .from("leads")
-      .update({ notes: noteText.trim() })
+      .update({ notes: trimmed })
       .eq("id", leadId);
+
+    if (updateError) {
+      return { success: false, error: updateError.message || "Could not save note" };
+    }
+
+    await logLeadActivity(supabase, {
+      leadId,
+      actorId: user.id,
+      actionType: "note_added",
+      details: { note: trimmed },
+    });
 
     revalidatePath(`/leads/${leadId}`);
 
@@ -773,6 +806,59 @@ export async function saveAgentScratchpad(
   }
 }
 
+// ── Save Follow-Up draft notes (Follow Up 1–3) ────────────
+
+const followUpDraftsSaveSchema = z.object({
+  leadId: z.string().uuid(),
+  drafts: z.object({
+    "1": z.string().max(5000),
+    "2": z.string().max(5000),
+    "3": z.string().max(5000),
+  }),
+});
+
+export async function saveLeadFollowUpDrafts(
+  leadId: string,
+  drafts: { "1": string; "2": string; "3": string },
+): Promise<ActionResult> {
+  try {
+    const parsed = followUpDraftsSaveSchema.safeParse({ leadId, drafts });
+    if (!parsed.success) {
+      return { success: false, error: "Invalid input" };
+    }
+
+    const { supabase, user, role } = await getAuthUser();
+
+    const { data: lead, error: fetchError } = await supabase
+      .from("leads")
+      .select("assigned_to")
+      .eq("id", leadId)
+      .single();
+
+    if (fetchError || !lead) return { success: false, error: "Lead not found" };
+    if (!isPrivilegedRole(role) && lead.assigned_to !== user.id) {
+      return { success: false, error: "Unauthorised" };
+    }
+
+    const payload = {
+      "1": parsed.data.drafts["1"].trim() || "",
+      "2": parsed.data.drafts["2"].trim() || "",
+      "3": parsed.data.drafts["3"].trim() || "",
+    };
+
+    const { error } = await supabase
+      .from("leads")
+      .update({ follow_up_drafts: payload })
+      .eq("id", leadId);
+
+    if (error) return { success: false, error: "Failed to save follow-up notes" };
+
+    return { success: true };
+  } catch {
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
 // ── Reassign Lead ─────────────────────────────────────────
 
 const reassignLeadSchema = z.object({
@@ -809,24 +895,61 @@ export async function reassignLead(
       return { success: false, error: "Target agent not found or inactive" };
     }
 
-    const { error } = await supabase
+    const { data: leadBefore, error: leadBeforeError } = await supabase
       .from("leads")
-      .update({ assigned_to: newAgentId })
+      .select("assigned_to, status")
+      .eq("id", leadId)
+      .single();
+
+    if (leadBeforeError || !leadBefore) {
+      return { success: false, error: "Lead not found" };
+    }
+
+    if (leadBefore.assigned_to === newAgentId && leadBefore.status === "new") {
+      return { success: true };
+    }
+
+    const { error: updateError } = await supabase
+      .from("leads")
+      .update({ assigned_to: newAgentId, status: "new" })
       .eq("id", leadId);
 
-    if (error) return { success: false, error: "Failed to reassign lead" };
+    if (updateError) return { success: false, error: "Failed to reassign lead" };
 
-    await supabase.from("lead_activities").insert({
-      lead_id:      leadId,
-      performed_by: user.id,
-      type:         "status_change",
-      payload: {
-        action:        "reassigned",
-        new_agent_id:  newAgentId,
-        new_agent_name: agent.full_name,
-        timestamp:     new Date().toISOString(),
+    const { error: activityError } = await supabase.from("lead_activities").insert([
+      {
+        lead_id: leadId,
+        actor_id: user.id,
+        action_type: "agent_assigned",
+        details: {
+          previous_assigned_to: leadBefore.assigned_to,
+          assigned_to: newAgentId,
+          assigned_to_name: agent.full_name,
+        },
       },
-    });
+      {
+        lead_id: leadId,
+        actor_id: user.id,
+        action_type: "status_changed",
+        details: {
+          old_status: leadBefore.status,
+          new_status: "new",
+          reason: "system_reset_on_reassignment",
+        },
+      },
+    ]);
+
+    if (activityError) {
+      // Best-effort compensation so lead update and immutable audit trail stay in sync.
+      await supabase
+        .from("leads")
+        .update({
+          assigned_to: leadBefore.assigned_to,
+          status: leadBefore.status,
+        })
+        .eq("id", leadId);
+      return { success: false, error: "Failed to record reassignment activity logs" };
+    }
 
     revalidatePath(`/leads/${leadId}`);
     revalidatePath("/leads");
@@ -930,17 +1053,31 @@ export async function getDashboardData() {
   const { supabase, user } = await getAuthUser();
 
   const [
-    { data: unattainedLeads },
+    { data: unattainedOnDuty },
+    { data: unattainedOffDuty },
     { data: pastLeads },
     { data: upcomingTasks },
     { data: wonLeads },
   ] = await Promise.all([
+    // Speed-to-Lead: on-duty (not true) — newest first (matches prior JS sort for !is_off_duty)
     supabase
       .from("leads")
       .select("id, first_name, last_name, status, is_off_duty, city, utm_source, utm_medium, utm_campaign, created_at")
       .eq("assigned_to", user.id)
       .eq("status", "new")
-      .limit(30),
+      .or("is_off_duty.is.null,is_off_duty.eq.false")
+      .order("created_at", { ascending: false })
+      .limit(10),
+
+    // Off-duty — oldest first (matches prior JS sort for is_off_duty === true)
+    supabase
+      .from("leads")
+      .select("id, first_name, last_name, status, is_off_duty, city, utm_source, utm_medium, utm_campaign, created_at")
+      .eq("assigned_to", user.id)
+      .eq("status", "new")
+      .eq("is_off_duty", true)
+      .order("created_at", { ascending: true })
+      .limit(10),
 
     supabase
       .from("leads")
@@ -970,11 +1107,11 @@ export async function getDashboardData() {
       .limit(6),
   ]);
 
-  // Speed-to-Lead: On-Duty first (newest first), Off-Duty second (oldest first)
-  const raw = (unattainedLeads ?? []) as Array<{ is_off_duty?: boolean; created_at: string }>;
-  const onDuty = raw.filter((l) => !l.is_off_duty).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  const offDuty = raw.filter((l) => l.is_off_duty).sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-  const unattainedLeadsSorted = [...onDuty, ...offDuty].slice(0, 10);
+  // Same ordering as before: on-duty block first (newest-first), then off-duty (oldest-first), max 10.
+  const unattainedLeadsSorted = [
+    ...(unattainedOnDuty ?? []),
+    ...(unattainedOffDuty ?? []),
+  ].slice(0, 10);
 
   return {
     unattainedLeads: unattainedLeadsSorted,

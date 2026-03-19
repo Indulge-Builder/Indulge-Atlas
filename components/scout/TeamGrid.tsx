@@ -1,9 +1,17 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { AgentCard } from "./AgentCard";
-import { AgentPerformanceModal } from "@/components/team/AgentPerformanceModal";
 import type { AgentWithStats } from "@/lib/actions/team-stats";
+
+const AgentPerformanceModal = dynamic(
+  () =>
+    import("@/components/team/AgentPerformanceModal").then((mod) => ({
+      default: mod.AgentPerformanceModal,
+    })),
+  { ssr: false },
+);
 
 interface TeamGridProps {
   agents: AgentWithStats[];

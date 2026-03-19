@@ -5,16 +5,12 @@
  * Validates, assigns agent, inserts lead, and logs activity.
  */
 
-import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { toZonedTime } from "date-fns-tz";
 import { getHours, startOfDay } from "date-fns";
+import { getServiceSupabaseClient } from "@/lib/supabase/service";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } },
-);
+const supabase = getServiceSupabaseClient();
 
 const IST = "Asia/Kolkata";
 
@@ -138,9 +134,8 @@ async function resolveWaterfallAgentIds(): Promise<AgentIds> {
     return cachedAgentIds;
   }
 
-  const byEmail = new Map(
-    (profiles ?? []).map((p) => [p.email.toLowerCase(), p.id]),
-  );
+  const rows = (profiles ?? []) as Array<{ id: string; email: string }>;
+  const byEmail = new Map(rows.map((p) => [p.email.toLowerCase(), p.id]));
 
   const get = (email: string) => byEmail.get(email.toLowerCase()) ?? null;
 
@@ -213,7 +208,10 @@ async function pickNextAgentForDomain(
     rpcParams.p_allowed_uuids = allowedUuids;
   }
 
-  const { data, error } = await supabase.rpc("pick_next_agent_for_domain", rpcParams);
+  const { data, error } = await supabase.rpc(
+    "pick_next_agent_for_domain",
+    rpcParams as never,
+  );
 
   if (error) {
     console.error(
@@ -407,7 +405,7 @@ export async function processAndInsertLead(
 
   const { data: lead, error: insertError } = await supabase
     .from("leads")
-    .insert([dbPayload])
+    .insert([dbPayload] as never)
     .select("id")
     .single();
 
@@ -420,35 +418,31 @@ export async function processAndInsertLead(
     };
   }
 
-  if (assignedAgentId) {
-    const { error: activityErr } = await supabase
-      .from("lead_activities")
-      .insert({
-        lead_id: lead.id,
-        performed_by: assignedAgentId,
-        type: "status_change",
-        payload: {
-          from: null,
-          to: "new",
-          note: `Lead ingested via ${sourceTag}. UTM campaign: ${data.utm_campaign ?? "none"}. Assigned via waterfall routing.`,
-          timestamp: new Date().toISOString(),
-        },
-      });
-    if (activityErr) {
-      console.error(
-        "[leadIngestion] Activity log failed (non-fatal):",
-        activityErr.message,
-      );
-    }
+  const leadId = (lead as { id: string }).id;
+
+  const { error: activityErr } = await supabase.from("lead_activities").insert({
+    lead_id: leadId,
+    actor_id: null,
+    action_type: "lead_created",
+    details: {
+      source: data.utm_campaign ?? sourceTag,
+    },
+  } as never);
+
+  if (activityErr) {
+    console.error(
+      "[leadIngestion] Activity log failed (non-fatal):",
+      activityErr.message,
+    );
   }
 
   console.info(
-    `[leadIngestion] Lead ${lead.id} created. Source: ${sourceTag}. Agent: ${assignedAgentId ?? "unassigned"}`,
+    `[leadIngestion] Lead ${leadId} created. Source: ${sourceTag}. Agent: ${assignedAgentId ?? "unassigned"}`,
   );
 
   return {
     success: true,
-    lead_id: lead.id,
+    lead_id: leadId,
     assigned_to: assignedAgentId,
     utm_campaign: data.utm_campaign ?? null,
   };

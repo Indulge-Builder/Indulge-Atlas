@@ -1,5 +1,32 @@
 import * as React from "react";
+import { cva } from "class-variance-authority";
 import { cn } from "@/lib/utils";
+
+/** Luxury “paper” surfaces used across dashboard tables and panels (pixel tokens preserved). */
+export const surfaceCardVariants = cva("rounded-2xl", {
+  variants: {
+    tone: {
+      luxury: "border border-[#E5E4DF] bg-white",
+      subtle: "border border-[#EAEAEA] bg-white",
+      glass:
+        "border border-white/80 bg-white/60 backdrop-blur-xl",
+    },
+    elevation: {
+      none: "",
+      sm: "shadow-[0_1px_4px_0_rgb(0_0_0/0.04)]",
+      xs: "shadow-[0_1px_4px_0_rgb(0_0_0/0.03)]",
+    },
+    overflow: {
+      hidden: "overflow-hidden",
+      visible: "",
+    },
+  },
+  defaultVariants: {
+    tone: "luxury",
+    elevation: "sm",
+    overflow: "hidden",
+  },
+});
 
 const Card = React.forwardRef<
   HTMLDivElement,

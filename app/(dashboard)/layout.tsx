@@ -2,6 +2,9 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { TaskReminderProvider } from "@/components/task-reminder/TaskReminderProvider";
+import { TaskAlertProvider } from "@/components/providers/TaskAlertProvider";
+import { LeadAlertProvider } from "@/components/providers/LeadAlertProvider";
+import { CommandPaletteProvider } from "@/components/providers/CommandPaletteProvider";
 import { ChatProvider } from "@/components/chat/ChatProvider";
 import { ProfileProvider } from "@/components/sla/ProfileProvider";
 import { SLAProvider } from "@/components/sla/SLAProvider";
@@ -39,27 +42,31 @@ export default async function DashboardLayout({
      * the left edge flush with the sidebar for a seamless join.
      */
     <TaskReminderProvider>
-      <ChatProvider currentUserId={user.id}>
-        <ProfileProvider profile={profile as Profile}>
-          <SLAProvider profile={profile as Profile}>
-            <div className="layout-canvas min-h-screen">
-              <Sidebar profile={profile as Profile} />
+      <LeadAlertProvider>
+        <ChatProvider currentUserId={user.id}>
+          <ProfileProvider profile={profile as Profile}>
+            <SLAProvider profile={profile as Profile}>
+              <div className="layout-canvas min-h-screen">
+                <Sidebar profile={profile as Profile} />
 
-              <div className="ml-60 min-h-screen p-3">
-                <main
-                  className="
-                    relative min-h-0 overflow-x-hidden
-                    bg-[#F9F9F6] rounded-2xl overflow-hidden
-                    paper-shadow
-                  "
-                >
-                  {children}
-                </main>
+                <div className="ml-60 min-h-screen p-3">
+                  <main
+                    className="
+                      relative min-h-0 overflow-x-hidden
+                      bg-[#F9F9F6] rounded-2xl overflow-hidden
+                      paper-shadow
+                    "
+                  >
+                    <CommandPaletteProvider>
+                      <TaskAlertProvider>{children}</TaskAlertProvider>
+                    </CommandPaletteProvider>
+                  </main>
+                </div>
               </div>
-            </div>
-          </SLAProvider>
-        </ProfileProvider>
-      </ChatProvider>
+            </SLAProvider>
+          </ProfileProvider>
+        </ChatProvider>
+      </LeadAlertProvider>
     </TaskReminderProvider>
   );
 }

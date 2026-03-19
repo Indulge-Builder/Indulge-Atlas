@@ -2,9 +2,6 @@
 
 import { useCallback, useRef, useEffect } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
-
-const luxuryEasing = [0.22, 1, 0.36, 1] as const;
 import {
   Search,
   Filter,
@@ -15,6 +12,8 @@ import {
   Megaphone,
   CalendarClock,
   Plus,
+  Users,
+  Globe,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,9 +25,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { surfaceCardVariants } from "@/components/ui/card";
+import {
+  leadsFilterTriggerActiveClass,
+  leadsFilterTriggerVariants,
+} from "@/components/leads/ui/filter-trigger";
 import { LeadStatusBadge } from "@/components/leads/LeadStatusBadge";
 import { LeadSourceBadge } from "@/components/ui/LeadSourceBadge";
-import { getInitials, formatDate } from "@/lib/utils";
+import { LeadsTableDateFilterPopover } from "@/components/leads/LeadsTableDateFilterPopover";
+import { cn, getInitials, formatDateTime } from "@/lib/utils";
 import {
   LEAD_STATUS_CONFIG,
   LEAD_STATUS_ORDER,
@@ -126,6 +131,9 @@ export function LeadsTable({
   const handlePage = (newPage: number) =>
     router.push(`${pathname}?${createQueryString({ page: String(newPage) })}`);
 
+  const handleDateFilter = (value: string | null) =>
+    router.push(`${pathname}?${createQueryString({ dateFilter: value, page: "1" })}`);
+
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => () => {
@@ -138,7 +146,7 @@ export function LeadsTable({
   const currentCampaign =
     embedCampaignId ?? searchParams.get("campaign") ?? "ALL";
   const currentSource = searchParams.get("source") ?? "ALL";
-
+  const currentDateFilter = searchParams.get("dateFilter");
   const SOURCE_OPTIONS = [
     { value: "ALL", label: "All sources" },
     { value: "meta", label: "Meta Ads" },
@@ -154,28 +162,41 @@ export function LeadsTable({
 
   const totalColCount = isScout ? 8 : 5;
 
+  /** line-clamp on SelectTrigger's [&>span] breaks icon+label flex rows — see `leadsFilterTriggerVariants`. */
   return (
     <div className="space-y-4">
-      {/* ── Toolbar ──────────────────────────────────────── */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-[220px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#B5A99A]" />
+      {/* ── Toolbar (single row; scrolls horizontally if needed) ───────── */}
+      <div className="flex w-full min-w-0 flex-nowrap items-center gap-2 overflow-x-auto pb-4 mb-4 border-b border-stone-100 [scrollbar-width:thin]">
+        <div className="relative min-w-42 max-w-64 flex-1 basis-0">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
           <Input
-            placeholder="Search name, phone, email, source, campaign…"
+            placeholder="Search"
             defaultValue={currentSearch}
             onChange={(e) => {
               const val = e.target.value;
               if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
               searchTimeoutRef.current = setTimeout(() => handleSearch(val), 380);
             }}
-            className="pl-9 bg-white border-[#E5E4DF] focus-visible:ring-1 focus-visible:ring-[#D4AF37]/40"
+            className="h-9 w-full min-w-0 border border-stone-200 bg-stone-50/50 py-2 pl-9 pr-3 text-sm text-stone-800 shadow-none transition-colors placeholder:text-stone-400 hover:bg-stone-50 focus:border-stone-300 focus:outline-none focus:ring-1 focus:ring-stone-300 rounded-lg"
           />
         </div>
 
+        <div className="flex shrink-0 flex-nowrap items-center gap-2">
         <Select defaultValue={currentStatus} onValueChange={handleStatusFilter}>
-          <SelectTrigger className="w-44 bg-white border-[#E5E4DF]">
-            <Filter className="w-3.5 h-3.5 text-[#B5A99A] mr-1 shrink-0" />
-            <SelectValue placeholder="Status" />
+          <SelectTrigger
+            className={cn(
+              "min-w-44 w-44",
+              leadsFilterTriggerVariants({ control: "select" }),
+              currentStatus !== "ALL" && leadsFilterTriggerActiveClass,
+            )}
+          >
+            <span className="flex min-w-0 flex-1 flex-nowrap items-center gap-1.5">
+              <Filter className="h-4 w-4 shrink-0 text-stone-400" aria-hidden />
+              <SelectValue
+                placeholder="Status"
+                className="min-w-0 flex-1 truncate text-left"
+              />
+            </span>
           </SelectTrigger>
           <SelectContent>
             {STATUS_OPTIONS.map((opt) => (
@@ -188,8 +209,20 @@ export function LeadsTable({
 
         {isScout && agents.length > 0 && (
           <Select defaultValue={currentAgent} onValueChange={handleAgentFilter}>
-            <SelectTrigger className="w-44 bg-white border-[#E5E4DF]">
-              <SelectValue placeholder="All agents" />
+            <SelectTrigger
+              className={cn(
+                "min-w-44 w-44",
+                leadsFilterTriggerVariants({ control: "select" }),
+                currentAgent !== "ALL" && leadsFilterTriggerActiveClass,
+              )}
+            >
+              <span className="flex min-w-0 flex-1 flex-nowrap items-center gap-1.5">
+                <Users className="h-4 w-4 shrink-0 text-stone-400" aria-hidden />
+                <SelectValue
+                  placeholder="All agents"
+                  className="min-w-0 flex-1 truncate text-left"
+                />
+              </span>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="ALL">All agents</SelectItem>
@@ -207,9 +240,20 @@ export function LeadsTable({
             defaultValue={currentCampaign}
             onValueChange={handleCampaignFilter}
           >
-            <SelectTrigger className="w-52 bg-white border-[#E5E4DF]">
-              <Megaphone className="w-3.5 h-3.5 text-[#B5A99A] mr-1 shrink-0" />
-              <SelectValue placeholder="Campaign" />
+            <SelectTrigger
+              className={cn(
+                "min-w-52 w-52",
+                leadsFilterTriggerVariants({ control: "select" }),
+                currentCampaign !== "ALL" && leadsFilterTriggerActiveClass,
+              )}
+            >
+              <span className="flex min-w-0 flex-1 flex-nowrap items-center gap-1.5">
+                <Megaphone className="h-4 w-4 shrink-0 text-stone-400" aria-hidden />
+                <SelectValue
+                  placeholder="Campaign"
+                  className="min-w-0 flex-1 truncate text-left"
+                />
+              </span>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="ALL">All campaigns</SelectItem>
@@ -227,8 +271,20 @@ export function LeadsTable({
             defaultValue={currentSource}
             onValueChange={handleSourceFilter}
           >
-            <SelectTrigger className="w-40 bg-white border-[#E5E4DF]">
-              <SelectValue placeholder="Source" />
+            <SelectTrigger
+              className={cn(
+                "min-w-44 w-44",
+                leadsFilterTriggerVariants({ control: "select" }),
+                currentSource !== "ALL" && leadsFilterTriggerActiveClass,
+              )}
+            >
+              <span className="flex min-w-0 flex-1 flex-nowrap items-center gap-1.5">
+                <Globe className="h-4 w-4 shrink-0 text-stone-400" aria-hidden />
+                <SelectValue
+                  placeholder="Source"
+                  className="min-w-0 flex-1 truncate text-left"
+                />
+              </span>
             </SelectTrigger>
             <SelectContent>
               {SOURCE_OPTIONS.map((opt) => (
@@ -240,13 +296,27 @@ export function LeadsTable({
           </Select>
         )}
 
-        <p className="ml-auto text-xs text-[#B5A99A] font-medium tabular-nums">
+        <LeadsTableDateFilterPopover
+          currentDateFilter={currentDateFilter}
+          onDateFilter={handleDateFilter}
+          isActive={!!currentDateFilter}
+          activeTriggerClassName={leadsFilterTriggerActiveClass}
+        />
+
+        <p className="shrink-0 whitespace-nowrap pl-1 text-xs font-medium tabular-nums text-stone-500">
           {totalCount.toLocaleString()} result{totalCount !== 1 ? "s" : ""}
         </p>
+        </div>
       </div>
 
       {/* ── Table ────────────────────────────────────────── */}
-      <div className="bg-white rounded-2xl border border-[#E5E4DF] shadow-[0_1px_4px_0_rgb(0_0_0/0.04)] overflow-hidden">
+      <div
+        className={surfaceCardVariants({
+          tone: "luxury",
+          elevation: "sm",
+          overflow: "hidden",
+        })}
+      >
         <div className="overflow-x-auto overflow-y-hidden">
           <table
             className="w-full text-sm"
@@ -275,29 +345,26 @@ export function LeadsTable({
             </thead>
 
             <tbody>
-              <AnimatePresence mode="popLayout">
-                {leads.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={totalColCount}
-                      className="text-center py-20 text-[#C8C4BC] text-sm"
-                    >
-                      No leads found matching your criteria.
-                    </td>
-                  </tr>
-                ) : (
-                  leads.map((lead, i) => (
-                    <LeadRow
-                      key={lead.id}
-                      lead={lead}
-                      index={i}
-                      isScout={isScout}
-                      nextTask={nextTaskMap[lead.id] ?? null}
-                      onClick={() => router.push(`/leads/${lead.id}`)}
-                    />
-                  ))
-                )}
-              </AnimatePresence>
+              {leads.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={totalColCount}
+                    className="text-center py-20 text-[#C8C4BC] text-sm"
+                  >
+                    No leads found matching your criteria.
+                  </td>
+                </tr>
+              ) : (
+                leads.map((lead) => (
+                  <LeadRow
+                    key={lead.id}
+                    lead={lead}
+                    isScout={isScout}
+                    nextTask={nextTaskMap[lead.id] ?? null}
+                    onClick={() => router.push(`/leads/${lead.id}`)}
+                  />
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -356,33 +423,28 @@ export function LeadsTable({
 
 function LeadRow({
   lead,
-  index,
   isScout,
   nextTask,
   onClick,
 }: {
   lead: Lead;
-  index: number;
   isScout: boolean;
   nextTask: NextTask | null;
   onClick: () => void;
 }) {
+  const router = useRouter();
   const assignedAgent = (
     lead as Lead & { assigned_agent?: { full_name: string } }
   ).assigned_agent;
 
   return (
-    <motion.tr
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{
-        delay: Math.min(index, 7) * 0.03,
-        duration: 0.35,
-        ease: luxuryEasing,
-      }}
+    <tr
+      onMouseEnter={() => void router.prefetch(`/leads/${lead.id}`)}
       onClick={onClick}
-      className="border-b border-[#F4F3EF] last:border-0 hover:bg-[#FAFAF8] transition-colors duration-300 cursor-pointer group"
+      className={cn(
+        "animate-in fade-in duration-300",
+        "border-b border-[#F4F3EF] last:border-0 hover:bg-[#FAFAF8] transition-colors duration-300 cursor-pointer group",
+      )}
     >
       {/* ── Client ───────────────────────── */}
       <td className="px-6 py-4">
@@ -494,11 +556,11 @@ function LeadRow({
         </td>
       )}
 
-      {/* ── Added date ───────────────────── */}
+      {/* ── Added (date + time, hours & minutes) ───────────────────── */}
       <td className="px-6 py-4 text-xs text-[#B5A99A] text-right whitespace-nowrap">
-        {formatDate(lead.created_at)}
+        {formatDateTime(lead.created_at)}
       </td>
-    </motion.tr>
+    </tr>
   );
 }
 
@@ -536,12 +598,14 @@ function NextActionCell({
   task: NextTask | null;
   leadId: string;
 }) {
+  const router = useRouter();
+
   if (!task) {
     return (
       <button
         onClick={(e) => {
           e.stopPropagation();
-          window.location.href = `/leads/${leadId}`;
+          void router.push(`/leads/${leadId}`);
         }}
         className="flex items-center gap-1.5 text-[10px] text-[#C8C4BC] hover:text-[#D4AF37]
                    border border-dashed border-[#E5E4DF] hover:border-[#D4AF37]/40
@@ -633,7 +697,13 @@ export function LeadsTableSkeleton() {
         <Skeleton className="h-9 w-44" />
         <Skeleton className="h-9 w-44" />
       </div>
-      <div className="bg-white rounded-2xl border border-[#E5E4DF] overflow-hidden">
+      <div
+        className={surfaceCardVariants({
+          tone: "luxury",
+          elevation: "none",
+          overflow: "hidden",
+        })}
+      >
         <div className="px-6 py-3.5 border-b border-[#EEEDE9] bg-[#FAFAF8] flex gap-10">
           {["Client", "Contact", "Status", "Notes", "Added"].map((col) => (
             <Skeleton key={col} className="h-2.5 w-14" />

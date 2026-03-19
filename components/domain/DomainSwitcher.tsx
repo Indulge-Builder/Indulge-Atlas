@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { useProfile } from "@/components/sla/ProfileProvider";
 import { DOMAIN_DISPLAY_CONFIG } from "@/lib/types/database";
@@ -25,13 +26,18 @@ interface DomainSwitcherProps {
 }
 
 export function DomainSwitcher({ variant = "default" }: DomainSwitcherProps) {
+  const [mounted, setMounted] = useState(false);
   const profile = useProfile();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
 
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const isPrivileged = profile?.role === "scout" || profile?.role === "admin";
-  if (!isPrivileged || !profile?.domain) return null;
+  if (!mounted || !isPrivileged || !profile?.domain) return null;
 
   const currentDomain = (searchParams.get("domain") as IndulgeDomain) || null;
   const displayDomain = currentDomain ?? profile.domain;

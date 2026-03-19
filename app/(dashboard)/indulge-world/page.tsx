@@ -1,13 +1,46 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { TopBar } from "@/components/layout/TopBar";
-import { ClientJourneyView } from "@/components/indulge-world/ClientJourneyView";
-import { BrandOnboardingView } from "@/components/indulge-world/BrandOnboardingView";
-import { CompanyStructureView } from "@/components/indulge-world/CompanyStructureView";
-import { ShopEngineView } from "@/components/indulge-world/ShopEngineView";
+
+const viewLoading = () => (
+  <div className="mx-auto h-80 w-full max-w-6xl animate-pulse rounded-2xl bg-stone-100/50" />
+);
+
+const ClientJourneyView = dynamic(
+  () =>
+    import("@/components/indulge-world/ClientJourneyView").then(
+      (m) => m.ClientJourneyView,
+    ),
+  { ssr: false, loading: viewLoading },
+);
+
+const BrandOnboardingView = dynamic(
+  () =>
+    import("@/components/indulge-world/BrandOnboardingView").then(
+      (m) => m.BrandOnboardingView,
+    ),
+  { ssr: false, loading: viewLoading },
+);
+
+const CompanyStructureView = dynamic(
+  () =>
+    import("@/components/indulge-world/CompanyStructureView").then(
+      (m) => m.CompanyStructureView,
+    ),
+  { ssr: false, loading: viewLoading },
+);
+
+const ShopEngineView = dynamic(
+  () =>
+    import("@/components/indulge-world/ShopEngineView").then(
+      (m) => m.ShopEngineView,
+    ),
+  { ssr: false, loading: viewLoading },
+);
 
 const PILLS = [
   { id: "client-journey", label: "Client Journey" },

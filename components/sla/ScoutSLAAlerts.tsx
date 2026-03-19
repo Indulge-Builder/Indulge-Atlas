@@ -128,7 +128,7 @@ export function ScoutSLAAlerts({
         .eq("role", "agent")
         .eq("is_active", true)
         .order("full_name", { ascending: true })
-        .then(({ data }) => setAgents(data ?? []));
+        .then(({ data }: { data: Agent[] | null }) => setAgents(data ?? []));
     }
   }, [drawerOpen, agents.length]);
 

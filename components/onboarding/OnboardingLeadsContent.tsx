@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { LeadsTable } from "@/components/leads/LeadsTable";
+import { LEADS_TABLE_SELECT } from "@/lib/leads/leadsTableSelect";
 import type { Lead, LeadStatus, UserRole } from "@/lib/types/database";
 
 export interface NextTask {
@@ -49,10 +50,7 @@ export async function OnboardingLeadsContent({
 
   let query = supabase
     .from("leads")
-    .select(
-      "*, assigned_agent:profiles!assigned_to(id, full_name, email)",
-      { count: "exact" }
-    );
+    .select(LEADS_TABLE_SELECT, { count: "exact" });
 
   if (params.status && params.status !== "ALL") {
     query = query.eq("status", params.status as LeadStatus);
@@ -77,7 +75,7 @@ export async function OnboardingLeadsContent({
     .order("created_at", { ascending: false })
     .range(offset, offset + PAGE_SIZE - 1);
 
-  const leads = (rawLeads ?? []) as Lead[];
+  const leads = (rawLeads ?? []) as unknown as Lead[];
 
   const leadIds = leads.map((l) => l.id);
   let nextTaskMap: Record<string, NextTask> = {};

@@ -7,6 +7,10 @@ import { CheckSquare, Clock, Check, ArrowRight } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { completeTask } from "@/lib/actions/tasks";
+import {
+  dispatchTaskAlertAfterCompleteOrDelete,
+  dispatchTaskAlertRefresh,
+} from "@/lib/task-alert-refresh";
 import { formatLocalDateTime } from "@/lib/utils/date-format";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/lib/types/database";
@@ -44,6 +48,9 @@ export function MyTasksWidget({ tasks }: MyTasksWidgetProps) {
     const result = await completeTask(taskId);
     if (result.success) {
       setCompletedIds((prev) => new Set([...prev, taskId]));
+      const task = tasks.find((t) => t.id === taskId);
+      if (task) dispatchTaskAlertAfterCompleteOrDelete(task);
+      else dispatchTaskAlertRefresh({ action: "fetch" });
     }
     setCompleting(null);
   }

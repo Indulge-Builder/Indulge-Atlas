@@ -62,7 +62,7 @@ export function UnattainedLeadsQueue({ leads }: UnattainedLeadsQueueProps) {
                 transition={{ delay: Math.min(i, 5) * 0.04, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
               >
                 <Link href={`/leads/${lead.id}`}>
-                  <div className="group flex items-center justify-between px-3 py-3 rounded-lg hover:bg-[#F2F2EE] transition-colors cursor-pointer border border-transparent hover:border-[#E5E4DF]">
+                  <div className="group flex cursor-pointer items-center justify-between rounded-lg px-3 py-3 ring-1 ring-transparent transition-[background-color,box-shadow] duration-150 hover:bg-[#F2F2EE] hover:ring-[#E5E4DF]/60 hover:ring-inset">
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-8 h-8 rounded-full bg-[#E8F0FA] flex items-center justify-center shrink-0">
                         <span className="text-xs font-semibold text-[#2C6FAC]">

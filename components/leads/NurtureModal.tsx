@@ -90,14 +90,13 @@ export function NurtureModal({
                        bg-[#1A1814] rounded-2xl shadow-[0_20px_60px_-12px_rgba(0,0,0,0.5)]
                        border border-white/10 overflow-hidden"
           >
-            {/* Purple accent strip */}
-            <div className="h-1 w-full bg-purple-500/40" />
+            <div className="h-1 w-full bg-cyan-500/40" aria-hidden />
 
             <div className="p-6">
               <div className="flex items-start justify-between mb-5">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-purple-500/20 flex items-center justify-center border border-purple-500/30">
-                    <Leaf className="w-4.5 h-4.5 text-purple-400" />
+                  <div className="w-9 h-9 rounded-xl bg-cyan-500/20 flex items-center justify-center border border-cyan-500/30">
+                    <Leaf className="w-4.5 h-4.5 text-cyan-400" />
                   </div>
                   <div>
                     <DialogTitle
@@ -131,7 +130,7 @@ export function NurtureModal({
                       className={cn(
                         "flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all duration-300",
                         selectedReason === r.id
-                          ? "border-purple-500/50 bg-purple-500/10"
+                          ? "border-cyan-500/50 bg-cyan-500/10"
                           : "border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/[0.07]"
                       )}
                     >
@@ -139,7 +138,7 @@ export function NurtureModal({
                         className={cn(
                           "w-4 h-4 rounded-full border-2 shrink-0 transition-colors",
                           selectedReason === r.id
-                            ? "border-purple-400 bg-purple-400"
+                            ? "border-cyan-400 bg-cyan-400"
                             : "border-white/20"
                         )}
                       >
@@ -175,7 +174,7 @@ export function NurtureModal({
                   className={cn(
                     "flex-1 h-10 rounded-xl text-sm font-medium transition-all",
                     selectedReason
-                      ? "bg-purple-600 hover:bg-purple-500 text-white"
+                      ? "bg-cyan-600 hover:bg-cyan-500 text-white"
                       : "bg-white/10 text-white/30 cursor-not-allowed"
                   )}
                 >

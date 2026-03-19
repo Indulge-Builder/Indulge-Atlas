@@ -1,9 +1,11 @@
 import { Suspense } from "react";
+import { endOfDay, isValid, parseISO, startOfDay, subDays } from "date-fns";
 import { createClient } from "@/lib/supabase/server";
 import { TopBar } from "@/components/layout/TopBar";
 import { LeadsTable, LeadsTableSkeleton } from "@/components/leads/LeadsTable";
 import { AddLeadModal } from "@/components/leads/AddLeadModal";
 import type { Lead, LeadStatus, UserRole } from "@/lib/types/database";
+import { LEADS_TABLE_SELECT } from "@/lib/leads/leadsTableSelect";
 
 export interface NextTask {
   id:        string;
@@ -26,6 +28,7 @@ interface PageProps {
     agent?: string;
     campaign?: string;
     source?: string;
+    dateFilter?: string;
     page?: string;
     domain?: string;
   }>;
@@ -59,10 +62,7 @@ async function LeadsContent({ searchParams }: PageProps) {
 
   let query = supabase
     .from("leads")
-    .select(
-      "*, assigned_agent:profiles!assigned_to(id, full_name, email)",
-      { count: "exact" },
-    );
+    .select(LEADS_TABLE_SELECT, { count: "exact" });
 
   // Agents only see their own leads (RLS enforces domain; explicit filter for clarity)
   if (!isAdmin) {
@@ -97,34 +97,46 @@ async function LeadsContent({ searchParams }: PageProps) {
     query = query.eq("platform", params.source);
   }
 
+  const today = new Date();
+  if (params.dateFilter === "today") {
+    query = query
+      .gte("created_at", startOfDay(today).toISOString())
+      .lte("created_at", endOfDay(today).toISOString());
+  } else if (params.dateFilter === "yesterday") {
+    const yesterday = subDays(today, 1);
+    query = query
+      .gte("created_at", startOfDay(yesterday).toISOString())
+      .lte("created_at", endOfDay(yesterday).toISOString());
+  } else if (params.dateFilter) {
+    const customDate = parseISO(params.dateFilter);
+    if (isValid(customDate)) {
+      query = query
+        .gte("created_at", startOfDay(customDate).toISOString())
+        .lte("created_at", endOfDay(customDate).toISOString());
+    }
+  }
+
   const { data: rawLeads, count } = await query
     .order("created_at", { ascending: false })
     .range(offset, offset + PAGE_SIZE - 1);
 
-  const leads = (rawLeads ?? []) as Lead[];
+  const leads = (rawLeads ?? []) as unknown as Lead[];
 
-  // Optimized: single join query for nearest pending task per lead (no N+1)
+  // Run independent follow-up reads concurrently to avoid waterfalls.
   const leadIds = leads.map((l) => l.id);
-  let nextTaskMap: Record<string, NextTask> = {};
-  if (leadIds.length > 0) {
-    const { data: taskRows } = await supabase
-      .from("tasks")
-      .select("id, lead_id, title, due_date, task_type")
-      .in("lead_id", leadIds)
-      .neq("status", "completed")
-      .order("due_date", { ascending: true });
+  const taskQueryPromise =
+    leadIds.length > 0
+      ? supabase
+          .from("tasks")
+          .select("id, lead_id, title, due_date, task_type")
+          .in("lead_id", leadIds)
+          .neq("status", "completed")
+          .order("due_date", { ascending: true })
+      : Promise.resolve({ data: [] as NextTask[] });
 
-    // Keep only the earliest task per lead (rows already sorted asc by due_date)
-    (taskRows ?? []).forEach((t) => {
-      if (t.lead_id && !nextTaskMap[t.lead_id]) {
-        nextTaskMap[t.lead_id] = t as NextTask;
-      }
-    });
-  }
+  const agentQueryPromise = (() => {
+    if (!isAdmin) return Promise.resolve({ data: [] as { id: string; full_name: string }[] });
 
-  // Fetch agents list for admin filter (scoped to domain when filtering)
-  let agents: { id: string; full_name: string }[] = [];
-  if (isAdmin) {
     let agentQuery = supabase
       .from("profiles")
       .select("id, full_name")
@@ -133,17 +145,33 @@ async function LeadsContent({ searchParams }: PageProps) {
     if (domainFilter) {
       agentQuery = agentQuery.eq("domain", domainFilter);
     }
-    const { data } = await agentQuery;
-    agents = (data ?? []) as { id: string; full_name: string }[];
-  }
+    return agentQuery;
+  })();
 
-  // Distinct UTM campaigns for the campaign filter dropdown
-  // Uses a limited query with JS dedup to avoid a full table scan
-  const { data: campaignRows } = await supabase
+  const campaignQueryPromise = supabase
     .from("leads")
     .select("utm_campaign")
     .not("utm_campaign", "is", null)
     .limit(500);
+
+  const [taskRowsResult, agentRowsResult, campaignRowsResult] = await Promise.all([
+    taskQueryPromise,
+    agentQueryPromise,
+    campaignQueryPromise,
+  ]);
+  const taskRows = taskRowsResult.data ?? [];
+  const agentRows = agentRowsResult.data ?? [];
+  const campaignRows = campaignRowsResult.data ?? [];
+
+  let nextTaskMap: Record<string, NextTask> = {};
+  (taskRows ?? []).forEach((t) => {
+    const row = t as { lead_id?: string };
+    if (row.lead_id && !nextTaskMap[row.lead_id]) {
+      nextTaskMap[row.lead_id] = t as NextTask;
+    }
+  });
+
+  const agents = (agentRows ?? []) as { id: string; full_name: string }[];
 
   const campaigns = [
     ...new Set(

@@ -126,9 +126,14 @@ export type TaskType =
 
 export type ActivityType =
   | "status_change"
+  | "status_changed"
+  | "lead_created"
+  | "agent_assigned"
   | "note"
+  | "note_added"
   | "call_attempt"
-  | "task_created";
+  | "task_created"
+  | "task_completed";
 
 /** Multi-tenant domain — must match PostgreSQL indulge_domain enum */
 export type IndulgeDomain =
@@ -233,6 +238,8 @@ export interface Lead {
   attempt_count?: number;
   // Phase 2: Agent-private scratchpad (never sent to scouts/admins)
   private_scratchpad: string | null;
+  /** Draft text for dossier Follow Up 1–3 accordions (keys "1", "2", "3") */
+  follow_up_drafts?: Record<string, string> | null;
   // Phase 4: Client persona & lifestyle notes (birthday, hobbies, etc.)
   personal_details: string | null;
   // Phase 5: Executive Dossier fields
@@ -285,12 +292,16 @@ export interface CampaignWithStats extends CampaignMetric {
 export interface LeadActivity {
   id: string;
   lead_id: string;
-  performed_by: string;
-  type: ActivityType;
-  payload: Record<string, unknown>;
+  performed_by?: string | null;
+  actor_id?: string | null;
+  type?: ActivityType;
+  action_type?: ActivityType;
+  payload?: Record<string, unknown>;
+  details?: Record<string, unknown>;
   created_at: string;
   // Joined
   agent?: Profile;
+  actor?: Pick<Profile, "id" | "full_name"> | null;
 }
 
 /** Single progress update in the task timeline */
@@ -461,10 +472,10 @@ export const LEAD_STATUS_CONFIG: Record<
   },
   nurturing: {
     label: "Nurturing",
-    color: "#A78BFA",
-    bgColor: "rgba(167, 139, 250, 0.2)",
+    color: "#0E7490",
+    bgColor: "rgba(14, 116, 144, 0.2)",
     description: "Long-term follow-up scheduled",
-    className: "bg-purple-500/20 text-purple-400",
+    className: "bg-cyan-600/20 text-cyan-700",
   },
   lost: {
     label: "Lost",

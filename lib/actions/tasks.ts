@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { isBefore } from "date-fns";
+import { formatInTimeZone } from "date-fns-tz";
 import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
 import type {
@@ -9,6 +11,7 @@ import type {
   TaskProgressUpdate,
   Profile,
   FollowUpHistoryEntry,
+  IndulgeDomain,
 } from "@/lib/types/database";
 import { updateLeadStatus } from "@/lib/actions/leads";
 import { markLeadNurturing, markLeadTrash } from "@/lib/actions/leads";
@@ -38,6 +41,8 @@ interface ActionResult {
   error?: string;
 }
 
+const ROSTER_TIMEZONE = "Asia/Kolkata";
+
 async function getAuthUser() {
   const supabase = await createClient();
   const {
@@ -46,6 +51,100 @@ async function getAuthUser() {
   } = await supabase.auth.getUser();
   if (error || !user) throw new Error("Unauthenticated");
   return { supabase, user };
+}
+
+/** Lead row shape joined for daily roster (dossier link + domain pill). */
+export type DailyRosterTask = TaskWithLead & {
+  lead:
+    | (NonNullable<TaskWithLead["lead"]> & { domain: IndulgeDomain })
+    | null;
+};
+
+export interface AgentDailyRoster {
+  overdue: DailyRosterTask[];
+  today: DailyRosterTask[];
+  upcoming: DailyRosterTask[];
+}
+
+function partitionPendingTasksByIstDueDate<T extends { due_date: string }>(
+  tasks: T[],
+): { overdue: T[]; today: T[]; upcoming: T[] } {
+  const now = new Date();
+  const todayKey = formatInTimeZone(now, ROSTER_TIMEZONE, "yyyy-MM-dd");
+
+  const overdue: T[] = [];
+  const today: T[] = [];
+  const upcoming: T[] = [];
+
+  for (const task of tasks) {
+    const due = new Date(task.due_date);
+    if (isBefore(due, now)) {
+      overdue.push(task);
+      continue;
+    }
+    const dueKey = formatInTimeZone(due, ROSTER_TIMEZONE, "yyyy-MM-dd");
+    if (dueKey === todayKey) today.push(task);
+    else upcoming.push(task);
+  }
+
+  return { overdue, today, upcoming };
+}
+
+/**
+ * All pending tasks for the agent, grouped by IST calendar boundaries.
+ * Single query + one assignee enrichment pass (no N+1).
+ */
+export async function getAgentDailyRoster(agentId: string): Promise<AgentDailyRoster> {
+  const { supabase, user } = await getAuthUser();
+
+  const { data: me } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  if (user.id !== agentId && me?.role !== "admin") {
+    return { overdue: [], today: [], upcoming: [] };
+  }
+
+  const { data, error } = await supabase
+    .from("tasks")
+    .select(
+      "*, lead:leads!lead_id(id, first_name, last_name, phone_number, email, status, domain), created_by_profile:profiles!created_by(id, full_name, role)",
+    )
+    .contains("assigned_to_users", [agentId])
+    .eq("status", "pending")
+    .order("due_date", { ascending: true })
+    .limit(400);
+
+  if (error) return { overdue: [], today: [], upcoming: [] };
+
+  const enriched = (await enrichTasksWithAssignees(
+    supabase,
+    data ?? [],
+  )) as unknown as DailyRosterTask[];
+
+  return partitionPendingTasksByIstDueDate(enriched);
+}
+
+/** Head-count for global overdue banner (pending tasks with due_date before now). */
+export async function getMyOverdueTaskCount(): Promise<number> {
+  try {
+    const { supabase, user } = await getAuthUser();
+    const nowIso = new Date().toISOString();
+
+    const { count, error } = await supabase
+      .from("tasks")
+      .select("*", { count: "exact", head: true })
+      .contains("assigned_to_users", [user.id])
+      .eq("status", "pending")
+      .lt("due_date", nowIso);
+
+    if (error) return 0;
+    return count ?? 0;
+  } catch {
+    return 0;
+  }
 }
 
 // ── Fetch Tasks for Reminder Engine ─────────────────────────
@@ -203,6 +302,12 @@ export async function completeTask(taskId: unknown): Promise<ActionResult> {
   try {
     const { supabase, user } = await getAuthUser();
 
+    const { data: taskRow } = await supabase
+      .from("tasks")
+      .select("lead_id, title, task_type")
+      .eq("id", parsed.data)
+      .single();
+
     const { error } = await supabase
       .from("tasks")
       .update({ status: "completed" })
@@ -210,6 +315,25 @@ export async function completeTask(taskId: unknown): Promise<ActionResult> {
       .contains("assigned_to_users", [user.id]);
 
     if (error) return { success: false, error: "Failed to complete task" };
+
+    const leadId = taskRow?.lead_id as string | null | undefined;
+    if (leadId) {
+      const details = {
+        task_id: parsed.data,
+        title: taskRow?.title ?? null,
+        task_type: taskRow?.task_type ?? null,
+      };
+      await supabase.from("lead_activities").insert({
+        lead_id: leadId,
+        actor_id: user.id,
+        performed_by: user.id,
+        action_type: "task_completed",
+        type: "task_completed",
+        details,
+        payload: details,
+      });
+      revalidatePath(`/leads/${leadId}`);
+    }
 
     revalidatePath("/");
     revalidatePath("/tasks");
@@ -298,6 +422,11 @@ export async function createTask(params: unknown): Promise<ActionResult> {
           ? [parsed.data.assignedTo]
           : [user.id];
 
+    const notePayload =
+      typeof parsed.data.notes === "string"
+        ? parsed.data.notes.trim() || null
+        : parsed.data.notes ?? null;
+
     const { error } = await supabase.from("tasks").insert({
       lead_id: parsed.data.leadId ?? null,
       assigned_to_users: assignedToUsers,
@@ -306,23 +435,33 @@ export async function createTask(params: unknown): Promise<ActionResult> {
       due_date: parsed.data.dueAt.toISOString(),
       task_type: parsed.data.type,
       status: "pending",
-      notes: parsed.data.notes ?? null,
+      notes: notePayload,
       progress_updates: [],
     });
 
-    if (error) return { success: false, error: "Failed to create task" };
+    if (error) {
+      return {
+        success: false,
+        error: error.message || "Failed to create task",
+      };
+    }
 
     if (parsed.data.leadId) {
+      const details = {
+        task_type: parsed.data.type,
+        title: parsed.data.title,
+        due_date: parsed.data.dueAt.toISOString(),
+        notes: notePayload,
+        manual: true,
+      };
       await supabase.from("lead_activities").insert({
         lead_id: parsed.data.leadId,
+        actor_id: user.id,
         performed_by: user.id,
+        action_type: "task_created",
         type: "task_created",
-        payload: {
-          task_type: parsed.data.type,
-          title: parsed.data.title,
-          due_date: parsed.data.dueAt.toISOString(),
-          manual: true,
-        },
+        details,
+        payload: details,
       });
       revalidatePath(`/leads/${parsed.data.leadId}`);
     }
@@ -478,6 +617,15 @@ export async function processFollowUpAttempted(params: unknown): Promise<ActionR
     const statusResult = await updateLeadStatus(leadId, "connected", note ?? undefined);
     if (!statusResult.success) return statusResult;
 
+    if (note) {
+      await supabase.from("lead_activities").insert({
+        lead_id: leadId,
+        actor_id: user.id,
+        action_type: "note_added",
+        details: { note },
+      });
+    }
+
     const { error: completeErr } = await supabase
       .from("tasks")
       .update({ status: "completed" })
@@ -545,14 +693,12 @@ export async function processFollowUpNext(params: unknown): Promise<ActionResult
 
     await supabase.from("lead_activities").insert({
       lead_id: leadId,
-      performed_by: user.id,
-      type: "call_attempt",
-      payload: {
-        outcome: "no_answer",
+      actor_id: user.id,
+      action_type: "note_added",
+      details: {
+        note: note || "Follow-up scheduled",
         retry_scheduled_at: parsed.data.dueAt.toISOString(),
         follow_up_step: nextStep,
-        note,
-        timestamp: new Date().toISOString(),
       },
     });
 
@@ -614,9 +760,9 @@ export async function processFollowUpDisposition(params: unknown): Promise<Actio
     if (note) {
       await supabase.from("lead_activities").insert({
         lead_id: leadId,
-        performed_by: user.id,
-        type: "note",
-        payload: { text: note, timestamp: new Date().toISOString() },
+        actor_id: user.id,
+        action_type: "note_added",
+        details: { note },
       });
     }
 
