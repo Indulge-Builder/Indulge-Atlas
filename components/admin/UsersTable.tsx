@@ -49,6 +49,18 @@ const ROLE_CONFIG: Record<
   finance: { label: "Finance", icon: Briefcase, color: "#4A7C59", bg: "#EBF4EF" },
 };
 
+/** Legacy role mappings (from older schema) */
+const LEGACY_ROLE_MAP: Record<string, UserRole> = {
+  sales_agent: "agent",
+  manager: "scout",
+};
+
+function getRoleConfig(role: string | null | undefined) {
+  if (!role) return ROLE_CONFIG.agent;
+  const mapped = LEGACY_ROLE_MAP[role] ?? (role as UserRole);
+  return ROLE_CONFIG[mapped] ?? ROLE_CONFIG.agent;
+}
+
 interface UsersTableProps {
   profiles: Profile[];
   currentUserId: string;
@@ -202,7 +214,7 @@ export function UsersTable({ profiles: initialProfiles, currentUserId }: UsersTa
           <tbody>
             <AnimatePresence mode="popLayout">
               {profiles.map((profile, i) => {
-                const roleConfig = ROLE_CONFIG[profile.role];
+                const roleConfig = getRoleConfig(profile.role);
                 const RoleIcon = roleConfig.icon;
                 const isSelf = profile.id === currentUserId;
                 const isProcessing = processingId === profile.id;

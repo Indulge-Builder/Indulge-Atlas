@@ -937,14 +937,14 @@ export async function getDashboardData() {
   ] = await Promise.all([
     supabase
       .from("leads")
-      .select("*, assigned_agent:profiles!assigned_to(id, full_name)")
+      .select("id, first_name, last_name, status, is_off_duty, city, utm_source, utm_medium, utm_campaign, created_at")
       .eq("assigned_to", user.id)
       .eq("status", "new")
       .limit(30),
 
     supabase
       .from("leads")
-      .select("*")
+      .select("id, first_name, last_name, status, updated_at")
       .eq("assigned_to", user.id)
       .not("status", "eq", "new")
       .order("updated_at", { ascending: false })
@@ -953,7 +953,7 @@ export async function getDashboardData() {
     supabase
       .from("tasks")
       .select(
-        "*, lead:leads!lead_id(id, first_name, last_name, phone_number, status)"
+        "id, due_date, title, task_type, status, lead:leads!lead_id(id, first_name, last_name, phone_number)",
       )
       .contains("assigned_to_users", [user.id])
       .eq("status", "pending")
@@ -963,7 +963,7 @@ export async function getDashboardData() {
 
     supabase
       .from("leads")
-      .select("*")
+      .select("id, first_name, last_name, deal_value, updated_at, city")
       .eq("assigned_to", user.id)
       .eq("status", "won")
       .order("updated_at", { ascending: false })

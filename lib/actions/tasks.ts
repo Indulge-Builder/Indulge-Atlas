@@ -76,7 +76,8 @@ export async function getTasksForReminders(): Promise<TaskWithLead[]> {
     .contains("assigned_to_users", [user.id])
     .eq("status", "pending")
     .gte("due_date", todayStartIso)
-    .order("due_date", { ascending: true });
+    .order("due_date", { ascending: true })
+    .limit(20);
 
   if (error) return [];
   return (await enrichTasksWithAssignees(supabase, data ?? [])) as unknown as TaskWithLead[];
@@ -125,7 +126,8 @@ export async function getMyTasks(opts?: { domainFilter?: string | null }): Promi
       "*, lead:leads!lead_id(id, first_name, last_name, phone_number, email, status, domain), created_by_profile:profiles!created_by(id, full_name, role)",
     )
     .contains("assigned_to_users", [user.id])
-    .order("due_date", { ascending: true });
+    .order("due_date", { ascending: true })
+    .limit(250);
 
   // Scout/Admin domain filter: only tasks with no lead or lead in selected domain
   if (opts?.domainFilter) {

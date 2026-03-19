@@ -303,11 +303,100 @@ export async function getOnboardingAgentsWithStats(): Promise<
 }
 
 // ── Single agent fetch (for shared AgentPerformanceModal) ────────
+// Optimized: fetches ONLY the requested agent's data instead of all agents + leads.
 
 export async function getAgentPerformanceById(
   agentId: string | null
 ): Promise<AgentWithOnboardingStats | null> {
   if (!agentId) return null;
-  const agents = await getOnboardingAgentsWithStats();
-  return agents.find((a) => a.id === agentId) ?? null;
+  const { supabase } = await requireScout();
+
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+  const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
+
+  const [
+    { data: profile },
+    { data: allLeads },
+    { data: todayLeadsData },
+    { data: callActivities },
+    { data: monthCallActivities },
+    { data: lostLeads },
+    { data: todayWonRows },
+  ] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("id, full_name, email, phone, dob, role, domain, is_active, created_at, updated_at")
+      .eq("id", agentId)
+      .in("role", ["agent", "scout"])
+      .eq("is_active", true)
+      .single(),
+    supabase
+      .from("leads")
+      .select("assigned_to, status, deal_value")
+      .eq("assigned_to", agentId),
+    supabase
+      .from("leads")
+      .select("assigned_to")
+      .eq("assigned_to", agentId)
+      .gte("assigned_at", todayStart)
+      .lte("assigned_at", todayEnd),
+    supabase
+      .from("lead_activities")
+      .select("performed_by")
+      .eq("type", "call_attempt")
+      .eq("performed_by", agentId)
+      .gte("created_at", todayStart)
+      .lte("created_at", todayEnd),
+    supabase
+      .from("lead_activities")
+      .select("performed_by")
+      .eq("type", "call_attempt")
+      .eq("performed_by", agentId)
+      .gte("created_at", monthStart)
+      .lte("created_at", monthEnd),
+    supabase
+      .from("leads")
+      .select("assigned_to, lost_reason")
+      .eq("status", "lost")
+      .eq("assigned_to", agentId)
+      .not("lost_reason", "is", null),
+    supabase
+      .from("leads")
+      .select("assigned_to")
+      .eq("status", "won")
+      .eq("assigned_to", agentId)
+      .gte("updated_at", todayStart)
+      .lte("updated_at", todayEnd),
+  ]);
+
+  if (!profile) return null;
+
+  const leads = allLeads ?? [];
+  const stats = computeStats(leads);
+
+  const lostReasons = (lostLeads ?? [])
+    .filter((r) => r.assigned_to && r.lost_reason)
+    .reduce<Map<string, number>>((acc, r) => {
+      const reason = String(r.lost_reason).trim();
+      acc.set(reason, (acc.get(reason) ?? 0) + 1);
+      return acc;
+    }, new Map());
+  const lostReasonsSorted = Array.from(lostReasons.entries())
+    .map(([reason, count]) => ({ reason, count }))
+    .sort((a, b) => b.count - a.count);
+
+  return {
+    ...(profile as Profile),
+    stats: {
+      ...stats,
+      todayLeads: todayLeadsData?.length ?? 0,
+      todayCalls: callActivities?.length ?? 0,
+      todayConverted: todayWonRows?.length ?? 0,
+      monthCalls: monthCallActivities?.length ?? 0,
+      lostReasons: lostReasonsSorted,
+    },
+  };
 }

@@ -8,7 +8,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { toZonedTime } from "date-fns-tz";
-import { getHours } from "date-fns";
+import { getHours, startOfDay } from "date-fns";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -92,16 +92,128 @@ const VALID_DOMAINS = [
   "indulge_legacy",
 ] as const;
 
-async function pickNextAgentForDomain(domain: string): Promise<string | null> {
+/** Key agent emails for Waterfall Routing Engine */
+const WATERFALL_AGENT_EMAILS = [
+  "katya@indulge.global",
+  "meghana@indulge.global",
+  "amit@indulge.global",
+  "samson@indulge.global",
+  "kaniisha@indulge.global",
+] as const;
+
+type AgentIds = {
+  katya: string | null;
+  meghana: string | null;
+  amit: string | null;
+  samson: string | null;
+  kaniisha: string | null;
+};
+
+let cachedAgentIds: AgentIds | null = null;
+
+/**
+ * Phase 2: Resolve agent emails to UUIDs from profiles.
+ * Caches result for the process lifetime. Falls back to null for missing emails.
+ */
+async function resolveWaterfallAgentIds(): Promise<AgentIds> {
+  if (cachedAgentIds) return cachedAgentIds;
+
+  const { data: profiles, error } = await supabase
+    .from("profiles")
+    .select("id, email")
+    .in("email", [...WATERFALL_AGENT_EMAILS]);
+
+  if (error) {
+    console.error(
+      "[leadIngestion] CRITICAL: Failed to resolve waterfall agent IDs:",
+      error.message,
+    );
+    cachedAgentIds = {
+      katya: null,
+      meghana: null,
+      amit: null,
+      samson: null,
+      kaniisha: null,
+    };
+    return cachedAgentIds;
+  }
+
+  const byEmail = new Map(
+    (profiles ?? []).map((p) => [p.email.toLowerCase(), p.id]),
+  );
+
+  const get = (email: string) => byEmail.get(email.toLowerCase()) ?? null;
+
+  cachedAgentIds = {
+    katya: get("katya@indulge.global"),
+    meghana: get("meghana@indulge.global"),
+    amit: get("amit@indulge.global"),
+    samson: get("samson@indulge.global"),
+    kaniisha: get("kaniisha@indulge.global"),
+  };
+
+  const emailToKey: Record<(typeof WATERFALL_AGENT_EMAILS)[number], keyof AgentIds> = {
+    "katya@indulge.global": "katya",
+    "meghana@indulge.global": "meghana",
+    "amit@indulge.global": "amit",
+    "samson@indulge.global": "samson",
+    "kaniisha@indulge.global": "kaniisha",
+  };
+  const missing = WATERFALL_AGENT_EMAILS.filter(
+    (e) => !cachedAgentIds![emailToKey[e]],
+  );
+  if (missing.length > 0) {
+    console.error(
+      "[leadIngestion] CRITICAL: Waterfall agents not found in profiles:",
+      missing.join(", "),
+      "- Will fall back to unfiltered domain pool when required.",
+    );
+  }
+
+  return cachedAgentIds;
+}
+
+/**
+ * Get current hour in IST (Asia/Kolkata).
+ */
+function getCurrentHourIST(): number {
+  const now = new Date();
+  const istNow = toZonedTime(now, IST);
+  return getHours(istNow);
+}
+
+/**
+ * Get start of today in IST as ISO string for DB queries.
+ */
+function getStartOfTodayIST(): string {
+  const now = new Date();
+  const istNow = toZonedTime(now, IST);
+  const startOfTodayIST = startOfDay(istNow);
+  return startOfTodayIST.toISOString();
+}
+
+/**
+ * Pick next agent via round-robin. When allowedUuids is provided, only those
+ * agents are eligible. When null, uses full domain pool (backward compatible).
+ */
+async function pickNextAgentForDomain(
+  domain: string,
+  allowedUuids: string[] | null = null,
+): Promise<string | null> {
   const safeDomain = VALID_DOMAINS.includes(
     domain as (typeof VALID_DOMAINS)[number],
   )
     ? domain
     : "indulge_global";
 
-  const { data, error } = await supabase.rpc("pick_next_agent_for_domain", {
+  const rpcParams: { p_domain: string; p_allowed_uuids?: string[] } = {
     p_domain: safeDomain,
-  });
+  };
+  if (allowedUuids != null && allowedUuids.length > 0) {
+    rpcParams.p_allowed_uuids = allowedUuids;
+  }
+
+  const { data, error } = await supabase.rpc("pick_next_agent_for_domain", rpcParams);
 
   if (error) {
     console.error(
@@ -118,6 +230,81 @@ async function pickNextAgentForDomain(domain: string): Promise<string | null> {
   }
 
   return data as string | null;
+}
+
+/**
+ * Phase 3 & 4: Waterfall Routing Engine.
+ * Returns the assigned agent UUID or null. Applies rules in strict order.
+ */
+async function resolveAssignedAgent(lead: LeadPayload): Promise<string | null> {
+  const ids = await resolveWaterfallAgentIds();
+
+  // Rule 1: Domain Override — non-indulge_global -> Katya
+  if (lead.domain !== "indulge_global") {
+    if (ids.katya) {
+      return ids.katya;
+    }
+    console.error(
+      "[leadIngestion] CRITICAL: Katya not found. Domain override failed. Falling back to unfiltered pool.",
+    );
+    return pickNextAgentForDomain(lead.domain ?? "indulge_global", null);
+  }
+
+  // Rule 2: Campaign Override — TG_Global_Dubai- 18 March -> Kaniisha
+  if (lead.utm_campaign === "TG_Global_Dubai- 18 March") {
+    if (ids.kaniisha) {
+      return ids.kaniisha;
+    }
+    console.error(
+      "[leadIngestion] CRITICAL: Kaniisha not found. Campaign override failed. Falling back to unfiltered pool.",
+    );
+    return pickNextAgentForDomain(lead.domain ?? "indulge_global", null);
+  }
+
+  // Rule 3 & 4: Dynamic pool based on time and Samson daily cap
+  const currentHourIST = getCurrentHourIST();
+
+  if (currentHourIST >= 20) {
+    // 8 PM IST or later: Meghana + Amit only
+    const pool = [ids.meghana, ids.amit].filter(Boolean) as string[];
+    if (pool.length === 0) {
+      console.error(
+        "[leadIngestion] CRITICAL: Meghana/Amit not found for evening pool. Falling back to unfiltered pool.",
+      );
+      return pickNextAgentForDomain(lead.domain ?? "indulge_global", null);
+    }
+    return pickNextAgentForDomain(lead.domain ?? "indulge_global", pool);
+  }
+
+  // Standard hours: check Samson's daily lead cap
+  const startOfTodayIST = getStartOfTodayIST();
+  let samsonDailyCount = 0;
+
+  if (ids.samson) {
+    const { count, error: countErr } = await supabase
+      .from("leads")
+      .select("*", { count: "exact", head: true })
+      .eq("assigned_to", ids.samson)
+      .gte("created_at", startOfTodayIST);
+
+    if (!countErr) {
+      samsonDailyCount = count ?? 0;
+    }
+  }
+
+  const samsonAtCap = samsonDailyCount >= 15;
+  const pool = samsonAtCap
+    ? [ids.meghana, ids.amit, ids.kaniisha].filter(Boolean) as string[]
+    : [ids.samson, ids.meghana, ids.amit, ids.kaniisha].filter(Boolean) as string[];
+
+  if (pool.length === 0) {
+    console.error(
+      "[leadIngestion] CRITICAL: No agents in dynamic pool. Falling back to unfiltered pool.",
+    );
+    return pickNextAgentForDomain(lead.domain ?? "indulge_global", null);
+  }
+
+  return pickNextAgentForDomain(lead.domain ?? "indulge_global", pool);
 }
 
 function splitFullName(fullName: string | null | undefined): {
@@ -148,7 +335,7 @@ export type ProcessLeadError = {
 };
 
 /**
- * Validates payload, assigns agent via round-robin, inserts lead, logs activity.
+ * Validates payload, assigns agent via Waterfall Routing Engine, inserts lead, logs activity.
  * Adapters must pass a pre-formatted object (no raw_meta_fields / raw_google_fields).
  */
 export async function processAndInsertLead(
@@ -182,9 +369,7 @@ export async function processAndInsertLead(
           : "Unknown Lead";
   }
 
-  const assignedAgentId = await pickNextAgentForDomain(
-    data.domain ?? "indulge_global",
-  );
+  const assignedAgentId = await resolveAssignedAgent(data);
   const isOffDuty = isOffDutyInsertion();
 
   const formData =
@@ -245,7 +430,7 @@ export async function processAndInsertLead(
         payload: {
           from: null,
           to: "new",
-          note: `Lead ingested via ${sourceTag}. UTM campaign: ${data.utm_campaign ?? "none"}. Assigned via round-robin.`,
+          note: `Lead ingested via ${sourceTag}. UTM campaign: ${data.utm_campaign ?? "none"}. Assigned via waterfall routing.`,
           timestamp: new Date().toISOString(),
         },
       });
