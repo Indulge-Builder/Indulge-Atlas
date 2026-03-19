@@ -78,7 +78,7 @@ export function useSlaAlerts(userId: string | null): UseSlaAlertsReturn {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [userId, refetch]);
+  }, [userId]); // refetch is stable (useCallback [userId]), avoid re-subscribe loops
 
   // Step 2b: Poll every 60s — "timer exactly ends" has no DB trigger, so we poll
   useEffect(() => {

@@ -62,12 +62,16 @@ export function useMessages(conversationId: string | null): UseMessagesReturn {
   }, []);
 
   // ── Fetch historical messages ─────────────────────────────────────────────
+  const fetchedLeadIdsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!conversationId) {
       setRawMessages([]);
+      setLeadMap({});
+      fetchedLeadIdsRef.current.clear();
       return;
     }
 
+    fetchedLeadIdsRef.current.clear();
     let cancelled = false;
     setLoading(true);
 
@@ -84,13 +88,13 @@ export function useMessages(conversationId: string | null): UseMessagesReturn {
       });
 
     return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId]);
 
   // ── Fetch lead previews for any lead_id referenced in messages ────────────
+  // CRITICAL: Use ref to avoid re-fetch loop — leadMap must NOT be in deps
   useEffect(() => {
     const missingIds = rawMessages
-      .filter((m) => m.lead_id && !leadMap[m.lead_id])
+      .filter((m) => m.lead_id && !fetchedLeadIdsRef.current.has(m.lead_id))
       .map((m) => m.lead_id as string)
       .filter((id, idx, arr) => arr.indexOf(id) === idx);
 
@@ -104,6 +108,7 @@ export function useMessages(conversationId: string | null): UseMessagesReturn {
         if (!data?.length) return;
         const entries: LeadMap = {};
         data.forEach((l) => {
+          fetchedLeadIdsRef.current.add(l.id);
           entries[l.id] = {
             id:        l.id,
             full_name: [l.first_name, l.last_name].filter(Boolean).join(" "),
@@ -113,7 +118,6 @@ export function useMessages(conversationId: string | null): UseMessagesReturn {
         });
         setLeadMap((prev) => ({ ...prev, ...entries }));
       });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rawMessages]);
 
   // ── Real-time subscription ────────────────────────────────────────────────

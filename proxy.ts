@@ -63,9 +63,10 @@ export const config = {
      * Match all request paths except:
      * - _next/static (static files)
      * - _next/image (image optimisation)
+     * - _next/webpack-hmr, _next/development (dev HMR - massive request spam)
      * - favicon.ico, sitemap.xml, robots.txt
      * - public static assets (svg, png, jpg, ico, webp, etc.)
      */
-    "/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|mp3|mp4|woff|woff2|ttf|otf)$).*)",
+    "/((?!_next/static|_next/image|_next/webpack-hmr|_next/development|favicon.ico|sitemap.xml|robots.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|mp3|mp4|woff|woff2|ttf|otf)$).*)",
   ],
 };

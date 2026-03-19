@@ -860,8 +860,7 @@ export function WhisperBox({ currentUserId }: { currentUserId: string }) {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadConversations]);
+  }, []); // loadConversations is stable (useCallback []), single subscription only
 
   // Open an existing conversation from the list
   const handleSelectConversation = useCallback((row: DirectConversationRow) => {
