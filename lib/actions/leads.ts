@@ -953,7 +953,7 @@ export async function getDashboardData() {
     supabase
       .from("tasks")
       .select(
-        "id, due_date, title, task_type, status, lead:leads!lead_id(id, first_name, last_name, phone_number)",
+        "*, lead:leads!lead_id(id, first_name, last_name, phone_number, status)",
       )
       .contains("assigned_to_users", [user.id])
       .eq("status", "pending")
