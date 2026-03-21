@@ -236,6 +236,8 @@ async function pickNextAgentForDomain(
  */
 async function resolveAssignedAgent(lead: LeadPayload): Promise<string | null> {
   const ids = await resolveWaterfallAgentIds();
+  const currentHourIST = getCurrentHourIST();
+  const isNightShift = currentHourIST >= 20 || currentHourIST < 11;
 
   // Rule 1: Domain Override — non-indulge_global -> Katya
   if (lead.domain !== "indulge_global") {
@@ -248,8 +250,8 @@ async function resolveAssignedAgent(lead: LeadPayload): Promise<string | null> {
     return pickNextAgentForDomain(lead.domain ?? "indulge_global", null);
   }
 
-  // Rule 2: Campaign Override — TG_Global_Dubai- 18 March -> Kaniisha
-  if (lead.utm_campaign === "TG_Global_Dubai- 18 March") {
+  // Rule 2: Campaign Override — TG_Global_Dubai- 18 March -> Kaniisha (daytime only)
+  if (lead.utm_campaign === "TG_Global_Dubai- 18 March" && !isNightShift) {
     if (ids.kaniisha) {
       return ids.kaniisha;
     }
@@ -259,11 +261,8 @@ async function resolveAssignedAgent(lead: LeadPayload): Promise<string | null> {
     return pickNextAgentForDomain(lead.domain ?? "indulge_global", null);
   }
 
-  // Rule 3 & 4: Dynamic pool based on time and Samson daily cap
-  const currentHourIST = getCurrentHourIST();
-
-  if (currentHourIST >= 20) {
-    // 8 PM IST or later: Meghana + Amit only
+  // Rule 3: Night pool (8 PM to 10:59 AM IST): Meghana + Amit only
+  if (isNightShift) {
     const pool = [ids.meghana, ids.amit].filter(Boolean) as string[];
     if (pool.length === 0) {
       console.error(
@@ -274,7 +273,7 @@ async function resolveAssignedAgent(lead: LeadPayload): Promise<string | null> {
     return pickNextAgentForDomain(lead.domain ?? "indulge_global", pool);
   }
 
-  // Standard hours: check Samson's daily lead cap
+  // Rule 4: Day pool (11 AM to 7:59 PM IST): Samson cap-aware pool
   const startOfTodayIST = getStartOfTodayIST();
   let samsonDailyCount = 0;
 

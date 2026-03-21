@@ -33,7 +33,8 @@ import {
 import { LeadStatusBadge } from "@/components/leads/LeadStatusBadge";
 import { LeadSourceBadge } from "@/components/ui/LeadSourceBadge";
 import { LeadsTableDateFilterPopover } from "@/components/leads/LeadsTableDateFilterPopover";
-import { cn, getInitials, formatDateTime } from "@/lib/utils";
+import { cn, getInitials } from "@/lib/utils";
+import { addCalendarDaysIST, formatIST } from "@/lib/utils/time";
 import {
   LEAD_STATUS_CONFIG,
   LEAD_STATUS_ORDER,
@@ -558,7 +559,7 @@ function LeadRow({
 
       {/* ── Added (date + time, hours & minutes) ───────────────────── */}
       <td className="px-6 py-4 text-xs text-[#B5A99A] text-right whitespace-nowrap">
-        {formatDateTime(lead.created_at)}
+        {formatIST(lead.created_at, "MMM d, yyyy, h:mm a")}
       </td>
     </tr>
   );
@@ -571,24 +572,19 @@ function getTaskUrgency(
 ): "overdue" | "today" | "tomorrow" | "future" {
   const now = new Date();
   const due = new Date(dueDateIso);
-  const todayStr = now.toDateString();
-  const dueStr = due.toDateString();
+  const todayKey = formatIST(now, "yyyy-MM-dd");
+  const dueKey = formatIST(due, "yyyy-MM-dd");
+  const tomorrowKey = addCalendarDaysIST(todayKey, 1);
 
-  if (due < now && dueStr !== todayStr) return "overdue";
+  if (due < now && dueKey !== todayKey) return "overdue";
 
-  const tomorrow = new Date(now);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-
-  if (dueStr === todayStr) return "today";
-  if (dueStr === tomorrow.toDateString()) return "tomorrow";
+  if (dueKey === todayKey) return "today";
+  if (dueKey === tomorrowKey) return "tomorrow";
   return "future";
 }
 
 function formatTaskTime(dueDateIso: string): string {
-  return new Date(dueDateIso).toLocaleTimeString([], {
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  return formatIST(dueDateIso, "h:mm a");
 }
 
 function NextActionCell({
@@ -637,10 +633,7 @@ function NextActionCell({
     overdue: "Overdue",
     today: formatTaskTime(task.due_date),
     tomorrow: "Tomorrow",
-    future: new Date(task.due_date).toLocaleDateString([], {
-      month: "short",
-      day: "numeric",
-    }),
+    future: formatIST(task.due_date, "MMM d"),
   } as const;
 
   return (

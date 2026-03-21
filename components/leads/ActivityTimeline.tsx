@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+import { formatIST } from "@/lib/utils/time";
 
 type TimelineActor = {
   id: string;
@@ -83,7 +83,7 @@ function renderActivityText(activity: TimelineActivity) {
           {due ? (
             <span className="text-stone-600">
               {" "}
-              · due {format(new Date(due), "MMM d, yyyy h:mm a")}
+              · due {formatIST(due, "MMM d, yyyy h:mm a")}
             </span>
           ) : null}
         </p>
@@ -118,7 +118,7 @@ export function ActivityTimeline({ activities }: ActivityTimelineProps) {
           <div className="space-y-1">
             {renderActivityText(activity)}
             <p className="text-xs text-stone-500">
-              {format(new Date(activity.created_at), "MMM d 'at' h:mm a")}
+              {formatIST(activity.created_at, "MMM d 'at' h:mm a")}
             </p>
           </div>
         </div>

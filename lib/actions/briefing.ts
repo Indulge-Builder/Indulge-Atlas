@@ -1,7 +1,12 @@
 "use server";
 
 import { formatDistanceToNowStrict, subDays } from "date-fns";
-import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
+import { fromZonedTime } from "date-fns-tz";
+import {
+  formatIST,
+  getIstDayUtcBoundsIso,
+  SYSTEM_TIMEZONE,
+} from "@/lib/utils/time";
 import {
   canViewExecutiveData,
   type BriefingAssignee,
@@ -24,8 +29,6 @@ export type {
   YesterdayAgentRank,
   YesterdayExecutiveBriefing,
 } from "@/lib/briefing/executiveBriefing";
-
-const IST = "Asia/Kolkata";
 
 const ACTIVE_PIPELINE_STATUSES = [
   "new",
@@ -106,28 +109,22 @@ function normalizeActivityRows(raw: unknown[]): ActivityRow[] {
   });
 }
 
-function istDayBoundsUtc(ymd: string): { startIso: string; endIso: string } {
-  const startUtc = fromZonedTime(`${ymd}T00:00:00.000`, IST);
-  const endUtc = fromZonedTime(`${ymd}T23:59:59.999`, IST);
-  return { startIso: startUtc.toISOString(), endIso: endUtc.toISOString() };
-}
-
 /** Yesterday and the same weekday last week (IST calendar dates). */
 function istYesterdayAndBenchmarkWindows(): {
   dateLabel: string;
   yesterday: { startIso: string; endIso: string };
   benchmark: { startIso: string; endIso: string };
 } {
-  const todayYmd = formatInTimeZone(new Date(), IST, "yyyy-MM-dd");
-  const todayNoonIst = fromZonedTime(`${todayYmd}T12:00:00`, IST);
+  const todayYmd = formatIST(new Date(), "yyyy-MM-dd");
+  const todayNoonIst = fromZonedTime(`${todayYmd}T12:00:00`, SYSTEM_TIMEZONE);
   const yesterdayNoonIst = subDays(todayNoonIst, 1);
-  const yesterdayYmd = formatInTimeZone(yesterdayNoonIst, IST, "yyyy-MM-dd");
+  const yesterdayYmd = formatIST(yesterdayNoonIst, "yyyy-MM-dd");
   const benchmarkNoonIst = subDays(yesterdayNoonIst, 7);
-  const benchmarkYmd = formatInTimeZone(benchmarkNoonIst, IST, "yyyy-MM-dd");
-  const yesterday = istDayBoundsUtc(yesterdayYmd);
-  const benchmark = istDayBoundsUtc(benchmarkYmd);
-  const endUtc = fromZonedTime(`${yesterdayYmd}T23:59:59.999`, IST);
-  const dateLabel = `For ${formatInTimeZone(endUtc, IST, "EEEE, MMMM d")}`;
+  const benchmarkYmd = formatIST(benchmarkNoonIst, "yyyy-MM-dd");
+  const yesterday = getIstDayUtcBoundsIso(yesterdayYmd);
+  const benchmark = getIstDayUtcBoundsIso(benchmarkYmd);
+  const endUtc = fromZonedTime(`${yesterdayYmd}T23:59:59.999`, SYSTEM_TIMEZONE);
+  const dateLabel = `For ${formatIST(endUtc, "EEEE, MMMM d")}`;
   return { dateLabel, yesterday, benchmark };
 }
 
@@ -495,7 +492,8 @@ export async function getBriefingData(_callerUserId?: string): Promise<BriefingD
 
   const profile   = profileR.data;
   const firstName = profile?.full_name?.split(" ")[0] ?? "Andreas";
-  const greeting  = getGreeting(new Date().getHours());
+  const hourIST = Number.parseInt(formatIST(new Date(), "H"), 10);
+  const greeting = getGreeting(Number.isNaN(hourIST) ? new Date().getHours() : hourIST);
 
   const metrics = metricsR.data ?? [];
 

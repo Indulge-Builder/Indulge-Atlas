@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { isSameDay } from "date-fns";
+import { isSameCalendarDayIST } from "@/lib/utils/time";
 import { LuxuryCalendar } from "./LuxuryCalendar";
 import { TaskList } from "./TaskList";
 import { AddTaskModal } from "./AddTaskModal";
@@ -59,7 +59,10 @@ export function TaskDashboardClient({
   );
 
   const tasksForDate = useMemo(
-    () => tasks.filter((t) => isSameDay(new Date(t.due_date), selectedDate)),
+    () =>
+      tasks.filter((t) =>
+        isSameCalendarDayIST(new Date(t.due_date), selectedDate),
+      ),
     [tasks, selectedDate],
   );
 

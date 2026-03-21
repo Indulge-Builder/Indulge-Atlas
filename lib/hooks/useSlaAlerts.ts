@@ -10,6 +10,7 @@ export interface SlaAlert extends BreachedLead {}
 interface UseSlaAlertsReturn {
   unreadAlerts: SlaAlert[];
   loading: boolean;
+  isOffline: boolean;
   refetch: () => Promise<void>;
 }
 
@@ -29,18 +30,37 @@ interface UseSlaAlertsReturn {
 export function useSlaAlerts(userId: string | null): UseSlaAlertsReturn {
   const [unreadAlerts, setUnreadAlerts] = useState<SlaAlert[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isOffline, setIsOffline] = useState(false);
   const lastFetchedUserId = useRef<string | null>(null);
 
   const refetch = useCallback(async () => {
     if (!userId) {
       setUnreadAlerts([]);
       setLoading(false);
+      setIsOffline(false);
       return;
     }
     setLoading(true);
-    const alerts = await fetchUnreadSlaAlerts(userId);
-    setUnreadAlerts(alerts);
-    setLoading(false);
+    try {
+      const alerts = await fetchUnreadSlaAlerts(userId);
+      setUnreadAlerts(alerts);
+      setIsOffline(false);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const networkDrop =
+        (typeof navigator !== "undefined" && !navigator.onLine) ||
+        errorMessage.includes("Failed to fetch");
+
+      if (networkDrop) {
+        setIsOffline(true);
+        return;
+      }
+
+      console.error("[useSlaAlerts] Unexpected fetch error:", errorMessage);
+      setUnreadAlerts([]);
+    } finally {
+      setLoading(false);
+    }
   }, [userId]);
 
   // Step 1: Catch-up on login — fetch once when userId is available
@@ -87,5 +107,5 @@ export function useSlaAlerts(userId: string | null): UseSlaAlertsReturn {
     return () => clearInterval(interval);
   }, [userId, refetch]);
 
-  return { unreadAlerts, loading, refetch };
+  return { unreadAlerts, loading, isOffline, refetch };
 }

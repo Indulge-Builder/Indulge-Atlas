@@ -9,6 +9,7 @@ import { useChatDrawer } from "@/components/chat/ChatProvider";
 import { useProfile } from "@/components/sla/ProfileProvider";
 import { DomainSwitcher } from "@/components/domain/DomainSwitcher";
 import { useCommandPalette } from "@/components/providers/CommandPaletteProvider";
+import { toast } from "sonner";
 
 interface TopBarProps {
   title: string;
@@ -110,6 +111,23 @@ export function TopBar({
   const showSLA =
     profile && (profile.role === "scout" || profile.role === "admin");
   const isDark = variant === "dark";
+
+  useEffect(() => {
+    const onOffline = () => {
+      toast.error("Internet connection lost. Reconnecting...");
+    };
+    const onOnline = () => {
+      toast.success("Back online.");
+    };
+
+    window.addEventListener("offline", onOffline);
+    window.addEventListener("online", onOnline);
+
+    return () => {
+      window.removeEventListener("offline", onOffline);
+      window.removeEventListener("online", onOnline);
+    };
+  }, []);
 
   return (
     <header

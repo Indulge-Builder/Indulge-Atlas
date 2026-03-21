@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { isBefore } from "date-fns";
-import { formatInTimeZone } from "date-fns-tz";
+import { getStartOfTodayIST, formatIST } from "@/lib/utils/time";
 import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
 import type {
@@ -41,8 +41,6 @@ interface ActionResult {
   error?: string;
 }
 
-const ROSTER_TIMEZONE = "Asia/Kolkata";
-
 async function getAuthUser() {
   const supabase = await createClient();
   const {
@@ -70,7 +68,7 @@ function partitionPendingTasksByIstDueDate<T extends { due_date: string }>(
   tasks: T[],
 ): { overdue: T[]; today: T[]; upcoming: T[] } {
   const now = new Date();
-  const todayKey = formatInTimeZone(now, ROSTER_TIMEZONE, "yyyy-MM-dd");
+  const todayKey = formatIST(now, "yyyy-MM-dd");
 
   const overdue: T[] = [];
   const today: T[] = [];
@@ -82,7 +80,7 @@ function partitionPendingTasksByIstDueDate<T extends { due_date: string }>(
       overdue.push(task);
       continue;
     }
-    const dueKey = formatInTimeZone(due, ROSTER_TIMEZONE, "yyyy-MM-dd");
+    const dueKey = formatIST(due, "yyyy-MM-dd");
     if (dueKey === todayKey) today.push(task);
     else upcoming.push(task);
   }
@@ -163,9 +161,7 @@ export async function getTasksForReminders(): Promise<TaskWithLead[]> {
     return [];
   }
 
-  const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const todayStartIso = todayStart.toISOString();
+  const todayStartIso = getStartOfTodayIST().toISOString();
 
   const { data, error } = await supabase
     .from("tasks")

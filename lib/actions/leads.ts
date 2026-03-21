@@ -43,6 +43,14 @@ function isPrivilegedRole(role: string): boolean {
   return role === "admin" || role === "scout";
 }
 
+/** Legacy activity_type enum — keep in sync for rows that still have `type` NOT NULL (pre-048). */
+function legacyActivityTypeFor(
+  actionType: "lead_created" | "status_changed" | "note_added" | "agent_assigned",
+): "status_change" | "note" {
+  if (actionType === "status_changed") return "status_change";
+  return "note";
+}
+
 async function logLeadActivity(
   supabase: Awaited<ReturnType<typeof createClient>>,
   params: {
@@ -52,11 +60,16 @@ async function logLeadActivity(
     details?: Record<string, unknown>;
   },
 ) {
+  const details = params.details ?? {};
+  const legacyType = legacyActivityTypeFor(params.actionType);
   await supabase.from("lead_activities").insert({
     lead_id: params.leadId,
     actor_id: params.actorId ?? null,
     action_type: params.actionType,
-    details: params.details ?? {},
+    details,
+    performed_by: params.actorId ?? null,
+    type: legacyType,
+    payload: details,
   });
 }
 
@@ -916,26 +929,35 @@ export async function reassignLead(
 
     if (updateError) return { success: false, error: "Failed to reassign lead" };
 
+    const assignDetails = {
+      previous_assigned_to: leadBefore.assigned_to,
+      assigned_to: newAgentId,
+      assigned_to_name: agent.full_name,
+    };
+    const statusDetails = {
+      old_status: leadBefore.status,
+      new_status: "new",
+      reason: "system_reset_on_reassignment",
+    };
+
     const { error: activityError } = await supabase.from("lead_activities").insert([
       {
         lead_id: leadId,
         actor_id: user.id,
         action_type: "agent_assigned",
-        details: {
-          previous_assigned_to: leadBefore.assigned_to,
-          assigned_to: newAgentId,
-          assigned_to_name: agent.full_name,
-        },
+        details: assignDetails,
+        performed_by: user.id,
+        type: "note",
+        payload: assignDetails,
       },
       {
         lead_id: leadId,
         actor_id: user.id,
         action_type: "status_changed",
-        details: {
-          old_status: leadBefore.status,
-          new_status: "new",
-          reason: "system_reset_on_reassignment",
-        },
+        details: statusDetails,
+        performed_by: user.id,
+        type: "status_change",
+        payload: statusDetails,
       },
     ]);
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import { addDays } from "date-fns";
@@ -102,6 +102,7 @@ export function useSLA_Monitor(
 ): UseSLA_MonitorReturn {
   const [breachedLeads, setBreachedLeads] = useState<BreachedLead[]>([]);
   const [loading, setLoading] = useState(true);
+  const hasLoggedFetchFailureRef = useRef(false);
 
   const fetchBreachedLeads = useCallback(async () => {
     const supabase = createClient();
@@ -129,56 +130,64 @@ export function useSLA_Monitor(
       query = query.eq("assigned_to", userId);
     }
 
-    const { data, error } = await query;
+    try {
+      const { data, error } = await query;
 
-    if (error) {
-      console.error("[useSLA_Monitor] Fetch failed:", error.message);
-      setBreachedLeads([]);
-      setLoading(false);
-      return;
-    }
-
-    type LeadRow = {
-      id: string;
-      first_name: string;
-      last_name: string | null;
-      assigned_at: string;
-      created_at: string;
-      is_off_duty?: boolean;
-      assigned_agent?: { id: string; full_name: string } | null;
-    };
-    const rows: LeadRow[] = Array.isArray(data) ? (data as unknown as LeadRow[]) : [];
-
-    const breached: BreachedLead[] = [];
-    for (const row of rows) {
-      const isOffDuty = row.is_off_duty ?? false;
-      const level = computeBreachLevel(
-        row.assigned_at,
-        row.created_at ?? row.assigned_at,
-        isOffDuty
-      );
-      if (level) {
-        breached.push({
-          id: row.id,
-          first_name: row.first_name,
-          last_name: row.last_name,
-          assigned_at: row.assigned_at,
-          created_at: row.created_at ?? row.assigned_at,
-          is_off_duty: isOffDuty,
-          breachLevel: level,
-          assigned_agent: row.assigned_agent ?? null,
-        });
+      if (error) {
+        throw new Error(error.message);
       }
+
+      type LeadRow = {
+        id: string;
+        first_name: string;
+        last_name: string | null;
+        assigned_at: string;
+        created_at: string;
+        is_off_duty?: boolean;
+        assigned_agent?: { id: string; full_name: string } | null;
+      };
+      const rows: LeadRow[] = Array.isArray(data) ? (data as unknown as LeadRow[]) : [];
+
+      const breached: BreachedLead[] = [];
+      for (const row of rows) {
+        const isOffDuty = row.is_off_duty ?? false;
+        const level = computeBreachLevel(
+          row.assigned_at,
+          row.created_at ?? row.assigned_at,
+          isOffDuty
+        );
+        if (level) {
+          breached.push({
+            id: row.id,
+            first_name: row.first_name,
+            last_name: row.last_name,
+            assigned_at: row.assigned_at,
+            created_at: row.created_at ?? row.assigned_at,
+            is_off_duty: isOffDuty,
+            breachLevel: level,
+            assigned_agent: row.assigned_agent ?? null,
+          });
+        }
+      }
+
+      // Sort: level 3 first, then 2, then 1; within same level, oldest first
+      breached.sort((a, b) => {
+        if (a.breachLevel !== b.breachLevel) return b.breachLevel - a.breachLevel;
+        return new Date(a.assigned_at).getTime() - new Date(b.assigned_at).getTime();
+      });
+
+      hasLoggedFetchFailureRef.current = false;
+      setBreachedLeads(breached);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (!hasLoggedFetchFailureRef.current) {
+        console.error("[useSLA_Monitor] Fetch failed:", errorMessage);
+        hasLoggedFetchFailureRef.current = true;
+      }
+      setBreachedLeads([]);
+    } finally {
+      setLoading(false);
     }
-
-    // Sort: level 3 first, then 2, then 1; within same level, oldest first
-    breached.sort((a, b) => {
-      if (a.breachLevel !== b.breachLevel) return b.breachLevel - a.breachLevel;
-      return new Date(a.assigned_at).getTime() - new Date(b.assigned_at).getTime();
-    });
-
-    setBreachedLeads(breached);
-    setLoading(false);
   }, [userId, role]);
 
   useEffect(() => {

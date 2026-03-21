@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { formatInTimeZone } from "date-fns-tz";
+import { formatIST } from "@/lib/utils/time";
 import { toast } from "sonner";
 import { completeTask, type AgentDailyRoster, type DailyRosterTask } from "@/lib/actions/tasks";
 import { dispatchTaskAlertRefresh } from "@/lib/task-alert-refresh";
@@ -15,8 +15,6 @@ import {
 } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-
-const IST = "Asia/Kolkata";
 
 function domainLabel(domain: string | undefined) {
   if (!domain) return "—";
@@ -46,7 +44,7 @@ function RosterCard({ task, accent }: { task: DailyRosterTask; accent: "rose" | 
 
   if (hidden) return null;
 
-  const dueTime = formatInTimeZone(new Date(task.due_date), IST, "h:mm a");
+  const dueTime = formatIST(task.due_date, "h:mm a");
 
   return (
     <div
