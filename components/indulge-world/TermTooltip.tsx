@@ -6,7 +6,13 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-type TermId = "joker" | "genie" | "kingdom" | "bishop" | "account";
+type TermId =
+  | "joker"
+  | "genie"
+  | "queendom"
+  | "channels"
+  | "bishop"
+  | "account";
 
 const TERMS: Record<
   TermId,
@@ -24,23 +30,29 @@ const TERMS: Record<
     description:
       "The wish-fulfillment engine. Clients make requests; Genies source and deliver — from rare items to villa access.",
   },
-  kingdom: {
+  queendom: {
     emoji: "👑",
-    label: "Kingdom",
+    label: "Queendom",
     description:
-      "Your assigned concierge team. Each client is placed in a Kingdom for personalized, high-touch service.",
+      "Your assigned concierge team. Each client is placed in a Queendom for personalized, high-touch service.",
+  },
+  channels: {
+    emoji: "🌐",
+    label: "Channels",
+    description:
+      "Instagram, Facebook, WhatsApp, referrals, events, and more — every way someone can find Indulge.",
   },
   bishop: {
     emoji: "♟",
     label: "Bishop",
     description:
-      "Senior concierge coordinators who oversee Kingdom operations and ensure seamless client delivery.",
+      "Senior concierge coordinators who oversee Queendom operations and ensure seamless client delivery.",
   },
   account: {
     emoji: "📋",
     label: "Account",
     description:
-      "The primary client relationship holder for each Kingdom, ensuring continuity and white-glove service.",
+      "The primary client relationship holder for each Queendom, ensuring continuity and white-glove service.",
   },
 };
 

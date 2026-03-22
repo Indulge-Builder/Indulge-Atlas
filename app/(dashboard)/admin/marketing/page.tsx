@@ -1,9 +1,20 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { TopBar } from "@/components/layout/TopBar";
 import { MarketingOversightClient } from "@/components/marketing/MarketingOversightClient";
+import {
+  MarketingDashboardTab,
+  MarketingDashboardSkeleton,
+} from "@/components/marketing/MarketingDashboardTab";
+import { getMarketingPulse } from "@/lib/actions/dashboards";
 
 export const dynamic = "force-dynamic";
+
+async function MarketingPulseSection() {
+  const data = await getMarketingPulse();
+  return <MarketingDashboardTab data={data} />;
+}
 
 export default async function MarketingOversightPage() {
   const supabase = await createClient();
@@ -34,7 +45,13 @@ export default async function MarketingOversightPage() {
       />
 
       <div className="px-8 py-6">
-        <MarketingOversightClient />
+        <MarketingOversightClient
+          pulseSlot={
+            <Suspense fallback={<MarketingDashboardSkeleton />}>
+              <MarketingPulseSection />
+            </Suspense>
+          }
+        />
       </div>
     </div>
   );

@@ -88,7 +88,7 @@ export function ShopEngineView() {
       <h2
         className={`text-xl md:text-2xl font-semibold ${SOFT_ACCENT} tracking-tight mb-4`}
       >
-        Cyclical Workflow
+        The Workflow
       </h2>
       <div className="flex items-center justify-center gap-2 mb-10">
         <span className="px-4 py-2 rounded-xl bg-rose-50/90 text-rose-700 text-sm font-medium ring-1 ring-rose-200/50 shadow-sm">
@@ -121,7 +121,7 @@ export function ShopEngineView() {
           →
         </motion.span>
         <span className="px-4 py-2 rounded-xl bg-sky-50/90 text-sky-700 text-sm font-medium ring-1 ring-sky-200/50 shadow-sm">
-          App
+          Shop
         </span>
       </div>
 

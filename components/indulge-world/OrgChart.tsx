@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { motion, type Variants } from "framer-motion";
-import { TermTooltip } from "./TermTooltip";
 import {
   AgentProfileSummaryModal,
   type Employee,
@@ -42,7 +41,7 @@ function OrgNode({
   variants?: Variants;
   onClick: () => void;
 }) {
-  const { name, role, isLead } = employee;
+  const { name, isLead } = employee;
   return (
     <motion.button
       type="button"
@@ -57,19 +56,6 @@ function OrgNode({
       >
         {name}
       </p>
-      {role && (
-        <p className="text-xs text-amber-200/90 mt-0.5">
-          {role === "Queen" ? (
-            <TermTooltip term="kingdom">Queen</TermTooltip>
-          ) : role === "Jokers Lead" ? (
-            <>
-              <TermTooltip term="joker">Jokers</TermTooltip> Lead
-            </>
-          ) : (
-            role
-          )}
-        </p>
-      )}
     </motion.button>
   );
 }
@@ -241,7 +227,10 @@ export function OrgChart() {
         className="flex flex-col items-center"
       >
         {/* Tier 1: The Apex — Founders (split into two nodes) */}
-        <motion.div variants={itemVariants} className="relative flex flex-col items-center">
+        <motion.div
+          variants={itemVariants}
+          className="relative flex flex-col items-center"
+        >
           <div className="relative flex justify-center gap-8 md:gap-16 mb-8">
             {/* Horizontal bracket between Karan and Advita */}
             <div
@@ -265,7 +254,10 @@ export function OrgChart() {
         </motion.div>
 
         {/* Tier 2: The Gateway — POC Syndia */}
-        <motion.div variants={itemVariants} className="relative flex justify-center mb-8">
+        <motion.div
+          variants={itemVariants}
+          className="relative flex justify-center mb-8"
+        >
           <OrgNode
             employee={POC}
             variants={itemVariants}

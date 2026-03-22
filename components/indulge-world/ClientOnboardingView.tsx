@@ -37,7 +37,7 @@ const LANE_B = [
     Full <span className="text-sky-600 font-medium">Indulge App</span> Shop access
   </>,
   <>
-    <TermTooltip term="kingdom">Kingdom</TermTooltip> assignment
+    <TermTooltip term="queendom">Queendom</TermTooltip> assignment
   </>,
   <>
     Deep <span className="text-violet-600 font-medium">Typeform</span> profiling for{" "}

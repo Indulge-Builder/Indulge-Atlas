@@ -1,17 +1,15 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  IndianRupee,
-  Phone,
   Package,
   ChevronDown,
-  TrendingUp,
   List,
   UsersRound,
   Search,
+  LayoutDashboard,
 } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import {
@@ -35,6 +33,7 @@ const AgentPerformanceModal = dynamic(
 
 // ── Tab definitions ─────────────────────────────────────────
 const TABS = [
+  { id: "pulse", label: "Founder's Pulse", icon: LayoutDashboard },
   { id: "team", label: "Team Performance", icon: UsersRound },
   { id: "orders", label: "Ongoing Orders", icon: Package },
   { id: "leads", label: "Shop Leads", icon: List },
@@ -199,8 +198,8 @@ function getInitials(name: string): string {
     .join("");
 }
 
-export function ShopOversightClient() {
-  const [activeTab, setActiveTab] = useState<TabId>("team");
+export function ShopOversightClient({ pulseSlot }: { pulseSlot: ReactNode }) {
+  const [activeTab, setActiveTab] = useState<TabId>("pulse");
   const [timeframe, setTimeframe] = useState<(typeof TIMEFRAMES)[number]>(
     TIMEFRAMES[1],
   );
@@ -288,77 +287,7 @@ export function ShopOversightClient() {
       />
 
       <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 space-y-4 md:space-y-6">
-        {/* Phase 2: Apex Metrics */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 md:gap-6">
-          {[
-            {
-              label: "Total Product Revenue",
-              value: "₹45.2L",
-              icon: IndianRupee,
-              iconClass: "text-emerald-500/90",
-              bgClass: "bg-emerald-50/80",
-              trend: "+12% vs last month",
-            },
-            {
-              label: "Total Shop Leads Called",
-              value: "842",
-              icon: Phone,
-              iconClass: "text-violet-500/90",
-              bgClass: "bg-violet-50/80",
-              trend: "+8% vs last month",
-            },
-            {
-              label: "Total Orders Fulfilled",
-              value: "156",
-              icon: Package,
-              iconClass: "text-sky-500/90",
-              bgClass: "bg-sky-50/80",
-              trend: "+15% vs last month",
-            },
-          ].map((metric, i) => (
-            <motion.div
-              key={metric.label}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{
-                duration: 0.35,
-                delay: i * 0.06,
-                ease: [0.22, 1, 0.36, 1],
-              }}
-              className={cn("rounded-2xl p-5", PILLOWY_CARD)}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div
-                  className={cn(
-                    "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
-                    metric.bgClass,
-                  )}
-                >
-                  <metric.icon
-                    className={cn("w-5 h-5", metric.iconClass)}
-                    strokeWidth={1.5}
-                  />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-stone-500 text-xs font-medium uppercase tracking-wider">
-                    {metric.label}
-                  </p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <p className="text-stone-900 text-xl font-semibold tabular-nums tracking-tight">
-                      {metric.value}
-                    </p>
-                    <span className="inline-flex items-center gap-0.5 text-emerald-600 text-xs font-medium">
-                      <TrendingUp className="w-3 h-3" strokeWidth={2} />
-                      {metric.trend}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-
-        {/* Phase 3: Tab Navigation — scrollable on mobile if tabs overflow */}
+        {/* Tab Navigation — scrollable on mobile if tabs overflow */}
         <div className="overflow-x-auto hidden-scrollbar whitespace-nowrap -mx-1">
           <div className="flex gap-1 p-1 rounded-2xl bg-stone-200/40 backdrop-blur-md ring-1 ring-stone-300/40 shadow-sm w-fit inline-flex">
           {TABS.map((tab) => (
@@ -390,6 +319,17 @@ export function ShopOversightClient() {
 
         {/* Phase 4–6: Tab Content */}
         <AnimatePresence mode="wait">
+          {activeTab === "pulse" && (
+            <motion.div
+              key="pulse"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.25 }}
+            >
+              {pulseSlot}
+            </motion.div>
+          )}
           {activeTab === "orders" && (
             <motion.div
               key="orders"

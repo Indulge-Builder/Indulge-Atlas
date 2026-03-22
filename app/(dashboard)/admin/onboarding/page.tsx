@@ -3,9 +3,14 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getOnboardingAgentsWithStats } from "@/lib/actions/team-stats";
 import { getCampaignsWithAttribution } from "@/lib/actions/campaigns";
+import { getOnboardingPulse } from "@/lib/actions/dashboards";
 import { OnboardingOversightClient } from "./OnboardingOversightClient";
 import { OnboardingLeadsContent } from "@/components/onboarding/OnboardingLeadsContent";
 import { LeadsTableSkeleton } from "@/components/leads/LeadsTable";
+import {
+  OnboardingDashboardTab,
+  OnboardingDashboardSkeleton,
+} from "@/components/onboarding/OnboardingDashboardTab";
 
 export const dynamic = "force-dynamic";
 
@@ -47,11 +52,20 @@ export default async function OnboardingOversightPage(props: PageProps) {
     <OnboardingOversightClient
       agents={agents}
       campaigns={campaigns}
-      searchParams={searchParams}
+      pulseSlot={
+        <Suspense fallback={<OnboardingDashboardSkeleton />}>
+          <OnboardingPulseSection />
+        </Suspense>
+      }
     >
       <Suspense fallback={<LeadsTableSkeleton />}>
         <OnboardingLeadsContent searchParams={searchParams} />
       </Suspense>
     </OnboardingOversightClient>
   );
+}
+
+async function OnboardingPulseSection() {
+  const data = await getOnboardingPulse();
+  return <OnboardingDashboardTab data={data} />;
 }
