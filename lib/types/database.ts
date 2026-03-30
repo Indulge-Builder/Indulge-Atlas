@@ -179,6 +179,26 @@ export interface Profile {
   updated_at: string;
 }
 
+/** Lead routing engine — matches `lead_routing_rules` */
+export type LeadRoutingActionType = "assign_to_agent" | "route_to_domain_pool";
+
+export interface LeadRoutingRule {
+  id: string;
+  priority: number;
+  rule_name: string;
+  is_active: boolean;
+  condition_field: string;
+  condition_operator: string;
+  condition_value: string;
+  action_type: LeadRoutingActionType;
+  action_target_uuid: string | null;
+  action_target_domain: string | null;
+}
+
+export interface LeadRoutingRuleWithAgent extends LeadRoutingRule {
+  target_profile: Pick<Profile, "id" | "full_name" | "email"> | null;
+}
+
 export type LostReasonTag =
   | "budget_exceeded"
   | "irrelevant_unqualified"
@@ -212,6 +232,8 @@ export interface Lead {
   campaign_name: string | null;
   ad_name: string | null;
   platform: string | null;
+  /** Acquisition channel label from integrations (e.g. Pabbly `source`) */
+  source: string | null;
   // Raw JSONB from Meta Lead Ad, Pabbly passthrough, website form — all dynamic fields (incl. message)
   form_data: Record<string, unknown> | null;
   // UTM attribution — joined to campaign_metrics.campaign_id via utm_campaign
@@ -353,6 +375,15 @@ export type TaskWithLead = Task & {
   > | null;
 };
 
+/** Supabase-compatible JSON for jsonb columns */
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[];
+
 // ── Database shape (used by Supabase client generics) ──────
 
 export interface Database {
@@ -370,6 +401,25 @@ export interface Database {
           "id" | "created_at" | "updated_at" | "assigned_agent"
         >;
         Update: Partial<Omit<Lead, "id" | "created_at" | "assigned_agent">>;
+      };
+      webhook_logs: {
+        Row: {
+          id: string;
+          source: string;
+          raw_payload: Json;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          source: string;
+          raw_payload: Json;
+          created_at?: string;
+        };
+        Update: Partial<{
+          source: string;
+          raw_payload: Json;
+        }>;
+        Relationships: [];
       };
       lead_activities: {
         Row: LeadActivity;
@@ -418,6 +468,10 @@ export interface Database {
       assign_next_agent: {
         Args: Record<never, never>;
         Returns: string;
+      };
+      get_leads_columns: {
+        Args: Record<string, never>;
+        Returns: { column_name: string; data_type: string }[];
       };
     };
   };

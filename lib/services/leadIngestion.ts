@@ -9,6 +9,8 @@ import { z } from "zod";
 import { toZonedTime } from "date-fns-tz";
 import { getHours, startOfDay } from "date-fns";
 import { getServiceSupabaseClient } from "@/lib/supabase/service";
+import type { LeadRoutingRule } from "@/lib/types/database";
+import { evaluateRulesAgainstLead } from "@/lib/services/evaluateRoutingRules";
 
 const supabase = getServiceSupabaseClient();
 
@@ -55,6 +57,8 @@ const leadPayloadSchema = z.object({
   campaign_name: emptyStringToNull,
   ad_name: emptyStringToNull,
   platform: emptyStringToNull,
+  /** Acquisition / Pabbly passthrough (distinct from utm_source) */
+  source: emptyStringToNull,
   utm_source: z
     .string()
     .trim()
@@ -88,9 +92,8 @@ const VALID_DOMAINS = [
   "indulge_legacy",
 ] as const;
 
-/** Key agent emails for Waterfall Routing Engine */
+/** Key agent emails for fallback time-based & capped pooling (after dynamic rules). */
 const WATERFALL_AGENT_EMAILS = [
-  "katya@indulge.global",
   "meghana@indulge.global",
   "amit@indulge.global",
   "samson@indulge.global",
@@ -98,7 +101,6 @@ const WATERFALL_AGENT_EMAILS = [
 ] as const;
 
 type AgentIds = {
-  katya: string | null;
   meghana: string | null;
   amit: string | null;
   samson: string | null;
@@ -125,7 +127,6 @@ async function resolveWaterfallAgentIds(): Promise<AgentIds> {
       error.message,
     );
     cachedAgentIds = {
-      katya: null,
       meghana: null,
       amit: null,
       samson: null,
@@ -140,15 +141,16 @@ async function resolveWaterfallAgentIds(): Promise<AgentIds> {
   const get = (email: string) => byEmail.get(email.toLowerCase()) ?? null;
 
   cachedAgentIds = {
-    katya: get("katya@indulge.global"),
     meghana: get("meghana@indulge.global"),
     amit: get("amit@indulge.global"),
     samson: get("samson@indulge.global"),
     kaniisha: get("kaniisha@indulge.global"),
   };
 
-  const emailToKey: Record<(typeof WATERFALL_AGENT_EMAILS)[number], keyof AgentIds> = {
-    "katya@indulge.global": "katya",
+  const emailToKey: Record<
+    (typeof WATERFALL_AGENT_EMAILS)[number],
+    keyof AgentIds
+  > = {
     "meghana@indulge.global": "meghana",
     "amit@indulge.global": "amit",
     "samson@indulge.global": "samson",
@@ -231,49 +233,88 @@ async function pickNextAgentForDomain(
 }
 
 /**
- * Phase 3 & 4: Waterfall Routing Engine.
- * Returns the assigned agent UUID or null. Applies rules in strict order.
+ * Active rules from DB, ordered for evaluation. Fail-open: empty array on error.
  */
-async function resolveAssignedAgent(lead: LeadPayload): Promise<string | null> {
+async function fetchActiveRoutingRules(): Promise<LeadRoutingRule[]> {
+  const { data, error } = await supabase
+    .from("lead_routing_rules")
+    .select(
+      "id, priority, rule_name, is_active, condition_field, condition_operator, condition_value, action_type, action_target_uuid, action_target_domain",
+    )
+    .eq("is_active", true)
+    .order("priority", { ascending: true });
+
+  if (error) {
+    console.error(
+      "[leadIngestion] fetchActiveRoutingRules failed (non-fatal):",
+      error.message,
+    );
+    return [];
+  }
+
+  return (data ?? []) as LeadRoutingRule[];
+}
+
+/**
+ * Resolves assigned agent: dynamic DB rules first, then IST time pools + Samson daily cap.
+ */
+async function resolveAssignedAgent(
+  lead: LeadPayload,
+  /** Original adapter payload — merged under parsed `lead` so extra keys (e.g. `source`) still match rules. */
+  rawPayload?: Record<string, unknown>,
+): Promise<string | null> {
+  let workingDomain = lead.domain ?? "indulge_global";
+
+  const evaluationPayload: Record<string, unknown> =
+    rawPayload != null ? { ...rawPayload, ...lead } : { ...lead };
+
+  // Step 1: Dynamic Routing Engine
+  try {
+    const routingRules = await fetchActiveRoutingRules();
+    const dynamicHit = evaluateRulesAgainstLead(
+      routingRules,
+      evaluationPayload,
+    );
+
+    if (dynamicHit?.action_type === "assign_to_agent") {
+      return dynamicHit.action_target_uuid;
+    }
+
+    if (dynamicHit?.action_type === "route_to_domain_pool") {
+      const d = dynamicHit.action_target_domain;
+      if (VALID_DOMAINS.includes(d as (typeof VALID_DOMAINS)[number])) {
+        workingDomain = d;
+      } else {
+        console.warn(
+          `[leadIngestion] Dynamic rule requested unknown domain "${d}"; ignoring override.`,
+        );
+      }
+    }
+  } catch (e) {
+    console.error(
+      "[leadIngestion] Dynamic routing engine error (non-fatal):",
+      e,
+    );
+  }
+
+  // Step 2: Fallback - Time-Based & Capped Pooling
   const ids = await resolveWaterfallAgentIds();
-  const currentHourIST = getCurrentHourIST();
-  const isNightShift = currentHourIST >= 20 || currentHourIST < 11;
+  const istHour = getCurrentHourIST();
+  const isNightShift = istHour >= 20 || istHour < 11;
 
-  // Rule 1: Domain Override — non-indulge_global -> Katya
-  if (lead.domain !== "indulge_global") {
-    if (ids.katya) {
-      return ids.katya;
-    }
-    console.error(
-      "[leadIngestion] CRITICAL: Katya not found. Domain override failed. Falling back to unfiltered pool.",
-    );
-    return pickNextAgentForDomain(lead.domain ?? "indulge_global", null);
-  }
-
-  // Rule 2: Campaign Override — TG_Global_Dubai- 18 March -> Kaniisha (daytime only)
-  if (lead.utm_campaign === "TG_Global_Dubai- 18 March" && !isNightShift) {
-    if (ids.kaniisha) {
-      return ids.kaniisha;
-    }
-    console.error(
-      "[leadIngestion] CRITICAL: Kaniisha not found. Campaign override failed. Falling back to unfiltered pool.",
-    );
-    return pickNextAgentForDomain(lead.domain ?? "indulge_global", null);
-  }
-
-  // Rule 3: Night pool (8 PM to 10:59 AM IST): Meghana + Amit only
+  // Night shift (8 PM–10:59 AM IST): Meghana + Amit only
   if (isNightShift) {
     const pool = [ids.meghana, ids.amit].filter(Boolean) as string[];
     if (pool.length === 0) {
       console.error(
         "[leadIngestion] CRITICAL: Meghana/Amit not found for evening pool. Falling back to unfiltered pool.",
       );
-      return pickNextAgentForDomain(lead.domain ?? "indulge_global", null);
+      return pickNextAgentForDomain(workingDomain, null);
     }
-    return pickNextAgentForDomain(lead.domain ?? "indulge_global", pool);
+    return pickNextAgentForDomain(workingDomain, pool);
   }
 
-  // Rule 4: Day pool (11 AM to 7:59 PM IST): Samson cap-aware pool
+  // Daytime (11 AM–7:59 PM IST): Samson cap-aware pool
   const startOfTodayIST = getStartOfTodayIST();
   let samsonDailyCount = 0;
 
@@ -291,17 +332,19 @@ async function resolveAssignedAgent(lead: LeadPayload): Promise<string | null> {
 
   const samsonAtCap = samsonDailyCount >= 15;
   const pool = samsonAtCap
-    ? [ids.meghana, ids.amit, ids.kaniisha].filter(Boolean) as string[]
-    : [ids.samson, ids.meghana, ids.amit, ids.kaniisha].filter(Boolean) as string[];
+    ? ([ids.meghana, ids.amit, ids.kaniisha].filter(Boolean) as string[])
+    : ([ids.samson, ids.meghana, ids.amit, ids.kaniisha].filter(
+        Boolean,
+      ) as string[]);
 
   if (pool.length === 0) {
     console.error(
       "[leadIngestion] CRITICAL: No agents in dynamic pool. Falling back to unfiltered pool.",
     );
-    return pickNextAgentForDomain(lead.domain ?? "indulge_global", null);
+    return pickNextAgentForDomain(workingDomain, null);
   }
 
-  return pickNextAgentForDomain(lead.domain ?? "indulge_global", pool);
+  return pickNextAgentForDomain(workingDomain, pool);
 }
 
 function splitFullName(fullName: string | null | undefined): {
@@ -332,7 +375,7 @@ export type ProcessLeadError = {
 };
 
 /**
- * Validates payload, assigns agent via Waterfall Routing Engine, inserts lead, logs activity.
+ * Validates payload, assigns agent (dynamic rules → time pools + Samson cap), inserts lead.
  * Adapters must pass a pre-formatted object (no raw_meta_fields / raw_google_fields).
  */
 export async function processAndInsertLead(
@@ -366,7 +409,7 @@ export async function processAndInsertLead(
           : "Unknown Lead";
   }
 
-  const assignedAgentId = await resolveAssignedAgent(data);
+  const assignedAgentId = await resolveAssignedAgent(data, payload);
   const isOffDuty = isOffDutyInsertion();
 
   const formData =
@@ -396,6 +439,7 @@ export async function processAndInsertLead(
     campaign_name: data.campaign_name ?? null,
     ad_name: data.ad_name ?? null,
     platform: data.platform ?? null,
+    source: data.source ?? null,
     form_data: formData && Object.keys(formData).length > 0 ? formData : null,
     assigned_to: assignedAgentId,
     assigned_at: assignedAgentId ? new Date().toISOString() : null,

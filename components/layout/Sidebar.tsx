@@ -22,6 +22,8 @@ import {
   AlertTriangle,
   Globe,
   ShoppingBag,
+  Route,
+  Workflow,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -156,6 +158,23 @@ const navItems = [
     href: "/admin/marketing",
     label: "Marketing Oversight",
     icon: Megaphone,
+    roles: ["admin"],
+    section: "admin",
+  },
+
+  {
+    href: "/admin/routing",
+    label: "Lead Routing",
+    icon: Route,
+    roles: ["admin", "scout"],
+    section: "admin",
+    exact: true,
+  },
+
+  {
+    href: "/admin/integrations",
+    label: "Data Pipeline",
+    icon: Workflow,
     roles: ["admin"],
     section: "admin",
   },

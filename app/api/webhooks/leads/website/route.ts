@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyPabblyWebhook } from "@/lib/utils/webhook";
 import { processAndInsertLead } from "@/lib/services/leadIngestion";
+import { enqueueWebhookLog } from "@/lib/services/webhookLog";
 
 /**
  * POST /api/webhooks/leads/website
@@ -32,6 +33,8 @@ export async function POST(request: NextRequest) {
       { status: 400 },
     );
   }
+
+  enqueueWebhookLog("website", rawBody);
 
   // Standard flat mapping — common field name variants
   const first_name = (rawBody.first_name ?? rawBody.firstName) as

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyPabblyWebhook } from "@/lib/utils/webhook";
 import { processAndInsertLead } from "@/lib/services/leadIngestion";
+import { enqueueWebhookLog } from "@/lib/services/webhookLog";
 
 /**
  * POST /api/webhooks/leads/google
@@ -32,6 +33,8 @@ export async function POST(request: NextRequest) {
       { status: 400 },
     );
   }
+
+  enqueueWebhookLog("google", rawBody);
 
   const formData: Record<string, unknown> = {};
   let full_name = (rawBody.full_name as string) ?? "";
@@ -70,15 +73,22 @@ export async function POST(request: NextRequest) {
 
           if (!colId) continue;
 
-          if (colId === "FULL_NAME") {
+          const colNorm = String(colId).trim();
+          const colUpper = colNorm.toUpperCase();
+
+          if (colUpper === "FULL_NAME") {
             full_name = strVal || full_name;
-          } else if (colId === "PHONE_NUMBER") {
+          } else if (
+            colUpper === "PHONE_NUMBER" ||
+            colNorm === "phoneNumber" ||
+            colNorm === "phone"
+          ) {
             phone_number = strVal || phone_number;
-          } else if (colId === "EMAIL") {
+          } else if (colUpper === "EMAIL") {
             email = strVal || email;
           } else {
             // All custom questions → form_data (include empty answers so we don't drop keys)
-            formData[colId] = strVal || "";
+            formData[colNorm] = strVal || "";
           }
         }
       }
@@ -90,13 +100,32 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  if (
+    (phone_number == null || String(phone_number).trim() === "") &&
+    rawBody.phone != null &&
+    String(rawBody.phone).trim() !== ""
+  ) {
+    phone_number = String(rawBody.phone).trim();
+  }
+  if (
+    (phone_number == null || String(phone_number).trim() === "") &&
+    rawBody.phoneNumber != null &&
+    String(rawBody.phoneNumber).trim() !== ""
+  ) {
+    phone_number = String(rawBody.phoneNumber).trim();
+  }
+
   // Merge any other top-level keys into form_data
   const standardKeys = new Set([
     "full_name",
     "first_name",
     "last_name",
     "phone_number",
+    "phone",
+    "phoneNumber",
     "email",
+    "domain",
+    "source",
     "raw_google_fields",
     "campaign_name",
     "ad_name",
@@ -117,10 +146,19 @@ export async function POST(request: NextRequest) {
   const utmMedium =
     (rawBody.utm_medium as string)?.trim() || platformVal || undefined;
 
+  const domainRaw = rawBody.domain;
+  const sourceRaw = rawBody.source;
+
   const formattedData = {
     full_name: full_name || undefined,
     phone_number: phone_number ?? undefined,
     email: email ?? undefined,
+    ...(typeof domainRaw === "string" && domainRaw.trim() !== ""
+      ? { domain: domainRaw.trim() }
+      : {}),
+    ...(typeof sourceRaw === "string" && sourceRaw.trim() !== ""
+      ? { source: sourceRaw.trim() }
+      : {}),
     campaign_name: (rawBody.campaign_name as string) ?? undefined,
     ad_name: (rawBody.ad_name as string) ?? undefined,
     platform: "google", // Canonical: connects to campaign_metrics, filters, search

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyPabblyWebhook } from "@/lib/utils/webhook";
 import { processAndInsertLead } from "@/lib/services/leadIngestion";
+import { enqueueWebhookLog } from "@/lib/services/webhookLog";
 
 /**
  * POST /api/webhooks/leads/meta
@@ -32,6 +33,8 @@ export async function POST(request: NextRequest) {
       { status: 400 },
     );
   }
+
+  enqueueWebhookLog("meta", rawBody);
 
   const formData: Record<string, unknown> = {};
   let full_name = (rawBody.full_name as string) ?? "";
@@ -87,6 +90,15 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Alias top-level `phone` → phone_number when canonical key is absent
+  if (
+    (phone_number == null || String(phone_number).trim() === "") &&
+    rawBody.phone != null &&
+    String(rawBody.phone).trim() !== ""
+  ) {
+    phone_number = String(rawBody.phone).trim();
+  }
+
   // Merge top-level fields into form_data for any passthrough
   const topLevelFormKeys = [
     "campaign_name",
@@ -104,7 +116,10 @@ export async function POST(request: NextRequest) {
         "first_name",
         "last_name",
         "phone_number",
+        "phone",
         "email",
+        "domain",
+        "source",
         "raw_meta_fields",
       ].includes(key) &&
       !topLevelFormKeys.includes(key)
@@ -120,12 +135,21 @@ export async function POST(request: NextRequest) {
   const utmMedium =
     (rawBody.utm_medium as string)?.trim() || platformVal || undefined;
 
+  const domainRaw = rawBody.domain;
+  const sourceRaw = rawBody.source;
+
   const formattedData = {
     full_name: full_name || undefined,
     first_name: first_name || undefined,
     last_name: last_name ?? undefined,
     phone_number: phone_number ?? undefined,
     email: email ?? undefined,
+    ...(typeof domainRaw === "string" && domainRaw.trim() !== ""
+      ? { domain: domainRaw.trim() }
+      : {}),
+    ...(typeof sourceRaw === "string" && sourceRaw.trim() !== ""
+      ? { source: sourceRaw.trim() }
+      : {}),
     campaign_name: (rawBody.campaign_name as string) ?? undefined,
     ad_name: (rawBody.ad_name as string) ?? undefined,
     platform: utmMedium, // Canonical: connects to campaign_metrics, filters, search
