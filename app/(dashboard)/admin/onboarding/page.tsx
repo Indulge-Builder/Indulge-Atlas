@@ -38,7 +38,10 @@ export default async function OnboardingOversightPage(props: PageProps) {
     .eq("id", user.id)
     .single();
 
-  if (profile?.role !== "admin" && profile?.role !== "scout") {
+  if (
+    !profile?.role ||
+    !["admin", "founder", "manager"].includes(profile.role)
+  ) {
     redirect("/");
   }
 

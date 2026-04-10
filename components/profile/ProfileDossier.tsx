@@ -14,9 +14,10 @@ import { DOMAIN_DISPLAY_CONFIG } from "@/lib/types/database";
 
 const ROLE_DISPLAY: Record<UserRole, string> = {
   agent:   "Elite Agent",
-  scout:   "Strategic Scout",
+  manager: "Manager",
+  founder: "Founder",
   admin:   "System Administrator",
-  finance: "Finance",
+  guest:   "Finance",
 };
 
 // ── Date helpers ──────────────────────────────────────────────

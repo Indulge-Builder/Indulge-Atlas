@@ -51,9 +51,13 @@ async function LeadsContent({ searchParams }: PageProps) {
 
   const profile = rawProfile as { role: UserRole; domain?: string } | null;
   const userRole: UserRole = profile?.role ?? "agent";
-  const isAdmin = userRole === "admin" || userRole === "scout" || userRole === "finance";
+  const isAdmin =
+    userRole === "admin" ||
+    userRole === "founder" ||
+    userRole === "manager" ||
+    userRole === "guest";
 
-  // Scout/Admin domain filter from URL
+  // Manager/Admin domain filter from URL
   const domainFilter =
     isAdmin && params.domain && VALID_DOMAINS.includes(params.domain) ? params.domain : null;
 

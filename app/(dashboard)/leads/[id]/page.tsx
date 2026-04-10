@@ -197,8 +197,11 @@ export default async function LeadDetailPage({ params }: PageProps) {
     private_scratchpad: scratchpadValue,
   } as unknown as Lead & { assigned_agent?: Profile };
 
-  // Scouts / admins can reassign — pre-fetch active agents
-  const canReassign = userRole === "scout" || userRole === "admin";
+  // Managers / founders / admins can reassign — pre-fetch active agents
+  const canReassign =
+    userRole === "manager" ||
+    userRole === "founder" ||
+    userRole === "admin";
   let agents: Array<{ id: string; full_name: string }> = [];
   if (canReassign) {
     const { data: agentRows } = await supabase
@@ -214,7 +217,10 @@ export default async function LeadDetailPage({ params }: PageProps) {
 
   // Roles that can see campaign/attribution/source blocks
   const canViewCampaignData =
-    userRole === "scout" || userRole === "admin" || userRole === "finance";
+    userRole === "manager" ||
+    userRole === "founder" ||
+    userRole === "admin" ||
+    userRole === "guest";
 
   const sla = getSLAInfo(
     lead.assigned_at,
@@ -321,7 +327,7 @@ export default async function LeadDetailPage({ params }: PageProps) {
                     </div>
                   </div>
 
-                  {/* Campaign / Attribution / Source — scout & admin only */}
+                  {/* Campaign / Attribution / Source — manager, founder, admin, guest */}
                   {canViewCampaignData && (
                     <>
                       <InfoRow
@@ -347,7 +353,7 @@ export default async function LeadDetailPage({ params }: PageProps) {
                     value={formatDateTime(lead.updated_at)}
                   />
 
-                  {/* Assigned Agent — interactive for scout/admin */}
+                  {/* Assigned Agent — interactive for manager/founder/admin */}
                   <div className="grid grid-cols-[1.75rem_1fr] items-start gap-x-2.5 gap-y-0">
                     <div className="col-start-1 row-span-2 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center self-start rounded-lg bg-[#F2F2EE]">
                       <User className="w-3.5 h-3.5 text-[#8A8A6E]" />

@@ -32,7 +32,10 @@ export default async function AdminPage() {
 
   const profile = rawProfile as { role: string } | null;
 
-  if (profile?.role !== "admin" && profile?.role !== "scout") {
+  if (
+    !profile?.role ||
+    !["admin", "founder", "manager"].includes(profile.role)
+  ) {
     redirect("/");
   }
 

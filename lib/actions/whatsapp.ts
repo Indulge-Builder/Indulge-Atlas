@@ -237,7 +237,7 @@ export async function getRecentWhatsAppConversations(): Promise<
   };
 
   const out: RecentWhatsAppConversation[] = [];
-  for (const row of data as Row[]) {
+  for (const row of data as unknown as Row[]) {
     if (!row.lead?.id) continue;
     out.push({
       lead: {

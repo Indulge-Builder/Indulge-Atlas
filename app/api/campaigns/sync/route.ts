@@ -29,7 +29,10 @@ export async function POST() {
     .eq("id", user.id)
     .single();
 
-  if (!profile || !["scout", "admin"].includes(profile.role)) {
+  if (
+    !profile?.role ||
+    !["admin", "founder", "manager"].includes(profile.role)
+  ) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

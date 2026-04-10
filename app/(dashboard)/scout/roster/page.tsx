@@ -24,7 +24,10 @@ async function getAuthorisedProfile() {
     .eq("id", user.id)
     .single();
 
-  if (!profile || (profile.role !== "admin" && profile.role !== "scout")) {
+  if (
+    !profile ||
+    !["admin", "founder", "manager"].includes(profile.role)
+  ) {
     redirect("/");
   }
 }

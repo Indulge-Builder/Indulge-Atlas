@@ -25,7 +25,7 @@ export default async function AdminRoutingPage() {
     .single();
 
   const role = (rawProfile as { role: string } | null)?.role;
-  if (role !== "admin" && role !== "scout") {
+  if (!role || !["admin", "founder", "manager"].includes(role)) {
     redirect("/");
   }
 
