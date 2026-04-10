@@ -228,7 +228,7 @@ export function AddTaskModal({
                   New Task
                 </DialogTitle>
                 <DialogDescription className="text-[#9E9E9E] text-xs mt-0.5">
-                  {role === "scout"
+                  {(role === "manager" || role === "admin" || role === "founder")
                     ? "Create a strategic or lead-linked task"
                     : "Schedule a follow-up action for a lead"}
                 </DialogDescription>

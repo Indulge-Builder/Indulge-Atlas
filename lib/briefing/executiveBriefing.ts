@@ -1,9 +1,8 @@
 /** Roles that may see org-wide executive briefing metrics (domain-scoped). */
 export const EXECUTIVE_BRIEFING_ROLES = [
   "admin",
-  "scout",
-  "viewer",
-  "finance",
+  "founder",
+  "manager",
 ] as const;
 
 export function canViewExecutiveData(role: string | undefined | null): boolean {

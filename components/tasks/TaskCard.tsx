@@ -190,7 +190,7 @@ export function TaskCard({
   const assignedRole = primaryAssignee?.role;
   const isFoundersTask =
     createdByRole === "admin" &&
-    (assignedRole === "agent" || assignedRole === "scout");
+    (assignedRole === "agent" || assignedRole === "manager");
 
   const timeLabel = formatLocalTime(task.due_date);
 

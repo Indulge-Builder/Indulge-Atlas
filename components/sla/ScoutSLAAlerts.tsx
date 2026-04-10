@@ -114,7 +114,7 @@ export function ScoutSLAAlerts({
   inline,
   darkBg,
 }: ScoutSLAAlertsProps) {
-  const { breachedLeads, refetch } = useSLA_Monitor(userId, "scout");
+  const { breachedLeads, refetch } = useSLA_Monitor(userId, "manager");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [mounted, setMounted] = useState(false);

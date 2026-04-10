@@ -12,13 +12,31 @@ function secretsMatch(incoming: string, expected: string): boolean {
 }
 
 /**
- * Verifies Bearer token against PABBLY_WEBHOOK_SECRET.
- * Returns null if valid, or a 401 Response to return.
+ * Verifies Bearer token against `PABBLY_WEBHOOK_SECRET` (legacy shared secret).
+ * Prefer `verifyBearerSecret` with per-channel env vars for lead webhooks.
  */
 export function verifyPabblyWebhook(request: NextRequest): NextResponse | null {
   const authHeader = request.headers.get("authorization") ?? "";
   const bearerToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
   const expectedSecret = process.env.PABBLY_WEBHOOK_SECRET;
+
+  if (!bearerToken || !expectedSecret || !secretsMatch(bearerToken, expectedSecret)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  return null;
+}
+
+/**
+ * Verifies `Authorization: Bearer <token>` against `process.env[envVarName]`.
+ * Lead adapters: `PABBLY_META_SECRET`, `PABBLY_GOOGLE_SECRET`, `PABBLY_WEBSITE_SECRET`.
+ */
+export function verifyBearerSecret(
+  request: NextRequest,
+  envVarName: string,
+): NextResponse | null {
+  const authHeader = request.headers.get("authorization") ?? "";
+  const bearerToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  const expectedSecret = process.env[envVarName] ?? "";
 
   if (!bearerToken || !expectedSecret || !secretsMatch(bearerToken, expectedSecret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

@@ -12,9 +12,11 @@ interface ActionResult {
 
 // Maps UI-friendly domain labels → DB enum values
 const DOMAIN_MAP: Record<string, string> = {
-  "Indulge Global":     "indulge_global",
+  "Indulge Concierge":  "indulge_concierge",
+  "Indulge Global":     "indulge_concierge", // legacy label — maps to concierge
   "Indulge Shop":       "indulge_shop",
-  "The Indulge House":  "the_indulge_house",
+  "The Indulge House":  "indulge_house",
+  "Indulge House":      "indulge_house",
   "Indulge Legacy":     "indulge_legacy",
 };
 
@@ -77,7 +79,7 @@ export async function createLead(input: AddLeadFormValues): Promise<ActionResult
       role === "agent" ? user.id : (input.assigned_to?.trim() || user.id);
 
     const domainRaw = input.domain ?? "Indulge Global";
-    const domainDb  = DOMAIN_MAP[domainRaw] ?? "indulge_global";
+    const domainDb  = DOMAIN_MAP[domainRaw] ?? "indulge_concierge";
 
     // Map form source to utm_source + utm_medium for attribution
     const SOURCE_TO_UTM: Record<string, { source: string; medium?: string }> = {
@@ -188,7 +190,7 @@ export async function getAgentsForLeadForm(): Promise<
     const list = (agents ?? []) as { id: string; full_name: string }[];
 
     const callerAlreadyInList = list.some((a) => a.id === user.id);
-    if (!callerAlreadyInList && (role === "scout" || role === "admin")) {
+    if (!callerAlreadyInList && (role === "admin" || role === "founder" || role === "manager")) {
       const { data: self } = await supabase
         .from("profiles")
         .select("id, full_name")

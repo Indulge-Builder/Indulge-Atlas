@@ -43,16 +43,18 @@ const ROLE_CONFIG: Record<
   UserRole,
   { label: string; icon: React.ElementType; color: string; bg: string }
 > = {
-  agent: { label: "Sales Agent", icon: User, color: "#2C6FAC", bg: "#E8F0FA" },
-  scout: { label: "Scout", icon: Briefcase, color: "#6B4FBB", bg: "#F0EBFF" },
-  admin: { label: "Admin", icon: Shield, color: "#C5830A", bg: "#FEF3D0" },
-  finance: { label: "Finance", icon: Briefcase, color: "#4A7C59", bg: "#EBF4EF" },
+  admin:   { label: "Admin",   icon: Shield,    color: "#C5830A", bg: "#FEF3D0" },
+  founder: { label: "Founder", icon: Briefcase, color: "#4A7C59", bg: "#EBF4EF" },
+  manager: { label: "Manager", icon: Briefcase, color: "#6B4FBB", bg: "#F0EBFF" },
+  agent:   { label: "Agent",   icon: User,      color: "#2C6FAC", bg: "#E8F0FA" },
+  guest:   { label: "Guest",   icon: User,      color: "#6B7280", bg: "#F4F4F5" },
 };
 
 /** Legacy role mappings (from older schema) */
 const LEGACY_ROLE_MAP: Record<string, UserRole> = {
   sales_agent: "agent",
-  manager: "scout",
+  scout:       "manager",
+  finance:     "guest",
 };
 
 function getRoleConfig(role: string | null | undefined) {

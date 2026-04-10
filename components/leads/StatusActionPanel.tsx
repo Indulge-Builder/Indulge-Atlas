@@ -89,7 +89,7 @@ export function StatusActionPanel({
   const [note, setNote] = useState("");
   const mounted = useClientOnly();
   const canManualStatusChange =
-    viewerRole === "scout" || viewerRole === "admin";
+    viewerRole === "admin" || viewerRole === "founder" || viewerRole === "manager";
 
   useEffect(() => {
     setDisplayStatus(currentStatus);

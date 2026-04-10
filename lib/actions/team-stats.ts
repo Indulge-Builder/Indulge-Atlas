@@ -17,7 +17,7 @@ async function requireScout() {
     .eq("id", user.id)
     .single();
 
-  if (!profile || !["scout", "admin"].includes(profile.role)) {
+  if (!profile || !["admin", "founder", "manager"].includes(profile.role)) {
     throw new Error("Forbidden");
   }
 
@@ -173,7 +173,7 @@ export async function getOnboardingAgentsWithStats(): Promise<
   const { data: profiles } = await supabase
     .from("profiles")
     .select("*")
-    .in("role", ["agent", "scout"])
+    .in("role", ["agent", "manager", "founder"])
     .eq("is_active", true)
     .order("role")
     .order("full_name");
@@ -330,7 +330,7 @@ export async function getAgentPerformanceById(
       .from("profiles")
       .select("id, full_name, email, phone, dob, role, domain, is_active, created_at, updated_at")
       .eq("id", agentId)
-      .in("role", ["agent", "scout"])
+      .in("role", ["agent", "manager", "founder"])
       .eq("is_active", true)
       .single(),
     supabase

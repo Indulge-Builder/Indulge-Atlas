@@ -45,7 +45,7 @@ const OPERATORS: { value: CreateRoutingRuleInput["condition_operator"]; label: s
   ];
 
 const DOMAIN_OPTIONS: IndulgeDomain[] = [
-  "indulge_global",
+  "indulge_concierge",
   "indulge_house",
   "indulge_shop",
   "indulge_legacy",

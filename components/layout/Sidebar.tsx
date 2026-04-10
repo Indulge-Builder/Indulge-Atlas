@@ -8,6 +8,7 @@ import {
   Users,
   CheckSquare,
   CalendarDays,
+  MessageSquare,
   LogOut,
   ChevronRight,
   Sparkles,
@@ -31,46 +32,70 @@ import { getInitials } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import type { Profile } from "@/lib/types/database";
 import { DOMAIN_DISPLAY_CONFIG } from "@/lib/types/database";
+import { canAccessShopSurfaces } from "@/lib/shop/access";
 
 // ── Nav definition ─────────────────────────────────────────
 // `exact: true` forces pathname === href for active detection.
 // Use this for parent routes that would otherwise match all children
 // (e.g. /scout would incorrectly match /scout/dashboard).
 
+// Roles that can mutate data — used for canEdit guardrail in UI
+export const MUTABLE_ROLES = ["admin", "founder", "manager", "agent"] as const;
+export type MutableRole = (typeof MUTABLE_ROLES)[number];
+
+export function canEdit(role: string): boolean {
+  return (MUTABLE_ROLES as readonly string[]).includes(role);
+}
+
 const navItems = [
   {
     href: "/workspace",
     label: "Workspace",
     icon: Compass,
-    roles: ["agent", "scout", "admin"],
+    roles: ["agent", "manager", "founder", "admin"],
     section: "main",
+  },
+  {
+    href: "/shop/workspace",
+    label: "Shop Workspace",
+    icon: ShoppingBag,
+    roles: ["agent", "manager", "founder", "admin"],
+    section: "main",
+    shopOnly: true,
   },
   {
     href: "/",
     label: "Dashboard",
     icon: LayoutDashboard,
-    roles: ["agent", "scout"],
+    roles: ["agent", "manager", "founder"],
     section: "main",
   },
   {
     href: "/leads",
     label: "All Leads",
     icon: Users,
-    roles: ["agent", "scout"],
+    roles: ["agent", "manager", "founder", "guest"],
+    section: "main",
+  },
+  {
+    href: "/whatsapp",
+    label: "WhatsApp Hub",
+    icon: MessageSquare,
+    roles: ["agent", "manager", "founder", "admin"],
     section: "main",
   },
   {
     href: "/tasks",
     label: "My Tasks",
     icon: CheckSquare,
-    roles: ["agent", "scout", "admin"],
+    roles: ["agent", "manager", "founder", "admin"],
     section: "main",
   },
   {
     href: "/calendar",
     label: "Calendar",
     icon: CalendarDays,
-    roles: ["agent", "scout", "admin"],
+    roles: ["agent", "manager", "founder", "admin"],
     section: "main",
   },
   {
@@ -98,79 +123,88 @@ const navItems = [
     href: "/scout/campaigns",
     label: "Live Campaigns",
     icon: Megaphone,
-    roles: ["scout"],
-    section: "scout",
+    roles: ["manager", "founder"],
+    section: "manager",
   },
   {
     href: "/scout/team",
     label: "Team Roster",
     icon: UsersRound,
-    roles: ["scout"],
-    section: "scout",
+    roles: ["manager", "founder"],
+    section: "manager",
   },
   {
     href: "/scout",
     label: "Morning Briefing",
     icon: Coffee,
-    roles: ["scout"],
-    section: "scout",
-    exact: true, // /scout must not match /scout/dashboard etc.
+    roles: ["manager", "founder"],
+    section: "manager",
+    exact: true,
   },
   {
     href: "/scout/dashboard",
     label: "Command Center",
     icon: BarChart3,
-    roles: ["scout"],
-    section: "scout",
+    roles: ["manager", "founder"],
+    section: "manager",
   },
-
   {
     href: "/scout/planner",
     label: "Ad Planner",
     icon: Sparkles,
-    roles: ["scout"],
-    section: "scout",
+    roles: ["manager", "founder"],
+    section: "manager",
   },
-
   {
     href: "/indulge-world",
     label: "Indulge Eco",
     icon: Globe,
-    roles: ["admin"],
+    roles: ["admin", "founder"],
     section: "admin",
   },
-
   {
     href: "/admin/onboarding",
     label: "Onboarding Oversight",
     icon: BarChart3,
-    roles: ["admin"],
+    roles: ["admin", "founder"],
+    section: "admin",
+  },
+  {
+    href: "/admin/conversions",
+    label: "Conversions",
+    icon: Trophy,
+    roles: ["admin", "founder"],
     section: "admin",
   },
   {
     href: "/admin/shop",
     label: "Shop Operations",
     icon: ShoppingBag,
-    roles: ["admin"],
+    roles: ["admin", "founder"],
+    section: "admin",
+  },
+  {
+    href: "/admin/shop/workspace",
+    label: "Shop Workspace",
+    icon: ShoppingBag,
+    roles: ["admin", "founder"],
     section: "admin",
   },
   {
     href: "/admin/marketing",
     label: "Marketing Oversight",
     icon: Megaphone,
-    roles: ["admin"],
+    roles: ["admin", "founder"],
     section: "admin",
   },
-
   {
     href: "/admin/routing",
     label: "Lead Routing",
     icon: Route,
-    roles: ["admin", "scout"],
+    roles: ["admin", "founder", "manager"],
     section: "admin",
     exact: true,
   },
-
   {
     href: "/admin/integrations",
     label: "Data Pipeline",
@@ -178,14 +212,13 @@ const navItems = [
     roles: ["admin"],
     section: "admin",
   },
-
   {
     href: "/admin",
     label: "User Management",
     icon: ShieldCheck,
-    roles: ["admin"],
+    roles: ["admin", "founder"],
     section: "admin",
-    exact: true, // /admin must not match /admin/onboarding, /admin/shop, etc.
+    exact: true,
   },
 ];
 
@@ -302,10 +335,19 @@ export function Sidebar({ profile }: SidebarProps) {
     router.refresh();
   }
 
-  const visible = navItems.filter((item) => item.roles.includes(profile.role));
+  const visible = navItems.filter((item) => {
+    if (!item.roles.includes(profile.role)) return false;
+    if ((item as { shopOnly?: boolean }).shopOnly) {
+      if (!canAccessShopSurfaces(profile)) return false;
+      // Admins use Administration → Shop Workspace (/admin/shop/workspace); domain is irrelevant.
+      if (profile.role === "admin") return false;
+      return true;
+    }
+    return true;
+  });
 
   const mainItems = visible.filter((i) => i.section === "main");
-  const managerItems = visible.filter((i) => i.section === "scout");
+  const managerItems = visible.filter((i) => i.section === "manager");
   const adminItems = visible.filter((i) => i.section === "admin");
 
   return (
@@ -393,8 +435,8 @@ export function Sidebar({ profile }: SidebarProps) {
           })}
         </div>
 
-        {/* Scout (manager / admin) */}
-        <NavSection label="Scout" items={managerItems} pathname={pathname} />
+        {/* Manager section */}
+        <NavSection label="Management" items={managerItems} pathname={pathname} />
 
         {/* Administration */}
         <NavSection

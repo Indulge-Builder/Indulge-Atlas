@@ -28,7 +28,7 @@ import { DOMAIN_DISPLAY_CONFIG } from "@/lib/types/database";
 import { cn } from "@/lib/utils";
 
 const DOMAIN_OPTIONS: IndulgeDomain[] = [
-  "indulge_global",
+  "indulge_concierge",
   "indulge_house",
   "indulge_shop",
   "indulge_legacy",
@@ -48,10 +48,11 @@ const ROLE_OPTIONS: {
   color: string;
   bg: string;
 }[] = [
-  { value: "agent", label: "Sales Agent", icon: User, color: "#2C6FAC", bg: "#E8F0FA" },
-  { value: "scout", label: "Scout", icon: Briefcase, color: "#6B4FBB", bg: "#F0EBFF" },
-  { value: "admin", label: "Admin", icon: Shield, color: "#C5830A", bg: "#FEF3D0" },
-  { value: "finance", label: "Finance", icon: Briefcase, color: "#4A7C59", bg: "#EBF4EF" },
+  { value: "agent",   label: "Agent",   icon: User,     color: "#2C6FAC", bg: "#E8F0FA" },
+  { value: "manager", label: "Manager", icon: Briefcase, color: "#6B4FBB", bg: "#F0EBFF" },
+  { value: "founder", label: "Founder", icon: Briefcase, color: "#4A7C59", bg: "#EBF4EF" },
+  { value: "admin",   label: "Admin",   icon: Shield,    color: "#C5830A", bg: "#FEF3D0" },
+  { value: "guest",   label: "Guest",   icon: User,      color: "#6B7280", bg: "#F4F4F5" },
 ];
 
 export function EditUserModal({ open, onClose, onSuccess, profile }: EditUserModalProps) {
@@ -60,7 +61,7 @@ export function EditUserModal({ open, onClose, onSuccess, profile }: EditUserMod
   const [domain, setDomain] = useState<IndulgeDomain>(() => {
     const d = profile.domain as string;
     if (d === "the_indulge_house") return "indulge_house";
-    return DOMAIN_OPTIONS.includes(d as IndulgeDomain) ? (d as IndulgeDomain) : "indulge_global";
+    return DOMAIN_OPTIONS.includes(d as IndulgeDomain) ? (d as IndulgeDomain) : "indulge_concierge";
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -75,7 +76,7 @@ export function EditUserModal({ open, onClose, onSuccess, profile }: EditUserMod
           ? "indulge_house"
           : DOMAIN_OPTIONS.includes(d as IndulgeDomain)
             ? (d as IndulgeDomain)
-            : "indulge_global"
+            : "indulge_concierge"
       );
     }
   }, [open, profile]);

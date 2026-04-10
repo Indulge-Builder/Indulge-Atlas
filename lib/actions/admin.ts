@@ -14,9 +14,9 @@ interface ActionResult<T = void> {
 
 const uuidSchema = z.string().uuid();
 
-// ── Guard: admin OR scout (read access) ───────────────────
+// ── Guard: admin, founder, or manager (broad read/write access) ──
 
-async function requireAdminOrScout() {
+async function requireAdminOrManager() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -32,12 +32,15 @@ async function requireAdminOrScout() {
     .single();
 
   const role = (profile as { role: string } | null)?.role;
-  if (role !== "admin" && role !== "scout") {
-    throw new Error("Unauthorized: admin or scout required");
+  if (!["admin", "founder", "manager"].includes(role ?? "")) {
+    throw new Error("Unauthorized: admin, founder, or manager required");
   }
 
   return { supabase, serviceClient: await createServiceClient(), user };
 }
+
+/** @deprecated Use requireAdminOrManager */
+const requireAdminOrScout = requireAdminOrManager;
 
 // ── Guard: admin only (destructive operations) ─────────────
 
@@ -67,7 +70,7 @@ async function requireAdminOnly() {
 // ── List all users ─────────────────────────────────────────
 
 export async function getAllProfiles(): Promise<Profile[]> {
-  const { supabase } = await requireAdminOrScout();
+  const { supabase } = await requireAdminOrManager();
 
   const { data, error } = await supabase
     .from("profiles")
@@ -105,6 +108,9 @@ export async function createUser(params: {
         email_confirm: true, // auto-confirm so they can log in immediately
         user_metadata: {
           full_name: parsed.data.full_name,
+        },
+        // Role/domain in app_metadata only — clients cannot forge via updateUser().
+        app_metadata: {
           role: parsed.data.role,
           domain: parsed.data.domain,
         },
@@ -167,6 +173,40 @@ export async function updateUserProfile(
 
     if (error) return { success: false, error: error.message };
 
+    // Sync Auth JWT: full_name stays in user_metadata; role/domain in app_metadata
+    // (service-role only). RLS reads profiles only — see migration 058.
+    const needsAuthSync =
+      typeof validated.data.full_name === "string" ||
+      typeof validated.data.role === "string" ||
+      typeof validated.data.domain === "string";
+
+    if (needsAuthSync) {
+      const { data: existingAuth, error: getUserError } =
+        await serviceClient.auth.admin.getUserById(userId);
+      if (getUserError) return { success: false, error: getUserError.message };
+
+      const u = existingAuth.user;
+      const payload: {
+        user_metadata?: Record<string, unknown>;
+        app_metadata?: Record<string, unknown>;
+      } = {};
+
+      if (typeof validated.data.full_name === "string") {
+        payload.user_metadata = {
+          ...(u?.user_metadata ?? {}),
+          full_name: validated.data.full_name,
+        };
+      }
+      if (typeof validated.data.role === "string" || typeof validated.data.domain === "string") {
+        payload.app_metadata = { ...(u?.app_metadata ?? {}) };
+        if (typeof validated.data.role === "string") payload.app_metadata.role = validated.data.role;
+        if (typeof validated.data.domain === "string") payload.app_metadata.domain = validated.data.domain;
+      }
+
+      const { error: authUpdErr } = await serviceClient.auth.admin.updateUserById(userId, payload);
+      if (authUpdErr) return { success: false, error: authUpdErr.message };
+    }
+
     // If deactivating, also disable the auth user to prevent login
     if (validated.data.is_active === false) {
       await serviceClient.auth.admin.updateUserById(userId, {
@@ -193,7 +233,7 @@ export async function updateUserProfile(
 
 export async function sendPasswordReset(email: string): Promise<ActionResult> {
   try {
-    const { supabase } = await requireAdminOrScout();
+    const { supabase } = await requireAdminOrManager();
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/login`,

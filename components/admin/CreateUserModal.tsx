@@ -34,7 +34,7 @@ interface CreateUserModalProps {
 }
 
 const DOMAIN_OPTIONS: IndulgeDomain[] = [
-  "indulge_global",
+  "indulge_concierge",
   "indulge_house",
   "indulge_shop",
   "indulge_legacy",
@@ -50,24 +50,24 @@ const ROLE_OPTIONS: {
 }[] = [
   {
     value: "agent",
-    label: "Sales Agent",
+    label: "Agent",
     description: "Handles leads, pipeline & tasks",
     icon: User,
     color: "#2C6FAC",
     bg: "#E8F0FA",
   },
   {
-    value: "scout",
-    label: "Scout",
-    description: "All agent access + team oversight",
+    value: "manager",
+    label: "Manager",
+    description: "Domain head — full read/write in domain",
     icon: Briefcase,
     color: "#6B4FBB",
     bg: "#F0EBFF",
   },
   {
-    value: "finance",
-    label: "Finance",
-    description: "Finance & reporting access",
+    value: "founder",
+    label: "Founder",
+    description: "Full read/write across all domains",
     icon: Briefcase,
     color: "#4A7C59",
     bg: "#EBF4EF",
@@ -80,6 +80,14 @@ const ROLE_OPTIONS: {
     color: "#C5830A",
     bg: "#FEF3D0",
   },
+  {
+    value: "guest",
+    label: "Guest",
+    description: "Read-only, domain-scoped access",
+    icon: User,
+    color: "#6B7280",
+    bg: "#F4F4F5",
+  },
 ];
 
 export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalProps) {
@@ -87,7 +95,7 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<UserRole>("agent");
-  const [domain, setDomain] = useState<IndulgeDomain>("indulge_global");
+  const [domain, setDomain] = useState<IndulgeDomain>("indulge_concierge");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -97,7 +105,7 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
     setEmail("");
     setPassword("");
     setRole("agent");
-    setDomain("indulge_global");
+    setDomain("indulge_concierge");
     setShowPassword(false);
     setError(null);
   }

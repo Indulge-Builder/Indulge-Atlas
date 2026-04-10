@@ -281,7 +281,7 @@ export async function getLeadsForTaskModal(opts?: {
     .limit(100);
 
   if (profile?.role === "agent") {
-    query = query.eq("assigned_to", user.id).eq("domain", profile?.domain ?? "indulge_global");
+    query = query.eq("assigned_to", user.id).eq("domain", profile?.domain ?? "indulge_concierge");
   } else if (opts?.domainFilter) {
     query = query.eq("domain", opts.domainFilter);
   }
@@ -531,6 +531,7 @@ export async function addTaskProgress(
 
     revalidatePath("/");
     revalidatePath("/tasks");
+    revalidatePath(`/shop/workspace/tasks/${parsed.data}`);
 
     return { success: true, update: newUpdate };
   } catch {
@@ -834,7 +835,7 @@ export async function getTeamMembersForAdmin(): Promise<TeamMemberForPicker[]> {
       .from("profiles")
       .select("id, full_name")
       .eq("is_active", true)
-      .in("role", ["agent", "scout", "admin"])
+      .in("role", ["admin", "founder", "manager", "agent"])
       .order("full_name");
 
     if (!profiles || profiles.length === 0) return [];

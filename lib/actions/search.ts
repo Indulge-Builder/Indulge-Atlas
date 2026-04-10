@@ -65,7 +65,7 @@ export async function globalOmniSearch(
 
   const { supabase, userId, role } = await getSessionContext();
   const pattern = `%${safe}%`;
-  const canSearchTeam = role === "scout" || role === "admin";
+  const canSearchTeam = role === "admin" || role === "founder" || role === "manager";
 
   const leadsPromise = supabase
     .from("leads")

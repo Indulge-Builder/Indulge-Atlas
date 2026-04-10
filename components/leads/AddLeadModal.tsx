@@ -154,7 +154,7 @@ export function AddLeadModal({
         setAgents(agentList);
         setAgentsLoading(false);
         // Scouts/Admins: default Assign To to self when left blank
-        if (profile.role === "scout" || profile.role === "admin") {
+        if (profile.role === "admin" || profile.role === "founder" || profile.role === "manager") {
           setValue("assigned_to", profile.id);
         }
       },
@@ -188,7 +188,7 @@ export function AddLeadModal({
   }
 
   const isAgent = callerRole === "agent";
-  const canAssign = callerRole === "scout" || callerRole === "admin";
+  const canAssign = callerRole === "admin" || callerRole === "founder" || callerRole === "manager";
 
   return (
     <>

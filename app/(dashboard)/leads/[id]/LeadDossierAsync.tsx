@@ -3,6 +3,8 @@ import { ActivityTimeline } from "@/components/leads/ActivityTimeline";
 import { LeadJourneyBar } from "@/components/leads/LeadJourneyBar";
 import { LeadTaskWidget } from "@/components/tasks/LeadTaskWidget";
 import { LeadContextChat } from "@/components/chat/LeadContextChat";
+import { WhatsAppChatModule } from "@/components/leads/dossier/WhatsAppChatModule";
+import { getWhatsAppMessagesForLead } from "@/lib/actions/whatsapp";
 import {
   getLeadActivitiesForDossier,
   getLeadTasksForDossier,
@@ -51,6 +53,30 @@ export function LeadContextChatSkeleton() {
       <div className="mb-4 h-3 w-32 animate-pulse rounded-md bg-stone-100/90" />
       <div className="h-48 animate-pulse rounded-lg bg-stone-100/70" />
     </div>
+  );
+}
+
+export function LeadWhatsAppSkeleton() {
+  return (
+    <div className="flex h-[500px] flex-col overflow-hidden rounded-2xl border border-[#EAEAEA] bg-white shadow-[0_1px_4px_0_rgb(0_0_0/0.03)]">
+      <div className="border-b border-stone-100 px-4 py-3">
+        <div className="mb-1 h-3 w-24 animate-pulse rounded-md bg-stone-100/90" />
+        <div className="h-2.5 w-40 animate-pulse rounded-md bg-stone-100/70" />
+      </div>
+      <div className="min-h-0 flex-1 p-4">
+        <div className="h-full animate-pulse rounded-lg bg-stone-100/60" />
+      </div>
+      <div className="border-t border-stone-100 p-4">
+        <div className="h-10 w-full animate-pulse rounded-md bg-stone-100/70" />
+      </div>
+    </div>
+  );
+}
+
+export async function LeadDossierWhatsAppAsync({ leadId }: { leadId: string }) {
+  const messages = await getWhatsAppMessagesForLead(leadId);
+  return (
+    <WhatsAppChatModule leadId={leadId} initialMessages={messages} />
   );
 }
 

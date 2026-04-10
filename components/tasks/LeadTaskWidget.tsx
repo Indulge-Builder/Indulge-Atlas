@@ -527,7 +527,7 @@ function TaskRow({
     </div>
   );
 
-  const canOpenModal = isFollowUp && (task.status === "pending" || role === "scout");
+  const canOpenModal = isFollowUp && (task.status === "pending" || role === "manager" || role === "admin" || role === "founder");
   return (
     <>
       {canOpenModal ? (

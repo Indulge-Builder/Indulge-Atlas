@@ -47,3 +47,6 @@ next-env.d.ts
 *.png
 *.plan.md
 *.plan copy.md
+
+# Sentry Config File
+.env.sentry-build-plugin

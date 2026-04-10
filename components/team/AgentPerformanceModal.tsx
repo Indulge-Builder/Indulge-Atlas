@@ -164,7 +164,7 @@ function ModalContent({
               {agent.full_name}
             </h2>
             <p className="text-stone-400 text-xs mt-0.5 capitalize">
-              {agent.role === "scout" ? "Scout" : "Sales Agent"}
+              {agent.role === "manager" ? "Manager" : agent.role === "founder" ? "Founder" : "Sales Agent"}
             </p>
           </div>
         </div>

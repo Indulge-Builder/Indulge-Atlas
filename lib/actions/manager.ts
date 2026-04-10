@@ -20,7 +20,7 @@ async function requireManager() {
     .eq("id", user.id)
     .single();
 
-  if (!profile || !["scout", "admin"].includes(profile.role)) {
+  if (!profile || !["admin", "founder", "manager"].includes(profile.role)) {
     throw new Error("Forbidden");
   }
 

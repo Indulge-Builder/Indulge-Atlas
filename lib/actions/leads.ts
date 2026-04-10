@@ -35,12 +35,12 @@ async function getAuthUser() {
     .single();
 
   const role = (profile as { role: string } | null)?.role ?? "agent";
-  const domain = (profile as { domain?: string } | null)?.domain ?? "indulge_global";
+  const domain = (profile as { domain?: string } | null)?.domain ?? "indulge_concierge";
   return { supabase, user, role, domain };
 }
 
 function isPrivilegedRole(role: string): boolean {
-  return role === "admin" || role === "scout";
+  return role === "admin" || role === "founder" || role === "manager";
 }
 
 /** Legacy activity_type enum — keep in sync for rows that still have `type` NOT NULL (pre-048). */

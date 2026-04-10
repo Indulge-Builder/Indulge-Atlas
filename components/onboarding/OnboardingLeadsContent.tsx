@@ -41,9 +41,9 @@ export async function OnboardingLeadsContent({
     .single();
 
   const profile = rawProfile as { role: UserRole } | null;
-  const userRole: UserRole = profile?.role ?? "scout";
-  // Onboarding oversight: always scout-level view (full leads table)
-  const effectiveRole: UserRole = "scout";
+  const userRole: UserRole = profile?.role ?? "manager";
+  // Onboarding oversight: always manager-level view (full leads table)
+  const effectiveRole: UserRole = "manager";
 
   const currentPage = Math.max(1, parseInt(params.page ?? "1", 10));
   const offset = (currentPage - 1) * PAGE_SIZE;

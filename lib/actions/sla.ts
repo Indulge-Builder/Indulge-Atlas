@@ -36,7 +36,7 @@ export async function dismissSlaAlert(leadId: string): Promise<ActionResult> {
       .eq("id", user.id)
       .single();
     const role = (profile as { role: string } | null)?.role ?? "agent";
-    const isPrivileged = role === "admin" || role === "scout";
+    const isPrivileged = role === "admin" || role === "founder" || role === "manager";
     if (!isPrivileged && lead.assigned_to !== user.id) {
       return { success: false, error: "Unauthorised" };
     }

@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyPabblyWebhook } from "@/lib/utils/webhook";
+import { verifyBearerSecret } from "@/lib/utils/webhook";
+import { checkWebhookRateLimit } from "@/lib/utils/rateLimit";
 import { processAndInsertLead } from "@/lib/services/leadIngestion";
 import { enqueueWebhookLog } from "@/lib/services/webhookLog";
+import { applyFieldMappings } from "@/lib/services/fieldMappingEngine";
 
 /**
  * POST /api/webhooks/leads/website
@@ -9,7 +11,12 @@ import { enqueueWebhookLog } from "@/lib/services/webhookLog";
  * Typeform / Webflow / standard flat JSON. No array parsing needed.
  */
 export async function POST(request: NextRequest) {
-  const authError = verifyPabblyWebhook(request);
+  const rl = await checkWebhookRateLimit(request);
+  if (!rl.success) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
+  const authError = verifyBearerSecret(request, "PABBLY_WEBSITE_SECRET");
   if (authError) {
     console.warn(
       "[webhooks/leads/website] Rejected: missing or invalid Bearer token.",
@@ -35,6 +42,48 @@ export async function POST(request: NextRequest) {
   }
 
   enqueueWebhookLog("website", rawBody);
+
+  // ── Dynamic mapping engine ─────────────────────────────────────────────────
+  const { hasMappings, mappedFields, unmappedFormData } =
+    await applyFieldMappings("website", rawBody);
+
+  if (hasMappings) {
+    const utmMedium =
+      (mappedFields.utm_medium as string) ??
+      (rawBody.platform as string)?.trim() ??
+      "website";
+
+    const dynamicPayload = {
+      ...mappedFields,
+      platform: "website",
+      utm_source:
+        ((mappedFields.utm_source ?? rawBody.utm_source) as string)?.trim() ||
+        "website",
+      utm_medium: utmMedium,
+      utm_campaign:
+        ((mappedFields.utm_campaign ??
+          rawBody.campaign_name ??
+          rawBody.utm_campaign) as string)?.trim() || undefined,
+      form_data:
+        Object.keys(unmappedFormData).length > 0 ? unmappedFormData : undefined,
+    };
+
+    const result = await processAndInsertLead(dynamicPayload, "website");
+    if (result.success) {
+      return NextResponse.json(
+        {
+          success: true,
+          lead_id: result.lead_id,
+          assigned_to: result.assigned_to,
+          utm_campaign: result.utm_campaign,
+          _engine: "dynamic",
+        },
+        { status: 200 },
+      );
+    }
+    return NextResponse.json({ error: result.error }, { status: result.status });
+  }
+  // ── End dynamic engine ─────────────────────────────────────────────────────
 
   // Standard flat mapping — common field name variants
   const first_name = (rawBody.first_name ?? rawBody.firstName) as

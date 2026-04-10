@@ -109,7 +109,7 @@ export function TopBar({
 }: TopBarProps) {
   const profile = useProfile();
   const showSLA =
-    profile && (profile.role === "scout" || profile.role === "admin");
+    profile && (profile.role === "admin" || profile.role === "founder" || profile.role === "manager");
   const isDark = variant === "dark";
 
   useEffect(() => {

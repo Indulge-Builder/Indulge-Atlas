@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyPabblyWebhook } from "@/lib/utils/webhook";
+import { verifyBearerSecret } from "@/lib/utils/webhook";
+import { checkWebhookRateLimit } from "@/lib/utils/rateLimit";
 import { processAndInsertLead } from "@/lib/services/leadIngestion";
 import { enqueueWebhookLog } from "@/lib/services/webhookLog";
+import { applyFieldMappings } from "@/lib/services/fieldMappingEngine";
 
 /**
  * POST /api/webhooks/leads/google
@@ -9,7 +11,12 @@ import { enqueueWebhookLog } from "@/lib/services/webhookLog";
  * Pabbly → Google Ads Lead Form Extensions. Extracts from raw_google_fields.
  */
 export async function POST(request: NextRequest) {
-  const authError = verifyPabblyWebhook(request);
+  const rl = await checkWebhookRateLimit(request);
+  if (!rl.success) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
+  const authError = verifyBearerSecret(request, "PABBLY_GOOGLE_SECRET");
   if (authError) {
     console.warn(
       "[webhooks/leads/google] Rejected: missing or invalid Bearer token.",
@@ -35,6 +42,48 @@ export async function POST(request: NextRequest) {
   }
 
   enqueueWebhookLog("google", rawBody);
+
+  // ── Dynamic mapping engine ─────────────────────────────────────────────────
+  const { hasMappings, mappedFields, unmappedFormData } =
+    await applyFieldMappings("google", rawBody);
+
+  if (hasMappings) {
+    const utmMedium =
+      (mappedFields.utm_medium as string) ??
+      (rawBody.platform as string)?.trim() ??
+      undefined;
+
+    const dynamicPayload = {
+      ...mappedFields,
+      platform: "google",
+      utm_source:
+        ((mappedFields.utm_source ?? rawBody.utm_source) as string)?.trim() ||
+        "google",
+      utm_medium: utmMedium,
+      utm_campaign:
+        ((mappedFields.utm_campaign ??
+          rawBody.campaign_name ??
+          rawBody.utm_campaign) as string)?.trim() || undefined,
+      form_data:
+        Object.keys(unmappedFormData).length > 0 ? unmappedFormData : undefined,
+    };
+
+    const result = await processAndInsertLead(dynamicPayload, "google");
+    if (result.success) {
+      return NextResponse.json(
+        {
+          success: true,
+          lead_id: result.lead_id,
+          assigned_to: result.assigned_to,
+          utm_campaign: result.utm_campaign,
+          _engine: "dynamic",
+        },
+        { status: 200 },
+      );
+    }
+    return NextResponse.json({ error: result.error }, { status: result.status });
+  }
+  // ── End dynamic engine ─────────────────────────────────────────────────────
 
   const formData: Record<string, unknown> = {};
   let full_name = (rawBody.full_name as string) ?? "";

@@ -26,7 +26,7 @@ export async function CampaignDossierLeads({
     }
   );
 
-  const userRole: UserRole = "scout";
+  const userRole: UserRole = "manager";
 
   return (
     <LeadsTable

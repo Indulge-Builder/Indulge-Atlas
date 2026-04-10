@@ -83,7 +83,7 @@ export function LeadsTable({
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const isScout = role === "scout" || role === "admin" || role === "finance";
+  const isScout = role === "admin" || role === "founder" || role === "manager";
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
   // ── Query helpers ────────────────────────────────────────

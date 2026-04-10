@@ -49,10 +49,10 @@ export default async function DashboardLayout({
               <div className="layout-canvas min-h-screen">
                 <Sidebar profile={profile as Profile} />
 
-                <div className="ml-60 min-h-screen p-3">
+                <div className="ml-60 flex min-h-screen flex-col p-3">
                   <main
                     className="
-                      relative min-h-0 overflow-x-hidden
+                      relative flex min-h-0 flex-1 flex-col overflow-x-hidden
                       bg-[#F9F9F6] rounded-2xl overflow-hidden
                       paper-shadow
                     "

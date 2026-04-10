@@ -36,9 +36,9 @@ function shouldAlertForLeadInsert(
   }
 
   if (
-    ctx.role === "scout" ||
     ctx.role === "admin" ||
-    ctx.role === "finance"
+    ctx.role === "founder" ||
+    ctx.role === "manager"
   ) {
     return sameDomain || assignedToMe;
   }

@@ -11,6 +11,8 @@ import { getHours, startOfDay } from "date-fns";
 import { getServiceSupabaseClient } from "@/lib/supabase/service";
 import type { LeadRoutingRule } from "@/lib/types/database";
 import { evaluateRulesAgainstLead } from "@/lib/services/evaluateRoutingRules";
+import { normalizeToE164 } from "@/lib/utils/phone";
+import { sanitizeFormData, sanitizeText } from "@/lib/utils/sanitize";
 
 const supabase = getServiceSupabaseClient();
 
@@ -31,7 +33,7 @@ const emptyStringToNull = z
   .optional();
 
 const leadPayloadSchema = z.object({
-  domain: z.string().default("indulge_global"),
+  domain: z.string().default("indulge_concierge"),
   first_name: z.string().trim().optional(),
   last_name: emptyStringToNull,
   full_name: emptyStringToNull,
@@ -80,13 +82,44 @@ const leadPayloadSchema = z.object({
     .nullable()
     .optional(),
   message: emptyStringToNull,
+  notes: emptyStringToNull,
+  personal_details: emptyStringToNull,
+  company: emptyStringToNull,
   form_data: z.record(z.string(), z.any()).nullable().optional(),
-});
+}).passthrough();
 
 type LeadPayload = z.infer<typeof leadPayloadSchema>;
 
+const PAYLOAD_TEXT_KEYS = [
+  "first_name",
+  "last_name",
+  "full_name",
+  "email",
+  "city",
+  "address",
+  "secondary_phone",
+  "campaign_name",
+  "ad_name",
+  "platform",
+  "source",
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "message",
+  "notes",
+  "personal_details",
+  "company",
+] as const;
+
+function sanitizePayloadStringFields(payload: Record<string, unknown>): void {
+  for (const key of PAYLOAD_TEXT_KEYS) {
+    const v = payload[key];
+    if (typeof v === "string") payload[key] = sanitizeText(v);
+  }
+}
+
 const VALID_DOMAINS = [
-  "indulge_global",
+  "indulge_concierge",
   "indulge_house",
   "indulge_shop",
   "indulge_legacy",
@@ -201,7 +234,7 @@ async function pickNextAgentForDomain(
     domain as (typeof VALID_DOMAINS)[number],
   )
     ? domain
-    : "indulge_global";
+    : "indulge_concierge";
 
   const rpcParams: { p_domain: string; p_allowed_uuids?: string[] } = {
     p_domain: safeDomain,
@@ -263,7 +296,7 @@ async function resolveAssignedAgent(
   /** Original adapter payload — merged under parsed `lead` so extra keys (e.g. `source`) still match rules. */
   rawPayload?: Record<string, unknown>,
 ): Promise<string | null> {
-  let workingDomain = lead.domain ?? "indulge_global";
+  let workingDomain = lead.domain ?? "indulge_concierge";
 
   const evaluationPayload: Record<string, unknown> =
     rawPayload != null ? { ...rawPayload, ...lead } : { ...lead };
@@ -388,9 +421,11 @@ export async function processAndInsertLead(
     return { success: false, error: "Payload validation failed", status: 400 };
   }
 
-  const data = parsed.data as LeadPayload;
+  const data = parsed.data as LeadPayload & Record<string, unknown>;
 
-  // Name resolution: first_name, full_name split, or fallback
+  sanitizePayloadStringFields(data);
+
+  // Name resolution: first_name, full_name split, or fallback (full_name already sanitized)
   let first_name = data.first_name?.trim() ?? "";
   let last_name = data.last_name ?? null;
 
@@ -409,27 +444,50 @@ export async function processAndInsertLead(
           : "Unknown Lead";
   }
 
+  first_name = sanitizeText(first_name);
+  last_name = last_name != null ? sanitizeText(last_name) : null;
+
+  data.first_name = first_name;
+  data.last_name = last_name;
+
+  const phoneRaw =
+    typeof data.phone_number === "string" ? data.phone_number.trim() : "";
+  const phone_number = normalizeToE164(phoneRaw);
+
   const assignedAgentId = await resolveAssignedAgent(data, payload);
   const isOffDuty = isOffDutyInsertion();
 
-  const formData =
+  const formDataRaw =
     data.form_data && typeof data.form_data === "object"
       ? {
-          ...data.form_data,
-          ...(data.message?.trim() ? { message: data.message.trim() } : {}),
+          ...(data.form_data as Record<string, unknown>),
+          ...(typeof data.message === "string" && data.message.trim()
+            ? { message: data.message.trim() }
+            : {}),
         }
-      : data.message?.trim()
+      : typeof data.message === "string" && data.message.trim()
         ? { message: data.message.trim() }
         : null;
+
+  const formData =
+    formDataRaw && Object.keys(formDataRaw).length > 0
+      ? sanitizeFormData(formDataRaw)
+      : null;
+
+  let secondary_phone: string | null = null;
+  if (typeof data.secondary_phone === "string" && data.secondary_phone.trim()) {
+    const sec = normalizeToE164(data.secondary_phone.trim());
+    secondary_phone = sec || null;
+  }
 
   const dbPayload = {
     first_name,
     last_name: last_name ?? null,
-    phone_number: data.phone_number?.trim() || "",
+    phone_number: phone_number || "",
     email: data.email ?? null,
     city: data.city ?? null,
     address: data.address ?? null,
-    secondary_phone: data.secondary_phone ?? null,
+    secondary_phone,
     domain: data.domain,
     status: "new" as const,
     utm_source: data.utm_source ?? null,
@@ -441,6 +499,10 @@ export async function processAndInsertLead(
     platform: data.platform ?? null,
     source: data.source ?? null,
     form_data: formData && Object.keys(formData).length > 0 ? formData : null,
+    notes: typeof data.notes === "string" ? data.notes : null,
+    personal_details:
+      typeof data.personal_details === "string" ? data.personal_details : null,
+    company: typeof data.company === "string" ? data.company : null,
     assigned_to: assignedAgentId,
     assigned_at: assignedAgentId ? new Date().toISOString() : null,
     is_off_duty: isOffDuty,

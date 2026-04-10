@@ -46,7 +46,7 @@ export function FollowUpModal({
   onSuccess,
   userRole,
 }: FollowUpModalProps) {
-  const isReadOnly = userRole === "scout";
+  const isReadOnly = userRole === "manager" || userRole === "founder";
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);

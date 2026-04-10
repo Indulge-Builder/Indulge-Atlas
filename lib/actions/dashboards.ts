@@ -16,7 +16,7 @@ async function requireScoutOrAdmin() {
     .eq("id", user.id)
     .single();
 
-  if (!profile || !["scout", "admin"].includes(profile.role)) {
+  if (!profile || !["admin", "founder", "manager"].includes(profile.role)) {
     throw new Error("Forbidden");
   }
 
@@ -88,7 +88,7 @@ export async function getOnboardingPulse(): Promise<OnboardingPulseData> {
   const { data: amitProfile } = await supabase
     .from("profiles")
     .select("id, full_name")
-    .in("role", ["agent", "scout"])
+    .in("role", ["agent", "manager", "founder"])
     .eq("is_active", true)
     .ilike("full_name", "%Amit%")
     .limit(1)
@@ -106,7 +106,7 @@ export async function getOnboardingPulse(): Promise<OnboardingPulseData> {
       supabase
         .from("profiles")
         .select("id, full_name")
-        .in("role", ["agent", "scout"])
+        .in("role", ["agent", "manager", "founder"])
         .eq("is_active", true),
       ...pipelineStatusKeys.map((status) =>
         supabase

@@ -106,7 +106,7 @@ export function useSLA_Monitor(
 
   const fetchBreachedLeads = useCallback(async () => {
     const supabase = createClient();
-    if (!userId && role !== "scout" && role !== "admin") {
+    if (!userId && role !== "admin" && role !== "founder" && role !== "manager") {
       setBreachedLeads([]);
       setLoading(false);
       return;
@@ -114,7 +114,7 @@ export function useSLA_Monitor(
 
     setLoading(true);
 
-    const isScoutOrAdmin = role === "scout" || role === "admin";
+    const isScoutOrAdmin = role === "admin" || role === "founder" || role === "manager";
 
     const selectCols = isScoutOrAdmin
       ? "id, first_name, last_name, assigned_at, created_at, is_off_duty, assigned_to, assigned_agent:profiles!assigned_to(id, full_name)"

@@ -15,7 +15,7 @@ import {
 import { cn } from "@/lib/utils";
 
 const DOMAINS: IndulgeDomain[] = [
-  "indulge_global",
+  "indulge_concierge",
   "indulge_house",
   "indulge_shop",
   "indulge_legacy",
@@ -36,7 +36,7 @@ export function DomainSwitcher({ variant = "default" }: DomainSwitcherProps) {
     setMounted(true);
   }, []);
 
-  const isPrivileged = profile?.role === "scout" || profile?.role === "admin";
+  const isPrivileged = profile?.role === "admin" || profile?.role === "founder" || profile?.role === "manager";
   if (!mounted || !isPrivileged || !profile?.domain) return null;
 
   const currentDomain = (searchParams.get("domain") as IndulgeDomain) || null;

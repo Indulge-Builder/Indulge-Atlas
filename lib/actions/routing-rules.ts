@@ -9,7 +9,7 @@ import type {
 } from "@/lib/types/database";
 import { z } from "zod";
 
-async function requireAdminOrScout() {
+async function requireAdminOrManager() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -25,8 +25,8 @@ async function requireAdminOrScout() {
     .single();
 
   const role = (profile as { role: string } | null)?.role;
-  if (role !== "admin" && role !== "scout") {
-    throw new Error("Unauthorized: admin or scout required");
+  if (!["admin", "founder", "manager"].includes(role ?? "")) {
+    throw new Error("Unauthorized: admin, founder, or manager required");
   }
 
   return { supabase, user };
@@ -35,7 +35,7 @@ async function requireAdminOrScout() {
 const conditionOperatorSchema = z.enum(["equals", "contains", "starts_with"]);
 const actionTypeSchema = z.enum(["assign_to_agent", "route_to_domain_pool"]);
 const routingDomainSchema = z.enum([
-  "indulge_global",
+  "indulge_concierge",
   "indulge_house",
   "indulge_shop",
   "indulge_legacy",
@@ -74,7 +74,7 @@ const createRoutingRuleSchema = z
 export type CreateRoutingRuleInput = z.infer<typeof createRoutingRuleSchema>;
 
 export async function getRoutingRules(): Promise<LeadRoutingRuleWithAgent[]> {
-  const { supabase } = await requireAdminOrScout();
+  const { supabase } = await requireAdminOrManager();
 
   const { data, error } = await supabase
     .from("lead_routing_rules")
@@ -98,7 +98,7 @@ export async function getRoutingRules(): Promise<LeadRoutingRuleWithAgent[]> {
 export async function getActiveAgentsForRouting(): Promise<
   Pick<Profile, "id" | "full_name" | "email" | "domain">[]
 > {
-  const { supabase } = await requireAdminOrScout();
+  const { supabase } = await requireAdminOrManager();
 
   const { data, error } = await supabase
     .from("profiles")
@@ -123,7 +123,7 @@ export async function createRoutingRule(
       };
     }
 
-    const { supabase } = await requireAdminOrScout();
+    const { supabase } = await requireAdminOrManager();
     const d = parsed.data;
 
     const { data: maxRow } = await supabase
@@ -169,7 +169,7 @@ export async function toggleRuleStatus(
     const parsed = z.string().uuid().safeParse(id);
     if (!parsed.success) return { success: false, error: "Invalid rule id" };
 
-    const { supabase } = await requireAdminOrScout();
+    const { supabase } = await requireAdminOrManager();
 
     const { error } = await supabase
       .from("lead_routing_rules")
@@ -193,7 +193,7 @@ export async function deleteRoutingRule(
     const parsed = z.string().uuid().safeParse(id);
     if (!parsed.success) return { success: false, error: "Invalid rule id" };
 
-    const { supabase } = await requireAdminOrScout();
+    const { supabase } = await requireAdminOrManager();
 
     const { error } = await supabase
       .from("lead_routing_rules")

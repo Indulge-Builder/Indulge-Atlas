@@ -35,8 +35,8 @@ export async function toggleAgentLeaveStatus(
       return { success: false, error: "Could not verify permissions" };
     }
 
-    if (profile.role !== "scout" && profile.role !== "admin") {
-      return { success: false, error: "Only scouts and admins can update roster status" };
+    if (!["admin", "founder", "manager"].includes(profile.role)) {
+      return { success: false, error: "Only managers, founders and admins can update roster status" };
     }
 
     const { data: target, error: targetError } = await supabase

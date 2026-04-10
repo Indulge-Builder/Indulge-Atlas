@@ -72,7 +72,7 @@ export function DashboardHero({
   const prefersReducedMotion = useReducedMotion();
   const profile = useProfile();
   const showSLA =
-    profile && (profile.role === "scout" || profile.role === "admin");
+    profile && (profile.role === "admin" || profile.role === "founder" || profile.role === "manager");
 
   const cards: MetricCard[] = [
     { label: "New Leads", value: metrics.newLeads },

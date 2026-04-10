@@ -67,7 +67,7 @@ export function TaskDetailSheet({
     ?.assigned_to_profile?.role;
   const isFoundersTask =
     createdByRole === "admin" &&
-    (assignedRole === "agent" || assignedRole === "scout");
+    (assignedRole === "agent" || assignedRole === "manager");
 
   async function handlePostUpdate() {
     const trimmed = updateText.trim();

@@ -37,8 +37,10 @@ import {
   LeadDossierJourneyAsync,
   LeadDossierTasksAsync,
   LeadDossierTimelineAsync,
+  LeadDossierWhatsAppAsync,
   LeadJourneySkeleton,
   LeadTasksWidgetSkeleton,
+  LeadWhatsAppSkeleton,
 } from "./LeadDossierAsync";
 import type {
   Lead,
@@ -536,6 +538,10 @@ export default async function LeadDetailPage({ params }: PageProps) {
               viewerRole={userRole}
               initialFollowUpDrafts={initialFollowUpDrafts}
             />
+
+            <Suspense fallback={<LeadWhatsAppSkeleton />}>
+              <LeadDossierWhatsAppAsync leadId={lead.id} />
+            </Suspense>
 
             <Suspense fallback={<LeadContextChatSkeleton />}>
               <LeadDossierContextChatAsync

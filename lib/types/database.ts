@@ -38,6 +38,22 @@ export interface Message {
   lead?: MessageLeadPreview | null;
 }
 
+/** Meta WhatsApp Cloud API — persisted thread on the lead dossier */
+export type WhatsAppMessageDirection = "inbound" | "outbound";
+export type WhatsAppMessageType = "text" | "template" | "image";
+export type WhatsAppDeliveryStatus = "sent" | "delivered" | "read" | "failed";
+
+export interface WhatsAppMessage {
+  id: string;
+  lead_id: string;
+  direction: WhatsAppMessageDirection;
+  message_type: WhatsAppMessageType;
+  content: string;
+  status: WhatsAppDeliveryStatus;
+  wa_message_id: string | null;
+  created_at: string;
+}
+
 // ── Enums — must match the PostgreSQL enum values exactly ──
 // Strict 8-stage pipeline: new → attempted → connected → in_discussion → won | nurturing | lost | trash
 
@@ -53,43 +69,36 @@ export type LeadStatus =
 
 /** Domain display config for sidebar badge, switcher, and table pills (Quiet Luxury) */
 export const DOMAIN_DISPLAY_CONFIG: Record<
-  string,
+  IndulgeDomain | string,
   { label: string; ringColor: string; shortLabel: string; pillBg: string; pillColor: string }
 > = {
-  indulge_global: {
-    label: "Indulge Global Workspace",
-    shortLabel: "Global",
+  indulge_concierge: {
+    label: "Indulge Concierge",
+    shortLabel: "Concierge",
     ringColor: "rgba(99, 102, 241, 0.5)",
     pillBg: "#EEF2FF",
     pillColor: "#4F46E5",
   },
   indulge_house: {
-    label: "Indulge House Workspace",
+    label: "Indulge House",
     shortLabel: "House",
     ringColor: "rgba(212, 175, 55, 0.4)",
     pillBg: "#FEF3C7",
     pillColor: "#A88B25",
   },
   indulge_shop: {
-    label: "Indulge Shop Workspace",
+    label: "Indulge Shop",
     shortLabel: "Shop",
     ringColor: "rgba(16, 185, 129, 0.45)",
     pillBg: "#D1FAE5",
     pillColor: "#0D9488",
   },
   indulge_legacy: {
-    label: "Indulge Legacy Workspace",
+    label: "Indulge Legacy",
     shortLabel: "Legacy",
     ringColor: "rgba(107, 114, 128, 0.4)",
     pillBg: "#F4F4F5",
     pillColor: "#6B7280",
-  },
-  the_indulge_house: {
-    label: "Indulge House Workspace",
-    shortLabel: "House",
-    ringColor: "rgba(212, 175, 55, 0.4)",
-    pillBg: "#FEF3C7",
-    pillColor: "#A88B25",
   },
 };
 
@@ -105,13 +114,36 @@ export const LEAD_STATUS_ORDER: LeadStatus[] = [
   "trash",
 ];
 
-export type UserRole = "agent" | "scout" | "admin" | "finance";
+export type UserRole = "admin" | "founder" | "manager" | "agent" | "guest";
+
+/** Roles that can mutate data (used for UI guardrails) */
+export const MUTABLE_ROLES: UserRole[] = ["admin", "founder", "manager", "agent"];
+
+/** Roles with cross-domain visibility */
+export const GLOBAL_ROLES: UserRole[] = ["admin", "founder"];
 
 export type AdPlatform = "meta" | "google" | "website" | "events" | "referral";
 
 export type DraftStatus = "draft" | "approved" | "deployed";
 
 export type TaskStatus = "pending" | "completed" | "overdue";
+
+/** Shop workspace — must match shop_orders.status CHECK */
+export type ShopOrderStatus =
+  | "pending"
+  | "processing"
+  | "shipped"
+  | "delivered"
+  | "cancelled";
+
+/** Shop master targets — must match shop_master_targets.priority CHECK */
+export type ShopMasterTargetPriority = "super_high" | "high" | "normal";
+
+/** Shop task collaboration mode — `tasks.shop_operation_scope` CHECK */
+export type ShopOperationScope = "individual" | "group";
+
+/** Shop master targets — must match shop_master_targets.status CHECK */
+export type ShopMasterTargetStatus = "active" | "completed";
 
 export type TaskType =
   | "call"
@@ -137,10 +169,10 @@ export type ActivityType =
 
 /** Multi-tenant domain — must match PostgreSQL indulge_domain enum */
 export type IndulgeDomain =
-  | "indulge_global"
-  | "indulge_house"
+  | "indulge_concierge"
   | "indulge_shop"
-  | "indulge_legacy"; // Legacy; prefer indulge_house
+  | "indulge_house"
+  | "indulge_legacy";
 
 // ── Task type groupings ────────────────────────────────────
 
@@ -152,12 +184,15 @@ export const AGENT_TASK_TYPES: TaskType[] = [
   "email",
 ];
 
-export const SCOUT_TASK_TYPES: TaskType[] = [
+export const MANAGER_TASK_TYPES: TaskType[] = [
   "campaign_review",
   "strategy_meeting",
   "budget_approval",
   "performance_analysis",
 ];
+
+/** @deprecated Use MANAGER_TASK_TYPES */
+export const SCOUT_TASK_TYPES = MANAGER_TASK_TYPES;
 
 export const ALL_TASK_TYPES: TaskType[] = [
   ...AGENT_TASK_TYPES,
@@ -354,6 +389,14 @@ export interface Task {
   progress_updates: TaskProgressUpdate[];
   follow_up_step: number;
   follow_up_history: FollowUpHistoryEntry[];
+  /** Shop ops: individual vs group (distinct from `task_type` enum). */
+  shop_operation_scope?: ShopOperationScope;
+  target_inventory?: number | null;
+  target_sold?: number;
+  shop_task_priority?: ShopMasterTargetPriority;
+  /** Shop deadline; UI falls back to `due_date` when null. */
+  deadline?: string | null;
+  shop_product_name?: string | null;
   created_at: string;
   updated_at: string;
   // Joined
@@ -421,6 +464,49 @@ export interface Database {
         }>;
         Relationships: [];
       };
+      onboarding_leads: {
+        Row: {
+          id: string;
+          client_name: string;
+          amount: number;
+          agent_name: string;
+          assigned_to: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          client_name: string;
+          amount: number;
+          agent_name: string;
+          assigned_to: string;
+          created_at?: string;
+        };
+        Update: Partial<{
+          client_name: string;
+          amount: number;
+          agent_name: string;
+          assigned_to: string;
+        }>;
+        Relationships: [];
+      };
+      whatsapp_messages: {
+        Row: WhatsAppMessage;
+        Insert: Omit<WhatsAppMessage, "id" | "created_at"> & {
+          id?: string;
+          created_at?: string;
+        };
+        Update: Partial<
+          Pick<
+            WhatsAppMessage,
+            | "content"
+            | "status"
+            | "wa_message_id"
+            | "message_type"
+            | "direction"
+          >
+        >;
+        Relationships: [];
+      };
       lead_activities: {
         Row: LeadActivity;
         Insert: Omit<LeadActivity, "id" | "created_at" | "agent">;
@@ -437,11 +523,23 @@ export interface Database {
           | "created_by_profile"
           | "assigned_to_profile"
           | "assigned_to_profiles"
+          | "shop_operation_scope"
+          | "target_inventory"
+          | "target_sold"
+          | "shop_task_priority"
+          | "deadline"
+          | "shop_product_name"
         > & {
           created_by?: string | null;
           progress_updates?: TaskProgressUpdate[];
           follow_up_step?: number;
           follow_up_history?: FollowUpHistoryEntry[];
+          shop_operation_scope?: ShopOperationScope;
+          target_inventory?: number | null;
+          target_sold?: number;
+          shop_task_priority?: ShopMasterTargetPriority;
+          deadline?: string | null;
+          shop_product_name?: string | null;
         };
         Update: Partial<
           Omit<
@@ -465,6 +563,10 @@ export interface Database {
       ad_platform: AdPlatform;
     };
     Functions: {
+      increment_shop_task_target_sold: {
+        Args: { p_task_id: string };
+        Returns: number;
+      };
       assign_next_agent: {
         Args: Record<never, never>;
         Returns: string;
