@@ -1,13 +1,43 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Eye, EyeOff, Loader2, ArrowLeft } from "lucide-react";
+import { Eye, EyeOff, ArrowLeft, Check, Circle, X } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 import { updatePassword } from "@/lib/actions/auth";
 import { toast } from "sonner";
-import { updatePasswordSchema } from "@/lib/schemas/password";
+import { mapAuthError, mapAuthQueryError } from "@/lib/utils/auth-errors";
+import { IndulgeField } from "@/components/ui/indulge-field";
+import { IndulgeButton } from "@/components/ui/indulge-button";
+import { Input } from "@/components/ui/input";
+
+function passwordRequirements(pw: string) {
+  return {
+    len: pw.length >= 8,
+    upper: /[A-Z]/.test(pw),
+    lower: /[a-z]/.test(pw),
+    digit: /[0-9]/.test(pw),
+  };
+}
+
+function allRequirementsMet(req: ReturnType<typeof passwordRequirements>) {
+  return req.len && req.upper && req.lower && req.digit;
+}
+
+function PasswordReqRow({ met, label }: { met: boolean; label: string }) {
+  return (
+    <div className="flex items-center gap-2 text-[12px]">
+      {met ? (
+        <Check className="w-3.5 h-3.5 shrink-0 text-[#D4AF37]" strokeWidth={2.5} />
+      ) : (
+        <Circle className="w-3 h-3 shrink-0 text-[#5A5550]" />
+      )}
+      <span className={met ? "text-[#C5A059]" : "text-[#6B6560]"}>{label}</span>
+    </div>
+  );
+}
 
 export default function UpdatePasswordPage() {
   const router = useRouter();
@@ -18,51 +48,110 @@ export default function UpdatePasswordPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [linkExpired, setLinkExpired] = useState(false);
+  const [sessionEmail, setSessionEmail] = useState<string | null>(null);
+  const [flow, setFlow] = useState<"first" | "reset" | null>(null);
 
+  const isWelcomeJourney = flow === "first";
+  const isResetJourney = flow === "reset";
+  const copyReady = flow !== null;
+
+  const reqs = useMemo(() => passwordRequirements(newPassword), [newPassword]);
+  const passwordsMatch =
+    confirmPassword.length > 0 && newPassword === confirmPassword;
+  const passwordsMismatch =
+    confirmPassword.length > 0 && newPassword !== confirmPassword;
+  const canSubmit =
+    allRequirementsMet(reqs) && passwordsMatch && !loading;
+
+  // Sync URL + session once on mount (client-only).
+  /* eslint-disable react-hooks/set-state-in-effect -- intentional hydration of flow from searchParams */
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("error") === "Invalid_Link") {
+    const err = params.get("error");
+    const f = params.get("flow");
+    if (f === "first" || f === "reset") setFlow(f);
+    if (err === "Invalid_Link" || err === "auth_callback_failed") {
       setLinkExpired(true);
+      return;
     }
+
+    const supabase = createClient();
+    void supabase.auth.getUser().then((res) => {
+      const user = res.data.user;
+      if (!user) {
+        setLinkExpired(true);
+        return;
+      }
+      setSessionEmail(user.email ?? null);
+      if (f === "first" || f === "reset") {
+        return;
+      }
+      const created = new Date(user.created_at ?? 0).getTime();
+      const confirmedAt = user.email_confirmed_at
+        ? new Date(user.email_confirmed_at).getTime()
+        : null;
+      if (!confirmedAt || confirmedAt - created < 120_000) {
+        setFlow("first");
+      } else {
+        setFlow("reset");
+      }
+    });
   }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
 
-    const parsed = updatePasswordSchema.safeParse({
-      newPassword,
-      confirmPassword,
-    });
-
-    if (!parsed.success) {
-      const firstIssue = parsed.error.issues[0];
-      setError(firstIssue?.message ?? "Invalid input");
+    if (!allRequirementsMet(reqs)) {
+      setError("Please meet all password requirements.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError("Passwords do not match.");
       return;
     }
 
     setLoading(true);
-    const result = await updatePassword(parsed.data.newPassword);
+    const result = await updatePassword(newPassword);
     setLoading(false);
 
     if (result.success) {
-      toast.success("Password updated successfully", {
+      toast.success("Welcome to Atlas", {
+        description: "Your password is set. Loading your workspace…",
         style: { borderColor: "rgba(212,175,55,0.4)" },
       });
-      router.push("/login");
+      router.push("/");
       router.refresh();
     } else {
+      const msg = result.error ?? mapAuthError(null);
       if (
-        result.error?.toLowerCase().includes("expired") ||
-        result.error?.toLowerCase().includes("invalid") ||
-        result.error?.toLowerCase().includes("session")
+        msg.toLowerCase().includes("expired") ||
+        msg.toLowerCase().includes("invalid") ||
+        msg.toLowerCase().includes("session") ||
+        msg.toLowerCase().includes("not authenticated")
       ) {
         setLinkExpired(true);
       } else {
-        setError(result.error ?? "Something went wrong.");
+        toast.error(msg);
+        setError(msg);
       }
     }
   }
+
+  const heading = !copyReady
+    ? "Set your password"
+    : isWelcomeJourney
+      ? "Welcome to Indulge Atlas"
+      : "Set your new password";
+
+  const subtext = !copyReady
+    ? "Loading your session…"
+    : isWelcomeJourney
+      ? "Set your password to get started. You are signing in as:"
+      : isResetJourney
+        ? "Choose a strong password you have not used here before."
+        : "Choose a strong password for your account.";
 
   if (linkExpired) {
     return (
@@ -104,13 +193,13 @@ export default function UpdatePasswordPage() {
                 letterSpacing: "-0.01em",
               }}
             >
-              Link Expired
+              Link expired
             </h1>
             <p
               className="text-[#5A5550] text-sm mb-10 leading-relaxed"
               style={{ letterSpacing: "0.02em" }}
             >
-              This link has expired. Please request a new one.
+              {mapAuthQueryError("auth_callback_failed")}
             </p>
             <Link
               href="/forgot-password"
@@ -122,7 +211,7 @@ export default function UpdatePasswordPage() {
               }}
             >
               <ArrowLeft className="w-4 h-4" />
-              Request New Link
+              Request new link
             </Link>
           </div>
         </motion.div>
@@ -132,10 +221,9 @@ export default function UpdatePasswordPage() {
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center overflow-hidden px-6"
+      className="min-h-screen flex items-center justify-center overflow-hidden px-6 py-12"
       style={{ background: "#121212" }}
     >
-      {/* Grain texture */}
       <div
         className="pointer-events-none fixed inset-0 z-0 opacity-[0.035]"
         style={{
@@ -160,7 +248,6 @@ export default function UpdatePasswordPage() {
               "0 24px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(212,175,55,0.06)",
           }}
         >
-          {/* Heading */}
           <h1
             className="text-[#F5F0E8] leading-tight mb-2"
             style={{
@@ -171,86 +258,106 @@ export default function UpdatePasswordPage() {
               letterSpacing: "-0.01em",
             }}
           >
-            Create New Password
+            {heading}
           </h1>
           <p
-            className="text-[#5A5550] text-sm mb-10 leading-relaxed"
+            className="text-[#5A5550] text-sm mb-2 leading-relaxed"
             style={{ letterSpacing: "0.02em" }}
           >
-            Enter your new password below. Use at least 8 characters with one
-            uppercase letter and one number.
+            {subtext}
           </p>
+          {sessionEmail && isWelcomeJourney && (
+            <p className="text-[#D4AF37]/90 text-sm font-medium mb-8 break-all">
+              {sessionEmail}
+            </p>
+          )}
+          {!(sessionEmail && isWelcomeJourney) && <div className="mb-8" />}
 
-          <form onSubmit={handleSubmit} className="space-y-8">
-            <div className="group">
-              <label className="block text-[#5A5550] text-[9px] tracking-[0.45em] uppercase font-medium mb-3">
-                New Password
-              </label>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <IndulgeField label="New password" required htmlFor="new-password">
               <div className="relative">
-                <input
+                <Input
+                  id="new-password"
                   type={showNewPassword ? "text" : "password"}
+                  size="lg"
                   placeholder="••••••••••••"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  required
                   autoComplete="new-password"
                   disabled={loading}
-                  className="w-full bg-transparent text-[#F5F0E8] text-sm pb-3 pr-10 outline-none placeholder:text-[#2E2B27] border-b transition-all duration-300 disabled:opacity-60"
-                  style={{
-                    borderBottomColor: newPassword
-                      ? "rgba(212,175,55,0.6)"
-                      : "rgba(255,255,255,0.08)",
-                    caretColor: "#D4AF37",
-                  }}
+                  className="pr-10"
                 />
                 <button
                   type="button"
                   onClick={() => setShowNewPassword(!showNewPassword)}
-                  className="absolute right-0 bottom-3 text-[#3A3530] hover:text-[#D4AF37]/60 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8A8A6E] hover:text-[#D4AF37]/80 transition-colors"
+                  aria-label={showNewPassword ? "Hide password" : "Show password"}
                 >
                   {showNewPassword ? (
-                    <EyeOff className="w-3.5 h-3.5" />
+                    <EyeOff className="w-4 h-4" />
                   ) : (
-                    <Eye className="w-3.5 h-3.5" />
+                    <Eye className="w-4 h-4" />
                   )}
                 </button>
               </div>
+            </IndulgeField>
+
+            <div
+              className="rounded-lg border border-[#2A2824] bg-[#161513]/80 px-3 py-3 space-y-1.5 -mt-2"
+              aria-live="polite"
+            >
+              <p className="text-[10px] uppercase tracking-[0.2em] text-[#6B6560] mb-2">
+                Password requirements
+              </p>
+              <PasswordReqRow met={reqs.len} label="At least 8 characters" />
+              <PasswordReqRow met={reqs.upper} label="One uppercase letter" />
+              <PasswordReqRow met={reqs.lower} label="One lowercase letter" />
+              <PasswordReqRow met={reqs.digit} label="One number" />
             </div>
 
-            <div className="group">
-              <label className="block text-[#5A5550] text-[9px] tracking-[0.45em] uppercase font-medium mb-3">
-                Confirm New Password
-              </label>
+            <IndulgeField
+              label="Confirm password"
+              required
+              htmlFor="confirm-password"
+              error={passwordsMismatch ? "Passwords do not match" : undefined}
+            >
               <div className="relative">
-                <input
+                <Input
+                  id="confirm-password"
                   type={showConfirmPassword ? "text" : "password"}
+                  size="lg"
                   placeholder="••••••••••••"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
                   autoComplete="new-password"
                   disabled={loading}
-                  className="w-full bg-transparent text-[#F5F0E8] text-sm pb-3 pr-10 outline-none placeholder:text-[#2E2B27] border-b transition-all duration-300 disabled:opacity-60"
-                  style={{
-                    borderBottomColor: confirmPassword
-                      ? "rgba(212,175,55,0.6)"
-                      : "rgba(255,255,255,0.08)",
-                    caretColor: "#D4AF37",
-                  }}
+                  error={passwordsMismatch}
+                  className="pr-16"
                 />
+                <div className="absolute right-10 top-1/2 -translate-y-1/2 flex items-center">
+                  {passwordsMatch && (
+                    <Check className="w-4 h-4 text-emerald-500" strokeWidth={2.5} />
+                  )}
+                  {passwordsMismatch && (
+                    <X className="w-4 h-4 text-[#C0392B]" strokeWidth={2.5} />
+                  )}
+                </div>
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-0 bottom-3 text-[#3A3530] hover:text-[#D4AF37]/60 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8A8A6E] hover:text-[#D4AF37]/80 transition-colors"
+                  aria-label={
+                    showConfirmPassword ? "Hide password" : "Show password"
+                  }
                 >
                   {showConfirmPassword ? (
-                    <EyeOff className="w-3.5 h-3.5" />
+                    <EyeOff className="w-4 h-4" />
                   ) : (
-                    <Eye className="w-3.5 h-3.5" />
+                    <Eye className="w-4 h-4" />
                   )}
                 </button>
               </div>
-            </div>
+            </IndulgeField>
 
             {error && (
               <motion.div
@@ -268,33 +375,22 @@ export default function UpdatePasswordPage() {
             )}
 
             <div className="pt-2 space-y-6">
-              <button
+              <IndulgeButton
                 type="submit"
-                disabled={loading}
-                className="group relative w-full flex items-center justify-center gap-2 px-6 py-4 text-[#090807] text-sm font-semibold tracking-widest uppercase overflow-hidden transition-all duration-300 disabled:opacity-50"
-                style={{
-                  background:
-                    "linear-gradient(135deg, #D4AF37 0%, #E8D06A 50%, #D4AF37 100%)",
-                  backgroundSize: "200% 100%",
-                  letterSpacing: "0.12em",
-                }}
+                variant="gold"
+                className="w-full tracking-widest uppercase"
+                loading={loading}
+                disabled={!canSubmit}
               >
-                {loading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Updating</span>
-                  </>
-                ) : (
-                  "Update Password"
-                )}
-              </button>
+                Set Password & Enter Atlas
+              </IndulgeButton>
 
               <Link
                 href="/login"
                 className="flex items-center gap-2 text-[#5A5550] hover:text-[#D4AF37]/80 text-xs tracking-wider uppercase transition-colors"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
-                Back to Login
+                Back to login
               </Link>
             </div>
           </form>

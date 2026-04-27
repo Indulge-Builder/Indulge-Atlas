@@ -26,6 +26,7 @@ import { updateUserProfileSchema } from "@/lib/validations/user";
 import type { IndulgeDomain, Profile, UserRole } from "@/lib/types/database";
 import { DOMAIN_DISPLAY_CONFIG } from "@/lib/types/database";
 import { cn } from "@/lib/utils";
+import { mapAuthError } from "@/lib/utils/auth-errors";
 
 const DOMAIN_OPTIONS: IndulgeDomain[] = [
   "indulge_concierge",
@@ -103,7 +104,7 @@ export function EditUserModal({ open, onClose, onSuccess, profile }: EditUserMod
     setLoading(false);
 
     if (!result.success) {
-      setError(result.error ?? "Failed to update user.");
+      setError(mapAuthError(result.error ?? null));
       return;
     }
 

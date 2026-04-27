@@ -1,11 +1,10 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { passwordSchema } from "@/lib/schemas/password";
-
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+import { getPublicSiteUrl } from "@/lib/utils/site-url";
+import { mapAuthError } from "@/lib/utils/auth-errors";
 
 export type AuthActionResult = { success: boolean; error?: string };
 
@@ -13,19 +12,47 @@ export async function resetPasswordForEmail(email: string): Promise<AuthActionRe
   return requestPasswordReset(email);
 }
 
+/**
+ * Sends a password reset email. `redirectTo` must use `NEXT_PUBLIC_SITE_URL` (see `getPublicSiteUrl`).
+ * Always returns the same success shape for unknown emails (enumeration-safe), except rate limits and misconfiguration.
+ */
 export async function requestPasswordReset(email: string): Promise<AuthActionResult> {
+  let siteUrl: string;
+  try {
+    siteUrl = getPublicSiteUrl();
+  } catch (e) {
+    return {
+      success: false,
+      error: mapAuthError(e instanceof Error ? e.message : null),
+    };
+  }
+
   try {
     const supabase = await createClient();
+    const redirectTo = `${siteUrl}/auth/callback?next=/update-password&flow=reset`;
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${BASE_URL}/auth/callback?next=/update-password`,
+      redirectTo,
     });
 
-    if (error) return { success: false, error: error.message };
+    if (error) {
+      const low = error.message.toLowerCase();
+      if (
+        low.includes("rate") ||
+        low.includes("too many") ||
+        error.status === 429
+      ) {
+        return { success: false, error: mapAuthError(error.message) };
+      }
+    }
+
     return { success: true };
   } catch (e) {
-    const message = e instanceof Error ? e.message : "Unexpected error";
-    return { success: false, error: message };
+    const message = e instanceof Error ? e.message : "";
+    if (message.includes("NEXT_PUBLIC_SITE_URL") || message.includes("not set")) {
+      return { success: false, error: mapAuthError(message) };
+    }
+    return { success: true };
   }
 }
 
@@ -33,7 +60,12 @@ export async function updatePassword(newPassword: string): Promise<AuthActionRes
   try {
     const validation = passwordSchema.safeParse(newPassword);
     if (!validation.success) {
-      return { success: false, error: validation.error.issues[0]?.message ?? "Invalid password" };
+      return {
+        success: false,
+        error:
+          validation.error.issues[0]?.message ??
+          mapAuthError("Invalid password"),
+      };
     }
 
     const supabase = await createClient();
@@ -41,19 +73,22 @@ export async function updatePassword(newPassword: string): Promise<AuthActionRes
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user) return { success: false, error: "Not authenticated" };
+    if (!user) return { success: false, error: mapAuthError("Not authenticated") };
 
     const { error } = await supabase.auth.updateUser({ password: newPassword });
 
-    if (error) return { success: false, error: error.message };
+    if (error) return { success: false, error: mapAuthError(error.message) };
 
-    // Sign out after password change so user logs in with new password (security best practice)
-    await supabase.auth.signOut();
-    revalidatePath("/profile");
+    const { error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) {
+      return { success: false, error: mapAuthError(sessionError.message) };
+    }
+
+    revalidatePath("/", "layout");
     revalidatePath("/login");
     return { success: true };
   } catch (e) {
-    const message = e instanceof Error ? e.message : "Unexpected error";
-    return { success: false, error: message };
+    const message = e instanceof Error ? e.message : "";
+    return { success: false, error: mapAuthError(message) };
   }
 }

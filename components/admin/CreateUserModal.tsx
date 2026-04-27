@@ -42,6 +42,7 @@ import { Input } from "@/components/ui/input";
 import { IndulgeField } from "@/components/ui/indulge-field";
 import { cn } from "@/lib/utils";
 import { createUser, checkEmailExists, getProfilesForReportsTo } from "@/lib/actions/admin";
+import { mapAuthError } from "@/lib/utils/auth-errors";
 import { createUserSchema, type CreateUserInput } from "@/lib/validations/user";
 import type { EmployeeDepartment, IndulgeDomain, UserRole, Profile } from "@/lib/types/database";
 import {
@@ -291,7 +292,7 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
       setIsSubmitting(false);
 
       if (!result.success) {
-        setSubmitError(result.error ?? "Failed to create user.");
+        setSubmitError(mapAuthError(result.error ?? null));
         return;
       }
 

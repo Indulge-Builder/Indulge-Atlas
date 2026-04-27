@@ -49,8 +49,15 @@ import type {
   ChecklistItem,
   TaskWithLead,
   TaskProgressUpdate,
+  Project,
+  ProjectTask,
+  TaskComment,
+  ProjectProgressUpdate,
+  TaskStatus,
+  TaskAttachment,
 } from "@/lib/types/database";
 import { ATLAS_SYSTEM_AUTHOR_ID } from "@/lib/types/database";
+import { isAfter } from "date-fns";
 
 // ── Action result shape ────────────────────────────────────
 
@@ -1110,6 +1117,15 @@ export async function updateSubTaskProgress(
   }
 }
 
+/** Project board / sheet — `(taskId, progress, note?)` for client components. */
+export async function updateTaskProgress(
+  taskId: string,
+  newProgress: number,
+  note?: string,
+): Promise<ActionResult> {
+  return updateSubTaskProgress({ task_id: taskId, new_progress: newProgress, note });
+}
+
 export async function assignSubTask(
   taskId: unknown,
   assigneeId: unknown,
@@ -2162,5 +2178,448 @@ export async function getLeadsForTaskModal(opts?: {
     return (data ?? []) as { id: string; first_name: string; last_name: string | null; phone_number: string; status: string }[];
   } catch {
     return [];
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Project board (CRM /projects) — `projects` table + task_comments + children
+// ─────────────────────────────────────────────────────────────────────────────
+
+function mapAtlasToProjectStatus(
+  atlas: AtlasTaskStatus,
+  dueDate: string | null,
+): TaskStatus {
+  if (atlas === "done" || atlas === "cancelled") return "completed";
+  if (dueDate && isAfter(new Date(), new Date(dueDate))) return "overdue";
+  return "pending";
+}
+
+function rowToProjectTask(
+  row: Record<string, unknown>,
+  profileMap: Map<string, Pick<Profile, "id" | "full_name" | "role">>,
+): ProjectTask {
+  const atlas = (row.atlas_status as AtlasTaskStatus) ?? "todo";
+  const due = (row.due_date as string | null) ?? null;
+  const userIds = (row.assigned_to_users as string[] | null) ?? [];
+  return {
+    id:                row.id as string,
+    project_id:        (row.project_id as string) ?? "",
+    group_id:          (row.group_id as string | null) ?? null,
+    parent_task_id:    (row.parent_task_id as string | null) ?? null,
+    title:             (row.title as string) ?? "",
+    notes:             (row.notes as string | null) ?? null,
+    status:            mapAtlasToProjectStatus(atlas, due),
+    priority:          (row.priority as ProjectTask["priority"]) ?? "medium",
+    progress:          (row.progress as number) ?? 0,
+    due_date:          due,
+    assigned_to_users: userIds,
+    estimated_minutes: (row.estimated_minutes as number | null) ?? null,
+    actual_minutes:    (row.actual_minutes as number | null) ?? null,
+    position:          (row.position as number) ?? 0,
+    tags:              (row.tags as string[]) ?? [],
+    attachments:       (Array.isArray(row.attachments) ? row.attachments : []) as unknown as TaskAttachment[],
+    created_by:        (row.created_by as string | null) ?? null,
+    created_at:        (row.created_at as string) ?? "",
+    updated_at:        (row.updated_at as string) ?? "",
+    assigned_to_profiles: userIds
+      .map((id) => profileMap.get(id))
+      .filter(Boolean) as Pick<Profile, "id" | "full_name" | "role">[],
+  };
+}
+
+/** Project header + groups + members (projects table; id matches master task id). */
+export async function getProject(
+  projectId: string,
+): Promise<ActionResult<Project>> {
+  const parsed = uuidSchema.safeParse(projectId);
+  if (!parsed.success) return { success: false, error: "Invalid project ID" };
+  try {
+    const { supabase, user, role } = await getAuthUser();
+    const canView = await assertMasterTaskAccess(
+      supabase,
+      parsed.data,
+      user.id,
+      role,
+    );
+    if (!canView) return { success: false, error: "Not found" };
+
+    const { data: proj, error: pErr } = await supabase
+      .from("projects")
+      .select("id, title, description, status, owner_id, department, domain, color, icon, due_date, created_at, updated_at")
+      .eq("id", parsed.data)
+      .single();
+
+    if (pErr || !proj) return { success: false, error: "Not found" };
+
+    const [{ data: groups }, { data: members }] = await Promise.all([
+      supabase
+        .from("task_groups")
+        .select("id, project_id, title, description, status, position, due_date, created_by, created_at, updated_at")
+        .eq("project_id", parsed.data)
+        .order("position", { ascending: true }),
+      supabase
+        .from("project_members")
+        .select("id, project_id, user_id, role, added_by, added_at, profile:profiles!user_id(id, full_name, role)")
+        .eq("project_id", parsed.data),
+    ]);
+
+    return {
+      success: true,
+      data: {
+        ...(proj as unknown as Project),
+        task_groups: (groups ?? []) as unknown as TaskGroup[],
+        members:     (members ?? []) as unknown as Project["members"],
+      },
+    };
+  } catch (err) {
+    console.error("[getProject]", err);
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+/** Top-level board tasks (subtasks in groups, not nested under another subtask). */
+export async function getProjectTasks(
+  projectId: string,
+): Promise<ActionResult<ProjectTask[]>> {
+  const parsed = uuidSchema.safeParse(projectId);
+  if (!parsed.success) return { success: false, error: "Invalid project ID" };
+  try {
+    const { supabase, user, role } = await getAuthUser();
+    if (!(await assertMasterTaskAccess(supabase, parsed.data, user.id, role)))
+      return { success: false, error: "Not found" };
+
+    const { data: rows, error } = await supabase
+      .from("tasks")
+      .select(
+        "id, project_id, group_id, parent_task_id, title, notes, atlas_status, priority, progress, due_date, assigned_to_users, estimated_minutes, actual_minutes, position, tags, attachments, created_by, created_at, updated_at",
+      )
+      .eq("project_id", parsed.data)
+      .eq("unified_task_type", "subtask")
+      .is("parent_task_id", null)
+      .order("position", { ascending: true });
+
+    if (error) return { success: false, error: "Failed to load tasks" };
+
+    const allUserIds = new Set<string>();
+    for (const r of rows ?? []) {
+      for (const id of (r.assigned_to_users as string[] | null) ?? []) {
+        allUserIds.add(id);
+      }
+    }
+    let profileMap = new Map<string, Pick<Profile, "id" | "full_name" | "role">>();
+    if (allUserIds.size > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, full_name, role")
+        .in("id", [...allUserIds]);
+      for (const p of profiles ?? [])
+        profileMap.set(p.id, p as Pick<Profile, "id" | "full_name" | "role">);
+    }
+
+    return {
+      success: true,
+      data:   (rows ?? []).map((r) => rowToProjectTask(r as unknown as Record<string, unknown>, profileMap)),
+    };
+  } catch (err) {
+    console.error("[getProjectTasks]", err);
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+export async function getTaskDetail(
+  taskId: string,
+): Promise<
+  ActionResult<{
+    task: ProjectTask;
+    comments: TaskComment[];
+    progress_updates: ProjectProgressUpdate[];
+    sub_tasks: ProjectTask[];
+  }>
+> {
+  const parsed = uuidSchema.safeParse(taskId);
+  if (!parsed.success) return { success: false, error: "Invalid task ID" };
+  try {
+    const { supabase, user, role } = await getAuthUser();
+    const { data: topTask, error: tErr } = await supabase
+      .from("tasks")
+      .select(
+        "id, project_id, group_id, parent_task_id, title, notes, atlas_status, priority, progress, due_date, assigned_to_users, estimated_minutes, actual_minutes, position, tags, attachments, created_by, created_at, updated_at",
+      )
+      .eq("id", parsed.data)
+      .single();
+    if (tErr || !topTask) return { success: false, error: "Task not found" };
+    if (!(await assertMasterTaskAccess(supabase, topTask.project_id as string, user.id, role)))
+      return { success: false, error: "Not found" };
+
+    const [
+      { data: children },
+      { data: commentRows },
+      { data: progressRows },
+    ] = await Promise.all([
+      supabase
+        .from("tasks")
+        .select(
+          "id, project_id, group_id, parent_task_id, title, notes, atlas_status, priority, progress, due_date, assigned_to_users, estimated_minutes, actual_minutes, position, tags, attachments, created_by, created_at, updated_at",
+        )
+        .eq("parent_task_id", parsed.data)
+        .order("position", { ascending: true }),
+      supabase
+        .from("task_comments")
+        .select(
+          "id, task_id, author_id, content, edited_at, is_system, created_at, author:profiles!author_id(id, full_name, role)",
+        )
+        .eq("task_id", parsed.data)
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("task_progress_updates")
+        .select(
+          "id, task_id, updated_by, previous_progress, new_progress, previous_status, new_status, note, created_at, updater:profiles!updated_by(id, full_name)",
+        )
+        .eq("task_id", parsed.data)
+        .order("created_at", { ascending: true }),
+    ]);
+
+    const cids = new Set<string>();
+    for (const t of [topTask, ...((children ?? []) as object[])]) {
+      for (const id of ((t as { assigned_to_users?: string[] | null })?.assigned_to_users ?? []))
+        cids.add(id);
+    }
+    const profileMap = new Map<string, Pick<Profile, "id" | "full_name" | "role">>();
+    if (cids.size > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, full_name, role")
+        .in("id", [...cids]);
+      for (const p of profiles ?? [])
+        profileMap.set(p.id, p as Pick<Profile, "id" | "full_name" | "role">);
+    }
+
+    const baseRow = topTask as unknown as Record<string, unknown>;
+    const mapComments = (commentRows ?? []) as unknown as TaskComment[];
+    const mapProgress = (progressRows ?? []) as unknown as ProjectProgressUpdate[];
+
+    return {
+      success: true,
+      data: {
+        task:             rowToProjectTask(baseRow, profileMap),
+        comments:         mapComments,
+        progress_updates: mapProgress,
+        sub_tasks:        (children ?? []).map((c) => rowToProjectTask(c as unknown as Record<string, unknown>, profileMap)),
+      },
+    };
+  } catch (err) {
+    console.error("[getTaskDetail]", err);
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+export async function addComment(
+  taskId: string,
+  content: string,
+): Promise<ActionResult<{ id: string }>> {
+  const tParsed = uuidSchema.safeParse(taskId);
+  if (!tParsed.success) return { success: false, error: "Invalid task" };
+  const text = content.trim();
+  if (!text) return { success: false, error: "Comment is empty" };
+  try {
+    const { supabase, user, role } = await getAuthUser();
+    const { data: t } = await supabase
+      .from("tasks")
+      .select("project_id")
+      .eq("id", tParsed.data)
+      .single();
+    if (!t || !t.project_id) return { success: false, error: "Task not found" };
+    if (!(await assertMasterTaskAccess(supabase, t.project_id as string, user.id, role)))
+      return { success: false, error: "Not authorized" };
+
+    const { data, error } = await supabase
+      .from("task_comments")
+      .insert({ task_id: tParsed.data, author_id: user.id, content: sanitizeText(text) })
+      .select("id")
+      .single();
+    if (error || !data) return { success: false, error: "Failed to add comment" };
+    revalidatePath("/projects", "page");
+    revalidatePath(`/projects/${t.project_id as string}`, "page");
+    return { success: true, data: { id: data.id } };
+  } catch (err) {
+    console.error("[addComment]", err);
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+export async function editComment(
+  commentId: string,
+  content: string,
+): Promise<ActionResult> {
+  const cParsed = uuidSchema.safeParse(commentId);
+  if (!cParsed.success) return { success: false, error: "Invalid comment" };
+  const text = content.trim();
+  if (!text) return { success: false, error: "Comment is empty" };
+  try {
+    const { supabase, user, role } = await getAuthUser();
+    const { data: cRow } = await supabase
+      .from("task_comments")
+      .select("id, task_id, author_id")
+      .eq("id", cParsed.data)
+      .single();
+    if (!cRow) return { success: false, error: "Comment not found" };
+    if (cRow.author_id !== user.id && !isPrivilegedOrManager(role)) {
+      return { success: false, error: "Not authorized" };
+    }
+    const { data: tRow } = await supabase
+      .from("tasks")
+      .select("project_id")
+      .eq("id", cRow.task_id)
+      .single();
+    const pid = tRow?.project_id as string | undefined;
+    if (!pid || !(await assertMasterTaskAccess(supabase, pid, user.id, role)))
+      return { success: false, error: "Not found" };
+    const { error } = await supabase
+      .from("task_comments")
+      .update({ content: sanitizeText(text), edited_at: new Date().toISOString() })
+      .eq("id", cParsed.data);
+    if (error) return { success: false, error: "Failed to update" };
+    revalidatePath("/projects", "page");
+    revalidatePath(`/projects/${pid}`, "page");
+    return { success: true };
+  } catch (err) {
+    console.error("[editComment]", err);
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+export async function deleteComment(commentId: string): Promise<ActionResult> {
+  const cParsed = uuidSchema.safeParse(commentId);
+  if (!cParsed.success) return { success: false, error: "Invalid comment" };
+  try {
+    const { supabase, user, role } = await getAuthUser();
+    const { data: cRow } = await supabase
+      .from("task_comments")
+      .select("id, author_id, task_id")
+      .eq("id", cParsed.data)
+      .single();
+    if (!cRow) return { success: false, error: "Comment not found" };
+    if (cRow.author_id !== user.id && !isPrivilegedOrManager(role)) {
+      return { success: false, error: "Not authorized" };
+    }
+    const { data: tRow } = await supabase
+      .from("tasks")
+      .select("project_id")
+      .eq("id", cRow.task_id)
+      .single();
+    const pid = tRow?.project_id as string | undefined;
+    if (!pid || !(await assertMasterTaskAccess(supabase, pid, user.id, role))) {
+      return { success: false, error: "Not found" };
+    }
+    const { error } = await supabase.from("task_comments").delete().eq("id", cParsed.data);
+    if (error) return { success: false, error: "Failed to delete" };
+    revalidatePath("/projects", "page");
+    revalidatePath(`/projects/${pid}`, "page");
+    return { success: true };
+  } catch (err) {
+    console.error("[deleteComment]", err);
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+/** Add a subtask in a group from the board (inline add). */
+export async function createGroupTask(
+  groupId: string,
+  params: { title: string },
+): Promise<ActionResult<{ id: string }>> {
+  const gParsed = uuidSchema.safeParse(groupId);
+  if (!gParsed.success) return { success: false, error: "Invalid group" };
+  if (!params.title?.trim()) return { success: false, error: "Title is required" };
+  try {
+    const { supabase, user, role, domain, department } = await getAuthUser();
+    const { data: group } = await supabase
+      .from("task_groups")
+      .select("project_id")
+      .eq("id", gParsed.data)
+      .single();
+    if (!group?.project_id) return { success: false, error: "Group not found" };
+    if (!(await assertMasterTaskAccess(supabase, group.project_id, user.id, role)))
+      return { success: false, error: "Not authorized" };
+    return createSubTask({
+      master_task_id: group.project_id,
+      group_id:       gParsed.data,
+      title:          params.title.trim(),
+      priority:       "medium",
+    });
+  } catch (err) {
+    console.error("[createGroupTask]", err);
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+/**
+ * Nested sub-task in the task detail sheet (parent = another subtask row).
+ * Differs from board `createGroupTask` / `createSubTask` master-task form.
+ */
+export async function createProjectNestedSubTask(
+  parentTaskId: string,
+  params: { title: string },
+): Promise<ActionResult<{ id: string }>> {
+  const pParsed = uuidSchema.safeParse(parentTaskId);
+  if (!pParsed.success) return { success: false, error: "Invalid parent task" };
+  if (!params.title?.trim()) return { success: false, error: "Title is required" };
+  try {
+    const { supabase, user, role, domain, department } = await getAuthUser();
+    const { data: parent } = await supabase
+      .from("tasks")
+      .select("project_id, group_id, assigned_to_users, created_by")
+      .eq("id", pParsed.data)
+      .single();
+    if (!parent || !parent.project_id) {
+      return { success: false, error: "Parent not found" };
+    }
+    if (
+      !(await assertMasterTaskAccess(
+        supabase,
+        parent.project_id as string,
+        user.id,
+        role,
+      ))
+    ) {
+      return { success: false, error: "Not authorized" };
+    }
+    const assigneeIds = (parent.assigned_to_users as string[] | null) ?? [user.id];
+    const { data, error } = await supabase
+      .from("tasks")
+      .insert({
+        project_id:        parent.project_id,
+        group_id:          parent.group_id,
+        parent_task_id:    pParsed.data,
+        title:             sanitizeText(params.title.trim()),
+        notes:             null,
+        unified_task_type: "subtask",
+        atlas_status:      "todo",
+        priority:          "medium",
+        due_date:          null,
+        assigned_to_users: assigneeIds[0] ? [assigneeIds[0]] : [user.id],
+        estimated_minutes: null,
+        tags:              [],
+        domain:            domain,
+        department:        department,
+        created_by:        user.id,
+        status:            "pending",
+        task_type:         "general_follow_up",
+        progress:          0,
+        progress_updates:  [],
+        attachments:       [],
+        position:          0,
+        master_task_id:    parent.project_id as string,
+        imported_from:     null,
+        import_batch_id:   null,
+      } as never)
+      .select("id")
+      .single();
+    if (error || !data) return { success: false, error: "Failed to create sub-task" };
+    revalidateAtlasTaskSurfaces(parent.project_id as string);
+    revalidatePath(`/projects/${parent.project_id as string}`, "page");
+    return { success: true, data: { id: data.id } };
+  } catch (err) {
+    console.error("[createProjectNestedSubTask]", err);
+    return { success: false, error: "An unexpected error occurred" };
   }
 }

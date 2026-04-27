@@ -5,8 +5,8 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowRight, Loader2, ArrowLeft } from "lucide-react";
 import { requestPasswordReset } from "@/lib/actions/auth";
-import { toast } from "sonner";
 import { z } from "zod";
+import { mapAuthError } from "@/lib/utils/auth-errors";
 
 const emailSchema = z.string().email("Please enter a valid email address");
 
@@ -14,6 +14,7 @@ export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [submitted, setSubmitted] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -30,12 +31,9 @@ export default function ForgotPasswordPage() {
     setLoading(false);
 
     if (result.success) {
-      toast.success("Check your email", {
-        description: "We've sent you a link to reset your password.",
-        style: { borderColor: "rgba(212,175,55,0.4)" },
-      });
+      setSubmitted(true);
     } else {
-      setError(result.error ?? "Something went wrong.");
+      setError(mapAuthError(result.error));
     }
   }
 
@@ -69,7 +67,6 @@ export default function ForgotPasswordPage() {
               "0 24px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(212,175,55,0.06)",
           }}
         >
-          {/* Heading */}
           <h1
             className="text-[#F5F0E8] leading-tight mb-2"
             style={{
@@ -80,90 +77,114 @@ export default function ForgotPasswordPage() {
               letterSpacing: "-0.01em",
             }}
           >
-            Reset Password
+            Reset password
           </h1>
-          <p
-            className="text-[#5A5550] text-sm mb-10 leading-relaxed"
-            style={{ letterSpacing: "0.02em" }}
-          >
-            Enter your email address and we will send you a link to reset your
-            password.
-          </p>
 
-          <form onSubmit={handleSubmit} className="space-y-8">
-            <div className="group">
-              <label className="block text-[#5A5550] text-[9px] tracking-[0.45em] uppercase font-medium mb-3">
-                Email
-              </label>
-              <input
-                type="email"
-                placeholder="agent@indulgeglobal.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                autoComplete="email"
-                disabled={loading}
-                className="w-full bg-transparent text-[#F5F0E8] text-sm pb-3 pr-4 outline-none placeholder:text-[#2E2B27] border-b transition-all duration-300 disabled:opacity-60"
-                style={{
-                  borderBottomColor: email
-                    ? "rgba(212,175,55,0.6)"
-                    : "rgba(255,255,255,0.08)",
-                  caretColor: "#D4AF37",
-                }}
-              />
-            </div>
+          {submitted ? (
+            <p
+              className="text-[#B5A99A] text-sm mb-10 leading-relaxed"
+              style={{ letterSpacing: "0.02em" }}
+            >
+              If an account exists for that email, you will receive a password reset
+              link shortly.
+            </p>
+          ) : (
+            <p
+              className="text-[#5A5550] text-sm mb-10 leading-relaxed"
+              style={{ letterSpacing: "0.02em" }}
+            >
+              Enter your work email and we will send you a link to reset your password.
+            </p>
+          )}
 
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, y: -6 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex items-center gap-2.5 text-xs"
-                style={{ color: "#C0392B" }}
-              >
-                <div
-                  className="w-1 h-1 rounded-full shrink-0"
-                  style={{ background: "#C0392B" }}
+          {!submitted && (
+            <form onSubmit={handleSubmit} className="space-y-8">
+              <div className="group">
+                <label className="block text-[#5A5550] text-[9px] tracking-[0.45em] uppercase font-medium mb-3">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  placeholder="agent@indulgeglobal.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoComplete="email"
+                  disabled={loading}
+                  className="w-full bg-transparent text-[#F5F0E8] text-sm pb-3 pr-4 outline-none placeholder:text-[#2E2B27] border-b transition-all duration-300 disabled:opacity-60"
+                  style={{
+                    borderBottomColor: email
+                      ? "rgba(212,175,55,0.6)"
+                      : "rgba(255,255,255,0.08)",
+                    caretColor: "#D4AF37",
+                  }}
                 />
-                {error}
-              </motion.div>
-            )}
+              </div>
 
-            <div className="pt-2 space-y-6">
-              <button
-                type="submit"
-                disabled={loading}
-                className="group relative w-full flex items-center justify-between px-6 py-4 text-[#090807] text-sm font-semibold tracking-widest uppercase overflow-hidden transition-all duration-300 disabled:opacity-50"
-                style={{
-                  background:
-                    "linear-gradient(135deg, #D4AF37 0%, #E8D06A 50%, #D4AF37 100%)",
-                  backgroundSize: "200% 100%",
-                  letterSpacing: "0.12em",
-                }}
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Sending</span>
-                    <span />
-                  </>
-                ) : (
-                  <>
-                    <span />
-                    <span>Send Reset Link</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
+              {error && (
+                <motion.div
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-center gap-2.5 text-xs"
+                  style={{ color: "#C0392B" }}
+                >
+                  <div
+                    className="w-1 h-1 rounded-full shrink-0"
+                    style={{ background: "#C0392B" }}
+                  />
+                  {error}
+                </motion.div>
+              )}
 
+              <div className="pt-2 space-y-6">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="group relative w-full flex items-center justify-between px-6 py-4 text-[#090807] text-sm font-semibold tracking-widest uppercase overflow-hidden transition-all duration-300 disabled:opacity-50"
+                  style={{
+                    background:
+                      "linear-gradient(135deg, #D4AF37 0%, #E8D06A 50%, #D4AF37 100%)",
+                    backgroundSize: "200% 100%",
+                    letterSpacing: "0.12em",
+                  }}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Sending</span>
+                      <span />
+                    </>
+                  ) : (
+                    <>
+                      <span />
+                      <span>Send reset link</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+
+                <Link
+                  href="/login"
+                  className="flex items-center gap-2 text-[#5A5550] hover:text-[#D4AF37]/80 text-xs tracking-wider uppercase transition-colors"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  Back to login
+                </Link>
+              </div>
+            </form>
+          )}
+
+          {submitted && (
+            <div className="pt-2">
               <Link
                 href="/login"
                 className="flex items-center gap-2 text-[#5A5550] hover:text-[#D4AF37]/80 text-xs tracking-wider uppercase transition-colors"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
-                Back to Login
+                Back to login
               </Link>
             </div>
-          </form>
+          )}
         </div>
       </motion.div>
     </div>

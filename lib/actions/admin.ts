@@ -11,6 +11,8 @@ import type {
 import { createUserSchema, updateUserProfileSchema } from "@/lib/validations/user";
 import { z } from "zod";
 import DOMPurify from "isomorphic-dompurify";
+import { getPublicSiteUrl } from "@/lib/utils/site-url";
+import { mapAuthError } from "@/lib/utils/auth-errors";
 
 interface ActionResult<T = void> {
   success: boolean;
@@ -244,13 +246,25 @@ export async function createUser(params: {
     if (parsed.data.send_invite !== false) {
       // undefined or true → invite flow
       // ── Invite flow: magic link email ──────────────────────────────────────
+      let siteUrl: string;
+      try {
+        siteUrl = getPublicSiteUrl();
+      } catch (e) {
+        return {
+          success: false,
+          error: mapAuthError(e instanceof Error ? e.message : null),
+        };
+      }
+
+      const redirectTo = `${siteUrl}/auth/callback?next=/update-password&flow=first`;
+
       const { data: inviteData, error: inviteError } =
         await serviceClient.auth.admin.inviteUserByEmail(parsed.data.email, {
           data: userMeta,
-          redirectTo: `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/auth/callback`,
+          redirectTo,
         });
 
-      if (inviteError) return { success: false, error: inviteError.message };
+      if (inviteError) return { success: false, error: mapAuthError(inviteError.message) };
       if (!inviteData.user) return { success: false, error: "Invite failed — no user returned." };
 
       newUserId = inviteData.user.id;
@@ -259,7 +273,10 @@ export async function createUser(params: {
       const { error: metaError } = await serviceClient.auth.admin.updateUserById(newUserId, {
         app_metadata: appMeta,
       });
-      if (metaError) return { success: false, error: metaError.message };
+      if (metaError) {
+        await serviceClient.auth.admin.deleteUser(newUserId);
+        return { success: false, error: mapAuthError(metaError.message) };
+      }
     } else {
       // ── Direct create flow: admin sets password ────────────────────────────
       const { data: authData, error: authError } =
@@ -271,7 +288,7 @@ export async function createUser(params: {
           app_metadata: appMeta,
         });
 
-      if (authError) return { success: false, error: authError.message };
+      if (authError) return { success: false, error: mapAuthError(authError.message) };
       if (!authData.user) return { success: false, error: "User creation failed." };
 
       newUserId = authData.user.id;
@@ -313,7 +330,7 @@ export async function createUser(params: {
     return { success: true, data: { id: newUserId } };
   } catch (e) {
     const message = e instanceof Error ? e.message : "Unexpected error";
-    return { success: false, error: message };
+    return { success: false, error: mapAuthError(message) };
   }
 }
 
@@ -430,18 +447,33 @@ export async function updateUserProfile(
 
 export async function sendPasswordReset(email: string): Promise<ActionResult> {
   try {
+    let siteUrl: string;
+    try {
+      siteUrl = getPublicSiteUrl();
+    } catch (e) {
+      return {
+        success: false,
+        error: mapAuthError(e instanceof Error ? e.message : null),
+      };
+    }
+
     const { supabase } = await requireAdminOrManager();
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/login`,
+      redirectTo: `${siteUrl}/auth/callback?next=/update-password&flow=reset`,
     });
 
-    if (error) return { success: false, error: error.message };
+    if (error) {
+      const low = error.message.toLowerCase();
+      if (low.includes("rate") || low.includes("too many") || error.status === 429) {
+        return { success: false, error: mapAuthError(error.message) };
+      }
+    }
 
     return { success: true };
   } catch (e) {
     const message = e instanceof Error ? e.message : "Unexpected error";
-    return { success: false, error: message };
+    return { success: false, error: mapAuthError(message) };
   }
 }
 

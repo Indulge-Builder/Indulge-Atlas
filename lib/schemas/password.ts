@@ -4,6 +4,7 @@ export const passwordSchema = z
   .string()
   .min(8, "At least 8 characters required")
   .regex(/[A-Z]/, "At least one uppercase letter required")
+  .regex(/[a-z]/, "At least one lowercase letter required")
   .regex(/[0-9]/, "At least one number required");
 
 export const updatePasswordSchema = z

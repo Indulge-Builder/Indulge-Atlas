@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { mapAuthError, mapAuthQueryError } from "@/lib/utils/auth-errors";
 
 // ── Quote corpus ───────────────────────────────────────────
 // 50 short reflections on luxury, mastery, and presence.
@@ -67,26 +68,24 @@ export default function LoginPage() {
   const router = useRouter();
   const supabase = createClient();
 
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   // Hydration-safe quote: always starts null (server), set on client mount.
   const [quote, setQuote] = useState<string | null>(null);
+
   useEffect(() => {
     setQuote(QUOTES[Math.floor(Math.random() * QUOTES.length)]);
   }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("error") === "Invalid_Link") {
-      setError(
-        "This reset link is invalid or has expired. Please request a new one.",
-      );
-    }
+    const err = params.get("error");
+    const mapped = mapAuthQueryError(err);
+    if (mapped) setError(mapped);
   }, []);
-
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -97,7 +96,7 @@ export default function LoginPage() {
       await supabase.auth.signInWithPassword({ email, password });
 
     if (authError) {
-      setError("Invalid credentials. Please try again.");
+      setError(mapAuthError(authError.message));
       setLoading(false);
       return;
     }

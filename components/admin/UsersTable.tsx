@@ -36,6 +36,7 @@ import {
 } from "@/lib/actions/admin";
 import { getInitials, formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { mapAuthError } from "@/lib/utils/auth-errors";
 import type { Profile, UserRole } from "@/lib/types/database";
 import { DOMAIN_DISPLAY_CONFIG } from "@/lib/types/database";
 
@@ -102,7 +103,7 @@ export function UsersTable({ profiles: initialProfiles, currentUserId }: UsersTa
       );
       refreshData();
     } else {
-      showToast(result.error ?? "Failed to update user status.", "error");
+      showToast(mapAuthError(result.error ?? null), "error");
     }
   }
 
@@ -113,7 +114,7 @@ export function UsersTable({ profiles: initialProfiles, currentUserId }: UsersTa
     if (result.success) {
       showToast(`Password reset email sent to ${profile.email}.`);
     } else {
-      showToast(result.error ?? "Failed to send password reset.", "error");
+      showToast(mapAuthError(result.error ?? null), "error");
     }
   }
 
@@ -133,7 +134,7 @@ export function UsersTable({ profiles: initialProfiles, currentUserId }: UsersTa
       showToast(`${profile.full_name} has been deleted.`);
       refreshData();
     } else {
-      showToast(result.error ?? "Failed to delete user.", "error");
+      showToast(mapAuthError(result.error ?? null), "error");
     }
   }
 

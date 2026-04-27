@@ -60,8 +60,13 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Logged-in users visiting /login get sent to the dashboard
+  // Logged-in users visiting auth entry pages get sent to the dashboard
   if (user && pathname === "/login") {
+    const dashboardUrl = request.nextUrl.clone();
+    dashboardUrl.pathname = "/";
+    return NextResponse.redirect(dashboardUrl);
+  }
+  if (user && pathname === "/forgot-password") {
     const dashboardUrl = request.nextUrl.clone();
     dashboardUrl.pathname = "/";
     return NextResponse.redirect(dashboardUrl);
