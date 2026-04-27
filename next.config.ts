@@ -5,6 +5,21 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: process.cwd(),
   },
+  async redirects() {
+    return [
+      // Scout → Manager (legacy)
+      { source: "/scout", destination: "/manager", permanent: true },
+      { source: "/scout/dashboard", destination: "/manager/dashboard", permanent: true },
+      { source: "/scout/campaigns", destination: "/manager/campaigns", permanent: true },
+      { source: "/scout/campaigns/:id", destination: "/manager/campaigns/:id", permanent: true },
+      { source: "/scout/planner", destination: "/manager/planner", permanent: true },
+      { source: "/scout/roster", destination: "/manager/roster", permanent: true },
+      { source: "/scout/team", destination: "/manager/team", permanent: true },
+      // Projects → Tasks (Atlas Tasks migration)
+      { source: "/projects", destination: "/tasks", permanent: true },
+      { source: "/projects/:path*", destination: "/tasks/:path*", permanent: true },
+    ];
+  },
 };
 
 export default withSentryConfig(nextConfig, {

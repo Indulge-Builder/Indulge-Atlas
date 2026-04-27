@@ -7,7 +7,7 @@ import { MOCK_CAMPAIGNS } from "@/lib/data/campaigns-mock";
 import { LEADS_TABLE_SELECT } from "@/lib/leads/leadsTableSelect";
 
 // ── Auth guard ─────────────────────────────────────────────────────────────────
-async function requireScoutOrAdmin() {
+async function requireManagerOrAdmin() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -38,7 +38,7 @@ export interface CampaignWithAttribution extends CampaignMetric {
 }
 
 export async function getCampaignsWithAttribution(): Promise<CampaignWithAttribution[]> {
-  const { supabase } = await requireScoutOrAdmin();
+  const { supabase } = await requireManagerOrAdmin();
 
   // Fetch all campaign metrics rows
   const { data: campaigns, error: campaignsErr } = await supabase
@@ -142,7 +142,7 @@ export async function getLeadsForCampaign(
   agents: { id: string; full_name: string }[];
   nextTaskMap: Record<string, NextTask>;
 }> {
-  const { supabase } = await requireScoutOrAdmin();
+  const { supabase } = await requireManagerOrAdmin();
   const PAGE_SIZE = 20;
   const page = Math.max(1, opts.page ?? 1);
   const offset = (page - 1) * PAGE_SIZE;
@@ -274,7 +274,7 @@ export interface CampaignDossierData {
 export async function getCampaignDossier(
   campaignId: string
 ): Promise<CampaignDossierData> {
-  const { supabase } = await requireScoutOrAdmin();
+  const { supabase } = await requireManagerOrAdmin();
 
   const [{ data: campaign, error: cErr }, { data: leads, error: lErr }] =
     await Promise.all([
@@ -315,7 +315,7 @@ export async function getCampaignDossier(
 // ── Distinct UTM campaigns for filter dropdown ─────────────────────────────────
 
 export async function getDistinctUtmCampaigns(): Promise<string[]> {
-  const { supabase } = await requireScoutOrAdmin();
+  const { supabase } = await requireManagerOrAdmin();
 
   const { data, error } = await supabase
     .from("leads")

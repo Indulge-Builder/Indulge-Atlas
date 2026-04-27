@@ -33,7 +33,7 @@ function getInitials(name: string) {
 }
 
 const ROLE_COLOR: Record<string, string> = {
-  scout: "#D4AF37",
+  manager: "#D4AF37",
   admin: "#9B59B6",
   agent: "#4A7C59",
   finance: "#2C6FAC",

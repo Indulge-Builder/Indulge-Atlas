@@ -2,11 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
-import { addDays } from "date-fns";
 import type { UserRole } from "@/lib/types/database";
-
-const IST = "Asia/Kolkata";
+import { getOffDutyAnchor } from "@/lib/utils/sla";
 
 // ── On-Duty SLA (Rule A): 5m, 10m, 15m ─────────────────────────────────────
 const ON_DUTY_LEVEL_1_MINS = 5;
@@ -36,22 +33,6 @@ interface UseSLA_MonitorReturn {
   breachLevel: SLABreachLevel | null;
   loading: boolean;
   refetch: () => void;
-}
-
-/** 9:00 AM IST anchor for off-duty leads. Lead created 18:00–08:59 → next 9 AM. */
-function getOffDutyAnchor(createdAt: string): Date {
-  const created = new Date(createdAt);
-  const h = parseInt(formatInTimeZone(created, IST, "H"), 10);
-  const y = parseInt(formatInTimeZone(created, IST, "yyyy"), 10);
-  const m = parseInt(formatInTimeZone(created, IST, "M"), 10);
-  const d = parseInt(formatInTimeZone(created, IST, "d"), 10);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const midnightIST = fromZonedTime(`${y}-${pad(m)}-${pad(d)}T00:00:00`, IST);
-  const anchorDate = addDays(midnightIST, h >= 18 ? 1 : 0);
-  const y2 = parseInt(formatInTimeZone(anchorDate, IST, "yyyy"), 10);
-  const m2 = parseInt(formatInTimeZone(anchorDate, IST, "M"), 10);
-  const d2 = parseInt(formatInTimeZone(anchorDate, IST, "d"), 10);
-  return fromZonedTime(`${y2}-${pad(m2)}-${pad(d2)}T09:00:00`, IST);
 }
 
 export function computeBreachLevel(

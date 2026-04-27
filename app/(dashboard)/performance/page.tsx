@@ -6,11 +6,11 @@ import { AnimatedMetricCard } from "@/components/manager/AnimatedMetricCard";
 import { PipelineChart } from "@/components/performance/PipelineChart";
 import { RecentWinsLedger } from "@/components/performance/RecentWinsLedger";
 import { TopBar } from "@/components/layout/TopBar";
-import { MonthSelector } from "@/components/scout/MonthSelector";
-import { CommandCenterAnimator } from "@/components/scout/CommandCenterAnimator";
+import { MonthSelector } from "@/components/manager/MonthSelector";
+import { CommandCenterAnimator } from "@/components/manager/CommandCenterAnimator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Activity, Target, Wallet, TrendingUp } from "lucide-react";
-import type { PeriodValue } from "@/components/scout/MonthSelector";
+import type { PeriodValue } from "@/components/manager/MonthSelector";
 
 export const dynamic = "force-dynamic";
 

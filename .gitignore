@@ -22,6 +22,7 @@
 
 # misc
 .DS_Store
+**/.DS_Store
 *.pem
 
 # debug
@@ -37,8 +38,12 @@ yarn-error.log*
 .vercel
 
 # typescript
+tsconfig.tsbuildinfo
 *.tsbuildinfo
 next-env.d.ts
+
+# generated Supabase types — regenerate with `npm run types:generate`
+lib/types/database.generated.ts
 
 # data exports and personal assets — never commit these
 *.csv

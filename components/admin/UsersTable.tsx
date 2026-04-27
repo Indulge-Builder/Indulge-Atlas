@@ -53,7 +53,6 @@ const ROLE_CONFIG: Record<
 /** Legacy role mappings (from older schema) */
 const LEGACY_ROLE_MAP: Record<string, UserRole> = {
   sales_agent: "agent",
-  scout:       "manager",
   finance:     "guest",
 };
 

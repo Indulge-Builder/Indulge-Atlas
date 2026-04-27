@@ -892,7 +892,7 @@ export async function reassignLead(
     const { supabase, user, role } = await getAuthUser();
 
     if (!isPrivilegedRole(role)) {
-      return { success: false, error: "Only scouts and admins can reassign leads" };
+      return { success: false, error: "Only managers and admins can reassign leads" };
     }
 
     // Confirm target agent exists and is active

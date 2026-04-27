@@ -39,6 +39,7 @@ const routingDomainSchema = z.enum([
   "indulge_house",
   "indulge_shop",
   "indulge_legacy",
+  "indulge_global",
 ]);
 
 const createRoutingRuleSchema = z

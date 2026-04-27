@@ -22,13 +22,17 @@ const WEEK_DAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
 interface LuxuryCalendarProps {
   selectedDate: Date;
+  /** Dates that have personal (My Tasks) entries — shown as gold circles */
   taskDates: Date[];
+  /** Dates that have Atlas Tasks (subtasks) — shown as indigo squares */
+  atlasTaskDates?: Date[];
   onSelectDate: (date: Date) => void;
 }
 
 export function LuxuryCalendar({
   selectedDate,
   taskDates,
+  atlasTaskDates = [],
   onSelectDate,
 }: LuxuryCalendarProps) {
   const [viewMonth, setViewMonth] = useState(() => startOfMonth(new Date()));
@@ -44,14 +48,17 @@ export function LuxuryCalendar({
     setViewMonth((m) => addMonths(m, 1));
   }
 
-  // Full 6-week grid: fills leading/trailing days from adj. months
   const days = eachDayOfInterval({
     start: startOfWeek(startOfMonth(viewMonth)),
     end: endOfWeek(endOfMonth(viewMonth)),
   });
 
-  function hasTask(date: Date) {
+  function hasPersonal(date: Date) {
     return taskDates.some((td) => isSameDay(td, date));
+  }
+
+  function hasAtlas(date: Date) {
+    return atlasTaskDates.some((td) => isSameDay(td, date));
   }
 
   return (
@@ -121,10 +128,14 @@ export function LuxuryCalendar({
           className="grid grid-cols-7 gap-y-0.5"
         >
           {days.map((day, i) => {
-            const inMonth = isSameMonth(day, viewMonth);
+            const inMonth  = isSameMonth(day, viewMonth);
             const isSelected = isSameDay(day, selectedDate);
-            const isCurrent = isToday(day);
-            const hasDot = hasTask(day) && !isSelected;
+            const isCurrent  = isToday(day);
+            const personal   = hasPersonal(day);
+            const atlas      = hasAtlas(day);
+            // When selected, still show indicators but dimmed
+            const showPersonal = personal && inMonth;
+            const showAtlas    = atlas && inMonth;
 
             return (
               <div key={i} className="flex flex-col items-center py-0.5">
@@ -136,14 +147,9 @@ export function LuxuryCalendar({
                   className={cn(
                     "relative w-8 h-8 rounded-full flex items-center justify-center transition-all duration-150",
                     !inMonth && "cursor-default opacity-20",
-                    isSelected &&
-                      "bg-[#1A1A1A] shadow-[0_2px_8px_rgba(0,0,0,0.18)]",
-                    !isSelected &&
-                      isCurrent &&
-                      "ring-1 ring-[#D4AF37] ring-offset-1",
-                    !isSelected &&
-                      inMonth &&
-                      "hover:bg-[#F4F4F0]"
+                    isSelected && "bg-[#1A1A1A] shadow-[0_2px_8px_rgba(0,0,0,0.18)]",
+                    !isSelected && isCurrent && "ring-1 ring-[#D4AF37] ring-offset-1",
+                    !isSelected && inMonth && "hover:bg-[#F4F4F0]",
                   )}
                 >
                   <span
@@ -151,20 +157,35 @@ export function LuxuryCalendar({
                       "text-xs font-medium leading-none",
                       isSelected && "text-white",
                       !isSelected && isCurrent && "text-[#D4AF37] font-semibold",
-                      !isSelected && !isCurrent && inMonth && "text-[#3A3A3A]"
+                      !isSelected && !isCurrent && inMonth && "text-[#3A3A3A]",
                     )}
                   >
                     {format(day, "d")}
                   </span>
                 </motion.button>
 
-                {/* Task dot indicator */}
-                <div className="h-1 flex items-center justify-center mt-0.5">
-                  {hasDot && (
+                {/* Indicator row — max two dots side-by-side */}
+                <div className="h-2 flex items-center justify-center gap-0.5 mt-0.5">
+                  {showPersonal && (
                     <motion.span
                       initial={{ scale: 0 }}
                       animate={{ scale: 1 }}
-                      className="w-1 h-1 rounded-full bg-[#D4AF37]"
+                      transition={{ type: "spring", stiffness: 400, damping: 20 }}
+                      className={cn(
+                        "w-1 h-1 rounded-full",
+                        isSelected ? "bg-[#D4AF37]/60" : "bg-[#D4AF37]",
+                      )}
+                    />
+                  )}
+                  {showAtlas && (
+                    <motion.span
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: "spring", stiffness: 400, damping: 20, delay: 0.04 }}
+                      className={cn(
+                        "w-1 h-1 rounded-sm",
+                        isSelected ? "bg-[#6366F1]/50" : "bg-[#6366F1]",
+                      )}
                     />
                   )}
                 </div>
@@ -174,8 +195,25 @@ export function LuxuryCalendar({
         </motion.div>
       </AnimatePresence>
 
-      {/* Today shortcut */}
-      <div className="mt-4 pt-4 border-t border-[#F4F4F0]">
+      {/* Legend + Today shortcut */}
+      <div className="mt-4 pt-4 border-t border-[#F4F4F0] space-y-3">
+        {/* Legend */}
+        <div className="flex items-center justify-center gap-4">
+          <div className="flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37] shrink-0" />
+            <span className="text-[9px] font-medium text-[#B5A99A] uppercase tracking-widest">
+              My Tasks
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-sm bg-[#6366F1] shrink-0" />
+            <span className="text-[9px] font-medium text-[#B5A99A] uppercase tracking-widest">
+              Atlas Tasks
+            </span>
+          </div>
+        </div>
+
+        {/* Today shortcut */}
         <button
           onClick={() => {
             const today = new Date();

@@ -2,10 +2,11 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getDashboardData } from "@/lib/actions/leads";
-import { getAgentDailyRoster } from "@/lib/actions/tasks";
+import { getAgentDailyRoster, getMyTasks } from "@/lib/actions/tasks";
 import { DashboardHero } from "@/components/dashboard/DashboardHero";
 import { UnattainedLeadsQueue } from "@/components/dashboard/UnattainedLeadsQueue";
-import { MyTasksWidget } from "@/components/dashboard/MyTasksWidget";
+import { MyTasksWidget as LegacyMyTasksWidget } from "@/components/dashboard/MyTasksWidget";
+import { MyTasksWidget } from "@/components/tasks/MyTasksWidget";
 import { ConversionHistory } from "@/components/dashboard/ConversionHistory";
 import { PastLeadsList } from "@/components/dashboard/PastLeadsList";
 import { DailyRoster } from "@/components/tasks/DailyRoster";
@@ -56,6 +57,7 @@ async function DashboardContent({ userId }: { userId: string }) {
     { data: rawProfile },
     { unattainedLeads, pastLeads, upcomingTasks },
     dailyRoster,
+    myPersonalTasksResult,
     { count: newLeadsCount },
     { count: activeCount },
     { count: tasksTodayCount },
@@ -73,6 +75,8 @@ async function DashboardContent({ userId }: { userId: string }) {
     getDashboardData(),
 
     getAgentDailyRoster(userId),
+
+    getMyTasks(),
 
     // Live metric: new leads assigned to me
     supabase
@@ -142,9 +146,12 @@ async function DashboardContent({ userId }: { userId: string }) {
           <UnattainedLeadsQueue leads={unattainedLeads as Lead[]} />
           <ConversionHistory wonLeads={(allWonLeads ?? []) as Lead[]} />
 
-          {/* Tasks widget + past leads */}
-          <div className="col-span-2">
-            <MyTasksWidget tasks={upcomingTasks as Task[]} />
+          {/* Legacy tasks widget + personal tasks */}
+          <div className="col-span-2 space-y-5">
+            <LegacyMyTasksWidget tasks={upcomingTasks as Task[]} />
+            <MyTasksWidget
+              initialTasks={myPersonalTasksResult.success ? (myPersonalTasksResult.data ?? []) : []}
+            />
           </div>
           <PastLeadsList leads={pastLeads as Lead[]} />
         </div>

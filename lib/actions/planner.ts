@@ -17,7 +17,7 @@ const saveDraftSchema = z.object({
 
 // ── Auth guard ────────────────────────────────────────────────
 
-async function requireScout() {
+async function requireManager() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -41,7 +41,7 @@ async function requireScout() {
 // ── Fetch drafts ──────────────────────────────────────────────
 
 export async function getCampaignDrafts(): Promise<CampaignDraft[]> {
-  const { supabase } = await requireScout();
+  const { supabase } = await requireManager();
 
   const { data } = await supabase
     .from("campaign_drafts")
@@ -71,7 +71,7 @@ export async function saveCampaignDraft(
     return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
   try {
-    const { supabase, userId } = await requireScout();
+    const { supabase, userId } = await requireManager();
 
     const { data, error } = await supabase
       .from("campaign_drafts")
@@ -93,7 +93,7 @@ export async function saveCampaignDraft(
       return { success: false, error: "Failed to save draft." };
     }
 
-    revalidatePath("/scout/planner");
+    revalidatePath("/manager/planner");
     return { success: true, draft: data as CampaignDraft };
   } catch (err) {
     console.error("[planner/save] Unexpected:", err);
@@ -111,7 +111,7 @@ export interface HistoricalData {
 }
 
 export async function getHistoricalData(): Promise<HistoricalData> {
-  const { supabase } = await requireScout();
+  const { supabase } = await requireManager();
 
   const [leadsResult, wonResult] = await Promise.all([
     // All non-junk leads for win rate calculation

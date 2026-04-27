@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 
-async function requireScoutOrAdmin() {
+async function requireManagerOrAdmin() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -80,7 +80,7 @@ const ONBOARDING_DISPLAY = {
 } as const;
 
 export async function getOnboardingPulse(): Promise<OnboardingPulseData> {
-  const { supabase } = await requireScoutOrAdmin();
+  const { supabase } = await requireManagerOrAdmin();
   const { monthStartIso, monthEndIso } = monthBounds();
 
   const pipelineStatusKeys = PIPELINE_STATUS_ORDER.map((s) => s.key);
@@ -186,7 +186,7 @@ export type ShopPulseData = {
 };
 
 export async function getShopPulse(): Promise<ShopPulseData> {
-  const { supabase } = await requireScoutOrAdmin();
+  const { supabase } = await requireManagerOrAdmin();
   const now = new Date();
   const { monthStartIso, monthEndIso, prevMonthStartIso, prevMonthEndIso } =
     monthBounds(now);
@@ -361,6 +361,6 @@ const MARKETING_ORGANIC_STUB: MarketingPulseData = {
 };
 
 export async function getMarketingPulse(): Promise<MarketingPulseData> {
-  await requireScoutOrAdmin();
+  await requireManagerOrAdmin();
   return MARKETING_ORGANIC_STUB;
 }

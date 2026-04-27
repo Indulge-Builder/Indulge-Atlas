@@ -7,7 +7,7 @@ import type { MessageLeadPreview } from "@/lib/types/database";
 import { LEAD_STATUS_CONFIG } from "@/lib/types/database";
 
 export const ROLE_GRADIENT: Record<string, string> = {
-  scout:   "linear-gradient(135deg, #D4AF37, #B8942E)",
+  manager: "linear-gradient(135deg, #D4AF37, #B8942E)",
   admin:   "linear-gradient(135deg, #8B5CF6, #6D28D9)",
   agent:   "linear-gradient(135deg, #059669, #047857)",
   finance: "linear-gradient(135deg, #0EA5E9, #0284C7)",

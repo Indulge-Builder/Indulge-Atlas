@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import type { LeadStatus, Profile } from "@/lib/types/database";
 
-async function requireScout() {
+async function requireManager() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -58,7 +58,7 @@ function computeStats(
 }
 
 export async function getAllAgentsWithStats(): Promise<AgentWithStats[]> {
-  const { supabase } = await requireScout();
+  const { supabase } = await requireManager();
 
   const { data: agents } = await supabase
     .from("profiles")
@@ -94,7 +94,7 @@ export async function getAllAgentsWithStats(): Promise<AgentWithStats[]> {
   }));
 }
 
-export interface ScoutDashboardMetrics {
+export interface ManagerDashboardMetrics {
   totalSpend:    number;
   totalRevenue:  number;
   roas:          number;
@@ -103,8 +103,8 @@ export interface ScoutDashboardMetrics {
   monthlyTrend:  Array<{ month: string; revenue: number; spend: number }>;
 }
 
-export async function getScoutDashboardData(): Promise<ScoutDashboardMetrics> {
-  const { supabase } = await requireScout();
+export async function getManagerDashboardData(): Promise<ManagerDashboardMetrics> {
+  const { supabase } = await requireManager();
 
   const [{ data: campaigns }, { data: wonLeads }, { count: wonCount }] =
     await Promise.all([
@@ -167,9 +167,9 @@ export interface AgentWithOnboardingStats extends Profile {
 export async function getOnboardingAgentsWithStats(): Promise<
   AgentWithOnboardingStats[]
 > {
-  const { supabase } = await requireScout();
+  const { supabase } = await requireManager();
 
-  // Include both agents and scouts for founder oversight
+  // Include both agents and managers for founder oversight
   const { data: profiles } = await supabase
     .from("profiles")
     .select("*")
@@ -309,7 +309,7 @@ export async function getAgentPerformanceById(
   agentId: string | null
 ): Promise<AgentWithOnboardingStats | null> {
   if (!agentId) return null;
-  const { supabase } = await requireScout();
+  const { supabase } = await requireManager();
 
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();

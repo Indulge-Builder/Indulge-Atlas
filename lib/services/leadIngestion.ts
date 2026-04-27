@@ -11,6 +11,7 @@ import { getHours, startOfDay } from "date-fns";
 import { getServiceSupabaseClient } from "@/lib/supabase/service";
 import type { LeadRoutingRule } from "@/lib/types/database";
 import { evaluateRulesAgainstLead } from "@/lib/services/evaluateRoutingRules";
+import { getActiveAgentConfig } from "@/lib/services/agentRoutingConfig";
 import { normalizeToE164 } from "@/lib/utils/phone";
 import { sanitizeFormData, sanitizeText } from "@/lib/utils/sanitize";
 
@@ -125,84 +126,6 @@ const VALID_DOMAINS = [
   "indulge_legacy",
 ] as const;
 
-/** Key agent emails for fallback time-based & capped pooling (after dynamic rules). */
-const WATERFALL_AGENT_EMAILS = [
-  "meghana@indulge.global",
-  "amit@indulge.global",
-  "samson@indulge.global",
-  "kaniisha@indulge.global",
-] as const;
-
-type AgentIds = {
-  meghana: string | null;
-  amit: string | null;
-  samson: string | null;
-  kaniisha: string | null;
-};
-
-let cachedAgentIds: AgentIds | null = null;
-
-/**
- * Phase 2: Resolve agent emails to UUIDs from profiles.
- * Caches result for the process lifetime. Falls back to null for missing emails.
- */
-async function resolveWaterfallAgentIds(): Promise<AgentIds> {
-  if (cachedAgentIds) return cachedAgentIds;
-
-  const { data: profiles, error } = await supabase
-    .from("profiles")
-    .select("id, email")
-    .in("email", [...WATERFALL_AGENT_EMAILS]);
-
-  if (error) {
-    console.error(
-      "[leadIngestion] CRITICAL: Failed to resolve waterfall agent IDs:",
-      error.message,
-    );
-    cachedAgentIds = {
-      meghana: null,
-      amit: null,
-      samson: null,
-      kaniisha: null,
-    };
-    return cachedAgentIds;
-  }
-
-  const rows = (profiles ?? []) as Array<{ id: string; email: string }>;
-  const byEmail = new Map(rows.map((p) => [p.email.toLowerCase(), p.id]));
-
-  const get = (email: string) => byEmail.get(email.toLowerCase()) ?? null;
-
-  cachedAgentIds = {
-    meghana: get("meghana@indulge.global"),
-    amit: get("amit@indulge.global"),
-    samson: get("samson@indulge.global"),
-    kaniisha: get("kaniisha@indulge.global"),
-  };
-
-  const emailToKey: Record<
-    (typeof WATERFALL_AGENT_EMAILS)[number],
-    keyof AgentIds
-  > = {
-    "meghana@indulge.global": "meghana",
-    "amit@indulge.global": "amit",
-    "samson@indulge.global": "samson",
-    "kaniisha@indulge.global": "kaniisha",
-  };
-  const missing = WATERFALL_AGENT_EMAILS.filter(
-    (e) => !cachedAgentIds![emailToKey[e]],
-  );
-  if (missing.length > 0) {
-    console.error(
-      "[leadIngestion] CRITICAL: Waterfall agents not found in profiles:",
-      missing.join(", "),
-      "- Will fall back to unfiltered domain pool when required.",
-    );
-  }
-
-  return cachedAgentIds;
-}
-
 /**
  * Get current hour in IST (Asia/Kolkata).
  */
@@ -289,7 +212,11 @@ async function fetchActiveRoutingRules(): Promise<LeadRoutingRule[]> {
 }
 
 /**
- * Resolves assigned agent: dynamic DB rules first, then IST time pools + Samson daily cap.
+ * Resolves assigned agent: dynamic DB rules first, then DB-driven shift + cap pooling.
+ *
+ * Step 1 — Dynamic Routing Engine: evaluate admin-configured routing rules.
+ * Step 2 — DB Agent Config waterfall: fetch agent_routing_config, filter by shift window
+ *   and daily cap, pass eligible UUIDs to the Postgres round-robin function.
  */
 async function resolveAssignedAgent(
   lead: LeadPayload,
@@ -301,7 +228,7 @@ async function resolveAssignedAgent(
   const evaluationPayload: Record<string, unknown> =
     rawPayload != null ? { ...rawPayload, ...lead } : { ...lead };
 
-  // Step 1: Dynamic Routing Engine
+  // Step 1: Dynamic Routing Engine (unchanged)
   try {
     const routingRules = await fetchActiveRoutingRules();
     const dynamicHit = evaluateRulesAgainstLead(
@@ -330,54 +257,79 @@ async function resolveAssignedAgent(
     );
   }
 
-  // Step 2: Fallback - Time-Based & Capped Pooling
-  const ids = await resolveWaterfallAgentIds();
-  const istHour = getCurrentHourIST();
-  const isNightShift = istHour >= 20 || istHour < 11;
+  // Step 2: Build eligible pool from DB agent routing config
+  const agentConfigs = await getActiveAgentConfig(workingDomain);
 
-  // Night shift (8 PM–10:59 AM IST): Meghana + Amit only
-  if (isNightShift) {
-    const pool = [ids.meghana, ids.amit].filter(Boolean) as string[];
-    if (pool.length === 0) {
-      console.error(
-        "[leadIngestion] CRITICAL: Meghana/Amit not found for evening pool. Falling back to unfiltered pool.",
-      );
-      return pickNextAgentForDomain(workingDomain, null);
-    }
-    return pickNextAgentForDomain(workingDomain, pool);
-  }
-
-  // Daytime (11 AM–7:59 PM IST): Samson cap-aware pool
-  const startOfTodayIST = getStartOfTodayIST();
-  let samsonDailyCount = 0;
-
-  if (ids.samson) {
-    const { count, error: countErr } = await supabase
-      .from("leads")
-      .select("*", { count: "exact", head: true })
-      .eq("assigned_to", ids.samson)
-      .gte("created_at", startOfTodayIST);
-
-    if (!countErr) {
-      samsonDailyCount = count ?? 0;
-    }
-  }
-
-  const samsonAtCap = samsonDailyCount >= 15;
-  const pool = samsonAtCap
-    ? ([ids.meghana, ids.amit, ids.kaniisha].filter(Boolean) as string[])
-    : ([ids.samson, ids.meghana, ids.amit, ids.kaniisha].filter(
-        Boolean,
-      ) as string[]);
-
-  if (pool.length === 0) {
-    console.error(
-      "[leadIngestion] CRITICAL: No agents in dynamic pool. Falling back to unfiltered pool.",
+  if (agentConfigs.length === 0) {
+    console.warn(
+      `[leadIngestion] No agent routing config for domain "${workingDomain}". Falling back to unfiltered domain pool.`,
     );
     return pickNextAgentForDomain(workingDomain, null);
   }
 
-  return pickNextAgentForDomain(workingDomain, pool);
+  const currentHour = getCurrentHourIST();
+  const startOfTodayIST = getStartOfTodayIST();
+
+  // Filter to agents whose shift window covers the current IST hour.
+  // NULL shift_start / shift_end means always available (eligible day + night).
+  const shiftAvailable = agentConfigs.filter((agent) => {
+    if (!agent.shift_start || !agent.shift_end) return true;
+    const startHour = parseInt(agent.shift_start.slice(0, 2), 10);
+    const endHour = parseInt(agent.shift_end.slice(0, 2), 10);
+    return currentHour >= startHour && currentHour <= endHour;
+  });
+
+  if (shiftAvailable.length === 0) {
+    console.warn(
+      `[leadIngestion] No shift-available agents for domain "${workingDomain}" at IST hour ${currentHour}. Falling back to unfiltered pool.`,
+    );
+    return pickNextAgentForDomain(workingDomain, null);
+  }
+
+  // Apply daily cap: exclude agents who have hit their cap today (IST calendar day).
+  const eligibleUuids: string[] = [];
+
+  for (const agent of shiftAvailable) {
+    if (agent.daily_cap === null) {
+      // No cap configured — always eligible.
+      eligibleUuids.push(agent.user_id);
+      continue;
+    }
+
+    const { count, error: countErr } = await supabase
+      .from("leads")
+      .select("*", { count: "exact", head: true })
+      .eq("assigned_to", agent.user_id)
+      .gte("created_at", startOfTodayIST);
+
+    if (countErr) {
+      // Fail-open: include the agent if the count query errors; log for alerting.
+      console.error(
+        `[leadIngestion] Daily cap count failed for ${agent.email} (including in pool):`,
+        countErr.message,
+      );
+      eligibleUuids.push(agent.user_id);
+      continue;
+    }
+
+    const todayCount = count ?? 0;
+    if (todayCount < agent.daily_cap) {
+      eligibleUuids.push(agent.user_id);
+    } else {
+      console.info(
+        `[leadIngestion] ${agent.email} at daily cap (${todayCount}/${agent.daily_cap}); excluded from pool.`,
+      );
+    }
+  }
+
+  if (eligibleUuids.length === 0) {
+    console.warn(
+      `[leadIngestion] All configured agents at daily cap for domain "${workingDomain}". Falling back to unfiltered pool.`,
+    );
+    return pickNextAgentForDomain(workingDomain, null);
+  }
+
+  return pickNextAgentForDomain(workingDomain, eligibleUuids);
 }
 
 function splitFullName(fullName: string | null | undefined): {
@@ -408,7 +360,7 @@ export type ProcessLeadError = {
 };
 
 /**
- * Validates payload, assigns agent (dynamic rules → time pools + Samson cap), inserts lead.
+ * Validates payload, assigns agent (dynamic rules → DB-configured shift/cap pools), inserts lead.
  * Adapters must pass a pre-formatted object (no raw_meta_fields / raw_google_fields).
  */
 export async function processAndInsertLead(

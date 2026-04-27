@@ -25,6 +25,7 @@ import {
   ShoppingBag,
   Route,
   Workflow,
+  Brain,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -33,11 +34,16 @@ import { createClient } from "@/lib/supabase/client";
 import type { Profile } from "@/lib/types/database";
 import { DOMAIN_DISPLAY_CONFIG } from "@/lib/types/database";
 import { canAccessShopSurfaces } from "@/lib/shop/access";
+import {
+  DEPARTMENT_CONFIG,
+  DEPARTMENT_ROUTE_ACCESS,
+  isDepartmentRoute,
+} from "@/lib/constants/departments";
 
 // ── Nav definition ─────────────────────────────────────────
 // `exact: true` forces pathname === href for active detection.
 // Use this for parent routes that would otherwise match all children
-// (e.g. /scout would incorrectly match /scout/dashboard).
+// (e.g. /manager would incorrectly match /manager/dashboard).
 
 // Roles that can mutate data — used for canEdit guardrail in UI
 export const MUTABLE_ROLES = ["admin", "founder", "manager", "agent"] as const;
@@ -86,7 +92,7 @@ const navItems = [
   },
   {
     href: "/tasks",
-    label: "My Tasks",
+    label: "Atlas Tasks",
     icon: CheckSquare,
     roles: ["agent", "manager", "founder", "admin"],
     section: "main",
@@ -120,21 +126,21 @@ const navItems = [
     section: "main",
   },
   {
-    href: "/scout/campaigns",
+    href: "/manager/campaigns",
     label: "Live Campaigns",
     icon: Megaphone,
     roles: ["manager", "founder"],
     section: "manager",
   },
   {
-    href: "/scout/team",
+    href: "/manager/team",
     label: "Team Roster",
     icon: UsersRound,
     roles: ["manager", "founder"],
     section: "manager",
   },
   {
-    href: "/scout",
+    href: "/manager",
     label: "Morning Briefing",
     icon: Coffee,
     roles: ["manager", "founder"],
@@ -142,18 +148,25 @@ const navItems = [
     exact: true,
   },
   {
-    href: "/scout/dashboard",
+    href: "/manager/dashboard",
     label: "Command Center",
     icon: BarChart3,
     roles: ["manager", "founder"],
     section: "manager",
   },
   {
-    href: "/scout/planner",
+    href: "/manager/planner",
     label: "Ad Planner",
     icon: Sparkles,
     roles: ["manager", "founder"],
     section: "manager",
+  },
+  {
+    href: "/concierge",
+    label: "Elia · Concierge",
+    icon: Brain,
+    roles: ["admin", "founder"],
+    section: "admin",
   },
   {
     href: "/indulge-world",
@@ -335,14 +348,30 @@ export function Sidebar({ profile }: SidebarProps) {
     router.refresh();
   }
 
+  // Admin and founder bypass all department filtering — they see everything.
+  const isGlobalRole = profile.role === "admin" || profile.role === "founder";
+  const deptRoutes =
+    !isGlobalRole && profile.department
+      ? DEPARTMENT_ROUTE_ACCESS[profile.department]
+      : null;
+
   const visible = navItems.filter((item) => {
+    // 1. Role gate (always applied first).
     if (!item.roles.includes(profile.role)) return false;
+
+    // 2. Shop-only items: require shop domain access.
     if ((item as { shopOnly?: boolean }).shopOnly) {
       if (!canAccessShopSurfaces(profile)) return false;
-      // Admins use Administration → Shop Workspace (/admin/shop/workspace); domain is irrelevant.
       if (profile.role === "admin") return false;
       return true;
     }
+
+    // 3. Department route gate (non-admin/founder with a department set).
+    //    If department is null (safety fallback for edge cases) skip this gate.
+    if (deptRoutes !== null) {
+      if (!isDepartmentRoute(item.href, deptRoutes)) return false;
+    }
+
     return true;
   });
 
@@ -389,23 +418,38 @@ export function Sidebar({ profile }: SidebarProps) {
           }}
         />
 
-        {/* ── Domain badge (glassmorphic) ─────────────────── */}
-        {profile.domain && (
-          <div
-            className="mt-4 px-3 py-2 rounded-xl bg-white/[0.04] backdrop-blur-sm border border-white/[0.08]"
-            style={{
-              boxShadow: `0 0 0 1px ${DOMAIN_DISPLAY_CONFIG[profile.domain]?.ringColor ?? "rgba(212,175,55,0.2)"}40`,
-            }}
-          >
-            <p className="text-[10px] font-semibold text-white/[0.35] uppercase tracking-[0.14em]">
-              Workspace
-            </p>
-            <p className="text-[13px] font-medium text-white/90 mt-0.5">
-              {DOMAIN_DISPLAY_CONFIG[profile.domain]?.label ??
-                profile.domain.replace(/_/g, " ")}
-            </p>
-          </div>
-        )}
+        {/* ── Department / Domain badge (glassmorphic) ───── */}
+        {(profile.department || profile.domain) && (() => {
+          const deptCfg = profile.department ? DEPARTMENT_CONFIG[profile.department] : null;
+          const accentColor = deptCfg?.accentColor
+            ?? DOMAIN_DISPLAY_CONFIG[profile.domain]?.ringColor
+            ?? "rgba(212,175,55,0.4)";
+          const workspaceLabel = deptCfg?.label
+            ?? DOMAIN_DISPLAY_CONFIG[profile.domain]?.label
+            ?? profile.domain.replace(/_/g, " ");
+          const subLabel = deptCfg
+            ? profile.job_title ?? profile.role
+            : profile.domain.replace(/_/g, " ");
+
+          return (
+            <div
+              className="mt-4 px-3 py-2 rounded-xl bg-white/[0.04] backdrop-blur-sm border border-white/[0.08]"
+              style={{ boxShadow: `0 0 0 1px ${accentColor}40` }}
+            >
+              <p className="text-[10px] font-semibold text-white/[0.35] uppercase tracking-[0.14em]">
+                Workspace
+              </p>
+              <p className="text-[13px] font-medium text-white/90 mt-0.5 capitalize">
+                {workspaceLabel}
+              </p>
+              {subLabel && (
+                <p className="text-[10px] text-white/40 mt-0.5 truncate capitalize">
+                  {subLabel}
+                </p>
+              )}
+            </div>
+          );
+        })()}
       </div>
 
       {/* ── Navigation ─────────────────────────────────── */}

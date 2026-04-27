@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "types:generate": "supabase gen types typescript --project-id YOUR_PROJECT_ID > lib/types/database.generated.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

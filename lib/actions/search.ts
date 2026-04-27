@@ -139,7 +139,7 @@ export async function globalOmniSearch(
       id: row.id,
       title: row.full_name,
       subtitle: row.email ?? row.role,
-      href: "/scout/team",
+      href: "/manager/team",
     }));
   }
 

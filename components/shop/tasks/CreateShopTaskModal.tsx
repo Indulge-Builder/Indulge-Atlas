@@ -17,10 +17,12 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { IndulgeField } from "@/components/ui/indulge-field";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { LuxuryDatePicker } from "@/components/ui/LuxuryDatePicker";
 import { cn } from "@/lib/utils";
+
 import { Check, ChevronLeft, ChevronRight, Loader2, X } from "lucide-react";
 import {
   createShopTask,
@@ -238,11 +240,7 @@ export function CreateShopTaskModal({ trigger }: CreateShopTaskModalProps) {
   if (!mounted) {
     return (
       trigger ?? (
-        <Button
-          type="button"
-          variant="outline"
-          className="rounded-xl border-stone-200 text-stone-700 hover:bg-stone-50"
-        >
+        <Button type="button" variant="outline" className="rounded-xl">
           New shop task
         </Button>
       )
@@ -253,11 +251,7 @@ export function CreateShopTaskModal({ trigger }: CreateShopTaskModalProps) {
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogPrimitive.Trigger asChild>
         {trigger ?? (
-          <Button
-            type="button"
-            variant="outline"
-            className="rounded-xl border-stone-200 text-stone-700 hover:bg-stone-50"
-          >
+          <Button type="button" variant="outline" className="rounded-xl">
             New shop task
           </Button>
         )}
@@ -270,7 +264,7 @@ export function CreateShopTaskModal({ trigger }: CreateShopTaskModalProps) {
             initial={{ opacity: 0, scale: 0.98, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 bg-white/95 backdrop-blur-2xl ring-1 ring-black/[0.04] shadow-2xl rounded-2xl p-6 max-h-[90vh] flex flex-col"
+            className="fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 bg-white/95 backdrop-blur-2xl ring-1 ring-black/4 shadow-2xl rounded-2xl p-6 max-h-[90vh] flex flex-col"
           >
             <div className="flex items-start justify-between mb-4">
               <div>
@@ -285,12 +279,15 @@ export function CreateShopTaskModal({ trigger }: CreateShopTaskModalProps) {
                 </DialogDescription>
               </div>
               <DialogClose asChild>
-                <button
+                <Button
                   type="button"
-                  className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100/80 transition-colors"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-[#9E9E9E]"
                 >
                   <X className="w-4 h-4" />
-                </button>
+                  <span className="sr-only">Close</span>
+                </Button>
               </DialogClose>
             </div>
 
@@ -358,40 +355,33 @@ export function CreateShopTaskModal({ trigger }: CreateShopTaskModalProps) {
                     )}
                   />
 
-                  <div className="space-y-1.5">
-                    <Label className="text-[11px] font-semibold text-stone-500 uppercase tracking-widest">
-                      Title
-                    </Label>
+                  <IndulgeField
+                    label="Title"
+                    error={errors.title?.message}
+                    required
+                  >
                     <Input
                       {...register("title")}
+                      size="lg"
+                      error={!!errors.title}
                       placeholder="e.g. VIP ticket push — Griffin event"
-                      className="h-10 rounded-xl border-[#E5E4DF] bg-white text-[#1A1A1A] placeholder:text-[#B5A99A]"
+                      className="rounded-xl"
                     />
-                    {errors.title && (
-                      <p className="text-[11px] text-rose-600">{errors.title.message}</p>
-                    )}
-                  </div>
+                  </IndulgeField>
 
-                  <div className="space-y-1.5">
-                    <Label className="text-[11px] font-semibold text-stone-500 uppercase tracking-widest">
-                      Notes
-                    </Label>
-                    <textarea
+                  <IndulgeField label="Notes">
+                    <Textarea
                       {...register("notes")}
                       rows={2}
                       placeholder="Briefing for the team…"
-                      className={cn(
-                        "w-full px-3 py-2 text-sm rounded-xl border border-[#E5E4DF] bg-white resize-none",
-                        "text-[#1A1A1A] placeholder:text-[#B5A99A]",
-                        "focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/30 focus:border-[#D4AF37]",
-                      )}
+                      className="min-h-0 rounded-xl"
                     />
-                  </div>
+                  </IndulgeField>
 
-                  <div className="space-y-2">
-                    <Label className="text-[11px] font-semibold text-stone-500 uppercase tracking-widest">
-                      Agents
-                    </Label>
+                  <IndulgeField
+                    label="Agents"
+                    error={errors.assigned_to_users?.message}
+                  >
                     <Controller
                       name="assigned_to_users"
                       control={control}
@@ -441,12 +431,7 @@ export function CreateShopTaskModal({ trigger }: CreateShopTaskModalProps) {
                         </ScrollArea>
                       )}
                     />
-                    {errors.assigned_to_users && (
-                      <p className="text-[11px] text-rose-600">
-                        {errors.assigned_to_users.message}
-                      </p>
-                    )}
-                  </div>
+                  </IndulgeField>
                 </motion.div>
               </div>
 
@@ -454,10 +439,7 @@ export function CreateShopTaskModal({ trigger }: CreateShopTaskModalProps) {
                 className={cn("space-y-4", step !== 2 && "hidden")}
                 aria-hidden={step !== 2}
               >
-                  <div className="space-y-2">
-                    <Label className="text-[11px] font-semibold text-stone-500 uppercase tracking-widest">
-                      Priority
-                    </Label>
+                  <IndulgeField label="Priority">
                     <Controller
                       name="shop_task_priority"
                       control={control}
@@ -465,11 +447,9 @@ export function CreateShopTaskModal({ trigger }: CreateShopTaskModalProps) {
                         <PrioritySegment value={field.value} onChange={field.onChange} />
                       )}
                     />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-[11px] font-semibold text-stone-500 uppercase tracking-widest">
-                      Deadline
-                    </Label>
+                  </IndulgeField>
+
+                  <IndulgeField label="Deadline" error={errors.dueAt?.message}>
                     <Controller
                       name="dueAt"
                       control={control}
@@ -477,10 +457,7 @@ export function CreateShopTaskModal({ trigger }: CreateShopTaskModalProps) {
                         <LuxuryDatePicker value={field.value} onChange={field.onChange} />
                       )}
                     />
-                    {errors.dueAt && (
-                      <p className="text-[11px] text-rose-600">{errors.dueAt.message}</p>
-                    )}
-                  </div>
+                  </IndulgeField>
                   <div className="pt-2" />
                   <div className="flex items-center justify-between rounded-xl border border-stone-200 px-3 py-2.5 bg-stone-50/50">
                     <span className="text-sm text-stone-700">Has target / inventory?</span>
@@ -515,37 +492,30 @@ export function CreateShopTaskModal({ trigger }: CreateShopTaskModalProps) {
                     className={cn("grid grid-cols-2 gap-3", !hasTarget && "hidden")}
                     aria-hidden={!hasTarget}
                   >
-                    <div className="space-y-1.5">
-                      <Label className="text-[11px] font-semibold text-stone-500 uppercase tracking-widest">
-                        Product name
-                      </Label>
+                    <IndulgeField
+                      label="Product name"
+                      error={errors.shop_product_name?.message}
+                    >
                       <Input
                         {...register("shop_product_name")}
+                        error={!!errors.shop_product_name}
                         placeholder="e.g. Griffin ticket"
-                        className="rounded-xl border-stone-200 text-[#1A1A1A] placeholder:text-[#B5A99A]"
+                        className="rounded-xl"
                       />
-                      {errors.shop_product_name && (
-                        <p className="text-[11px] text-rose-600">
-                          {errors.shop_product_name.message}
-                        </p>
-                      )}
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-[11px] font-semibold text-stone-500 uppercase tracking-widest">
-                        Target amount
-                      </Label>
+                    </IndulgeField>
+
+                    <IndulgeField
+                      label="Target amount"
+                      error={errors.target_inventory?.message}
+                    >
                       <Input
                         type="number"
                         min={1}
                         {...register("target_inventory", { valueAsNumber: true })}
-                        className="rounded-xl border-stone-200 text-[#1A1A1A]"
+                        error={!!errors.target_inventory}
+                        className="rounded-xl"
                       />
-                      {errors.target_inventory && (
-                        <p className="text-[11px] text-rose-600">
-                          {errors.target_inventory.message}
-                        </p>
-                      )}
-                    </div>
+                    </IndulgeField>
                   </div>
               </div>
 
@@ -571,7 +541,7 @@ export function CreateShopTaskModal({ trigger }: CreateShopTaskModalProps) {
                   <Button
                     type="button"
                     onClick={() => void nextStep()}
-                    className="rounded-xl bg-stone-900 text-white hover:bg-stone-800"
+                    className="rounded-xl"
                   >
                     Next
                     <ChevronRight className="h-4 w-4 ml-1" />
@@ -581,7 +551,7 @@ export function CreateShopTaskModal({ trigger }: CreateShopTaskModalProps) {
                     type="button"
                     disabled={submitting}
                     onClick={() => void handleSubmit(onSubmit)()}
-                    className="rounded-xl bg-stone-900 text-white hover:bg-stone-800 min-w-[120px]"
+                    className="rounded-xl min-w-[120px]"
                   >
                     {submitting ? (
                       <Loader2 className="h-4 w-4 animate-spin" />

@@ -1,3 +1,8 @@
+// MANUAL TYPES — To be replaced with generated types.
+// Run `npm run types:generate` to regenerate from the live schema.
+// See lib/types/database.generated.ts after running.
+// Replace YOUR_PROJECT_ID in package.json with your actual Supabase project ID first.
+
 // ── Messaging types ────────────────────────────────────────
 
 export type ConversationType = "direct" | "lead_context";
@@ -100,6 +105,14 @@ export const DOMAIN_DISPLAY_CONFIG: Record<
     pillBg: "#F4F4F5",
     pillColor: "#6B7280",
   },
+  // Added migration 066: cross-BU domain for Finance, Tech, Marketing
+  indulge_global: {
+    label: "Indulge Global",
+    shortLabel: "Global",
+    ringColor: "rgba(212, 175, 55, 0.5)",
+    pillBg: "#FFF7ED",
+    pillColor: "#D4AF37",
+  },
 };
 
 /** Logical pipeline order for dropdowns and filters */
@@ -145,6 +158,353 @@ export type ShopOperationScope = "individual" | "group";
 /** Shop master targets — must match shop_master_targets.status CHECK */
 export type ShopMasterTargetStatus = "active" | "completed";
 
+// ── Project task system types ──────────────────────────────
+
+export type ProjectStatus = 'active' | 'on_hold' | 'completed' | 'archived';
+export type ProjectMemberRole = 'owner' | 'manager' | 'member' | 'viewer';
+export type TaskGroupStatus = 'not_started' | 'in_progress' | 'completed' | 'blocked';
+export type TaskPriority = 'critical' | 'urgent' | 'high' | 'medium' | 'low';
+
+export interface Project {
+  id: string;
+  title: string;
+  description: string | null;
+  status: ProjectStatus;
+  owner_id: string;
+  department: string | null;
+  domain: string | null;
+  color: string | null;
+  icon: string | null;
+  due_date: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined
+  owner?: Pick<Profile, 'id' | 'full_name'> | null;
+  members?: ProjectMember[];
+  task_groups?: TaskGroup[];
+  task_count?: number;
+  completed_task_count?: number;
+}
+
+export interface ProjectMember {
+  id: string;
+  project_id: string;
+  user_id: string;
+  role: ProjectMemberRole;
+  added_by: string | null;
+  added_at: string;
+  // Joined
+  profile?: Pick<Profile, 'id' | 'full_name' | 'role'> | null;
+}
+
+export interface TaskGroup {
+  id: string;
+  project_id: string;
+  title: string;
+  description: string | null;
+  status: TaskGroupStatus;
+  position: number;
+  due_date: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  // Client-side only: tasks in this group
+  tasks?: ProjectTask[];
+}
+
+/** A task belonging to a project (extends the base Task with project-specific fields). */
+export interface ProjectTask {
+  id: string;
+  project_id: string;
+  group_id: string | null;
+  parent_task_id: string | null;
+  title: string;
+  notes: string | null;
+  status: TaskStatus;
+  priority: TaskPriority;
+  progress: number;
+  due_date: string | null;
+  assigned_to_users: string[];
+  estimated_minutes: number | null;
+  actual_minutes: number | null;
+  position: number;
+  tags: string[];
+  attachments: TaskAttachment[];
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined
+  assigned_to_profiles?: Pick<Profile, 'id' | 'full_name' | 'role'>[];
+  sub_tasks?: ProjectTask[];
+  comment_count?: number;
+}
+
+export interface TaskAttachment {
+  name: string;
+  url: string;
+  uploaded_by: string;
+  uploaded_at: string;
+}
+
+export interface TaskComment {
+  id: string;
+  task_id: string;
+  author_id: string | null;
+  content: string;
+  edited_at: string | null;
+  is_system: boolean;
+  created_at: string;
+  // Joined
+  author?: Pick<Profile, 'id' | 'full_name' | 'role'> | null;
+}
+
+/**
+ * Structured progress log row from the task_progress_updates table.
+ * Note: TaskProgressUpdate (the JSONB per-note shape on tasks.progress_updates)
+ * is a separate type defined below — these are different entities.
+ */
+export interface ProjectProgressUpdate {
+  id: string;
+  task_id: string;
+  updated_by: string | null;
+  previous_progress: number;
+  new_progress: number;
+  previous_status: string;
+  new_status: string;
+  note: string | null;
+  created_at: string;
+  // Joined
+  updater?: Pick<Profile, 'id' | 'full_name'> | null;
+}
+
+// ── Atlas Task System — Unified Task Management (migration 067) ────────────
+
+/**
+ * unified_task_type column — classifies tasks in the unified hierarchy.
+ * 'master'   = top-level objective (was: Project)
+ * 'subtask'  = atomic work item inside a Master Task
+ * 'personal' = standalone task with no parent (was: delegate task)
+ */
+export type MasterTaskType = 'master' | 'subtask' | 'personal';
+
+/**
+ * atlas_status column — rich status enum for the unified task system.
+ * Distinct from the legacy TaskStatus ('pending'|'completed'|'overdue') used
+ * by the CRM task flow. Both coexist on the tasks table.
+ */
+export type AtlasTaskStatus =
+  | 'todo'
+  | 'in_progress'
+  | 'in_review'
+  | 'done'
+  | 'blocked'
+  | 'error'
+  | 'cancelled';
+
+export const ATLAS_TASK_STATUS_LABELS: Record<AtlasTaskStatus, string> = {
+  todo:        'To Do',
+  in_progress: 'In Progress',
+  in_review:   'In Review',
+  done:        'Done',
+  blocked:     'Blocked',
+  error:       'Error',
+  cancelled:   'Cancelled',
+};
+
+export const ATLAS_TASK_STATUS_COLORS: Record<AtlasTaskStatus, string> = {
+  todo:        '#6B7280',
+  in_progress: '#D4AF37',
+  in_review:   '#8B5CF6',
+  done:        '#10B981',
+  blocked:     '#EF4444',
+  error:       '#F97316',
+  cancelled:   '#9CA3AF',
+};
+
+/**
+ * Timeline event source — differentiates author types in the Agentic Timeline.
+ * 'agent'  = human agent logged an update via the Log Update form
+ * 'system' = auto-inserted by a Server Action when a structural change occurs
+ * 'elia'   = future: Elia AI inserts entries as a peer participant
+ *
+ * Added migration 071.
+ */
+export type TaskRemarkSource = 'agent' | 'system' | 'elia';
+
+/**
+ * The UUID of the synthetic "Atlas System" profile row.
+ * Used as author_id for source='system' remarks.
+ * Defined in migration 071 and inserted into public.profiles.
+ */
+export const ATLAS_SYSTEM_AUTHOR_ID = '00000000-0000-0000-0000-000000000001';
+
+/**
+ * The UUID reserved for the Elia AI author.
+ * No profile row exists yet — this is a placeholder for when Elia goes live.
+ * When an entry in task_remarks has author_id equal to this constant,
+ * the frontend renders the Elia visual variant.
+ */
+export const ELIA_AUTHOR_ID = '00000000-0000-0000-0000-000000000002';
+
+/** Remark — append-only state-change log entry on a subtask (migration 067/071) */
+export interface TaskRemark {
+  id: string;
+  task_id: string;
+  author_id: string;
+  content: string;
+  state_at_time: AtlasTaskStatus;
+  previous_status: AtlasTaskStatus | null;
+  progress_at_time: number | null;
+  source: TaskRemarkSource;
+  created_at: string;
+  // Joined
+  author?: Pick<Profile, 'id' | 'full_name' | 'job_title'> | null;
+}
+
+/** DB row for `task_remarks` (no joins) — used by `Database` generic for typed inserts. */
+export interface TaskRemarkRow {
+  id: string;
+  task_id: string;
+  author_id: string;
+  content: string;
+  state_at_time: AtlasTaskStatus;
+  previous_status: AtlasTaskStatus | null;
+  progress_at_time: number | null;
+  source: TaskRemarkSource;
+  created_at: string;
+}
+
+/** A single item in the subtask checklist stored as JSONB on tasks.attachments */
+export interface ChecklistItem {
+  id: string;
+  text: string;
+  checked: boolean;
+}
+
+/** Google Sheets import batch — audit trail row (migration 067) */
+export interface ImportBatch {
+  id: string;
+  created_by: string;
+  master_task_id: string | null;
+  source: 'google_sheets';
+  row_count: number;
+  status: 'pending' | 'completed' | 'failed';
+  error_log: Record<string, unknown> | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
+/**
+ * MasterTask — a Project promoted to the unified task hierarchy.
+ * Extends ProjectTask with master-task-specific fields.
+ */
+export interface MasterTask {
+  id: string;
+  title: string;
+  description: string | null;
+  unified_task_type: 'master';
+  atlas_status: AtlasTaskStatus;
+  domain: string | null;
+  department: string | null;
+  cover_color: string | null;
+  icon_key: string | null;
+  due_date: string | null;
+  archived_at: string | null;
+  archived_by: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined / computed
+  owner?: Pick<Profile, 'id' | 'full_name' | 'job_title'> | null;
+  members?: MasterTaskMember[];
+  task_groups?: TaskGroup[];
+  subtask_count?: number;
+  completed_subtask_count?: number;
+  member_count?: number;
+  last_activity_at?: string | null;
+}
+
+export type MasterTaskMemberRole = 'owner' | 'member' | 'viewer';
+
+export interface MasterTaskMember {
+  id: string;
+  project_id: string;
+  user_id: string;
+  role: MasterTaskMemberRole;
+  added_by: string | null;
+  added_at: string;
+  profile?: Pick<Profile, 'id' | 'full_name' | 'role' | 'job_title'> | null;
+}
+
+/**
+ * SubTask — an atomic work item inside a Master Task.
+ * Uses ProjectTask as base, extended with Atlas fields.
+ */
+export interface SubTask extends ProjectTask {
+  unified_task_type: 'subtask';
+  atlas_status: AtlasTaskStatus;
+  domain: string | null;
+  department: string | null;
+  master_task_id: string | null;
+  imported_from: string | null;
+  import_batch_id: string | null;
+  remarks?: TaskRemark[];
+}
+
+/** Personal Task — standalone task with no parent project */
+export interface PersonalTask {
+  id: string;
+  title: string;
+  notes: string | null;
+  unified_task_type: 'personal';
+  atlas_status: AtlasTaskStatus;
+  priority: TaskPriority;
+  due_date: string | null;
+  progress: number;
+  created_by: string | null;
+  assigned_to_users: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+/** Master Task analytics payload */
+export interface MasterTaskAnalytics {
+  total_subtasks: number;
+  by_status: Record<AtlasTaskStatus, number>;
+  completion_pct: number;
+  by_assignee: Array<{
+    profile: Pick<Profile, 'id' | 'full_name'>;
+    count: number;
+    done: number;
+    in_progress: number;
+  }>;
+  overdue_count: number;
+  velocity: Array<{ date: string; completed: number }>;
+}
+
+// ── Project display helpers ─────────────────────────────────
+
+export const PROJECT_STATUS_CONFIG: Record<
+  ProjectStatus,
+  { label: string; className: string }
+> = {
+  active:    { label: 'Active',    className: 'bg-emerald-500/10 text-emerald-700' },
+  on_hold:   { label: 'On Hold',   className: 'bg-amber-500/10 text-amber-700' },
+  completed: { label: 'Completed', className: 'bg-[#D4AF37]/10 text-[#A88B25]' },
+  archived:  { label: 'Archived',  className: 'bg-zinc-500/10 text-zinc-600' },
+};
+
+export const TASK_PRIORITY_CONFIG: Record<
+  TaskPriority,
+  { label: string; className: string; dotClass: string }
+> = {
+  critical: { label: 'Critical', className: 'bg-red-500/10 text-red-600',    dotClass: 'bg-red-500' },
+  urgent:   { label: 'Critical', className: 'bg-red-500/10 text-red-600',    dotClass: 'bg-red-500' },
+  high:     { label: 'High',     className: 'bg-orange-500/10 text-orange-600', dotClass: 'bg-orange-500' },
+  medium:   { label: 'Medium',   className: 'bg-amber-500/10 text-amber-600', dotClass: 'bg-amber-500' },
+  low:      { label: 'Low',      className: 'bg-zinc-500/10 text-zinc-500',   dotClass: 'bg-zinc-400' },
+};
+
 export type TaskType =
   | "call"
   | "whatsapp_message"
@@ -172,7 +532,23 @@ export type IndulgeDomain =
   | "indulge_concierge"
   | "indulge_shop"
   | "indulge_house"
-  | "indulge_legacy";
+  | "indulge_legacy"
+  | "indulge_global"; // Cross-business-unit (Finance, Tech, Marketing) — added migration 066
+
+/**
+ * Employee department — must match PostgreSQL employee_department enum (migration 066).
+ * Drives UI workspace routing (AXIS 2). Orthogonal to domain.
+ * NULL on a profiles row = cross-departmental role (admin, founder, system).
+ */
+export type EmployeeDepartment =
+  | "concierge"
+  | "finance"
+  | "tech"
+  | "shop"
+  | "house"
+  | "legacy"
+  | "marketing"
+  | "onboarding";
 
 // ── Task type groupings ────────────────────────────────────
 
@@ -191,12 +567,9 @@ export const MANAGER_TASK_TYPES: TaskType[] = [
   "performance_analysis",
 ];
 
-/** @deprecated Use MANAGER_TASK_TYPES */
-export const SCOUT_TASK_TYPES = MANAGER_TASK_TYPES;
-
 export const ALL_TASK_TYPES: TaskType[] = [
   ...AGENT_TASK_TYPES,
-  ...SCOUT_TASK_TYPES,
+  ...MANAGER_TASK_TYPES,
 ];
 
 // ── Table interfaces ───────────────────────────────────────
@@ -209,6 +582,12 @@ export interface Profile {
   dob: string | null; // ISO date "YYYY-MM-DD"
   role: UserRole;
   domain: IndulgeDomain;
+  /** Employee department. NULL = cross-departmental role (admin/founder). Added migration 066. */
+  department: EmployeeDepartment | null;
+  /** Human-readable job title e.g. "Senior Concierge Manager". Added migration 066. */
+  job_title: string | null;
+  /** UUID of the direct manager in the reporting hierarchy. Added migration 066. */
+  reports_to: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -232,6 +611,28 @@ export interface LeadRoutingRule {
 
 export interface LeadRoutingRuleWithAgent extends LeadRoutingRule {
   target_profile: Pick<Profile, "id" | "full_name" | "email"> | null;
+}
+
+/** Agent waterfall routing config — matches `agent_routing_config` table (migration 061) */
+export interface AgentRoutingConfig {
+  id: string;
+  /** UUID matching auth.users(id) and profiles(id) */
+  user_id: string;
+  /** Denormalised email for fast lookup — kept in sync with profiles.email */
+  email: string;
+  domain: string;
+  is_active: boolean;
+  /** Max new leads per IST calendar day. null = no cap. */
+  daily_cap: number | null;
+  /** Waterfall priority: lower = higher priority */
+  priority: number;
+  /** IST shift start "HH:MM:SS". null = always available */
+  shift_start: string | null;
+  /** IST shift end "HH:MM:SS". null = always available */
+  shift_end: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export type LostReasonTag =
@@ -397,6 +798,17 @@ export interface Task {
   /** Shop deadline; UI falls back to `due_date` when null. */
   deadline?: string | null;
   shop_product_name?: string | null;
+  // ── Project system columns (all nullable / have defaults — backward-compatible) ──
+  project_id?: string | null;
+  group_id?: string | null;
+  parent_task_id?: string | null;
+  priority?: TaskPriority | null;
+  progress?: number;
+  estimated_minutes?: number | null;
+  actual_minutes?: number | null;
+  position?: number;
+  tags?: string[];
+  attachments?: TaskAttachment[];
   created_at: string;
   updated_at: string;
   // Joined
@@ -436,6 +848,7 @@ export interface Database {
         Row: Profile;
         Insert: Omit<Profile, "created_at" | "updated_at">;
         Update: Partial<Omit<Profile, "id" | "created_at" | "updated_at">>;
+        Relationships: [];
       };
       leads: {
         Row: Lead;
@@ -444,6 +857,7 @@ export interface Database {
           "id" | "created_at" | "updated_at" | "assigned_agent"
         >;
         Update: Partial<Omit<Lead, "id" | "created_at" | "assigned_agent">>;
+        Relationships: [];
       };
       webhook_logs: {
         Row: {
@@ -510,7 +924,8 @@ export interface Database {
       lead_activities: {
         Row: LeadActivity;
         Insert: Omit<LeadActivity, "id" | "created_at" | "agent">;
-        Update: never;
+        Update: Partial<LeadActivity>;
+        Relationships: [];
       };
       tasks: {
         Row: Task;
@@ -552,8 +967,21 @@ export interface Database {
             | "assigned_to_profiles"
           >
         >;
+        Relationships: [];
+      };
+      /** Append-only timeline (migration 067 / 071). Insert via user RLS or service role. */
+      task_remarks: {
+        Row: TaskRemarkRow;
+        Insert: Omit<TaskRemarkRow, "id" | "created_at"> & {
+          id?: string;
+          created_at?: string;
+        };
+        /** Append-only in DB; typed as partial for Supabase `GenericTable` compatibility. */
+        Update: Partial<TaskRemarkRow>;
+        Relationships: [];
       };
     };
+    Views: Record<string, never>;
     Enums: {
       lead_status: LeadStatus;
       user_role: UserRole;
@@ -568,11 +996,11 @@ export interface Database {
         Returns: number;
       };
       assign_next_agent: {
-        Args: Record<never, never>;
+        Args: Record<string, never>;
         Returns: string;
       };
       get_leads_columns: {
-        Args: Record<string, never>;
+        Args: Record<string, unknown>;
         Returns: { column_name: string; data_type: string }[];
       };
     };

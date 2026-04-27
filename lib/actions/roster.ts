@@ -59,8 +59,8 @@ export async function toggleAgentLeaveStatus(
       return { success: false, error: "Failed to update roster status" };
     }
 
-    revalidatePath("/scout/roster");
-    revalidatePath("/scout/team");
+    revalidatePath("/manager/roster");
+    revalidatePath("/manager/team");
 
     return { success: true };
   } catch {

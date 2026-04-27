@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 import { surfaceCardVariants } from "@/components/ui/card";
-import { BriefingDeltaPill } from "@/components/scout/BriefingDeltaPill";
+import { BriefingDeltaPill } from "@/components/manager/BriefingDeltaPill";
 import type { BriefingTrendMetric } from "@/lib/briefing/executiveBriefing";
 import type { ShopPulseData } from "@/lib/actions/dashboards";
 import { shopMetricDeltas } from "@/lib/dashboards/shopPulseUtils";

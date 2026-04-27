@@ -43,20 +43,37 @@ export async function createSmartTask(params: unknown): Promise<{ success: boole
   try {
     const { supabase, user } = await getAuthUser();
 
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("domain, department")
+      .eq("id", user.id)
+      .single();
+
     const { data, error } = await supabase
       .from("tasks")
       .insert({
+        assigned_to:       user.id,
         assigned_to_users: [user.id],
-        title: parsed.data.title,
-        due_date: parsed.data.dueAt,
-        task_type: parsed.data.type,
-        lead_id: null,
-        status: "pending",
+        created_by:        user.id,
+        title:             parsed.data.title,
+        due_date:          parsed.data.dueAt,
+        task_type:         parsed.data.type,
+        status:            "pending",
+        unified_task_type: "personal",
+        atlas_status:      "todo",
+        priority:          "medium",
+        progress:          0,
+        domain:            profile?.domain ?? null,
+        department:        profile?.department ?? null,
+        lead_id:           null,
       })
       .select("id")
       .single();
 
-    if (error) return { success: false, error: "Failed to create task" };
+    if (error) {
+      console.error("[createSmartTask] supabase error:", error);
+      return { success: false, error: error?.message ?? "Failed to create task" };
+    }
 
     revalidatePath("/calendar");
     revalidatePath("/tasks");

@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import type { LeadStatus } from "@/lib/types/database";
-import type { PeriodValue } from "@/components/scout/MonthSelector";
+import type { PeriodValue } from "@/components/manager/MonthSelector";
 
 function getDateRange(period: PeriodValue): { start: string; end: string } {
   const now = new Date();

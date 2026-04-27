@@ -13,6 +13,8 @@ import { InlineCompanyEdit } from "@/components/leads/InlineDossierFields";
 import { InlineTagsEdit } from "@/components/leads/InlineTagsEdit";
 import { AgentScratchpad } from "@/components/leads/AgentScratchpad";
 import { Button } from "@/components/ui/button";
+import { Card, surfaceCardVariants } from "@/components/ui/card";
+import { InfoRow } from "@/components/ui/info-row";
 import { Separator } from "@/components/ui/separator";
 import { formatDateTime, getInitials } from "@/lib/utils";
 import { LEAD_STATUS_CONFIG } from "@/lib/types/database";
@@ -47,8 +49,7 @@ import type {
   Profile,
   UserRole,
 } from "@/lib/types/database";
-import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
-import { addDays } from "date-fns";
+import { getOffDutyAnchor } from "@/lib/utils/sla";
 
 export const dynamic = "force-dynamic";
 
@@ -57,23 +58,6 @@ interface PageProps {
 }
 
 // ── SLA helpers (Speed-to-Lead: On-Duty 5/10/15m, Off-Duty 60/90/120m from 9 AM IST) ─
-
-const IST = "Asia/Kolkata";
-
-function getOffDutyAnchor(createdAt: string): Date {
-  const created = new Date(createdAt);
-  const h = parseInt(formatInTimeZone(created, IST, "H"), 10);
-  const y = parseInt(formatInTimeZone(created, IST, "yyyy"), 10);
-  const m = parseInt(formatInTimeZone(created, IST, "M"), 10);
-  const d = parseInt(formatInTimeZone(created, IST, "d"), 10);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const midnightIST = fromZonedTime(`${y}-${pad(m)}-${pad(d)}T00:00:00`, IST);
-  const anchorDate = addDays(midnightIST, h >= 18 ? 1 : 0);
-  const y2 = parseInt(formatInTimeZone(anchorDate, IST, "yyyy"), 10);
-  const m2 = parseInt(formatInTimeZone(anchorDate, IST, "M"), 10);
-  const d2 = parseInt(formatInTimeZone(anchorDate, IST, "d"), 10);
-  return fromZonedTime(`${y2}-${pad(m2)}-${pad(d2)}T09:00:00`, IST);
-}
 
 function getSLAInfo(
   assignedAt: string | null,
@@ -257,7 +241,7 @@ export default async function LeadDetailPage({ params }: PageProps) {
         {/* ══ LEFT: Lead information + timeline ══════════════════════════════ */}
         <section className="col-span-2 space-y-5">
           {/* ── Lead info card ─────────────────────────────────────────────── */}
-          <article className="overflow-hidden rounded-xl border border-[#E5E4DF] bg-white shadow-[0_1px_3px_0_rgb(0_0_0/0.04)]">
+          <Card className="overflow-hidden">
               {/* Status accent strip */}
               <div
                 className="h-1.5 w-full"
@@ -312,20 +296,16 @@ export default async function LeadDetailPage({ params }: PageProps) {
                   />
 
                   {/* Email — inline-editable */}
-                  <div className="grid grid-cols-[1.75rem_1fr] items-start gap-x-2.5 gap-y-0">
-                    <div className="col-start-1 row-span-2 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center self-start rounded-lg bg-[#F2F2EE]">
-                      <Mail className="w-3.5 h-3.5 text-[#8A8A6E]" />
-                    </div>
-                    <p className="col-start-2 row-start-1 text-[10px] font-medium uppercase tracking-wider text-[#B5A99A]">
-                      Email
-                    </p>
-                    <div className="col-start-2 row-start-2 min-w-0">
+                  <InfoRow
+                    icon={Mail}
+                    label="Email"
+                    value={
                       <InlineEmailEdit
                         leadId={lead.id}
                         currentEmail={lead.email}
                       />
-                    </div>
-                  </div>
+                    }
+                  />
 
                   {/* Campaign / Attribution / Source — manager, founder, admin, guest */}
                   {canViewCampaignData && (
@@ -354,15 +334,11 @@ export default async function LeadDetailPage({ params }: PageProps) {
                   />
 
                   {/* Assigned Agent — interactive for manager/founder/admin */}
-                  <div className="grid grid-cols-[1.75rem_1fr] items-start gap-x-2.5 gap-y-0">
-                    <div className="col-start-1 row-span-2 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center self-start rounded-lg bg-[#F2F2EE]">
-                      <User className="w-3.5 h-3.5 text-[#8A8A6E]" />
-                    </div>
-                    <p className="col-start-2 row-start-1 text-[10px] font-medium uppercase tracking-wider text-[#B5A99A]">
-                      Assigned Agent
-                    </p>
-                    <div className="col-start-2 row-start-2 min-w-0">
-                      {canReassign ? (
+                  <InfoRow
+                    icon={User}
+                    label="Assigned Agent"
+                    value={
+                      canReassign ? (
                         <InlineAgentSelect
                           leadId={lead.id}
                           currentAgentId={lead.assigned_to}
@@ -375,33 +351,18 @@ export default async function LeadDetailPage({ params }: PageProps) {
                         <p className="mt-0.5 text-sm font-medium text-[#1A1A1A]">
                           {lead.assigned_agent?.full_name ?? "Unassigned"}
                         </p>
-                      )}
-                    </div>
-                  </div>
+                      )
+                    }
+                  />
 
                   {/* SLA Clock — assigned_at with elapsed time */}
-                  <div className="grid grid-cols-[1.75rem_1fr] items-start gap-x-2.5 gap-y-0">
-                    <div
-                      className="col-start-1 row-span-2 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center self-start rounded-lg"
-                      style={{ backgroundColor: sla.bgColor }}
-                    >
-                      {sla.showAlert ? (
-                        <AlertTriangle
-                          className="w-3.5 h-3.5"
-                          style={{ color: sla.color }}
-                        />
-                      ) : (
-                        <Clock
-                          className="w-3.5 h-3.5"
-                          style={{ color: sla.color }}
-                        />
-                      )}
-                    </div>
-                    <p className="col-start-2 row-start-1 text-[10px] font-medium uppercase tracking-wider text-[#B5A99A]">
-                      SLA · Assigned
-                    </p>
-                    <div className="col-start-2 row-start-2 min-w-0">
-                      {lead.assigned_at ? (
+                  <InfoRow
+                    icon={sla.showAlert ? AlertTriangle : Clock}
+                    label="SLA · Assigned"
+                    iconBg={sla.bgColor}
+                    iconColor={sla.color}
+                    value={
+                      lead.assigned_at ? (
                         <div className="mt-0.5">
                           <p
                             className="text-sm font-semibold"
@@ -420,9 +381,9 @@ export default async function LeadDetailPage({ params }: PageProps) {
                         </div>
                       ) : (
                         <p className="mt-0.5 text-sm text-[#9E9E9E]">—</p>
-                      )}
-                    </div>
-                  </div>
+                      )
+                    }
+                  />
                 </div>
 
                 <div className="mt-5">
@@ -490,13 +451,12 @@ export default async function LeadDetailPage({ params }: PageProps) {
                     </>
                   )}
             </div>
-          </article>
+          </Card>
 
             {/* Marketing Notes — Public shared space with amber luxury wash */}
             {lead.notes && (
               <article
-                className="overflow-hidden rounded-xl"
-                style={{ background: "#1A1814" }}
+                className={surfaceCardVariants({ tone: "dark", elevation: "none", overflow: "hidden" })}
               >
                 <div className="border-t-2 border-[#D4AF37]/30" />
                 <header className="flex items-center gap-2 border-b border-white/5 px-6 pb-4 pt-5">
@@ -592,28 +552,3 @@ const LOST_REASON_LABELS: Record<string, string> = {
   ghosted_unresponsive: "Ghosted / Unresponsive",
 };
 
-// ── InfoRow ──────────────────────────────────────────────────────────────────
-
-function InfoRow({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: React.ElementType;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="grid grid-cols-[1.75rem_1fr] items-start gap-x-2.5 gap-y-0">
-      <div className="col-start-1 row-span-2 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center self-start rounded-lg bg-[#F2F2EE]">
-        <Icon className="w-3.5 h-3.5 text-[#8A8A6E]" />
-      </div>
-      <p className="col-start-2 row-start-1 text-[10px] font-medium uppercase tracking-wider text-[#B5A99A]">
-        {label}
-      </p>
-      <p className="col-start-2 row-start-2 mt-0.5 text-sm font-medium text-[#1A1A1A]">
-        {value}
-      </p>
-    </div>
-  );
-}

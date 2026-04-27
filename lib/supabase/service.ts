@@ -1,8 +1,15 @@
-import { createClient } from "@supabase/supabase-js";
+/**
+ * Service role bypasses RLS — use only from server-side trusted code.
+ *
+ * Typed inserts (e.g. task_remarks) still use `Database["public"]["Tables"][...]` at call sites.
+ * Supabase generics expect a generated schema; full file uses `any` on the client handle to avoid `insert()` collapsing to `never`.
+ */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-let serviceClient: ReturnType<typeof createClient> | null = null;
+let serviceClient: SupabaseClient<any> | null = null;
 
-export function getServiceSupabaseClient() {
+export function getServiceSupabaseClient(): SupabaseClient<any> {
   if (serviceClient) return serviceClient;
 
   serviceClient = createClient(

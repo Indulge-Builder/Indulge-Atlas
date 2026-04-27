@@ -20,16 +20,24 @@ interface TaskAlertProviderProps {
 
 type TaskPayloadRow = {
   status?: string;
+  atlas_status?: string;
   due_date?: string;
   assigned_to_users?: string[];
 };
+
+function isTaskIncomplete(row: TaskPayloadRow): boolean {
+  const atlas = row.atlas_status;
+  if (atlas)
+    return atlas !== "done" && atlas !== "cancelled";
+  return row.status === "pending";
+}
 
 function overdueContribution(
   row: TaskPayloadRow | null | undefined,
   userId: string,
   nowMs: number,
 ): 0 | 1 {
-  if (!row || row.status !== "pending") return 0;
+  if (!row || !isTaskIncomplete(row)) return 0;
   const assignees = row.assigned_to_users;
   if (!Array.isArray(assignees) || !assignees.includes(userId)) return 0;
   if (typeof row.due_date !== "string") return 0;
