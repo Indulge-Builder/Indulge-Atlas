@@ -4,7 +4,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { AvatarStack } from "@/components/ui/avatar-stack";
 import { PROJECT_STATUS_CONFIG } from "@/lib/types/database";
-import type { Project } from "@/lib/types/database";
+import type { Profile, Project } from "@/lib/types/database";
 import { format } from "date-fns";
 import {
   Briefcase,
@@ -91,7 +91,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
   const color = project.color ?? "#D4AF37";
   const statusConfig = PROJECT_STATUS_CONFIG[project.status] ?? PROJECT_STATUS_CONFIG.active;
   const members = (project.members ?? []).map((m) => m.profile).filter(
-    (p): p is { id: string; full_name: string; role: string } => !!p,
+    (p): p is Pick<Profile, "id" | "full_name" | "role"> => !!p,
   );
   const taskCount = project.task_count ?? 0;
   const completedCount = project.completed_task_count ?? 0;

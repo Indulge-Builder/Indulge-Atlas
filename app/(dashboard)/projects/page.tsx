@@ -3,7 +3,44 @@ import { getUserProjects } from "@/lib/actions/projects";
 import { ProjectCard } from "@/components/projects/ProjectCard";
 import { ProjectsHeader } from "@/components/projects/ProjectsHeader";
 import { FolderKanban } from "lucide-react";
-import type { Project } from "@/lib/types/database";
+import type { MasterTask, Project, ProjectStatus } from "@/lib/types/database";
+
+/** API row shape for master tasks list (select uses `notes`). */
+type MasterTaskListRow = MasterTask & {
+  subtask_count?: number;
+  completed_subtask_count?: number;
+  notes?: string | null;
+};
+
+function projectStatusFromMasterTask(t: MasterTaskListRow): ProjectStatus {
+  if (t.archived_at) return "archived";
+  if (t.atlas_status === "done") return "completed";
+  if (t.atlas_status === "blocked" || t.atlas_status === "cancelled")
+    return "on_hold";
+  return "active";
+}
+
+function masterTaskRowToProject(t: MasterTaskListRow): Project {
+  return {
+    id: t.id,
+    title: t.title,
+    description: t.description ?? t.notes ?? null,
+    status: projectStatusFromMasterTask(t),
+    owner_id: t.created_by ?? "",
+    department: t.department,
+    domain: t.domain,
+    color: t.cover_color,
+    icon: t.icon_key,
+    due_date: t.due_date,
+    created_at: t.created_at,
+    updated_at: t.updated_at,
+    owner: t.owner,
+    members: t.members as Project["members"],
+    task_groups: t.task_groups,
+    task_count: t.subtask_count ?? 0,
+    completed_task_count: t.completed_subtask_count ?? 0,
+  };
+}
 
 // ── Loading skeleton ─────────────────────────────────────────────────────
 
@@ -34,10 +71,9 @@ function ProjectCardSkeleton() {
 
 async function ProjectsGrid() {
   const result = await getUserProjects();
-  const projects = (result.data ?? []) as (Project & {
-    task_count: number;
-    completed_task_count: number;
-  })[];
+  const projects = (result.data ?? []).map((row) =>
+    masterTaskRowToProject(row as MasterTaskListRow),
+  );
 
   const active = projects.filter((p) => p.status !== "archived");
   const recent = [...active].slice(0, 3);

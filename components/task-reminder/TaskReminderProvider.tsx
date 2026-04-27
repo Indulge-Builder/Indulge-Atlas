@@ -123,11 +123,8 @@ export function TaskReminderProvider({ children }: TaskReminderProviderProps) {
 
   const loadAndScheduleTasks = useCallback(() => {
     getTasksForReminders()
-      .then((tasks) => {
-        if (!Array.isArray(tasks)) {
-          console.warn("[Task Engine] getTasksForReminders returned non-array:", tasks);
-          return;
-        }
+      .then((res) => {
+        const tasks = res.success && res.data ? res.data : [];
         activeTimers.current.forEach((timeoutId) => clearTimeout(timeoutId));
         activeTimers.current.clear();
         tasks.forEach((task) => scheduleTask(task));

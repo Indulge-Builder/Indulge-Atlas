@@ -109,7 +109,8 @@ export async function LeadDossierTasksAsync({
   leadId: string;
   role: UserRole;
 }) {
-  const leadTasks = await getLeadTasksForDossier(leadId);
+  const result = await getLeadTasksForDossier(leadId);
+  const leadTasks = result.success && result.data ? result.data : [];
   return (
     <LeadTaskWidget leadId={leadId} role={role} initialTasks={leadTasks} />
   );

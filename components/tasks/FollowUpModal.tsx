@@ -76,7 +76,7 @@ export function FollowUpModal({
   async function handleMoveToAttempted() {
     setSubmitting(true);
     setServerError(null);
-    const result = await processFollowUpAttempted({ taskId: task.id, note });
+    const result = await processFollowUpAttempted(task.id, note);
     setSubmitting(false);
     if (!result.success) {
       setServerError(result.error ?? "Failed to update");
@@ -98,8 +98,7 @@ export function FollowUpModal({
     }
     setSubmitting(true);
     setServerError(null);
-    const result = await processFollowUpNext({
-      taskId: task.id,
+    const result = await processFollowUpNext(task.id, {
       note,
       dueAt: scheduledDate,
     });
@@ -117,8 +116,7 @@ export function FollowUpModal({
   async function handleDisposition(disposition: "cold" | "trash" | "connected") {
     setSubmitting(true);
     setServerError(null);
-    const result = await processFollowUpDisposition({
-      taskId: task.id,
+    const result = await processFollowUpDisposition(task.id, {
       note,
       disposition,
     });

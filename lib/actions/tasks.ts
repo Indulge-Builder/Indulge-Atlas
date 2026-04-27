@@ -2014,7 +2014,9 @@ export async function getAgentDailyRoster(
 // ── Reminder / alert stubs ───────────────────────────────────────────────────
 
 /** @deprecated Not implemented in Atlas Tasks — returns empty array */
-export async function getTasksForReminders(): Promise<ActionResult<unknown[]>> {
+export async function getTasksForReminders(): Promise<
+  ActionResult<TaskWithLead[]>
+> {
   return { success: true, data: [] };
 }
 
@@ -2079,7 +2081,7 @@ export async function getTeamMembersForAdmin(): Promise<
 /** @deprecated Not implemented in Atlas Tasks — returns empty array */
 export async function getLeadTasks(
   _leadId: string,
-): Promise<ActionResult<unknown[]>> {
+): Promise<ActionResult<TaskWithLead[]>> {
   return { success: true, data: [] };
 }
 

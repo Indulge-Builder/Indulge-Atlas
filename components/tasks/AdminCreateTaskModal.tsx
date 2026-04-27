@@ -144,7 +144,7 @@ function MultiAssigneePicker({
     return sortedMembers.filter(
       (m) =>
         m.full_name.toLowerCase().includes(q) ||
-        m.department.toLowerCase().includes(q),
+        (m.department ?? "").toLowerCase().includes(q),
     );
   }, [sortedMembers, search]);
 
@@ -417,7 +417,9 @@ export function AdminCreateTaskModal({
 
   useEffect(() => {
     if (open) {
-      getTeamMembersForAdmin().then(setMembers);
+      getTeamMembersForAdmin().then((res) =>
+        setMembers(res.success && res.data ? res.data : []),
+      );
     }
   }, [open]);
 

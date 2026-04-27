@@ -54,7 +54,10 @@ export function EditTaskModal({ task, onClose, onSuccess }: EditTaskModalProps) 
   async function handleSave() {
     if (!dueDate || saving) return;
     setSaving(true);
-    await updateTask({ taskId: task.id, notes: notes.trim() || null, dueAt: dueDate });
+    await updateTask(task.id, {
+      description: notes.trim() || null,
+      due_date: dueDate.toISOString(),
+    });
     setSaving(false);
     onSuccess?.();
     onClose();

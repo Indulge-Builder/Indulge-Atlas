@@ -36,14 +36,16 @@ export function NotificationBell() {
 
   // Fetch on mount to show badge; refetch when dropdown opens
   useEffect(() => {
-    getTasksForReminders().then((data) => setTasks(data ?? []));
+    getTasksForReminders().then((res) =>
+      setTasks(res.success && res.data ? res.data : []),
+    );
   }, []);
 
   useEffect(() => {
     if (!open) return;
     setLoading(true);
     getTasksForReminders()
-      .then((data) => setTasks(data ?? []))
+      .then((res) => setTasks(res.success && res.data ? res.data : []))
       .finally(() => setLoading(false));
   }, [open]);
 

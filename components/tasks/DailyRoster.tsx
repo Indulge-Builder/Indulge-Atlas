@@ -44,7 +44,9 @@ function RosterCard({ task, accent }: { task: DailyRosterTask; accent: "rose" | 
 
   if (hidden) return null;
 
-  const dueTime = formatIST(task.due_date, "h:mm a");
+  const dueTime = task.due_date
+    ? formatIST(task.due_date, "h:mm a")
+    : "—";
 
   return (
     <div

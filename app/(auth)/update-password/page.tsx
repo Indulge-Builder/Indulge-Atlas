@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Eye, EyeOff, ArrowLeft, Check, Circle, X } from "lucide-react";
+import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { updatePassword } from "@/lib/actions/auth";
 import { toast } from "sonner";
@@ -76,8 +77,9 @@ export default function UpdatePasswordPage() {
     }
 
     const supabase = createClient();
-    void supabase.auth.getUser().then((res) => {
-      const user = res.data.user;
+    void supabase.auth
+      .getUser()
+      .then(({ data: { user } }: { data: { user: User | null } }) => {
       if (!user) {
         setLinkExpired(true);
         return;

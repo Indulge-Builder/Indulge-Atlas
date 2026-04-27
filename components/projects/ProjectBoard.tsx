@@ -24,9 +24,12 @@ import * as LucideIcons from "lucide-react";
 
 function ProjectIcon({ iconName, className }: { iconName: string | null; className?: string }) {
   if (!iconName) return <LayoutGrid className={className} />;
-  const Icon = (LucideIcons as Record<string, React.FC<{ className?: string }>>)[
-    iconName
-  ] as React.FC<{ className?: string }> | undefined;
+  const Icon = (
+    LucideIcons as unknown as Record<
+      string,
+      React.ComponentType<{ className?: string }>
+    >
+  )[iconName] as React.ComponentType<{ className?: string }> | undefined;
   return Icon ? <Icon className={className} /> : <LayoutGrid className={className} />;
 }
 
