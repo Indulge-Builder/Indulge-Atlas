@@ -1,5 +1,8 @@
 import { Suspense } from "react";
 import { getUserProjects } from "@/lib/actions/projects";
+
+/** Uses Supabase/cookies via getUserProjects → must not be statically prerendered. */
+export const dynamic = "force-dynamic";
 import { ProjectCard } from "@/components/projects/ProjectCard";
 import { ProjectsHeader } from "@/components/projects/ProjectsHeader";
 import { FolderKanban } from "lucide-react";
