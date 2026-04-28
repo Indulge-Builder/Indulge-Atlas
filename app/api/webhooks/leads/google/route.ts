@@ -11,6 +11,18 @@ import { applyFieldMappings } from "@/lib/services/fieldMappingEngine";
  * Pabbly → Google Ads Lead Form Extensions. Extracts from raw_google_fields.
  */
 export async function POST(request: NextRequest) {
+  try {
+    return await handleGoogleLeadPost(request);
+  } catch (err) {
+    console.error("[webhooks/leads/google] Unhandled error:", err);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
+  }
+}
+
+async function handleGoogleLeadPost(request: NextRequest) {
   const rl = await checkWebhookRateLimit(request);
   if (!rl.success) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });

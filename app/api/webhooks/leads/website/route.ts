@@ -11,6 +11,18 @@ import { applyFieldMappings } from "@/lib/services/fieldMappingEngine";
  * Typeform / Webflow / standard flat JSON. No array parsing needed.
  */
 export async function POST(request: NextRequest) {
+  try {
+    return await handleWebsiteLeadPost(request);
+  } catch (err) {
+    console.error("[webhooks/leads/website] Unhandled error:", err);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
+  }
+}
+
+async function handleWebsiteLeadPost(request: NextRequest) {
   const rl = await checkWebhookRateLimit(request);
   if (!rl.success) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });

@@ -60,12 +60,23 @@ export async function checkWebhookRateLimit(
     };
   }
 
-  const result = await rl.limit(id);
-  await result.pending;
-  return {
-    success: result.success,
-    limit: result.limit,
-    remaining: result.remaining,
-    reset: result.reset,
-  };
+  try {
+    const result = await rl.limit(id);
+    await result.pending;
+    return {
+      success: result.success,
+      limit: result.limit,
+      remaining: result.remaining,
+      reset: result.reset,
+    };
+  } catch (err) {
+    // Upstash/network/auth failures must not take down webhooks (would surface as 500 + FUNCTION_INVOCATION_FAILED).
+    console.error("[rateLimit] Upstash limit failed; allowing request:", err);
+    return {
+      success: true,
+      limit: 100,
+      remaining: 99,
+      reset: Date.now() + 60_000,
+    };
+  }
 }

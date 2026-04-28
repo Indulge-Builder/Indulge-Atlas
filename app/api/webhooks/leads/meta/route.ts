@@ -11,6 +11,18 @@ import { applyFieldMappings } from "@/lib/services/fieldMappingEngine";
  * Pabbly → Meta Lead Gen forms. Extracts from raw_meta_fields, builds clean payload.
  */
 export async function POST(request: NextRequest) {
+  try {
+    return await handleMetaLeadPost(request);
+  } catch (err) {
+    console.error("[webhooks/leads/meta] Unhandled error:", err);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
+  }
+}
+
+async function handleMetaLeadPost(request: NextRequest) {
   const rl = await checkWebhookRateLimit(request);
   if (!rl.success) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
