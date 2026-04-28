@@ -10,7 +10,7 @@ import type {
 } from "@/lib/types/database";
 import { createUserSchema, updateUserProfileSchema } from "@/lib/validations/user";
 import { z } from "zod";
-import DOMPurify from "isomorphic-dompurify";
+import { sanitizeText as sanitizePlainText } from "@/lib/utils/sanitize";
 import { getPublicSiteUrl } from "@/lib/utils/site-url";
 import { mapAuthError } from "@/lib/utils/auth-errors";
 
@@ -24,7 +24,7 @@ const uuidSchema = z.string().uuid();
 
 /** Sanitize a single text field — strips all HTML tags/attributes. */
 function sanitizeText(input: string): string {
-  return DOMPurify.sanitize(input, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] }).trim();
+  return sanitizePlainText(input).trim();
 }
 
 // ── Auth guards ────────────────────────────────────────────────────────────

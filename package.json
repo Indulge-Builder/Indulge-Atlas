@@ -39,7 +39,6 @@
     "date-fns": "^4.1.0",
     "date-fns-tz": "^3.2.0",
     "framer-motion": "^12.35.1",
-    "isomorphic-dompurify": "^3.8.0",
     "libphonenumber-js": "^1.12.41",
     "lucide-react": "^0.577.0",
     "next": "16.1.6",
@@ -49,6 +48,7 @@
     "react-dom": "19.2.3",
     "react-hook-form": "^7.71.2",
     "recharts": "^3.8.0",
+    "sanitize-html": "^2.17.3",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",
     "zod": "^4.3.6"
@@ -58,6 +58,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/sanitize-html": "^2.16.1",
     "@vitejs/plugin-react": "^6.0.1",
     "eslint": "^9.39.4",
     "eslint-config-next": "^16.2.3",

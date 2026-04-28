@@ -1,4 +1,4 @@
-import DOMPurify from "isomorphic-dompurify";
+import sanitizeHtml from "sanitize-html";
 
 const MAX_FORM_JSON_BYTES = 10 * 1024;
 const MAX_NEST_DEPTH = 2;
@@ -7,9 +7,9 @@ const MAX_NEST_DEPTH = 2;
 export function sanitizeText(input: string): string {
   if (input == null) return "";
   const s = String(input);
-  return DOMPurify.sanitize(s, {
-    ALLOWED_TAGS: [],
-    ALLOWED_ATTR: [],
+  return sanitizeHtml(s, {
+    allowedTags: [],
+    allowedAttributes: {},
   });
 }
 

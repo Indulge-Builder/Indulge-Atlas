@@ -33,7 +33,7 @@ describe("sanitizeFormData", () => {
 
     const result = sanitizeFormData(input) as Record<string, string>;
 
-    // DOMPurify with ALLOWED_TAGS:[] strips all HTML; plain text survives
+    // sanitize-html with no allowed tags strips all HTML; plain text survives
     expect(result.name).not.toContain("<script>");
     expect(result.name).toContain("John");
     expect(result.bio).not.toContain("<b>");
