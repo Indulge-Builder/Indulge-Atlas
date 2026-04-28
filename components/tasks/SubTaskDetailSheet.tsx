@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useTransition, useRef } from "react";
+import { useState, useEffect, useTransition, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
@@ -18,7 +18,7 @@ import { SubTaskStatusBadge } from "./SubTaskStatusBadge";
 import { TaskPriorityBadge } from "./TaskPriorityBadge";
 import { RemarkTimeline } from "./RemarkTimeline";
 import { AddRemarkForm } from "./AddRemarkForm";
-import { getSubTaskDetail, updateSubTaskProgress } from "@/lib/actions/tasks";
+import { getSubTaskDetail, updateSubTask, updateSubTaskProgress } from "@/lib/actions/tasks";
 import { useAtlasTaskRealtime } from "@/lib/hooks/useTaskRealtime";
 import type { SubTask, TaskRemark, AtlasTaskStatus } from "@/lib/types/database";
 import { getInitials } from "@/lib/utils";
@@ -100,8 +100,13 @@ export function SubTaskDetailSheet({ taskId, open, onClose }: SubTaskDetailSheet
   const router = useRouter();
   const [task,    setTask]    = useState<SubTask | null>(null);
   const [remarks, setRemarks] = useState<TaskRemark[]>([]);
+  const [workspaceMembers, setWorkspaceMembers] = useState<
+    { id: string; full_name: string; job_title: string | null }[]
+  >([]);
+  const [canAssignSubtask, setCanAssignSubtask] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isPending, startTransition] = useTransition();
+  const [assignSaving, startAssignSaving] = useTransition();
   const didMutateRef = useRef(false);
   const bottomRef    = useRef<HTMLDivElement>(null);
 
@@ -113,6 +118,17 @@ export function SubTaskDetailSheet({ taskId, open, onClose }: SubTaskDetailSheet
     },
   });
 
+  const reloadDetail = useCallback(async () => {
+    const result = await getSubTaskDetail(taskId);
+    if (result.success && result.data) {
+      setTask(result.data.task);
+      setRemarks(result.data.remarks);
+      setRealtimeRemarks(result.data.remarks);
+      setWorkspaceMembers(result.data.workspaceMembers ?? []);
+      setCanAssignSubtask(result.data.canAssignSubtask ?? false);
+    }
+  }, [taskId, setRealtimeRemarks]);
+
   useEffect(() => {
     if (!open || !taskId) return;
     setLoading(true);
@@ -121,12 +137,30 @@ export function SubTaskDetailSheet({ taskId, open, onClose }: SubTaskDetailSheet
         setTask(result.data.task);
         setRemarks(result.data.remarks);
         setRealtimeRemarks(result.data.remarks);
+        setWorkspaceMembers(result.data.workspaceMembers ?? []);
+        setCanAssignSubtask(result.data.canAssignSubtask ?? false);
       } else {
         toast.error("Failed to load task details");
       }
       setLoading(false);
     });
   }, [taskId, open, setRealtimeRemarks]);
+
+  function handleAssignChange(userId: string) {
+    startAssignSaving(async () => {
+      const result = await updateSubTask(taskId, {
+        assigned_to_users: userId ? [userId] : [],
+      });
+      if (!result.success) {
+        toast.error(result.error ?? "Could not update assignee");
+        return;
+      }
+      toast.success(userId ? "Assignee updated" : "Unassigned");
+      await reloadDetail();
+      didMutateRef.current = true;
+      router.refresh();
+    });
+  }
 
   // Scroll remarks to bottom on new entry
   useEffect(() => {
@@ -285,8 +319,33 @@ export function SubTaskDetailSheet({ taskId, open, onClose }: SubTaskDetailSheet
                 <ScrollArea className="flex-1 min-h-0">
                   <div className="px-6 py-5 space-y-5">
 
-                    {/* Assignees */}
-                    {assignees.length > 0 && (
+                    {/* Assignees — managers get a picker; others see read-only chips */}
+                    {canAssignSubtask && task && (
+                      <div className="space-y-2">
+                        <label
+                          htmlFor="sheet-subtask-assignee"
+                          className="flex items-center gap-1.5 text-[11px] text-zinc-400 uppercase tracking-wider font-medium"
+                        >
+                          <User className="h-3 w-3" />
+                          Assign to
+                        </label>
+                        <select
+                          id="sheet-subtask-assignee"
+                          disabled={assignSaving}
+                          value={(task.assigned_to_users as string[] | null)?.[0] ?? ""}
+                          onChange={(e) => handleAssignChange(e.target.value)}
+                          className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 outline-none focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]/30 disabled:opacity-60"
+                        >
+                          <option value="">Unassigned</option>
+                          {workspaceMembers.map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.full_name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    {!canAssignSubtask && assignees.length > 0 && (
                       <div className="space-y-2">
                         <p className="flex items-center gap-1.5 text-[11px] text-zinc-400 uppercase tracking-wider font-medium">
                           <User className="h-3 w-3" />Assigned to
@@ -399,7 +458,7 @@ export function SubTaskDetailSheet({ taskId, open, onClose }: SubTaskDetailSheet
                 </ScrollArea>
 
                 {/* Add remark footer */}
-                <div className="flex-shrink-0 bg-white border-t border-zinc-100 px-5 py-4">
+                <div className="flex-shrink-0 border-t border-zinc-200/70 bg-[#FAFAF8] px-5 py-4">
                   <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 mb-3">
                     Log Update
                   </p>

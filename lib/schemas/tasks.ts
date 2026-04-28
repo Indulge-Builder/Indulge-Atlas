@@ -74,15 +74,17 @@ export const CreateSubTaskSchema = z.object({
 });
 
 export const UpdateSubTaskSchema = z.object({
-  title:             z.string().min(1).max(255).optional(),
-  description:       z.string().max(2000).nullable().optional(),
-  priority:          taskPrioritySchema.optional(),
-  due_date:          z.string().datetime().nullable().optional(),
-  atlas_status:      atlasStatusSchema.optional(),
-  estimated_minutes: z.number().int().min(0).max(999999).nullable().optional(),
-  actual_minutes:    z.number().int().min(0).max(999999).nullable().optional(),
-  tags:              z.array(z.string().max(50)).max(10).optional(),
-  progress:          z.number().int().min(0).max(100).optional(),
+  title:               z.string().min(1).max(255).optional(),
+  description:         z.string().max(2000).nullable().optional(),
+  priority:            taskPrioritySchema.optional(),
+  due_date:            z.string().datetime().nullable().optional(),
+  atlas_status:        atlasStatusSchema.optional(),
+  estimated_minutes:   z.number().int().min(0).max(999999).nullable().optional(),
+  actual_minutes:      z.number().int().min(0).max(999999).nullable().optional(),
+  tags:                z.array(z.string().max(50)).max(10).optional(),
+  progress:            z.number().int().min(0).max(100).optional(),
+  /** Replaces assignees; use [] to clear. Requires workspace owner/manager (or privileged) to change. */
+  assigned_to_users:   z.array(z.string().uuid()).max(20).optional(),
 });
 
 // ── Checklist ──────────────────────────────────────────────

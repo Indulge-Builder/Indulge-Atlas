@@ -28,7 +28,8 @@ import {
 import { format } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { useRouter } from "next/navigation";
+import { cn, getInitials } from "@/lib/utils";
 import { useSubtaskRealtime } from "@/lib/hooks/useTaskRealtime";
 import { surfaceCardVariants } from "@/components/ui/card";
 import { IndulgeButton } from "@/components/ui/indulge-button";
@@ -49,6 +50,7 @@ import type {
   AtlasTaskStatus,
   TaskPriority,
 } from "@/lib/types/database";
+import type { UpdateSubTaskInput } from "@/lib/schemas/tasks";
 
 const IST = "Asia/Kolkata";
 
@@ -90,6 +92,8 @@ interface ZoneAProps {
   masterTaskTitle: string | null;
   masterTaskGroupTitle: string | null;
   assigneeProfile: { id: string; full_name: string; job_title: string | null } | null;
+  workspaceMembers: { id: string; full_name: string; job_title: string | null }[];
+  canAssignSubtask: boolean;
   checklist: ChecklistItem[];
   editable: boolean;
   onSaved: () => void;
@@ -101,6 +105,8 @@ function ZoneA({
   masterTaskTitle,
   masterTaskGroupTitle,
   assigneeProfile,
+  workspaceMembers,
+  canAssignSubtask,
   checklist,
   editable,
   onSaved,
@@ -114,20 +120,31 @@ function ZoneA({
   const [priority, setPriority] = useState<string>(task.priority ?? "medium");
   const [status, setStatus] = useState<AtlasTaskStatus>(task.atlas_status);
   const [dueDateOpen, setDueDateOpen] = useState(false);
+  const [assigneeUserId, setAssigneeUserId] = useState(
+    () => (task.assigned_to_users as string[] | null)?.[0] ?? "",
+  );
 
   // Derive a Date object for the Calendar
   const dueDateObj = dueDate ? new Date(dueDate + "T00:00:00") : undefined;
 
   const dueDateOverdue = isOverdue(task.due_date, task.atlas_status);
 
+  useEffect(() => {
+    setAssigneeUserId((task.assigned_to_users as string[] | null)?.[0] ?? "");
+  }, [task.id, task.assigned_to_users]);
+
   function handleSave() {
     startTransition(async () => {
-      const result = await updateSubTask(task.id, {
+      const payload: UpdateSubTaskInput = {
         description:  description || null,
         due_date:     dueDate ? new Date(dueDate).toISOString() : null,
         priority:     priority as TaskPriority,
         atlas_status: status,
-      });
+      };
+      if (canAssignSubtask) {
+        payload.assigned_to_users = assigneeUserId ? [assigneeUserId] : [];
+      }
+      const result = await updateSubTask(task.id, payload);
       if (!result.success) {
         toast.error(result.error ?? "Failed to save changes.");
       } else {
@@ -251,10 +268,25 @@ function ZoneA({
               icon={User}
               label="Assigned Agent"
               value={
-                assigneeProfile ? (
+                editable && canAssignSubtask ? (
+                  <select
+                    id="subtask-assignee"
+                    aria-label="Assign subtask"
+                    value={assigneeUserId}
+                    onChange={(e) => setAssigneeUserId(e.target.value)}
+                    className="max-w-[min(100%,260px)] rounded-lg border border-[#E5E4DF] bg-[#F9F9F6] px-2.5 py-1.5 text-[12px] text-[#1A1A1A] outline-none focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]/30"
+                  >
+                    <option value="">Unassigned</option>
+                    {workspaceMembers.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.full_name}
+                      </option>
+                    ))}
+                  </select>
+                ) : assigneeProfile ? (
                   <div className="flex items-center gap-2">
                     <div className="w-6 h-6 rounded-full bg-[#D4AF37]/20 flex items-center justify-center text-[10px] font-bold text-[#A88B25]">
-                      {assigneeProfile.full_name.slice(0, 2).toUpperCase()}
+                      {getInitials(assigneeProfile.full_name)}
                     </div>
                     <span className="text-[13px] font-medium text-[#1A1A1A]">
                       {assigneeProfile.full_name}
@@ -467,12 +499,19 @@ export interface SubTaskModalProps {
 }
 
 export function SubTaskModal({ taskId, onClose, currentUser }: SubTaskModalProps) {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [task, setTask] = useState<SubTask | null>(null);
   const [masterTaskTitle, setMasterTaskTitle] = useState<string | null>(null);
   const [masterTaskGroupTitle, setMasterTaskGroupTitle] = useState<string | null>(null);
   const [assigneeProfile, setAssigneeProfile] = useState<{ id: string; full_name: string; job_title: string | null } | null>(null);
+  const [workspaceMembers, setWorkspaceMembers] = useState<
+    { id: string; full_name: string; job_title: string | null }[]
+  >([]);
+  const workspaceMembersRef = useRef(workspaceMembers);
+  workspaceMembersRef.current = workspaceMembers;
+  const [canAssignSubtask, setCanAssignSubtask] = useState(false);
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
   const [remarks, setRemarks] = useState<TaskRemark[]>([]);
   const [editMode, setEditMode] = useState(false);
@@ -500,27 +539,33 @@ export function SubTaskModal({ taskId, onClose, currentUser }: SubTaskModalProps
         toast.error(result.error ?? "Failed to delete subtask.");
       } else {
         toast.success("Subtask deleted.");
+        router.refresh();
         onClose();
       }
     });
   }
 
-  // Fetch task data
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  // Fetch task data (`silent`: no full-modal spinner — used after brief save so the list can refresh via router without flashing the UI)
+  const fetchData = useCallback(async (opts?: { silent?: boolean }) => {
+    const silent = opts?.silent ?? false;
+    if (!silent) {
+      setLoading(true);
+      setError(null);
+    }
     const result = await getSubTaskDetail(taskId);
     if (!result.success || !result.data) {
-      setError(result.error ?? "Failed to load task.");
+      if (!silent) setError(result.error ?? "Failed to load task.");
     } else {
       setTask(result.data.task);
       setMasterTaskTitle(result.data.masterTaskTitle);
       setMasterTaskGroupTitle(result.data.masterTaskGroupTitle);
       setAssigneeProfile(result.data.assigneeProfile);
+      setWorkspaceMembers(result.data.workspaceMembers ?? []);
+      setCanAssignSubtask(result.data.canAssignSubtask ?? false);
       setChecklist(result.data.checklist);
       setRemarks(result.data.remarks);
     }
-    setLoading(false);
+    if (!silent) setLoading(false);
   }, [taskId]);
 
   useEffect(() => {
@@ -538,17 +583,30 @@ export function SubTaskModal({ taskId, onClose, currentUser }: SubTaskModalProps
       });
     },
     onTaskUpdated: (row) => {
+      const nextUsers = row.assigned_to_users as string[] | undefined;
+      if (nextUsers !== undefined) {
+        const uid = nextUsers[0];
+        if (!uid) setAssigneeProfile(null);
+        else {
+          const m = workspaceMembersRef.current.find((x) => x.id === uid);
+          setAssigneeProfile(
+            m ?? { id: uid, full_name: "Member", job_title: null },
+          );
+        }
+      }
+      if (row.attachments !== undefined) {
+        setChecklist(extractChecklistFromAttachments(row.attachments));
+      }
       setTask((prev) => {
         if (!prev) return prev;
         const attachments =
           row.attachments !== undefined ? row.attachments : prev.attachments;
-        setChecklist(extractChecklistFromAttachments(attachments));
         return {
           ...prev,
           atlas_status: (row.atlas_status as AtlasTaskStatus) ?? prev.atlas_status,
           progress: (row.progress as number) ?? prev.progress,
           priority: (row.priority as TaskPriority) ?? prev.priority,
-          assigned_to_users: (row.assigned_to_users as string[]) ?? prev.assigned_to_users,
+          assigned_to_users: nextUsers ?? prev.assigned_to_users,
           due_date: (row.due_date as string | null) ?? prev.due_date,
           notes: (row.notes as string | null) ?? prev.notes,
           attachments: attachments as SubTask["attachments"],
@@ -710,7 +768,7 @@ export function SubTaskModal({ taskId, onClose, currentUser }: SubTaskModalProps
                 <p className="text-[14px] text-[#C0392B]">{error}</p>
                 <button
                   type="button"
-                  onClick={fetchData}
+                  onClick={() => void fetchData()}
                   className="mt-3 text-[13px] text-[#D4AF37] underline"
                 >
                   Retry
@@ -726,9 +784,15 @@ export function SubTaskModal({ taskId, onClose, currentUser }: SubTaskModalProps
                   masterTaskTitle={masterTaskTitle}
                   masterTaskGroupTitle={masterTaskGroupTitle}
                   assigneeProfile={assigneeProfile}
+                  workspaceMembers={workspaceMembers}
+                  canAssignSubtask={canAssignSubtask}
                   checklist={checklist}
                   editable={editMode}
-                  onSaved={() => { setEditMode(false); fetchData(); }}
+                  onSaved={() => {
+                    setEditMode(false);
+                    router.refresh();
+                    void fetchData({ silent: true });
+                  }}
                   onCancelEdit={() => setEditMode(false)}
                 />
               </div>

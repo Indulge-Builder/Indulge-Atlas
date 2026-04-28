@@ -406,10 +406,19 @@ export async function getMasterTaskDetail(
       tasks: enrichedSubtasks.filter((t) => t.group_id === g.id) as unknown as SubTask[],
     }));
 
+    const subtask_count = enrichedSubtasks.length;
+    const completed_subtask_count = enrichedSubtasks.filter(
+      (t) => (t.atlas_status as string) === "done",
+    ).length;
+
     return {
       success: true,
       data: {
-        masterTask: masterTask as unknown as MasterTask,
+        masterTask: {
+          ...(masterTask as Record<string, unknown>),
+          subtask_count,
+          completed_subtask_count,
+        } as unknown as MasterTask,
         taskGroups: groupedTasks,
         members: (members ?? []) as unknown as MasterTaskMember[],
       },
@@ -764,13 +773,15 @@ export async function getSubTaskDetail(taskId: string): Promise<
     remarks: TaskRemark[];
     assigneeProfile: Pick<Profile, "id" | "full_name" | "job_title"> | null;
     checklist: ChecklistItem[];
+    workspaceMembers: Pick<Profile, "id" | "full_name" | "job_title">[];
+    canAssignSubtask: boolean;
   }>
 > {
   const parsed = uuidSchema.safeParse(taskId);
   if (!parsed.success) return { success: false, error: "Invalid task ID" };
 
   try {
-    const { supabase } = await getAuthUser();
+    const { supabase, user, role } = await getAuthUser();
 
     // Fetch task + remarks in parallel
     const [
@@ -809,20 +820,55 @@ export async function getSubTaskDetail(taskId: string): Promise<
       if (profileRow) assigneeProfile = profileRow as Pick<Profile, "id" | "full_name" | "job_title">;
     }
 
+    let assignedToProfiles: Pick<Profile, "id" | "full_name" | "role">[] = [];
+    if (assigneeIds.length > 0) {
+      const { data: profs } = await supabase
+        .from("profiles")
+        .select("id, full_name, role")
+        .in("id", assigneeIds);
+      const byId = new Map((profs ?? []).map((p) => [p.id as string, p]));
+      assignedToProfiles = assigneeIds
+        .map((id) => byId.get(id))
+        .filter(Boolean) as Pick<Profile, "id" | "full_name" | "role">[];
+    }
+
     // Resolve master task title + group title for breadcrumb
     let masterTaskTitle: string | null = null;
     let masterTaskGroupTitle: string | null = null;
+    let workspaceMembers: Pick<Profile, "id" | "full_name" | "job_title">[] = [];
+    let canAssignSubtask = false;
     const masterTaskId = typedTask.project_id as string | null;
     const groupId = typedTask.group_id as string | null;
     if (masterTaskId) {
-      const [{ data: masterRow }, { data: groupRow }] = await Promise.all([
+      canAssignSubtask =
+        isPrivilegedOrManager(role) ||
+        (await assertMasterTaskAccess(supabase, masterTaskId, user.id, role, ["owner", "manager"]));
+
+      const [{ data: masterRow }, { data: groupRow }, { data: memberRows }] = await Promise.all([
         supabase.from("tasks").select("title").eq("id", masterTaskId).eq("unified_task_type", "master").single(),
         groupId
           ? supabase.from("task_groups").select("title").eq("id", groupId).single()
           : Promise.resolve({ data: null }),
+        supabase
+          .from("project_members")
+          .select("profile:profiles!user_id(id, full_name, job_title)")
+          .eq("project_id", masterTaskId),
       ]);
       masterTaskTitle = masterRow?.title ?? null;
       masterTaskGroupTitle = (groupRow as { title?: string } | null)?.title ?? null;
+
+      workspaceMembers = (memberRows ?? [])
+        .map((row) => {
+          const raw = row.profile as unknown;
+          const prof = Array.isArray(raw) ? raw[0] : raw;
+          if (!prof || typeof prof !== "object" || !("id" in prof)) return null;
+          const p = prof as { id: string; full_name: string; job_title: string | null };
+          return { id: p.id, full_name: p.full_name, job_title: p.job_title };
+        })
+        .filter((x): x is Pick<Profile, "id" | "full_name" | "job_title"> => x !== null);
+      workspaceMembers.sort((a, b) =>
+        (a.full_name ?? "").localeCompare(b.full_name ?? "", undefined, { sensitivity: "base" }),
+      );
     }
 
     // Extract checklist from attachments JSONB (stored as array under key 'checklist')
@@ -835,12 +881,18 @@ export async function getSubTaskDetail(taskId: string): Promise<
     return {
       success: true,
       data: {
-        task:                { ...typedTask, unified_task_type: "subtask" } as unknown as SubTask,
+        task: {
+          ...typedTask,
+          unified_task_type:      "subtask",
+          assigned_to_profiles: assignedToProfiles,
+        } as unknown as SubTask,
         masterTaskTitle,
         masterTaskGroupTitle,
         remarks:             (remarks ?? []) as unknown as TaskRemark[],
         assigneeProfile,
         checklist,
+        workspaceMembers,
+        canAssignSubtask,
       },
     };
   } catch (err) {
@@ -939,6 +991,28 @@ export async function updateSubTask(
     if (f.tags !== undefined)              updateData.tags = f.tags;
     if (f.progress !== undefined)          updateData.progress = f.progress;
 
+    if (f.assigned_to_users !== undefined) {
+      const pid = task.project_id as string;
+      const canAssign =
+        isPrivilegedOrManager(role) ||
+        (await assertMasterTaskAccess(supabase, pid, user.id, role, ["owner", "manager"]));
+      if (!canAssign)
+        return { success: false, error: "Only workspace owners or managers can assign tasks" };
+
+      const ids = f.assigned_to_users;
+      if (ids.length > 0) {
+        const { data: memberRows } = await supabase
+          .from("project_members")
+          .select("user_id")
+          .eq("project_id", pid)
+          .in("user_id", ids);
+        const ok = new Set((memberRows ?? []).map((r) => r.user_id as string));
+        if (!ids.every((id) => ok.has(id)))
+          return { success: false, error: "Assignees must be workspace members" };
+      }
+      updateData.assigned_to_users = ids;
+    }
+
     const currentTask = await supabase
       .from("tasks")
       .select("atlas_status, due_date, assigned_to_users, priority")
@@ -975,6 +1049,28 @@ export async function updateSubTask(
           `Priority changed to "${f.priority}".`,
           { newStatus },
         );
+      }
+
+      if (f.assigned_to_users !== undefined) {
+        const prevIds = ((prev.assigned_to_users as string[] | null) ?? []).slice().sort().join(",");
+        const nextIds = f.assigned_to_users.slice().sort().join(",");
+        if (prevIds !== nextIds) {
+          const firstNew = f.assigned_to_users[0];
+          if (firstNew) {
+            const { data: assigneeProfile } = await supabase
+              .from("profiles")
+              .select("full_name")
+              .eq("id", firstNew)
+              .single();
+            const name =
+              (assigneeProfile as { full_name?: string } | null)?.full_name ?? "a team member";
+            await insertSystemLog(idParsed.data, `Task reassigned to ${name}.`, {
+              newStatus,
+            });
+          } else {
+            await insertSystemLog(idParsed.data, `Assignment cleared.`, { newStatus });
+          }
+        }
       }
     }
 

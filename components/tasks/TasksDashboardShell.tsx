@@ -9,7 +9,8 @@ import { IndulgeButton } from "@/components/ui/indulge-button";
 import { MyTasksDashboard } from "./MyTasksDashboard";
 import { AtlasTasksListView } from "./AtlasTasksListView";
 import { CreateMasterTaskModal } from "./CreateMasterTaskModal";
-import type { MasterTask, SubTask, TaskGroup, PersonalTask } from "@/lib/types/database";
+import type { SubTask, PersonalTask } from "@/lib/types/database";
+import type { AtlasTasksData } from "./AtlasTasksCompletionOverview";
 
 type TabKey = "my-tasks" | "atlas-tasks";
 
@@ -17,11 +18,6 @@ const TABS: { id: TabKey; label: string }[] = [
   { id: "my-tasks",    label: "My Tasks"    },
   { id: "atlas-tasks", label: "Atlas Tasks" },
 ];
-
-interface AtlasTasksData {
-  masterTask: MasterTask;
-  taskGroups: Array<TaskGroup & { tasks: SubTask[] }>;
-}
 
 interface TasksDashboardShellProps {
   initialTab: TabKey;

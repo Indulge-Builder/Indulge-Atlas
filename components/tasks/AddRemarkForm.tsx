@@ -83,7 +83,7 @@ export function AddRemarkForm({
         <Select value={newStatus} onValueChange={(v) => setNewStatus(v as AtlasTaskStatus)}>
           <SelectTrigger
             id="remark-status"
-            className="h-9 text-sm"
+            className="h-9 border-zinc-200/80 bg-white/70 text-sm shadow-none"
             aria-label="Select new status"
           >
             <SelectValue />
@@ -132,7 +132,7 @@ export function AddRemarkForm({
           value={remark}
           onChange={(e) => { setRemark(e.target.value); if (error) setError(null); }}
           placeholder="Describe what was done, what's blocking, or what changed…"
-          className="min-h-[80px] resize-none text-sm"
+          className="min-h-[80px] resize-none border-zinc-200/80 bg-white/80 text-sm shadow-[inset_0_1px_2px_rgb(0_0_0/0.04)]"
           maxLength={1000}
           required
           aria-required="true"

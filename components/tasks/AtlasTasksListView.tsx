@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
-import { cn } from "@/lib/utils";
+import { cn, getInitials } from "@/lib/utils";
 import { surfaceCardVariants } from "@/components/ui/card";
 import { MemberAvatarStack } from "./MemberAvatarStack";
 import { SubTaskStatusBadge } from "./SubTaskStatusBadge";
@@ -45,6 +45,10 @@ import type {
   TaskPriority,
 } from "@/lib/types/database";
 import * as LucideIcons from "lucide-react";
+import {
+  AtlasTasksCompletionOverview,
+  type AtlasTasksData,
+} from "./AtlasTasksCompletionOverview";
 
 const IST = "Asia/Kolkata";
 
@@ -442,8 +446,10 @@ interface SubtaskRowProps {
 }
 
 function SubtaskRow({ task, onOpenModal }: SubtaskRowProps) {
-  const assigneeId = (task.assigned_to_users as string[] | null)?.[0];
-  const assigneeInitials = assigneeId ? assigneeId.slice(0, 2).toUpperCase() : "—";
+  const firstProfile = (task.assigned_to_profiles ?? [])[0];
+  const assigneeInitials = firstProfile?.full_name
+    ? getInitials(firstProfile.full_name)
+    : "—";
   const atlasStatus = (task.atlas_status ?? "todo") as AtlasTaskStatus;
 
   return (
@@ -512,11 +518,18 @@ function MasterTaskRow({
   const [open, setOpen] = useState(false);
   const accentColor = masterTask.cover_color ?? "#D4AF37";
   const Icon = getIcon(masterTask.icon_key);
-  const total = masterTask.subtask_count ?? 0;
-  const done  = masterTask.completed_subtask_count ?? 0;
-  const pct   = total > 0 ? Math.round((done / total) * 100) : 0;
 
   const allSubtasks: SubTask[] = taskGroups.flatMap((g) => g.tasks);
+  /** Prefer counts from loaded subtask rows so the bar matches list + status (detail fetch omits aggregates unless enriched). */
+  const total =
+    allSubtasks.length > 0
+      ? allSubtasks.length
+      : (masterTask.subtask_count ?? 0);
+  const done =
+    allSubtasks.length > 0
+      ? allSubtasks.filter((t) => t.atlas_status === "done").length
+      : (masterTask.completed_subtask_count ?? 0);
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
   const firstBoardColumn = [...taskGroups].sort(
     (a, b) => (a.position ?? 0) - (b.position ?? 0),
@@ -720,11 +733,6 @@ function DeptHeader({ department }: { department: string }) {
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-interface AtlasTasksData {
-  masterTask: MasterTask;
-  taskGroups: Array<TaskGroup & { tasks: SubTask[] }>;
-}
-
 interface AtlasTasksListViewProps {
   tasks: AtlasTasksData[];
   currentUser: {
@@ -884,6 +892,7 @@ export function AtlasTasksListView({ tasks, currentUser }: AtlasTasksListViewPro
 
   return (
     <div className="flex flex-col min-h-0">
+      <AtlasTasksCompletionOverview tasks={tasks} />
       <FilterBar filters={filters} onChange={setFilters} teamMembers={teamMembers} />
 
       {canDeleteMaster && selectedMasterIds.length > 0 && (

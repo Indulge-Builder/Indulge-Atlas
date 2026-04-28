@@ -57,10 +57,26 @@ export function LogUpdateForm({
     setSelectedStatus(currentStatus);
   }, [currentStatus]);
 
-  function handleInputFocus() {
+  function openComposer() {
     setExpanded(true);
-    setTimeout(() => textareaRef.current?.focus(), 50);
   }
+
+  // After expand, focus the textarea once it’s mounted (sync with Framer exit/enter, not `mode="wait"`)
+  useEffect(() => {
+    if (!expanded) return;
+    let cancelled = false;
+    const run = () => {
+      if (cancelled) return;
+      textareaRef.current?.focus({ preventScroll: true });
+    };
+    const id = requestAnimationFrame(() => {
+      requestAnimationFrame(run);
+    });
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(id);
+    };
+  }, [expanded]);
 
   function handleCollapse() {
     setExpanded(false);
@@ -125,30 +141,28 @@ export function LogUpdateForm({
   }
 
   return (
-    <div className="border-t border-[#E5E4DF] bg-white pt-3">
-      <AnimatePresence mode="wait">
+    <div className="border-t border-[#E5E4DF]/60 bg-transparent pt-3">
+      <AnimatePresence initial={false}>
         {!expanded ? (
           <motion.div
             key="collapsed"
-            initial={{ opacity: 0 }}
+            initial={{ opacity: 0.85 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.1 }}
-            className="flex items-center gap-2"
+            exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+            transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+            className="flex items-center gap-2 overflow-hidden"
           >
-            <div
-              className="flex-1 h-9 flex items-center px-3 rounded-lg border border-[#E5E4DF] bg-[#F9F9F6] cursor-text text-[13px] text-[#B5A99A]"
-              onClick={handleInputFocus}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") handleInputFocus(); }}
-            >
-              Log a progress update, note, or observation…
-            </div>
             <button
               type="button"
-              onClick={handleInputFocus}
-              className="h-9 px-4 rounded-lg bg-[#D4AF37] text-white text-[13px] font-medium hover:bg-[#A88B25] transition-colors"
+              className="flex-1 h-9 flex items-center px-3 rounded-lg border border-[#E5E4DF]/90 bg-[#F9F9F6]/90 cursor-text text-left text-[13px] text-[#B5A99A] shadow-none transition-colors hover:border-[#D4AF37]/35 hover:bg-[#FCFAF4]"
+              onClick={openComposer}
+            >
+              Log a progress update, note, or observation…
+            </button>
+            <button
+              type="button"
+              onClick={openComposer}
+              className="h-9 shrink-0 px-4 rounded-lg bg-[#D4AF37] text-white text-[13px] font-medium hover:bg-[#A88B25] transition-colors"
             >
               Post
             </button>
@@ -159,7 +173,7 @@ export function LogUpdateForm({
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
+            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
             className="space-y-3 overflow-hidden"
           >
             {/* Status selector */}
@@ -214,7 +228,7 @@ export function LogUpdateForm({
                   onChange={handleTextareaChange}
                   placeholder="Describe what was completed, what you're working on, what's blocking progress, or any important observation…"
                   className={cn(
-                    "w-full resize-none rounded-lg border border-[#E5E4DF] bg-[#F9F9F6] px-3 py-2.5 text-[13px] text-[#1A1A1A] placeholder:text-[#B5A99A] outline-none focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]/30 transition-colors min-h-[72px] overflow-hidden",
+                    "w-full resize-none rounded-lg border border-[#E5E4DF]/90 bg-white/90 px-3 py-2.5 text-[13px] text-[#1A1A1A] placeholder:text-[#B5A99A] outline-none focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]/25 transition-colors min-h-[72px] overflow-hidden shadow-[inset_0_1px_2px_rgb(0_0_0/0.03)]",
                     content.length > MAX_CHARS && "border-[#C0392B] focus:border-[#C0392B]",
                   )}
                   maxLength={MAX_CHARS + 50}
