@@ -100,5 +100,8 @@ export const updateUserProfileSchema = z.object({
   is_active: z.boolean().optional(),
 });
 
+/** Raw form / API values before Zod transforms (matches `zodResolver` field state). */
+export type CreateUserFormInput = z.input<typeof createUserSchema>;
+/** Parsed output after transforms + superRefine (server action payload). */
 export type CreateUserInput = z.infer<typeof createUserSchema>;
 export type UpdateUserProfileInput = z.infer<typeof updateUserProfileSchema>;

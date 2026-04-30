@@ -44,7 +44,11 @@ import { IndulgeField } from "@/components/ui/indulge-field";
 import { cn } from "@/lib/utils";
 import { createUser, checkEmailExists, getProfilesForReportsTo } from "@/lib/actions/admin";
 import { mapAuthError } from "@/lib/utils/auth-errors";
-import { createUserSchema, type CreateUserInput } from "@/lib/validations/user";
+import {
+  createUserSchema,
+  type CreateUserFormInput,
+  type CreateUserInput,
+} from "@/lib/validations/user";
 import type { EmployeeDepartment, IndulgeDomain, UserRole, Profile } from "@/lib/types/database";
 import {
   DEPARTMENT_CONFIG,
@@ -204,7 +208,7 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
     reset,
     clearErrors,
     formState: { errors },
-  } = useForm<CreateUserInput>({
+  } = useForm<CreateUserFormInput, unknown, CreateUserInput>({
     resolver: zodResolver(createUserSchema),
     defaultValues: {
       role: "agent",
@@ -267,14 +271,14 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
   }
 
   async function goNext() {
-    const stepFields: Record<WizardStep, (keyof CreateUserInput)[]> = {
+    const stepFields: Record<WizardStep, (keyof CreateUserFormInput)[]> = {
       1: ["full_name", "email", "job_title"],
       2: ["domain", "department"],
       3: ["role"],
       4: [],
     };
 
-    const valid = await trigger(stepFields[step] as (keyof CreateUserInput)[]);
+    const valid = await trigger(stepFields[step] as (keyof CreateUserFormInput)[]);
     if (!valid) return;
 
     if (step === 1 && emailCheckState === "taken") return;
@@ -305,7 +309,7 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
     [reset, onSuccess]
   );
 
-  function firstValidationMessage(errors: FieldErrors<CreateUserInput>): string {
+  function firstValidationMessage(errors: FieldErrors<CreateUserFormInput>): string {
     const walk = (e: object | undefined): string | undefined => {
       if (!e || typeof e !== "object") return undefined;
       for (const v of Object.values(e)) {
@@ -323,7 +327,7 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
     );
   }
 
-  const onInvalid = useCallback((errors: FieldErrors<CreateUserInput>) => {
+  const onInvalid = useCallback((errors: FieldErrors<CreateUserFormInput>) => {
     setSubmitError(firstValidationMessage(errors));
   }, []);
 
