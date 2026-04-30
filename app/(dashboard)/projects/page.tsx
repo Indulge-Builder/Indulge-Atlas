@@ -15,7 +15,7 @@ type MasterTaskListRow = MasterTask & {
 function projectStatusFromMasterTask(t: MasterTaskListRow): ProjectStatus {
   if (t.archived_at) return "archived";
   if (t.atlas_status === "done") return "completed";
-  if (t.atlas_status === "blocked" || t.atlas_status === "cancelled")
+  if (t.atlas_status === "error" || t.atlas_status === "cancelled")
     return "on_hold";
   return "active";
 }

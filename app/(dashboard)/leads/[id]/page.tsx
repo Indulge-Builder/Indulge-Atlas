@@ -17,7 +17,14 @@ import { Card, surfaceCardVariants } from "@/components/ui/card";
 import { InfoRow } from "@/components/ui/info-row";
 import { Separator } from "@/components/ui/separator";
 import { formatDateTime, getInitials } from "@/lib/utils";
-import { LEAD_STATUS_CONFIG } from "@/lib/types/database";
+import {
+  isPrivilegedRole,
+  LEAD_STATUS_CONFIG,
+  type Lead,
+  type LeadCollaborator,
+  type Profile,
+  type UserRole,
+} from "@/lib/types/database";
 import {
   ArrowLeft,
   Phone,
@@ -44,12 +51,8 @@ import {
   LeadTasksWidgetSkeleton,
   LeadWhatsAppSkeleton,
 } from "./LeadDossierAsync";
-import type {
-  Lead,
-  Profile,
-  UserRole,
-} from "@/lib/types/database";
 import { getOffDutyAnchor } from "@/lib/utils/sla";
+import { LeadCollaboratorsDock } from "@/components/leads/LeadCollaboratorsDock";
 
 export const dynamic = "force-dynamic";
 
@@ -146,10 +149,12 @@ export default async function LeadDetailPage({ params }: PageProps) {
   // Fetch current user's full profile (role + id)
   const { data: rawProfile } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role, domain")
     .eq("id", user.id)
     .single();
   const userRole: UserRole = (rawProfile?.role as UserRole) ?? "agent";
+  const userDomain =
+    (rawProfile as { domain?: string } | null)?.domain ?? "indulge_concierge";
 
   // Fetch lead with agent — exclude private_scratchpad until we verify viewer is assigned agent
   const LEAD_COLS =
@@ -164,8 +169,28 @@ export default async function LeadDetailPage({ params }: PageProps) {
 
   if (error || !rawLead) notFound();
 
+  const { data: collaboratorRows } = await supabase
+    .from("lead_collaborators")
+    .select(
+      "id, lead_id, user_id, added_by, created_at, profile:profiles!lead_collaborators_user_id_fkey(id, full_name, email, department, domain, job_title)",
+    )
+    .eq("lead_id", id);
+
+  const leadCollaborators = (collaboratorRows ?? []) as unknown as LeadCollaborator[];
+
+  const leadDomain = (rawLead as { domain: Lead["domain"] }).domain;
+  const leadAssignedTo = (rawLead as { assigned_to: string | null }).assigned_to;
+
+  const canManageCollaborators =
+    userRole === "admin" ||
+    userRole === "founder" ||
+    (userRole === "manager" && leadDomain === userDomain) ||
+    (userRole === "agent" && leadAssignedTo === user.id && leadDomain === userDomain);
+
+  // Same visibility as saveAgentScratchpad: assigned agent, or admin/founder oversight.
+  const assignedTo = leadAssignedTo;
   const canViewScratchpad =
-    user.id === (rawLead as { assigned_to: string | null }).assigned_to;
+    user.id === assignedTo || isPrivilegedRole(userRole);
   let scratchpadValue: string | null = null;
   if (canViewScratchpad) {
     const { data: scratch } = await supabase
@@ -250,9 +275,10 @@ export default async function LeadDetailPage({ params }: PageProps) {
 
             <div className="p-6">
                 {/* Identity header */}
-                <div className="flex items-center gap-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex min-w-0 items-center gap-4">
                   <div
-                    className="flex h-14 w-14 items-center justify-center rounded-2xl border-2 border-white text-xl font-semibold shadow-sm"
+                    className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border-2 border-white text-xl font-semibold shadow-sm"
                     style={{
                       backgroundColor: statusConfig.bgColor,
                       color: statusConfig.color,
@@ -264,7 +290,7 @@ export default async function LeadDetailPage({ params }: PageProps) {
                         .join(" "),
                     )}
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <h2
                       className="text-xl font-semibold text-[#1A1A1A]"
                       style={{ fontFamily: "var(--font-playfair), serif" }}
@@ -282,6 +308,14 @@ export default async function LeadDetailPage({ params }: PageProps) {
                         Added {formatDateTime(lead.created_at)}
                       </span>
                     </div>
+                  </div>
+                  </div>
+                  <div className="shrink-0 pt-0.5">
+                    <LeadCollaboratorsDock
+                      leadId={lead.id}
+                      canManage={canManageCollaborators}
+                      initialRows={leadCollaborators}
+                    />
                   </div>
                 </div>
 

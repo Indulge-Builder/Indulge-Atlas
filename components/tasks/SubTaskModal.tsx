@@ -50,6 +50,7 @@ import type {
   AtlasTaskStatus,
   TaskPriority,
 } from "@/lib/types/database";
+import { ATLAS_TASK_STATUS_VALUES, ATLAS_TASK_STATUS_LABELS } from "@/lib/types/database";
 import type { UpdateSubTaskInput } from "@/lib/schemas/tasks";
 
 const IST = "Asia/Kolkata";
@@ -307,8 +308,10 @@ function ZoneA({
                     onChange={(e) => setStatus(e.target.value as AtlasTaskStatus)}
                     className="rounded border border-[#E5E4DF] bg-[#F9F9F6] px-2 py-1 text-[12px] text-[#1A1A1A] outline-none focus:border-[#D4AF37]"
                   >
-                    {(["todo","in_progress","in_review","done","blocked","error","cancelled"] as AtlasTaskStatus[]).map((s) => (
-                      <option key={s} value={s}>{s.replace(/_/g, " ")}</option>
+                    {ATLAS_TASK_STATUS_VALUES.map((s) => (
+                      <option key={s} value={s}>
+                        {ATLAS_TASK_STATUS_LABELS[s]}
+                      </option>
                     ))}
                   </select>
                 ) : (
@@ -421,6 +424,7 @@ interface ZoneBProps {
   currentUserJobTitle: string | null;
   onStatusChange?: (newStatus: AtlasTaskStatus) => void;
   onProgressChange?: (newProgress: number) => void;
+  readOnly?: boolean;
 }
 
 function ZoneB({
@@ -434,6 +438,7 @@ function ZoneB({
   currentUserJobTitle,
   onStatusChange,
   onProgressChange,
+  readOnly = false,
 }: ZoneBProps) {
   const feedRef = useRef<HTMLDivElement>(null);
 
@@ -455,7 +460,9 @@ function ZoneB({
       <div ref={feedRef} className="flex-1 overflow-y-auto px-6 pb-2 space-y-3 min-h-0">
         {feedEmpty ? (
           <p className="text-[13px] text-[#B5A99A] italic text-center py-8">
-            No updates yet. Be the first to log progress.
+            {readOnly
+              ? "No updates yet."
+              : "No updates yet. Be the first to log progress."}
           </p>
         ) : (
           remarks.map((remark, i) => (
@@ -463,25 +470,28 @@ function ZoneB({
               key={remark.id}
               remark={remark}
               isNew={i === 0 && remark.id.startsWith("optimistic-")}
+              className={readOnly ? "border-l-0" : undefined}
             />
           ))
         )}
       </div>
 
-      {/* Log Update form — pinned to bottom */}
-      <div className="px-6 pb-5 shrink-0">
-        <LogUpdateForm
-          taskId={taskId}
-          currentStatus={currentStatus}
-          currentProgress={currentProgress}
-          onOptimisticInsert={handleOptimisticInsert}
-          onStatusChange={onStatusChange}
-          onProgressChange={onProgressChange}
-          currentUserId={currentUserId}
-          currentUserName={currentUserName}
-          currentUserJobTitle={currentUserJobTitle}
-        />
-      </div>
+      {/* Log Update form — pinned to bottom (hidden in read-only intelligence mode). */}
+      {!readOnly && (
+        <div className="px-6 pb-5 shrink-0">
+          <LogUpdateForm
+            taskId={taskId}
+            currentStatus={currentStatus}
+            currentProgress={currentProgress}
+            onOptimisticInsert={handleOptimisticInsert}
+            onStatusChange={onStatusChange}
+            onProgressChange={onProgressChange}
+            currentUserId={currentUserId}
+            currentUserName={currentUserName}
+            currentUserJobTitle={currentUserJobTitle}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -496,9 +506,16 @@ export interface SubTaskModalProps {
     full_name: string;
     job_title: string | null;
   };
+  /** When true, brief and timeline are view-only; no mutations or Log Update form. */
+  readOnly?: boolean;
 }
 
-export function SubTaskModal({ taskId, onClose, currentUser }: SubTaskModalProps) {
+export function SubTaskModal({
+  taskId,
+  onClose,
+  currentUser,
+  readOnly = false,
+}: SubTaskModalProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -571,6 +588,14 @@ export function SubTaskModal({ taskId, onClose, currentUser }: SubTaskModalProps
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    if (readOnly) {
+      setEditMode(false);
+      setMenuOpen(false);
+      setDeleteConfirm(false);
+    }
+  }, [readOnly]);
 
   useSubtaskRealtime(taskId, {
     onRemarkInserted: (raw) => {
@@ -673,74 +698,80 @@ export function SubTaskModal({ taskId, onClose, currentUser }: SubTaskModalProps
               <div className="relative flex items-center gap-2 shrink-0 ml-4">
                 <SubTaskStatusBadge status={task.atlas_status} size="sm" />
                 <TaskPriorityBadge priority={task.priority ?? "medium"} size="sm" />
-                <div className="w-px h-5 bg-[#E5E4DF] mx-1" />
-                <button
-                  type="button"
-                  onClick={() => setEditMode((p) => !p)}
-                  className={cn(
-                    "p-1.5 rounded-lg transition-colors",
-                    editMode
-                      ? "bg-[#D4AF37]/10 text-[#A88B25]"
-                      : "hover:bg-[#F2F2EE] text-[#6B6B6B]",
-                  )}
-                  aria-label="Edit brief"
-                  title="Edit brief"
-                >
-                  <Pencil className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setMenuOpen((p) => !p); setDeleteConfirm(false); }}
-                  className="p-1.5 rounded-lg hover:bg-[#F2F2EE] text-[#6B6B6B] transition-colors"
-                  aria-label="More actions"
-                  title="More actions"
-                >
-                  <MoreHorizontal className="w-4 h-4" />
-                </button>
+                {!readOnly && (
+                  <>
+                    <div className="w-px h-5 bg-[#E5E4DF] mx-1" />
+                    <button
+                      type="button"
+                      onClick={() => setEditMode((p) => !p)}
+                      className={cn(
+                        "p-1.5 rounded-lg transition-colors",
+                        editMode
+                          ? "bg-[#D4AF37]/10 text-[#A88B25]"
+                          : "hover:bg-[#F2F2EE] text-[#6B6B6B]",
+                      )}
+                      aria-label="Edit brief"
+                      title="Edit brief"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMenuOpen((p) => !p);
+                        setDeleteConfirm(false);
+                      }}
+                      className="p-1.5 rounded-lg hover:bg-[#F2F2EE] text-[#6B6B6B] transition-colors"
+                      aria-label="More actions"
+                      title="More actions"
+                    >
+                      <MoreHorizontal className="w-4 h-4" />
+                    </button>
 
-                {/* Dropdown menu */}
-                {menuOpen && (
-                  <div
-                    ref={menuRef}
-                    className="absolute top-full right-0 mt-1 z-50 w-44 rounded-xl border border-[#E5E4DF] bg-white shadow-lg py-1"
-                  >
-                    {!deleteConfirm ? (
-                      <button
-                        type="button"
-                        onClick={() => setDeleteConfirm(true)}
-                        className="flex w-full items-center gap-2.5 px-3 py-2 text-[13px] text-[#C0392B] hover:bg-[#FEF2F2] transition-colors"
+                    {menuOpen && (
+                      <div
+                        ref={menuRef}
+                        className="absolute top-full right-0 mt-1 z-50 w-44 rounded-xl border border-[#E5E4DF] bg-white shadow-lg py-1"
                       >
-                        <Trash2 className="w-3.5 h-3.5 shrink-0" />
-                        Delete subtask
-                      </button>
-                    ) : (
-                      <div className="px-3 py-2.5">
-                        <p className="text-[12px] text-[#1A1A1A] font-medium mb-2">
-                          Delete this subtask?
-                        </p>
-                        <p className="text-[11px] text-[#8A8A6E] mb-3 leading-snug">
-                          This cannot be undone.
-                        </p>
-                        <div className="flex gap-2">
+                        {!deleteConfirm ? (
                           <button
                             type="button"
-                            onClick={() => setDeleteConfirm(false)}
-                            className="flex-1 rounded-lg border border-[#E5E4DF] bg-white px-2 py-1.5 text-[12px] text-[#6B6B6B] hover:bg-[#F2F2EE] transition-colors"
+                            onClick={() => setDeleteConfirm(true)}
+                            className="flex w-full items-center gap-2.5 px-3 py-2 text-[13px] text-[#C0392B] hover:bg-[#FEF2F2] transition-colors"
                           >
-                            Cancel
+                            <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                            Delete subtask
                           </button>
-                          <button
-                            type="button"
-                            onClick={handleDelete}
-                            disabled={isDeleting}
-                            className="flex-1 rounded-lg bg-[#C0392B] px-2 py-1.5 text-[12px] text-white hover:bg-[#A93226] disabled:opacity-60 transition-colors"
-                          >
-                            {isDeleting ? "Deleting…" : "Delete"}
-                          </button>
-                        </div>
+                        ) : (
+                          <div className="px-3 py-2.5">
+                            <p className="text-[12px] text-[#1A1A1A] font-medium mb-2">
+                              Delete this subtask?
+                            </p>
+                            <p className="text-[11px] text-[#8A8A6E] mb-3 leading-snug">
+                              This cannot be undone.
+                            </p>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setDeleteConfirm(false)}
+                                className="flex-1 rounded-lg border border-[#E5E4DF] bg-white px-2 py-1.5 text-[12px] text-[#6B6B6B] hover:bg-[#F2F2EE] transition-colors"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleDelete}
+                                disabled={isDeleting}
+                                className="flex-1 rounded-lg bg-[#C0392B] px-2 py-1.5 text-[12px] text-white hover:bg-[#A93226] disabled:opacity-60 transition-colors"
+                              >
+                                {isDeleting ? "Deleting…" : "Delete"}
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
-                  </div>
+                  </>
                 )}
               </div>
             )}
@@ -778,7 +809,12 @@ export function SubTaskModal({ taskId, onClose, currentUser }: SubTaskModalProps
           ) : task ? (
             <div className="flex-1 flex overflow-hidden min-h-0">
               {/* Zone A — 38% width */}
-              <div className="w-[38%] shrink-0 border-r border-[#E5E4DF] flex flex-col min-h-0 bg-white">
+              <div
+                className={cn(
+                  "w-[38%] shrink-0 flex flex-col min-h-0 bg-white",
+                  !readOnly && "border-r border-[#E5E4DF]",
+                )}
+              >
                 <ZoneA
                   task={task}
                   masterTaskTitle={masterTaskTitle}
@@ -787,7 +823,7 @@ export function SubTaskModal({ taskId, onClose, currentUser }: SubTaskModalProps
                   workspaceMembers={workspaceMembers}
                   canAssignSubtask={canAssignSubtask}
                   checklist={checklist}
-                  editable={editMode}
+                  editable={editMode && !readOnly}
                   onSaved={() => {
                     setEditMode(false);
                     router.refresh();
@@ -808,6 +844,7 @@ export function SubTaskModal({ taskId, onClose, currentUser }: SubTaskModalProps
                   currentUserId={currentUser.id}
                   currentUserName={currentUser.full_name}
                   currentUserJobTitle={currentUser.job_title}
+                  readOnly={readOnly}
                   onStatusChange={(newStatus) =>
                     setTask((prev) => prev ? { ...prev, atlas_status: newStatus } : null)
                   }

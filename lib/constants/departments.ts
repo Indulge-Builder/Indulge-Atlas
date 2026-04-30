@@ -155,6 +155,18 @@ export const DOMAIN_CONFIG: Record<IndulgeDomain, DomainConfig> = {
   },
 };
 
+/**
+ * Normalize `profiles.domain` (or any string) to a valid `IndulgeDomain`.
+ * Invalid or empty values become `indulge_concierge` so domain-scoped helpers
+ * (e.g. Task Insights `departmentsVisibleForDomain`) never return an empty list.
+ */
+export function coerceIndulgeDomain(raw: string | null | undefined): IndulgeDomain {
+  const v = (raw ?? "").trim();
+  const keys = Object.keys(DOMAIN_CONFIG) as IndulgeDomain[];
+  if (keys.includes(v as IndulgeDomain)) return v as IndulgeDomain;
+  return "indulge_concierge";
+}
+
 // ── Department Route Access Map ──────────────────────────────
 //
 // Defines which route prefixes each department can navigate to.
@@ -168,6 +180,7 @@ export const DEPARTMENT_ROUTE_ACCESS: Record<EmployeeDepartment, string[]> = {
     "/leads",
     "/whatsapp",
     "/tasks",
+    "/task-insights",
     "/calendar",
     "/performance",
     "/conversions",
@@ -180,6 +193,7 @@ export const DEPARTMENT_ROUTE_ACCESS: Record<EmployeeDepartment, string[]> = {
     "/calendar",
     "/manager/campaigns",
     "/manager/dashboard",
+    "/task-insights",
     "/manager",
   ],
   tech: [
@@ -187,6 +201,7 @@ export const DEPARTMENT_ROUTE_ACCESS: Record<EmployeeDepartment, string[]> = {
     "/leads",
     "/tasks",
     "/tasks/import",
+    "/task-insights",
     "/calendar",
     "/admin/integrations",
     "/admin/mappings",
@@ -197,6 +212,7 @@ export const DEPARTMENT_ROUTE_ACCESS: Record<EmployeeDepartment, string[]> = {
     "/workspace",
     "/leads",
     "/tasks",
+    "/task-insights",
     "/calendar",
     "/whatsapp",
   ],
@@ -206,6 +222,7 @@ export const DEPARTMENT_ROUTE_ACCESS: Record<EmployeeDepartment, string[]> = {
     "/leads",
     "/whatsapp",
     "/tasks",
+    "/task-insights",
     "/calendar",
     "/performance",
     "/conversions",
@@ -217,6 +234,7 @@ export const DEPARTMENT_ROUTE_ACCESS: Record<EmployeeDepartment, string[]> = {
     "/leads",
     "/whatsapp",
     "/tasks",
+    "/task-insights",
     "/calendar",
     "/performance",
     "/conversions",
@@ -231,6 +249,7 @@ export const DEPARTMENT_ROUTE_ACCESS: Record<EmployeeDepartment, string[]> = {
     "/manager/planner",
     "/manager/dashboard",
     "/manager/team",
+    "/task-insights",
     "/manager",
   ],
   onboarding: [
@@ -240,6 +259,7 @@ export const DEPARTMENT_ROUTE_ACCESS: Record<EmployeeDepartment, string[]> = {
     "/whatsapp",
     "/tasks",
     "/tasks/import",
+    "/task-insights",
     "/calendar",
     "/conversions",
     "/admin/onboarding",
@@ -274,4 +294,16 @@ export function isDepartmentRoute(href: string, routes: string[]): boolean {
     if (route === "/") return href === "/";
     return href === route || href.startsWith(route + "/");
   });
+}
+
+/**
+ * Departments whose primary or allowed domain matches the user's domain.
+ * Used by managers for Task Insights and similar domain-scoped surfaces.
+ */
+export function departmentsVisibleForDomain(domain: IndulgeDomain): EmployeeDepartment[] {
+  return ALL_DEPARTMENTS.filter(
+    (d) =>
+      DEPARTMENT_CONFIG[d].primaryDomain === domain ||
+      DEPARTMENT_CONFIG[d].allowedDomains.includes(domain),
+  );
 }

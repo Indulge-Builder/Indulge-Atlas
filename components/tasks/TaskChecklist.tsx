@@ -180,32 +180,54 @@ function ChecklistRow({ item, editable, onToggle, onDelete }: ChecklistRowProps)
         </div>
       )}
 
-      {/* Custom animated checkbox */}
-      <button
-        type="button"
-        onClick={onToggle}
-        className={cn(
-          "mt-0.5 w-4 h-4 rounded flex-shrink-0 border-2 flex items-center justify-center transition-all duration-[120ms] ease-in-out",
-          item.checked
-            ? "bg-[#D4AF37] border-[#D4AF37]"
-            : "border-[#D0C8BE] hover:border-[#D4AF37] bg-transparent",
-        )}
-        aria-label={item.checked ? "Mark incomplete" : "Mark complete"}
-        aria-checked={item.checked}
-        role="checkbox"
-      >
-        <AnimatePresence>
+      {/* Custom animated checkbox — read-only surfaces use a static div (no actions). */}
+      {editable ? (
+        <button
+          type="button"
+          onClick={onToggle}
+          className={cn(
+            "mt-0.5 w-4 h-4 rounded flex-shrink-0 border-2 flex items-center justify-center transition-all duration-[120ms] ease-in-out",
+            item.checked
+              ? "bg-[#D4AF37] border-[#D4AF37]"
+              : "border-[#D0C8BE] hover:border-[#D4AF37] bg-transparent",
+          )}
+          aria-label={item.checked ? "Mark incomplete" : "Mark complete"}
+          aria-checked={item.checked}
+          role="checkbox"
+        >
+          <AnimatePresence>
+            {item.checked && (
+              <motion.svg
+                key="check"
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0, opacity: 0 }}
+                transition={{ duration: 0.12, ease: "easeOut" }}
+                viewBox="0 0 10 8"
+                className="w-2.5 h-2 text-white"
+                fill="none"
+              >
+                <path
+                  d="M1 4l3 3 5-6"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </motion.svg>
+            )}
+          </AnimatePresence>
+        </button>
+      ) : (
+        <div
+          className={cn(
+            "mt-0.5 w-4 h-4 rounded flex-shrink-0 border-2 flex items-center justify-center pointer-events-none",
+            item.checked ? "bg-[#D4AF37] border-[#D4AF37]" : "border-[#D0C8BE] bg-transparent",
+          )}
+          aria-hidden
+        >
           {item.checked && (
-            <motion.svg
-              key="check"
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0, opacity: 0 }}
-              transition={{ duration: 0.12, ease: "easeOut" }}
-              viewBox="0 0 10 8"
-              className="w-2.5 h-2 text-white"
-              fill="none"
-            >
+            <svg viewBox="0 0 10 8" className="w-2.5 h-2 text-white" fill="none">
               <path
                 d="M1 4l3 3 5-6"
                 stroke="currentColor"
@@ -213,10 +235,10 @@ function ChecklistRow({ item, editable, onToggle, onDelete }: ChecklistRowProps)
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
-            </motion.svg>
+            </svg>
           )}
-        </AnimatePresence>
-      </button>
+        </div>
+      )}
 
       {/* Text */}
       <span

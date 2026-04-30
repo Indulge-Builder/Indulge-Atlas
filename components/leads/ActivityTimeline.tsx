@@ -50,12 +50,17 @@ function renderActivityText(activity: TimelineActivity) {
   }
 
   if (activity.action_type === "note_added") {
-    const note = (details.note as string | undefined) ?? "No note content";
+    const note =
+      (typeof details.note === "string" && details.note.trim()) ||
+      (typeof details.text === "string" && details.text.trim()) ||
+      (typeof details.content === "string" && details.content.trim()) ||
+      null;
+    const display = note ?? "No note content";
     return (
       <div className="space-y-2">
         <p className="text-sm text-stone-800">{actorName} left a note</p>
         <div className="rounded-md border border-stone-200 bg-stone-50 px-3 py-2">
-          <p className="text-sm text-stone-600 italic">"{note}"</p>
+          <p className="text-sm text-stone-600 italic">"{display}"</p>
         </div>
       </div>
     );

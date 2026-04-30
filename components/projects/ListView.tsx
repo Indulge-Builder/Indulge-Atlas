@@ -3,19 +3,26 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { AvatarStack } from "@/components/ui/avatar-stack";
+import { Button } from "@/components/ui/button";
 import { TASK_PRIORITY_CONFIG } from "@/lib/types/database";
 import type { TaskGroup, ProjectTask } from "@/lib/types/database";
-import { updateTaskProgress } from "@/lib/actions/projects";
+import {
+  createTaskGroup,
+  createGroupTask,
+  updateTaskProgress,
+} from "@/lib/actions/projects";
 import { format, isAfter, differenceInHours } from "date-fns";
 import { toast } from "sonner";
 import {
   ChevronDown,
   ChevronRight,
   Minus,
+  Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ListViewProps {
+  projectId: string;
   taskGroups: TaskGroup[];
   tasks: ProjectTask[];
   onTaskClick: (task: ProjectTask) => void;
@@ -130,10 +137,22 @@ function InlineProgressCell({
   );
 }
 
-export function ListView({ taskGroups, tasks, onTaskClick }: ListViewProps) {
+export function ListView({
+  projectId,
+  taskGroups,
+  tasks,
+  onTaskClick,
+}: ListViewProps) {
   const [sortKey, setSortKey] = useState<SortKey>("priority");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [addingGroup, setAddingGroup] = useState(false);
+  const [newGroupTitle, setNewGroupTitle] = useState("");
+  const [inlineAdd, setInlineAdd] = useState<{ groupId: string; value: string } | null>(
+    null,
+  );
+  const [groupPending, startGroupTransition] = useTransition();
+  const router = useRouter();
 
   function handleSort(key: SortKey) {
     if (key === sortKey) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -151,6 +170,42 @@ export function ListView({ taskGroups, tasks, onTaskClick }: ListViewProps) {
 
   const groupMap = Object.fromEntries(taskGroups.map((g) => [g.id, g]));
   const sorted = [...taskGroups].sort((a, b) => a.position - b.position);
+
+  function handleAddGroup() {
+    if (!newGroupTitle.trim()) return;
+    startGroupTransition(async () => {
+      const result = await createTaskGroup(projectId, {
+        title: newGroupTitle.trim(),
+        position: taskGroups.length,
+      });
+      if (result.success) {
+        toast.success("Group created");
+        setNewGroupTitle("");
+        setAddingGroup(false);
+        router.refresh();
+      } else {
+        toast.error(result.error ?? "Failed to create group");
+      }
+    });
+  }
+
+  function handleInlineAddTask(groupId: string) {
+    if (!inlineAdd?.value.trim()) {
+      setInlineAdd(null);
+      return;
+    }
+    startGroupTransition(async () => {
+      const result = await createGroupTask(groupId, {
+        title: inlineAdd.value.trim(),
+      });
+      if (result.success) {
+        setInlineAdd(null);
+        router.refresh();
+      } else {
+        toast.error(result.error ?? "Failed to create task");
+      }
+    });
+  }
 
   function sortTasks(arr: ProjectTask[]) {
     return [...arr].sort((a, b) => {
@@ -182,6 +237,74 @@ export function ListView({ taskGroups, tasks, onTaskClick }: ListViewProps) {
 
   const headerClass =
     "text-[11px] font-semibold text-zinc-400 uppercase tracking-wide cursor-pointer hover:text-zinc-600 select-none flex items-center gap-1";
+
+  if (sorted.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-280px)] px-6 gap-4">
+        <div className="w-12 h-12 rounded-2xl bg-[#D4AF37]/10 flex items-center justify-center">
+          <Plus className="w-6 h-6 text-[#D4AF37]/70" />
+        </div>
+        <div className="text-center">
+          <p className="text-sm font-semibold text-zinc-700 mb-1">No groups yet</p>
+          <p className="text-xs text-zinc-400 max-w-xs">
+            Create your first group (for example Design, Backend, QA) to start adding tasks.
+          </p>
+        </div>
+
+        {addingGroup ? (
+          <div className="w-[280px] rounded-2xl border border-dashed border-[#D4AF37]/50 p-4 space-y-3">
+            <input
+              autoFocus
+              type="text"
+              value={newGroupTitle}
+              onChange={(e) => setNewGroupTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleAddGroup();
+                if (e.key === "Escape") {
+                  setAddingGroup(false);
+                  setNewGroupTitle("");
+                }
+              }}
+              placeholder="Group name…"
+              maxLength={200}
+              className="w-full text-sm font-medium text-[#1A1A1A] bg-transparent focus:outline-none placeholder:text-zinc-400"
+            />
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="gold"
+                disabled={groupPending}
+                onClick={handleAddGroup}
+                className="text-xs"
+              >
+                {groupPending ? "Adding…" : "Add"}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setAddingGroup(false);
+                  setNewGroupTitle("");
+                }}
+                className="text-xs"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setAddingGroup(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#D4AF37] text-[#0A0A0A] text-sm font-semibold hover:bg-[#C9A530] transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Create first group
+          </button>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="px-6 py-4">
@@ -223,15 +346,12 @@ export function ListView({ taskGroups, tasks, onTaskClick }: ListViewProps) {
         </span>
       </div>
 
-      {/* Rows grouped by task group */}
       {sorted.map((group) => {
         const groupTasks = tasks.filter((t) => t.group_id === group.id);
-        if (groupTasks.length === 0) return null;
         const isCollapsed = collapsed.has(group.id);
 
         return (
           <div key={group.id} className="mb-4">
-            {/* Group row */}
             <button
               type="button"
               onClick={() => toggleCollapse(group.id)}
@@ -248,90 +368,242 @@ export function ListView({ taskGroups, tasks, onTaskClick }: ListViewProps) {
               </span>
             </button>
 
-            {!isCollapsed && (
-              <div className="rounded-2xl border border-[#E5E4DF] bg-white overflow-hidden divide-y divide-[#F0F0EE]">
-                {sortTasks(groupTasks).map((task) => {
-                  const priorityConfig = task.priority
-                    ? TASK_PRIORITY_CONFIG[task.priority]
-                    : null;
-                  const assignees = task.assigned_to_profiles ?? [];
-                  const group = task.group_id ? groupMap[task.group_id] : null;
-
-                  return (
-                    <div
-                      key={task.id}
-                      className="grid grid-cols-[1fr_80px_100px_100px_80px_80px] gap-4 px-4 py-3 hover:bg-[#FAFAF8] transition-colors group"
-                    >
-                      {/* Title */}
+            {!isCollapsed &&
+              (groupTasks.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-zinc-200 bg-[#FAFAF8]/60 px-4 py-6">
+                  <p className="text-xs text-zinc-400 text-center mb-3">No tasks in this group yet.</p>
+                  {inlineAdd?.groupId === group.id ? (
+                    <div className="max-w-md mx-auto rounded-2xl border border-[#D4AF37]/40 bg-white p-2.5">
+                      <input
+                        autoFocus
+                        type="text"
+                        value={inlineAdd.value}
+                        onChange={(e) =>
+                          setInlineAdd({ groupId: group.id, value: e.target.value })
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleInlineAddTask(group.id);
+                          if (e.key === "Escape") setInlineAdd(null);
+                        }}
+                        onBlur={() => handleInlineAddTask(group.id)}
+                        placeholder="Task title…"
+                        className="w-full text-sm text-[#1A1A1A] bg-transparent focus:outline-none placeholder:text-zinc-400"
+                      />
+                      <div className="flex items-center gap-1.5 mt-2">
+                        <button
+                          type="button"
+                          disabled={groupPending}
+                          onClick={() => handleInlineAddTask(group.id)}
+                          className="text-xs font-medium px-2.5 py-1 rounded-lg bg-[#D4AF37] text-[#0A0A0A] hover:bg-[#C9A530] transition-colors disabled:opacity-50"
+                        >
+                          Add
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setInlineAdd(null)}
+                          className="text-xs font-medium px-2.5 py-1 rounded-lg text-zinc-500 hover:bg-zinc-100 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex justify-center">
                       <button
                         type="button"
-                        onClick={() => onTaskClick(task)}
-                        className="text-left text-sm text-[#1A1A1A] truncate group-hover:text-[#D4AF37] transition-colors font-medium"
-                      >
-                        {task.status === "completed" && (
-                          <span className="mr-1.5 text-emerald-500">✓</span>
+                        onClick={() => setInlineAdd({ groupId: group.id, value: "" })}
+                        className={cn(
+                          "inline-flex items-center gap-1.5 px-3 py-2 rounded-2xl text-zinc-500",
+                          "hover:text-zinc-700 hover:bg-white border border-transparent hover:border-zinc-200 transition-colors",
+                          "text-xs font-medium",
                         )}
-                        {task.title}
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        Add task
                       </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-[#E5E4DF] bg-white overflow-hidden divide-y divide-[#F0F0EE]">
+                  {sortTasks(groupTasks).map((task) => {
+                    const priorityConfig = task.priority
+                      ? TASK_PRIORITY_CONFIG[task.priority]
+                      : null;
+                    const assignees = task.assigned_to_profiles ?? [];
+                    const g = task.group_id ? groupMap[task.group_id] : null;
 
-                      {/* Priority */}
-                      <div>
-                        {priorityConfig ? (
-                          <span
-                            className={cn(
-                              "inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md",
-                              priorityConfig.className,
-                            )}
-                          >
+                    return (
+                      <div
+                        key={task.id}
+                        className="grid grid-cols-[1fr_80px_100px_100px_80px_80px] gap-4 px-4 py-3 hover:bg-[#FAFAF8] transition-colors group"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => onTaskClick(task)}
+                          className="text-left text-sm text-[#1A1A1A] truncate group-hover:text-[#D4AF37] transition-colors font-medium"
+                        >
+                          {task.status === "completed" && (
+                            <span className="mr-1.5 text-emerald-500">✓</span>
+                          )}
+                          {task.title}
+                        </button>
+
+                        <div>
+                          {priorityConfig ? (
                             <span
                               className={cn(
-                                "w-1.5 h-1.5 rounded-full",
-                                priorityConfig.dotClass,
+                                "inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md",
+                                priorityConfig.className,
                               )}
-                            />
-                            {priorityConfig.label}
-                          </span>
-                        ) : (
-                          <span className="text-zinc-300 text-xs">—</span>
-                        )}
+                            >
+                              <span
+                                className={cn(
+                                  "w-1.5 h-1.5 rounded-full",
+                                  priorityConfig.dotClass,
+                                )}
+                              />
+                              {priorityConfig.label}
+                            </span>
+                          ) : (
+                            <span className="text-zinc-300 text-xs">—</span>
+                          )}
+                        </div>
+
+                        <div>
+                          {assignees.length > 0 ? (
+                            <AvatarStack assignees={assignees} maxVisible={3} size="sm" />
+                          ) : (
+                            <span className="text-zinc-300 text-xs">—</span>
+                          )}
+                        </div>
+
+                        <InlineProgressCell task={task} />
+
+                        <DueDateCell date={task.due_date ?? null} />
+
+                        <span className="text-[10px] text-zinc-400 truncate">
+                          {g?.title ?? "—"}
+                        </span>
                       </div>
-
-                      {/* Assignees */}
-                      <div>
-                        {assignees.length > 0 ? (
-                          <AvatarStack assignees={assignees} maxVisible={3} size="sm" />
-                        ) : (
-                          <span className="text-zinc-300 text-xs">—</span>
-                        )}
+                    );
+                  })}
+                  <div className="px-4 py-2.5 bg-[#FAFAF8]/50">
+                    {inlineAdd?.groupId === group.id ? (
+                      <div className="flex flex-col gap-2 max-w-lg">
+                        <input
+                          autoFocus
+                          type="text"
+                          value={inlineAdd.value}
+                          onChange={(e) =>
+                            setInlineAdd({ groupId: group.id, value: e.target.value })
+                          }
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleInlineAddTask(group.id);
+                            if (e.key === "Escape") setInlineAdd(null);
+                          }}
+                          onBlur={() => handleInlineAddTask(group.id)}
+                          placeholder="Task title…"
+                          className="w-full text-sm text-[#1A1A1A] bg-white border border-[#E5E4DF] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/30 placeholder:text-zinc-400"
+                        />
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            disabled={groupPending}
+                            onClick={() => handleInlineAddTask(group.id)}
+                            className="text-xs font-medium px-2.5 py-1 rounded-lg bg-[#D4AF37] text-[#0A0A0A] hover:bg-[#C9A530] transition-colors disabled:opacity-50"
+                          >
+                            Add
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setInlineAdd(null)}
+                            className="text-xs font-medium px-2.5 py-1 rounded-lg text-zinc-500 hover:bg-zinc-100 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
                       </div>
-
-                      {/* Progress */}
-                      <InlineProgressCell task={task} />
-
-                      {/* Due date */}
-                      <DueDateCell date={task.due_date ?? null} />
-
-                      {/* Group */}
-                      <span className="text-[10px] text-zinc-400 truncate">
-                        {group?.title ?? "—"}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setInlineAdd({ groupId: group.id, value: "" })}
+                        className={cn(
+                          "flex items-center gap-1.5 px-2 py-1.5 rounded-xl text-zinc-400",
+                          "hover:text-zinc-600 hover:bg-white transition-colors",
+                          "text-xs font-medium",
+                        )}
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        Add task
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
           </div>
         );
       })}
 
-      {tasks.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <p className="text-sm text-zinc-400">No tasks yet.</p>
-          <p className="text-xs text-zinc-300 mt-1">
-            Switch to board view to add your first task group.
-          </p>
-        </div>
-      )}
+      <div className="mt-2 max-w-[280px]">
+        {addingGroup ? (
+          <div className="rounded-2xl border border-dashed border-[#D4AF37]/50 p-4 space-y-3">
+            <input
+              autoFocus
+              type="text"
+              value={newGroupTitle}
+              onChange={(e) => setNewGroupTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleAddGroup();
+                if (e.key === "Escape") {
+                  setAddingGroup(false);
+                  setNewGroupTitle("");
+                }
+              }}
+              placeholder="Group name…"
+              maxLength={200}
+              className="w-full text-sm font-medium text-[#1A1A1A] bg-transparent focus:outline-none placeholder:text-zinc-400"
+            />
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="gold"
+                disabled={groupPending}
+                onClick={handleAddGroup}
+                className="text-xs"
+              >
+                {groupPending ? "Adding…" : "Add"}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setAddingGroup(false);
+                  setNewGroupTitle("");
+                }}
+                className="text-xs"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setAddingGroup(true)}
+            className={cn(
+              "w-full flex items-center gap-2 px-4 py-3 rounded-2xl",
+              "border border-dashed border-zinc-200 hover:border-[#D4AF37]/50",
+              "text-zinc-400 hover:text-zinc-600",
+              "transition-all duration-200",
+              "text-[13px] font-medium",
+            )}
+          >
+            <Plus className="w-4 h-4" />
+            New group
+          </button>
+        )}
+      </div>
     </div>
   );
 }

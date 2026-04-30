@@ -9,12 +9,8 @@ import { IndulgeButton } from "@/components/ui/indulge-button";
 import { IndulgeField } from "@/components/ui/indulge-field";
 import { SubTaskStatusBadge } from "./SubTaskStatusBadge";
 import { updateSubTaskStatus } from "@/lib/actions/tasks";
-import { ATLAS_TASK_STATUS_LABELS } from "@/lib/types/database";
+import { ATLAS_TASK_STATUS_LABELS, ATLAS_TASK_STATUS_VALUES } from "@/lib/types/database";
 import type { AtlasTaskStatus, TaskRemark } from "@/lib/types/database";
-
-const ALL_STATUSES: AtlasTaskStatus[] = [
-  "todo", "in_progress", "in_review", "done", "blocked", "error", "cancelled",
-];
 
 interface LogUpdateFormProps {
   taskId: string;
@@ -179,7 +175,7 @@ export function LogUpdateForm({
             {/* Status selector */}
             <IndulgeField label="New Status" htmlFor="log-status">
               <div className="flex flex-wrap gap-1.5">
-                {ALL_STATUSES.map((s) => (
+                {ATLAS_TASK_STATUS_VALUES.map((s) => (
                   <button
                     key={s}
                     type="button"

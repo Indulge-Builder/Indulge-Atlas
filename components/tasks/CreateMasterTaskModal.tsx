@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useTransition, useCallback, useRef } from "react";
+import { useState, useTransition, useCallback, useRef, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus, X, Search, Check, UserPlus } from "lucide-react";
+import { Plus, X, Search, Check, Building2, Globe } from "lucide-react";
 import * as LucideIcons from "lucide-react";
 import type { ComponentType } from "react";
 import { cn } from "@/lib/utils";
@@ -21,12 +21,28 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { LuxuryDatePicker } from "@/components/ui/LuxuryDatePicker";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { InfoRow } from "@/components/ui/info-row";
+import { useProfile } from "@/components/sla/ProfileProvider";
+import {
+  DEPARTMENT_CONFIG,
+  DOMAIN_CONFIG,
+  departmentsVisibleForDomain,
+} from "@/lib/constants/departments";
+import { isPrivilegedRole } from "@/lib/types/database";
+import type { EmployeeDepartment, IndulgeDomain } from "@/lib/types/database";
+import {
   createMasterTask,
   updateMasterTask,
   addMasterTaskMember,
   searchProfilesForTasks,
 } from "@/lib/actions/tasks";
-import { CreateMasterTaskSchema, type CreateMasterTaskInput } from "@/lib/schemas/tasks";
+import { CreateMasterTaskSchema, type CreateMasterTaskFormValues, type CreateMasterTaskInput } from "@/lib/schemas/tasks";
 import type { MasterTask } from "@/lib/types/database";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -44,6 +60,14 @@ const PRESET_ICONS = [
   "Layers", "Compass", "Flag", "Heart",
   "Building2", "Gem", "Lightbulb", "Leaf",
 ];
+
+const DOMAIN_OPTIONS = (Object.keys(DOMAIN_CONFIG) as IndulgeDomain[]).sort((a, b) =>
+  DOMAIN_CONFIG[a].label.localeCompare(DOMAIN_CONFIG[b].label),
+);
+
+const ALL_DEPARTMENT_IDS = (Object.keys(DEPARTMENT_CONFIG) as EmployeeDepartment[]).sort((a, b) =>
+  DEPARTMENT_CONFIG[a].label.localeCompare(DEPARTMENT_CONFIG[b].label),
+);
 
 type ProfileResult = { id: string; full_name: string; role: string; job_title: string | null };
 
@@ -309,6 +333,7 @@ export function CreateMasterTaskModal({
   editTask,
 }: CreateMasterTaskModalProps) {
   const router = useRouter();
+  const profile = useProfile();
   const [isPending, startTransition]  = useTransition();
   const [selectedColor, setSelectedColor] = useState(editTask?.cover_color ?? "#D4AF37");
   const [selectedIcon,  setSelectedIcon]  = useState(editTask?.icon_key   ?? "");
@@ -321,28 +346,83 @@ export function CreateMasterTaskModal({
     reset,
     setValue,
     watch,
-  } = useForm<CreateMasterTaskInput>({
+    control,
+  } = useForm<CreateMasterTaskFormValues>({
     resolver: zodResolver(CreateMasterTaskSchema),
     defaultValues: {
-      title:       editTask?.title       ?? "",
-      description: editTask?.description ?? "",
-      department:  editTask?.department  ?? "",
-      domain:      editTask?.domain      ?? "",
-      due_date:    editTask?.due_date    ?? undefined,
+      title:       "",
+      description: "",
+      department:  "concierge",
+      domain:      "indulge_concierge",
+      due_date:    undefined,
     },
   });
 
+  const managerDepartmentIds = useMemo(() => {
+    if (!profile || profile.role !== "manager") return ALL_DEPARTMENT_IDS;
+    return [...departmentsVisibleForDomain(profile.domain)].sort((a, b) =>
+      DEPARTMENT_CONFIG[a].label.localeCompare(DEPARTMENT_CONFIG[b].label),
+    );
+  }, [profile]);
+
+  useEffect(() => {
+    if (!open) return;
+    const dept = (editTask?.department ??
+      profile?.department ??
+      "concierge") as EmployeeDepartment;
+    const dom = (editTask?.domain ?? profile?.domain ?? "indulge_concierge") as IndulgeDomain;
+    reset({
+      title:       editTask?.title       ?? "",
+      description: editTask?.description ?? "",
+      department:  dept,
+      domain:      dom,
+      due_date:    editTask?.due_date    ?? undefined,
+    });
+    setSelectedColor(editTask?.cover_color ?? "#D4AF37");
+    setSelectedIcon(editTask?.icon_key ?? "");
+    if (!editTask) setMembers([]);
+  }, [open, editTask?.id, profile?.id, reset]);
+
+  useEffect(() => {
+    if (!open || !profile || profile.role !== "manager") return;
+    setValue("domain", profile.domain, { shouldValidate: true, shouldDirty: false });
+  }, [open, profile, setValue]);
+
+  useEffect(() => {
+    if (!open || !profile) return;
+    if (isPrivilegedRole(profile.role) || profile.role === "manager") return;
+    setValue("department", (profile.department ?? "concierge") as EmployeeDepartment, {
+      shouldValidate: true,
+      shouldDirty: false,
+    });
+    setValue("domain", profile.domain, { shouldValidate: true, shouldDirty: false });
+  }, [open, profile, setValue]);
+
   const titleWatch = watch("title");
+  const deptWatch = watch("department");
+  const domainWatch = watch("domain");
 
   function handleClose() {
-    reset();
+    reset({
+      title: "",
+      description: "",
+      department: (profile?.department ?? "concierge") as EmployeeDepartment,
+      domain: (profile?.domain ?? "indulge_concierge") as IndulgeDomain,
+      due_date: undefined,
+    });
     setSelectedColor("#D4AF37");
     setSelectedIcon("");
     setMembers([]);
     onClose();
   }
 
-  function onSubmit(data: CreateMasterTaskInput) {
+  function onSubmit(raw: CreateMasterTaskFormValues) {
+    const parsed = CreateMasterTaskSchema.safeParse(raw);
+    if (!parsed.success) {
+      toast.error(parsed.error.issues[0]?.message ?? "Invalid input");
+      return;
+    }
+    const data = parsed.data;
     startTransition(async () => {
       const base = {
         ...data,
@@ -392,7 +472,7 @@ export function CreateMasterTaskModal({
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-serif text-xl">
-            {editTask ? "Edit Task" : "New Master Task"}
+            {editTask ? "Edit Task" : "New Group Task"}
           </DialogTitle>
         </DialogHeader>
 
@@ -425,6 +505,138 @@ export function CreateMasterTaskModal({
               maxLength={2000}
             />
           </IndulgeField>
+
+          {/* ── Department & domain ── */}
+          {profile && isPrivilegedRole(profile.role) && (
+            <div className="grid grid-cols-2 gap-4">
+              <IndulgeField
+                label="Department"
+                required
+                htmlFor="mt-dept"
+                error={errors.department?.message}
+              >
+                <Controller
+                  name="department"
+                  control={control}
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger
+                        id="mt-dept"
+                        className={cn(errors.department && "border-red-400")}
+                        aria-invalid={!!errors.department}
+                      >
+                        <SelectValue placeholder="Department" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ALL_DEPARTMENT_IDS.map((id) => (
+                          <SelectItem key={id} value={id}>
+                            {DEPARTMENT_CONFIG[id].label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </IndulgeField>
+              <IndulgeField
+                label="Domain"
+                required
+                htmlFor="mt-domain"
+                error={errors.domain?.message}
+              >
+                <Controller
+                  name="domain"
+                  control={control}
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger
+                        id="mt-domain"
+                        className={cn(errors.domain && "border-red-400")}
+                        aria-invalid={!!errors.domain}
+                      >
+                        <SelectValue placeholder="Domain" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DOMAIN_OPTIONS.map((id) => (
+                          <SelectItem key={id} value={id}>
+                            {DOMAIN_CONFIG[id].label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </IndulgeField>
+            </div>
+          )}
+
+          {profile?.role === "manager" && (
+            <div className="grid grid-cols-2 gap-4">
+              <input type="hidden" {...register("domain")} />
+              <IndulgeField
+                label="Department"
+                required
+                htmlFor="mt-dept-mgr"
+                error={errors.department?.message}
+              >
+                <Controller
+                  name="department"
+                  control={control}
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger
+                        id="mt-dept-mgr"
+                        className={cn(errors.department && "border-red-400")}
+                        aria-invalid={!!errors.department}
+                      >
+                        <SelectValue placeholder="Department" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {managerDepartmentIds.map((id) => (
+                          <SelectItem key={id} value={id}>
+                            {DEPARTMENT_CONFIG[id].label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </IndulgeField>
+              <div className="flex flex-col justify-end pb-0.5 min-w-0">
+                <InfoRow
+                  icon={Globe}
+                  label="Domain"
+                  value={DOMAIN_CONFIG[profile.domain].label}
+                />
+              </div>
+            </div>
+          )}
+
+          {profile &&
+            !isPrivilegedRole(profile.role) &&
+            profile.role !== "manager" && (
+              <div className="space-y-3 rounded-lg border border-[#E5E4DF] bg-[#FAFAF8] p-3">
+                <input type="hidden" {...register("department")} />
+                <input type="hidden" {...register("domain")} />
+                <InfoRow
+                  icon={Building2}
+                  label="Department"
+                  value={
+                    DEPARTMENT_CONFIG[deptWatch as EmployeeDepartment]?.label ?? deptWatch
+                  }
+                />
+                <InfoRow
+                  icon={Globe}
+                  label="Domain"
+                  value={
+                    DOMAIN_CONFIG[domainWatch as IndulgeDomain]?.label ?? domainWatch
+                  }
+                />
+                <p className="text-[11px] text-zinc-500 pl-9 -mt-1">
+                  Task will be created in your department.
+                </p>
+              </div>
+            )}
 
           {/* ── Accent colour ── */}
           <IndulgeField label="Accent Colour">

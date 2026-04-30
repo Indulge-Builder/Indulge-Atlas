@@ -421,6 +421,75 @@ export function useMasterTasksIndexRealtime(masterTaskIds: string[]) {
   }, [key, router, supabase]);
 }
 
+/**
+ * Task Intelligence modal: bump when any listed master workspace’s board or
+ * columns change (mirrors useAtlasTaskRealtime board + task_groups coverage).
+ */
+export function useMasterBoardsRealtime(masterTaskIds: string[], onBump: () => void) {
+  const supabase = useMemo(() => createClient(), []);
+  const bumpRef = useRef(onBump);
+  bumpRef.current = onBump;
+  const key = masterTaskIds.slice().sort().join(",");
+
+  useEffect(() => {
+    if (masterTaskIds.length === 0) return;
+
+    const taskChannels = masterTaskIds.map((id) =>
+      supabase
+        .channel(`tasks:intelligence-board:${id}`)
+        .on(
+          "postgres_changes",
+          {
+            event:  "UPDATE",
+            schema: "public",
+            table:  "tasks",
+            filter: `project_id=eq.${id}`,
+          },
+          () => {
+            bumpRef.current();
+          },
+        )
+        .on(
+          "postgres_changes",
+          {
+            event:  "INSERT",
+            schema: "public",
+            table:  "tasks",
+            filter: `project_id=eq.${id}`,
+          },
+          () => {
+            bumpRef.current();
+          },
+        )
+        .subscribe(),
+    );
+
+    const groupChannels = masterTaskIds.map((id) =>
+      supabase
+        .channel(`tasks:intelligence-groups:${id}`)
+        .on(
+          "postgres_changes",
+          {
+            event:  "*",
+            schema: "public",
+            table:  "task_groups",
+            filter: `project_id=eq.${id}`,
+          },
+          () => {
+            bumpRef.current();
+          },
+        )
+        .subscribe(),
+    );
+
+    return () => {
+      for (const ch of taskChannels) supabase.removeChannel(ch);
+      for (const ch of groupChannels) supabase.removeChannel(ch);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, supabase]);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 /** Open subtask modal / sheet: timeline + row fields from other sessions. */
 // ─────────────────────────────────────────────────────────────────────────────

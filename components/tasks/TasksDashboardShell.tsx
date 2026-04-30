@@ -9,6 +9,7 @@ import { IndulgeButton } from "@/components/ui/indulge-button";
 import { MyTasksDashboard } from "./MyTasksDashboard";
 import { AtlasTasksListView } from "./AtlasTasksListView";
 import { CreateMasterTaskModal } from "./CreateMasterTaskModal";
+import { CreatePersonalTaskModal } from "./CreatePersonalTaskModal";
 import type { SubTask, PersonalTask } from "@/lib/types/database";
 import type { AtlasTasksData } from "./AtlasTasksCompletionOverview";
 
@@ -16,7 +17,7 @@ type TabKey = "my-tasks" | "atlas-tasks";
 
 const TABS: { id: TabKey; label: string }[] = [
   { id: "my-tasks",    label: "My Tasks"    },
-  { id: "atlas-tasks", label: "Atlas Tasks" },
+  { id: "atlas-tasks", label: "Group Tasks" },
 ];
 
 interface TasksDashboardShellProps {
@@ -45,7 +46,8 @@ export function TasksDashboardShell({
   const router       = useRouter();
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
-  const [createOpen, setCreateOpen] = useState(false);
+  const [masterModalOpen, setMasterModalOpen] = useState(false);
+  const [personalModalOpen, setPersonalModalOpen] = useState(false);
 
   // Sync tab to URL
   const switchTab = useCallback(
@@ -58,7 +60,6 @@ export function TasksDashboardShell({
     [router, searchParams],
   );
 
-  // On mount, respect URL param
   useEffect(() => {
     const tabParam = searchParams.get("tab") as TabKey | null;
     if (tabParam && (tabParam === "my-tasks" || tabParam === "atlas-tasks")) {
@@ -70,19 +71,30 @@ export function TasksDashboardShell({
     <div className="min-h-screen bg-[#F9F9F6] flex flex-col">
       {/* ── Masthead ──────────────────────────────────────────────────────── */}
       <div className="px-6 pt-6 pb-0 max-w-7xl mx-auto w-full">
-        <div className="flex items-end justify-between gap-4 mb-6">
-          <div>
-            <h1 className="font-serif text-[32px] font-bold text-[#1A1A1A] leading-none mb-1.5">
-              Atlas Tasks
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 mb-6">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
+            <h1 className="m-0 font-serif text-[32px] font-bold leading-none tracking-tight text-[#1A1A1A]">
+              Tasks
             </h1>
-            <p className="text-[14px] text-[#8A8A6E]">
-              {currentUser.department
-                ? `${currentUser.department.charAt(0).toUpperCase() + currentUser.department.slice(1)} Department`
-                : "All Departments"}
-              {activeTaskCount > 0 && (
-                <> &middot; <span className="font-medium text-[#1A1A1A]">{activeTaskCount}</span> active tasks assigned to you</>
-              )}
-            </p>
+            <div
+              role="status"
+              aria-live="polite"
+              aria-label={`${activeTaskCount} active tasks assigned to you, live count`}
+              className="inline-flex h-8 shrink-0 items-center gap-3 rounded-full border border-[#E5E4DF] bg-white px-3.5 shadow-[0_1px_2px_rgba(26,24,20,0.05)]"
+              title={`${activeTaskCount} active tasks assigned to you`}
+            >
+              <span className="font-semibold tabular-nums text-[15px] text-[#1A1A1A] leading-none" aria-hidden>
+                {activeTaskCount}
+              </span>
+              <span className="h-3 w-px shrink-0 bg-[#E5E4DF]" aria-hidden />
+              <span className="inline-flex items-center gap-1.5 text-[12px] font-medium leading-none text-emerald-700" aria-hidden>
+                <span
+                  className="h-2 w-2 shrink-0 rounded-full bg-emerald-500 ring-2 ring-emerald-500/25"
+                  aria-hidden
+                />
+                Live
+              </span>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <IndulgeButton
@@ -97,9 +109,13 @@ export function TasksDashboardShell({
               variant="gold"
               size="sm"
               leftIcon={<Plus className="h-4 w-4" />}
-              onClick={() => setCreateOpen(true)}
+              onClick={() =>
+                activeTab === "my-tasks"
+                  ? setPersonalModalOpen(true)
+                  : setMasterModalOpen(true)
+              }
             >
-              New Master Task
+              {activeTab === "my-tasks" ? "My task" : "Group task"}
             </IndulgeButton>
           </div>
         </div>
@@ -156,7 +172,7 @@ export function TasksDashboardShell({
                 personalTasks={personalTasks}
                 subTasks={subTasks}
                 currentUser={currentUser}
-                onRefresh={() => {}}
+                onRefresh={() => router.refresh()}
               />
             </motion.div>
           ) : (
@@ -171,19 +187,19 @@ export function TasksDashboardShell({
               transition={{ duration: 0.15 }}
               className="h-full"
             >
-              <AtlasTasksListView
-                tasks={atlasTasks}
-                currentUser={currentUser}
-              />
+              <AtlasTasksListView tasks={atlasTasks} currentUser={currentUser} />
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
-      {/* Create master task modal */}
+      <CreatePersonalTaskModal
+        open={personalModalOpen}
+        onClose={() => setPersonalModalOpen(false)}
+      />
       <CreateMasterTaskModal
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
+        open={masterModalOpen}
+        onClose={() => setMasterModalOpen(false)}
       />
     </div>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useRef, useMemo } from "react";
+import { useState, useTransition, useRef, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus,
@@ -9,6 +9,7 @@ import {
   AlertCircle,
   CheckCircle2,
   X,
+  Sparkles,
 } from "lucide-react";
 import { format, isToday as dateFnsIsToday, isThisWeek, isFuture, isSameDay, parseISO } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
@@ -20,6 +21,8 @@ import { IndulgeButton } from "@/components/ui/indulge-button";
 import { SubTaskStatusBadge } from "./SubTaskStatusBadge";
 import { TaskPriorityBadge } from "./TaskPriorityBadge";
 import { SubTaskModal } from "./SubTaskModal";
+import { PersonalTaskModal } from "./my-tasks/PersonalTaskModal";
+import { PrivacyBadge } from "./shared/PrivacyBadge";
 import {
   completePersonalTask,
   createPersonalTask,
@@ -106,13 +109,21 @@ interface TaskRowProps {
   task: AnyTask;
   onComplete: (id: string) => void;
   onOpenModal: (id: string) => void;
+  onOpenPersonalTask?: (task: PersonalTask) => void;
   isCompleting: boolean;
 }
 
-function TaskRow({ task, onComplete, onOpenModal, isCompleting }: TaskRowProps) {
+function TaskRow({
+  task,
+  onComplete,
+  onOpenModal,
+  onOpenPersonalTask,
+  isCompleting,
+}: TaskRowProps) {
   const [done, setDone] = useState(false);
   const masterTitle = (task as SubTask & { masterTaskTitle?: string | null }).masterTaskTitle ?? null;
   const isSubtask = (task as SubTask).unified_task_type === "subtask";
+  const isPersonal = (task as PersonalTask).unified_task_type === "personal";
   const priorityCfg = TASK_PRIORITY_CONFIG[task.priority as TaskPriority] ?? TASK_PRIORITY_CONFIG.medium;
 
   function handleComplete(e: React.MouseEvent) {
@@ -129,9 +140,12 @@ function TaskRow({ task, onComplete, onOpenModal, isCompleting }: TaskRowProps) 
           exit={{ opacity: 0, height: 0 }}
           transition={{ duration: 0.3 }}
           className="group flex items-center gap-3 px-4 py-3 hover:bg-[#FAFAF8] transition-colors cursor-pointer border-b border-[#E5E4DF] last:border-b-0"
-          onClick={() => isSubtask ? onOpenModal(task.id) : undefined}
-          role={isSubtask ? "button" : undefined}
-          tabIndex={isSubtask ? 0 : undefined}
+          onClick={() => {
+            if (isSubtask) onOpenModal(task.id);
+            else if (isPersonal) onOpenPersonalTask?.(task as PersonalTask);
+          }}
+          role={isSubtask || isPersonal ? "button" : undefined}
+          tabIndex={isSubtask || isPersonal ? 0 : undefined}
         >
           {/* Completion checkbox */}
           <button
@@ -184,6 +198,12 @@ function TaskRow({ task, onComplete, onOpenModal, isCompleting }: TaskRowProps) 
             <DateChip isoDate={task.due_date} status={task.atlas_status} />
           )}
 
+          {isPersonal && (
+            <div className="opacity-0 transition-opacity group-hover:opacity-100 shrink-0">
+              <PrivacyBadge />
+            </div>
+          )}
+
           {/* Overflow menu */}
           <button
             type="button"
@@ -206,10 +226,18 @@ interface SectionGroupProps {
   tasks: AnyTask[];
   onComplete: (id: string) => void;
   onOpenModal: (id: string) => void;
+  onOpenPersonalTask?: (task: PersonalTask) => void;
   completing: string | null;
 }
 
-function SectionGroup({ bucket, tasks, onComplete, onOpenModal, completing }: SectionGroupProps) {
+function SectionGroup({
+  bucket,
+  tasks,
+  onComplete,
+  onOpenModal,
+  onOpenPersonalTask,
+  completing,
+}: SectionGroupProps) {
   if (tasks.length === 0) return null;
   return (
     <div>
@@ -230,6 +258,7 @@ function SectionGroup({ bucket, tasks, onComplete, onOpenModal, completing }: Se
             task={t}
             onComplete={onComplete}
             onOpenModal={onOpenModal}
+            onOpenPersonalTask={onOpenPersonalTask}
             isCompleting={completing === t.id}
           />
         ))}
@@ -302,7 +331,7 @@ function QuickAddForm({ onAdded }: QuickAddFormProps) {
   }
 
   return (
-    <div className="mt-2 border-t border-[#E5E4DF] pt-4">
+    <div className="pb-5 border-b border-[#E5E4DF]">
       <AnimatePresence mode="wait">
         {!open ? (
           <motion.button
@@ -446,6 +475,7 @@ interface MyTasksDashboardProps {
     id: string;
     full_name: string;
     job_title: string | null;
+    role: string;
   };
   onRefresh: () => void;
 }
@@ -458,8 +488,14 @@ export function MyTasksDashboard({
 }: MyTasksDashboardProps) {
   const [completing, setCompleting] = useState<string | null>(null);
   const [activeModalId, setActiveModalId] = useState<string | null>(null);
+  const [selectedPersonalTask, setSelectedPersonalTask] = useState<PersonalTask | null>(null);
   const [localPersonal, setLocalPersonal] = useState<PersonalTask[]>(personalTasks);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+
+  /** Keep list in sync when the server passes fresh data (e.g. after creating a task + router.refresh). */
+  useEffect(() => {
+    setLocalPersonal(personalTasks);
+  }, [personalTasks]);
 
   // Merge all tasks into one list
   const allTasks = useMemo<AnyTask[]>(() => {
@@ -516,12 +552,16 @@ export function MyTasksDashboard({
   async function handleRefreshAfterAdd() {
     const result = await getMyTasks();
     if (result.success && result.data) {
-      setLocalPersonal(result.data);
+      setLocalPersonal(result.data.personalTasks);
     }
   }
 
   const bucketOrder: TaskBucket[] = ["overdue", "today", "this_week", "upcoming", "no_date"];
   const hasAnyTasks = totalActive > 0;
+
+  /** Full list (no day filter): today is clear but other dates still have work — banner + rest below */
+  const showTodayClearBanner =
+    !selectedDate && hasAnyTasks && buckets.today.length === 0;
 
   return (
     <div className="h-full flex min-h-0 gap-0">
@@ -577,6 +617,8 @@ export function MyTasksDashboard({
         )}
 
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5 min-h-0">
+          <QuickAddForm onAdded={handleRefreshAfterAdd} />
+
           {!hasAnyTasks ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <div className="w-16 h-16 rounded-full bg-[#D4AF37]/10 flex items-center justify-center mb-4">
@@ -588,7 +630,7 @@ export function MyTasksDashboard({
               <p className="text-[13px] text-[#8A8A6E] max-w-xs">
                 {selectedDate
                   ? "Nothing due on this date. Select another day or show all tasks."
-                  : "You have no pending tasks. Add something below or pick up work from Atlas Tasks."}
+                  : "You have no pending tasks. Use the quick add above, or pick up work from Group Tasks."}
               </p>
               {selectedDate && (
                 <button
@@ -601,20 +643,36 @@ export function MyTasksDashboard({
               )}
             </div>
           ) : (
-            bucketOrder.map((bucket) => (
-              <SectionGroup
-                key={bucket}
-                bucket={bucket}
-                tasks={buckets[bucket]}
-                onComplete={handleComplete}
-                onOpenModal={setActiveModalId}
-                completing={completing}
-              />
-            ))
+            <>
+              {showTodayClearBanner && (
+                <div className="rounded-xl border border-[#E5E4DF] bg-white px-5 py-6 text-center shadow-[0_1px_2px_rgba(26,24,20,0.04)]">
+                  <Sparkles
+                    className="mx-auto mb-3 h-7 w-7 text-[#D4AF37]"
+                    aria-hidden
+                  />
+                  <p className="font-serif text-[17px] font-semibold leading-snug text-[#1A1A1A]">
+                    No tasks for today — hurray!
+                  </p>
+                  <p className="mt-2 text-[13px] text-[#8A8A6E]">
+                    Other due dates are listed below.
+                  </p>
+                </div>
+              )}
+              {bucketOrder
+                .filter((bucket) => !(showTodayClearBanner && bucket === "today"))
+                .map((bucket) => (
+                  <SectionGroup
+                    key={bucket}
+                    bucket={bucket}
+                    tasks={buckets[bucket]}
+                    onComplete={handleComplete}
+                    onOpenModal={setActiveModalId}
+                    onOpenPersonalTask={setSelectedPersonalTask}
+                    completing={completing}
+                  />
+                ))}
+            </>
           )}
-
-          {/* Quick add form */}
-          <QuickAddForm onAdded={handleRefreshAfterAdd} />
         </div>
       </div>
 
@@ -625,10 +683,21 @@ export function MyTasksDashboard({
             key={activeModalId}
             taskId={activeModalId}
             onClose={() => setActiveModalId(null)}
-            currentUser={currentUser}
+            currentUser={{
+              id: currentUser.id,
+              full_name: currentUser.full_name,
+              job_title: currentUser.job_title,
+            }}
           />
         )}
       </AnimatePresence>
+
+      <PersonalTaskModal
+        task={selectedPersonalTask}
+        onClose={() => setSelectedPersonalTask(null)}
+        onUpdated={() => void handleRefreshAfterAdd()}
+        userRole={currentUser.role}
+      />
     </div>
   );
 }

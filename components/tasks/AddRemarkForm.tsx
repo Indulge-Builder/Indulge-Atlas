@@ -15,12 +15,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { updateSubTaskStatus } from "@/lib/actions/tasks";
-import { ATLAS_TASK_STATUS_LABELS, ATLAS_TASK_STATUS_COLORS } from "@/lib/types/database";
+import { ATLAS_TASK_STATUS_LABELS, ATLAS_TASK_STATUS_COLORS, ATLAS_TASK_STATUS_VALUES } from "@/lib/types/database";
 import type { AtlasTaskStatus, TaskRemark } from "@/lib/types/database";
-
-const ALL_STATUSES: AtlasTaskStatus[] = [
-  "todo", "in_progress", "in_review", "done", "blocked", "error", "cancelled",
-];
 
 interface AddRemarkFormProps {
   taskId: string;
@@ -89,7 +85,7 @@ export function AddRemarkForm({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {ALL_STATUSES.map((s) => (
+            {ATLAS_TASK_STATUS_VALUES.map((s) => (
               <SelectItem key={s} value={s}>
                 <span className="flex items-center gap-2">
                   <span

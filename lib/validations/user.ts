@@ -62,10 +62,11 @@ export const createUserSchema = z
     reports_to: z.string().uuid("Invalid profile ID").nullable().optional(),
     /** When true: use inviteUserByEmail (magic link). When false: password required. */
     send_invite: z.boolean().optional(),
-    password: z
-      .string()
-      .min(12, "Password must be at least 12 characters")
-      .optional(),
+    /** Empty string must normalize to undefined — invite flow often leaves "" registered when field unmounts. */
+    password: z.preprocess(
+      (val) => (val === "" || val === null || val === undefined ? undefined : val),
+      z.string().min(12, "Password must be at least 12 characters").optional()
+    ),
   })
   .superRefine((data, ctx) => {
     // send_invite undefined/true → invite flow (no password required)

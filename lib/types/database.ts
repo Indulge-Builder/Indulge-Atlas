@@ -135,6 +135,11 @@ export const MUTABLE_ROLES: UserRole[] = ["admin", "founder", "manager", "agent"
 /** Roles with cross-domain visibility */
 export const GLOBAL_ROLES: UserRole[] = ["admin", "founder"];
 
+/** Admin and founder — cross-cutting privileges (RLS + UI). */
+export function isPrivilegedRole(role: string): boolean {
+  return role === "admin" || role === "founder";
+}
+
 export type AdPlatform = "meta" | "google" | "website" | "events" | "referral";
 
 export type DraftStatus = "draft" | "approved" | "deployed";
@@ -295,18 +300,23 @@ export type MasterTaskType = 'master' | 'subtask' | 'personal';
 export type AtlasTaskStatus =
   | 'todo'
   | 'in_progress'
-  | 'in_review'
   | 'done'
-  | 'blocked'
   | 'error'
   | 'cancelled';
+
+/** Canonical order for pickers and filters (To Do → In Progress → Done → Error → Cancelled). */
+export const ATLAS_TASK_STATUS_VALUES: readonly AtlasTaskStatus[] = [
+  'todo',
+  'in_progress',
+  'done',
+  'error',
+  'cancelled',
+] as const;
 
 export const ATLAS_TASK_STATUS_LABELS: Record<AtlasTaskStatus, string> = {
   todo:        'To Do',
   in_progress: 'In Progress',
-  in_review:   'In Review',
   done:        'Done',
-  blocked:     'Blocked',
   error:       'Error',
   cancelled:   'Cancelled',
 };
@@ -314,9 +324,7 @@ export const ATLAS_TASK_STATUS_LABELS: Record<AtlasTaskStatus, string> = {
 export const ATLAS_TASK_STATUS_COLORS: Record<AtlasTaskStatus, string> = {
   todo:        '#6B7280',
   in_progress: '#D4AF37',
-  in_review:   '#8B5CF6',
   done:        '#10B981',
-  blocked:     '#EF4444',
   error:       '#F97316',
   cancelled:   '#9CA3AF',
 };
@@ -465,6 +473,76 @@ export interface PersonalTask {
   assigned_to_users: string[];
   created_at: string;
   updated_at: string;
+  visibility?: 'personal' | 'group' | 'org';
+  is_daily?: boolean;
+  daily_date?: string | null;
+}
+
+/**
+ * Subtask assigned to an agent under a master workspace (for manager dossier lists).
+ */
+export type WorkspaceSubtaskAssignment = SubTask & {
+  masterTaskTitle: string | null;
+  masterCoverColor: string | null;
+};
+
+export type EmployeeHealthSignal = 'on_track' | 'overloaded' | 'at_risk' | 'on_leave';
+
+export interface EmployeeTaskMetrics {
+  completionRateLast30Days: number;
+  averageTaskDurationDays: number;
+  overdueCount: number;
+  totalActive: number;
+  streakDays: number;
+  workloadScore: number;
+  onTimeRate: number;
+  totalCompletedAllTime: number;
+  healthSignal: EmployeeHealthSignal;
+}
+
+export interface EmployeeDossierPayload {
+  profile: Profile;
+  metrics: EmployeeTaskMetrics;
+  personalTasks: {
+    overdue: PersonalTask[];
+    today: PersonalTask[];
+    thisWeek: PersonalTask[];
+    upcoming: PersonalTask[];
+    completedToday: PersonalTask[];
+  };
+  workspaceSubtasks: WorkspaceSubtaskAssignment[];
+}
+
+/** Task Insights workspace cards — always `unified_task_type` master (no separate “group” product surface). */
+export interface TaskInsightsWorkspaceCard {
+  id: string;
+  title: string;
+  notes: string | null;
+  atlas_status: AtlasTaskStatus;
+  priority: TaskPriority;
+  progress: number;
+  due_date: string | null;
+  domain: string | null;
+  department: string | null;
+  cover_color: string | null;
+  icon_key: string | null;
+  created_at: string;
+  updated_at: string;
+  archived_at: string | null;
+  memberProfiles: Pick<Profile, 'id' | 'full_name'>[];
+  subtask_count: number;
+  completed_subtask_count: number;
+  overdue_subtask_count: number;
+}
+
+/** @deprecated Alias — use TaskInsightsWorkspaceCard. */
+export type GroupTaskDashboardItem = TaskInsightsWorkspaceCard;
+
+export interface OrgTaskSummary {
+  totalActiveTasks: number;
+  orgCompletionPct: number;
+  overdueCount: number;
+  onLeaveCount: number;
 }
 
 /** Master Task analytics payload */
@@ -480,6 +558,78 @@ export interface MasterTaskAnalytics {
   }>;
   overdue_count: number;
   velocity: Array<{ date: string; completed: number }>;
+}
+
+// ── Task Insights (manager / founder / admin) ───────────────────────────────
+
+export type TaskIntelligenceHealthSignal = 'healthy' | 'needs_attention' | 'critical';
+
+/** One department row for the Task Insights index and Elia briefings. */
+export interface DepartmentTaskOverview {
+  departmentId: EmployeeDepartment;
+  label: string;
+  icon: string;
+  accentColor: string;
+  activeMasterTaskCount: number;
+  groupSubtaskCompletionPct: number;
+  overdueSubtaskCount: number;
+  todaySopCompletionPct: number;
+  activeAgentCount: number;
+  healthSignal: TaskIntelligenceHealthSignal;
+}
+
+export interface TaskIntelligenceOverdueSubtaskSnapshot {
+  subtaskId: string;
+  title: string;
+  assigneeName: string;
+  overdueDays: number;
+}
+
+/** Elia / internal services: org-wide task health snapshot (service-role consumers). */
+export interface OrganisationTaskContext {
+  generatedAt: string;
+  departments: DepartmentTaskOverview[];
+  /** Per department that is not `healthy`, up to three worst overdue subtasks. */
+  attentionItems: Array<{
+    departmentId: EmployeeDepartment;
+    departmentLabel: string;
+    overdueSubtasks: TaskIntelligenceOverdueSubtaskSnapshot[];
+  }>;
+  organisationTotals: {
+    activeGroupMasterCount: number;
+    overdueSubtaskCount: number;
+    overallGroupSubtaskCompletionPct: number;
+  };
+}
+
+/** Agent row for the Individual Tasks tab (modal). */
+export interface TaskIntelligenceAgentSummary {
+  id: string;
+  full_name: string;
+  job_title: string | null;
+  is_on_leave: boolean;
+  personalTaskTotal: number;
+  statusCounts: Partial<Record<AtlasTaskStatus, number>>;
+  todaySopCompletionPct: number;
+  overduePersonalCount: number;
+  /** From `profiles.domain` — used for domain chip filters on the Individual tab. */
+  domain: IndulgeDomain;
+  /** Agent's department (for dossier + profile context). */
+  department: EmployeeDepartment | null;
+}
+
+/** Personal task row returned to the intelligence modal. */
+export interface TaskIntelligencePersonalTaskRow {
+  id: string;
+  title: string;
+  atlas_status: AtlasTaskStatus;
+  priority: TaskPriority;
+  due_date: string | null;
+  progress: number;
+  description: string | null;
+  checklist: ChecklistItem[];
+  created_at: string;
+  updated_at: string;
 }
 
 // ── Project display helpers ─────────────────────────────────
@@ -588,6 +738,8 @@ export interface Profile {
   job_title: string | null;
   /** UUID of the direct manager in the reporting hierarchy. Added migration 066. */
   reports_to: string | null;
+  /** Added migration 049 — when true, agent is excluded from routing. */
+  is_on_leave?: boolean | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -708,6 +860,17 @@ export interface Lead {
   updated_at: string;
   // Joined
   assigned_agent?: Profile;
+}
+
+/** Explicit cross-domain (or cross-team) grant to open a lead dossier for a user. */
+export interface LeadCollaborator {
+  id: string;
+  lead_id: string;
+  user_id: string;
+  added_by: string | null;
+  created_at: string;
+  /** Joined from profiles */
+  profile?: Pick<Profile, "id" | "full_name" | "email" | "department" | "domain" | "job_title">;
 }
 
 export interface CampaignDraft {
@@ -1076,3 +1239,30 @@ export const LEAD_STATUS_CONFIG: Record<
     className: "bg-zinc-500/20 text-zinc-500",
   },
 };
+
+// ─── Notification Types ───────────────────────────────────────────────────────
+
+export type TaskNotificationType =
+  | "subtask_assigned"
+  | "subtask_updated"
+  | "group_task_added";
+
+export interface TaskNotification {
+  id: string;
+  recipient_id: string;
+  actor_id: string;
+  type: TaskNotificationType;
+  task_id: string;
+  parent_task_id: string | null;
+  title: string;
+  body: string | null;
+  read_at: string | null;
+  created_at: string;
+  /** Joined fields (from select with profile join) */
+  actor?: Pick<Profile, "id" | "full_name" | "department">;
+}
+
+export interface NotificationSummary {
+  notifications: TaskNotification[];
+  unreadCount: number;
+}

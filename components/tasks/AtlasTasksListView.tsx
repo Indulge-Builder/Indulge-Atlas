@@ -36,7 +36,7 @@ import {
 } from "@/components/ui/dialog";
 import { deleteMasterTask } from "@/lib/actions/tasks";
 import { useMasterTasksIndexRealtime } from "@/lib/hooks/useTaskRealtime";
-import { ATLAS_TASK_STATUS_LABELS } from "@/lib/types/database";
+import { ATLAS_TASK_STATUS_LABELS, ATLAS_TASK_STATUS_VALUES } from "@/lib/types/database";
 import type {
   MasterTask,
   SubTask,
@@ -80,9 +80,6 @@ function getIcon(iconKey: string | null | undefined): React.ComponentType<{ clas
 
 // ── Filter bar ────────────────────────────────────────────────────────────────
 
-const ALL_STATUSES: AtlasTaskStatus[] = [
-  "todo", "in_progress", "in_review", "done", "blocked", "error", "cancelled",
-];
 const ALL_PRIORITIES: TaskPriority[] = ["critical", "urgent", "high", "medium", "low"];
 
 interface Filters {
@@ -331,7 +328,7 @@ function FilterBar({ filters, onChange, teamMembers }: FilterBarProps) {
     filters.assignee ||
     filters.showArchived;
 
-  const statusOptions: MultiSelectOption[] = ALL_STATUSES.map((s) => ({
+  const statusOptions: MultiSelectOption[] = ATLAS_TASK_STATUS_VALUES.map((s) => ({
     value: s,
     label: ATLAS_TASK_STATUS_LABELS[s],
   }));
@@ -536,7 +533,7 @@ function MasterTaskRow({
   )[0];
   const defaultGroupId = firstBoardColumn?.id ?? null;
 
-  const members = (masterTask.members ?? []).map((m) => ({
+  const avatarStackMembers = (masterTask.members ?? []).map((m) => ({
     id:        m.user_id,
     full_name: m.profile?.full_name ?? "Member",
     job_title: m.profile?.job_title ?? null,
@@ -631,8 +628,8 @@ function MasterTaskRow({
         </div>
 
         {/* Avatars */}
-        {members.length > 0 && (
-          <MemberAvatarStack members={members} max={4} size="sm" />
+        {avatarStackMembers.length > 0 && (
+          <MemberAvatarStack members={avatarStackMembers} max={4} size="sm" />
         )}
 
         {/* Progress bar + pct */}
@@ -688,19 +685,20 @@ function MasterTaskRow({
                       <span className="font-medium text-[#8A8A6E]">
                         {firstBoardColumn.title}
                       </span>
-                      {" "}(first column). Move them on the board if needed.
+                      {" "}(first group). Change status from the task sheet as work moves forward.
                     </p>
                   )}
                   <AddSubTaskInline
                     masterTaskId={masterTask.id}
                     groupId={defaultGroupId}
+                    members={masterTask.members ?? []}
                     onCreated={() => onSubtasksChanged?.()}
                   />
                 </div>
               ) : (
                 <div className="px-5 pb-4 pt-2 border-t border-[#E5E4DF]/70">
                   <p className="text-[12px] text-[#8A8A6E] mb-2">
-                    Add at least one board column to create subtasks from this list.
+                    Add at least one task group in the workspace to create subtasks from this list.
                   </p>
                   <Link
                     href={`/tasks/${masterTask.id}`}
@@ -744,7 +742,10 @@ interface AtlasTasksListViewProps {
   };
 }
 
-export function AtlasTasksListView({ tasks, currentUser }: AtlasTasksListViewProps) {
+export function AtlasTasksListView({
+  tasks,
+  currentUser,
+}: AtlasTasksListViewProps) {
   const router = useRouter();
   const masterIdsForRealtime = useMemo(() => tasks.map((t) => t.masterTask.id), [tasks]);
   useMasterTasksIndexRealtime(masterIdsForRealtime);

@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { LayoutGrid, User } from "lucide-react";
 
 const TABS = [
-  { id: "atlas", label: "Atlas Tasks", icon: LayoutGrid },
+  { id: "atlas", label: "Group Tasks", icon: LayoutGrid },
   { id: "mine",  label: "My Tasks",    icon: User },
 ] as const;
 

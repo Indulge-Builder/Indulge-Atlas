@@ -7,12 +7,8 @@ import { X, AlertTriangle, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getInitials } from "@/lib/utils";
 import { getMasterTaskAnalytics } from "@/lib/actions/tasks";
-import { ATLAS_TASK_STATUS_LABELS, ATLAS_TASK_STATUS_COLORS } from "@/lib/types/database";
+import { ATLAS_TASK_STATUS_LABELS, ATLAS_TASK_STATUS_COLORS, ATLAS_TASK_STATUS_VALUES } from "@/lib/types/database";
 import type { MasterTaskAnalytics, AtlasTaskStatus } from "@/lib/types/database";
-
-const ALL_STATUSES: AtlasTaskStatus[] = [
-  "todo", "in_progress", "in_review", "done", "blocked", "error", "cancelled",
-];
 
 interface TaskAnalyticsPanelProps {
   masterTaskId: string;
@@ -153,7 +149,7 @@ export function TaskAnalyticsPanel({
             onToggle={toggle}
           >
             <div className="space-y-1.5">
-              {ALL_STATUSES.filter((s) => (analytics.by_status[s] ?? 0) > 0).map((s) => {
+              {ATLAS_TASK_STATUS_VALUES.filter((s) => (analytics.by_status[s] ?? 0) > 0).map((s) => {
                 const count = analytics.by_status[s];
                 const pctBar = analytics.total_subtasks > 0
                   ? (count / analytics.total_subtasks) * 100

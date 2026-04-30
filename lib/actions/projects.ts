@@ -17,7 +17,7 @@ export {
   addMasterTaskMember as addProjectMember,
   removeMasterTaskMember as removeProjectMember,
   createTaskGroupForMaster as createTaskGroup,
-  createGroupTask,
+  createSubtaskInBoardGroup as createGroupTask,
   reorderTaskGroupsForMaster as reorderTaskGroups,
   deleteTaskGroupForMaster as deleteTaskGroup,
   createProjectNestedSubTask as createSubTask,

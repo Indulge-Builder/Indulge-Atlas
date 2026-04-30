@@ -150,7 +150,11 @@ async function DashboardContent({ userId }: { userId: string }) {
           <div className="col-span-2 space-y-5">
             <LegacyMyTasksWidget tasks={upcomingTasks as Task[]} />
             <MyTasksWidget
-              initialTasks={myPersonalTasksResult.success ? (myPersonalTasksResult.data ?? []) : []}
+              initialTasks={
+                myPersonalTasksResult.success && myPersonalTasksResult.data
+                  ? myPersonalTasksResult.data.personalTasks
+                  : []
+              }
             />
           </div>
           <PastLeadsList leads={pastLeads as Lead[]} />

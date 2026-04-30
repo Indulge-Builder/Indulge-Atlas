@@ -26,6 +26,7 @@ import {
   Route,
   Workflow,
   Brain,
+  Activity,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -39,6 +40,7 @@ import {
   DEPARTMENT_ROUTE_ACCESS,
   isDepartmentRoute,
 } from "@/lib/constants/departments";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 // ── Nav definition ─────────────────────────────────────────
 // `exact: true` forces pathname === href for active detection.
@@ -92,7 +94,7 @@ const navItems = [
   },
   {
     href: "/tasks",
-    label: "Atlas Tasks",
+    label: "Tasks",
     icon: CheckSquare,
     roles: ["agent", "manager", "founder", "admin"],
     section: "main",
@@ -152,6 +154,13 @@ const navItems = [
     label: "Command Center",
     icon: BarChart3,
     roles: ["manager", "founder"],
+    section: "manager",
+  },
+  {
+    href: "/task-insights",
+    label: "Task Insights",
+    icon: Activity,
+    roles: ["manager", "founder", "admin"],
     section: "manager",
   },
   {
@@ -419,37 +428,42 @@ export function Sidebar({ profile }: SidebarProps) {
         />
 
         {/* ── Department / Domain badge (glassmorphic) ───── */}
-        {(profile.department || profile.domain) && (() => {
-          const deptCfg = profile.department ? DEPARTMENT_CONFIG[profile.department] : null;
-          const accentColor = deptCfg?.accentColor
-            ?? DOMAIN_DISPLAY_CONFIG[profile.domain]?.ringColor
-            ?? "rgba(212,175,55,0.4)";
-          const workspaceLabel = deptCfg?.label
-            ?? DOMAIN_DISPLAY_CONFIG[profile.domain]?.label
-            ?? profile.domain.replace(/_/g, " ");
-          const subLabel = deptCfg
-            ? profile.job_title ?? profile.role
-            : profile.domain.replace(/_/g, " ");
+        {(profile.department || profile.domain) &&
+          (() => {
+            const deptCfg = profile.department
+              ? DEPARTMENT_CONFIG[profile.department]
+              : null;
+            const accentColor =
+              deptCfg?.accentColor ??
+              DOMAIN_DISPLAY_CONFIG[profile.domain]?.ringColor ??
+              "rgba(212,175,55,0.4)";
+            const workspaceLabel =
+              deptCfg?.label ??
+              DOMAIN_DISPLAY_CONFIG[profile.domain]?.label ??
+              profile.domain.replace(/_/g, " ");
+            const subLabel = deptCfg
+              ? (profile.job_title ?? profile.role)
+              : profile.domain.replace(/_/g, " ");
 
-          return (
-            <div
-              className="mt-4 px-3 py-2 rounded-xl bg-white/[0.04] backdrop-blur-sm border border-white/[0.08]"
-              style={{ boxShadow: `0 0 0 1px ${accentColor}40` }}
-            >
-              <p className="text-[10px] font-semibold text-white/[0.35] uppercase tracking-[0.14em]">
-                Workspace
-              </p>
-              <p className="text-[13px] font-medium text-white/90 mt-0.5 capitalize">
-                {workspaceLabel}
-              </p>
-              {subLabel && (
-                <p className="text-[10px] text-white/40 mt-0.5 truncate capitalize">
-                  {subLabel}
+            return (
+              <div
+                className="mt-4 px-3 py-2 rounded-xl bg-white/[0.04] backdrop-blur-sm border border-white/[0.08]"
+                style={{ boxShadow: `0 0 0 1px ${accentColor}40` }}
+              >
+                <p className="text-[10px] font-semibold text-white/[0.35] uppercase tracking-[0.14em]">
+                  Workspace
                 </p>
-              )}
-            </div>
-          );
-        })()}
+                <p className="text-[13px] font-medium text-white/90 mt-0.5 capitalize">
+                  {workspaceLabel}
+                </p>
+                {subLabel && (
+                  <p className="text-[10px] text-white/40 mt-0.5 truncate capitalize">
+                    {subLabel}
+                  </p>
+                )}
+              </div>
+            );
+          })()}
       </div>
 
       {/* ── Navigation ─────────────────────────────────── */}
@@ -480,7 +494,11 @@ export function Sidebar({ profile }: SidebarProps) {
         </div>
 
         {/* Manager section */}
-        <NavSection label="Management" items={managerItems} pathname={pathname} />
+        <NavSection
+          label="Management"
+          items={managerItems}
+          pathname={pathname}
+        />
 
         {/* Administration */}
         <NavSection
@@ -500,6 +518,8 @@ export function Sidebar({ profile }: SidebarProps) {
         <div className="h-px bg-white/[0.07] mx-2 mb-4" />
 
         <div className="flex items-center gap-2">
+          <NotificationBell userId={profile.id} />
+
           {/* Clicking name/avatar navigates to profile */}
           <Link
             href="/profile"

@@ -15,6 +15,7 @@ const nextConfig: NextConfig = {
       { source: "/scout/planner", destination: "/manager/planner", permanent: true },
       { source: "/scout/roster", destination: "/manager/roster", permanent: true },
       { source: "/scout/team", destination: "/manager/team", permanent: true },
+      { source: "/manager/tasks", destination: "/task-insights", permanent: true },
       // Projects → Tasks (Atlas Tasks migration)
       { source: "/projects", destination: "/tasks", permanent: true },
       { source: "/projects/:path*", destination: "/tasks/:path*", permanent: true },

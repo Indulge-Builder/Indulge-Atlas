@@ -6,6 +6,31 @@
  */
 
 import { z } from "zod";
+import type { EmployeeDepartment, IndulgeDomain } from "@/lib/types/database";
+
+/** Empty string from an uncontrolled field → treat as missing before enum parse. */
+function emptyStringToUndefined<T extends string>(val: T | ""): T | undefined {
+  return val === "" ? undefined : val;
+}
+
+const EMPLOYEE_DEPARTMENT_VALUES = [
+  "concierge",
+  "finance",
+  "tech",
+  "shop",
+  "house",
+  "legacy",
+  "marketing",
+  "onboarding",
+] as const satisfies readonly EmployeeDepartment[];
+
+const INDULGE_DOMAIN_VALUES = [
+  "indulge_concierge",
+  "indulge_shop",
+  "indulge_house",
+  "indulge_legacy",
+  "indulge_global",
+] as const satisfies readonly IndulgeDomain[];
 
 // ── Shared primitives ──────────────────────────────────────
 
@@ -14,9 +39,7 @@ export const uuidSchema = z.string().uuid();
 export const atlasStatusSchema = z.enum([
   "todo",
   "in_progress",
-  "in_review",
   "done",
-  "blocked",
   "error",
   "cancelled",
 ]);
@@ -28,8 +51,14 @@ export const taskPrioritySchema = z.enum(["critical", "urgent", "high", "medium"
 export const CreateMasterTaskSchema = z.object({
   title:       z.string().min(1).max(255),
   description: z.string().max(2000).optional(),
-  domain:      z.string().max(50).optional(),
-  department:  z.string().max(50).optional(),
+  domain: z
+    .union([z.enum(INDULGE_DOMAIN_VALUES), z.literal("")])
+    .transform(emptyStringToUndefined)
+    .pipe(z.enum(INDULGE_DOMAIN_VALUES, { message: "Domain is required" })),
+  department: z
+    .union([z.enum(EMPLOYEE_DEPARTMENT_VALUES), z.literal("")])
+    .transform(emptyStringToUndefined)
+    .pipe(z.enum(EMPLOYEE_DEPARTMENT_VALUES, { message: "Department is required" })),
   cover_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
   icon_key:    z.string().max(50).optional(),
   due_date:    z.string().datetime().optional(),
@@ -154,8 +183,34 @@ export const CreateImportBatchSchema = z.object({
   rows:           z.array(ImportBatchRowSchema).min(1).max(2000),
 });
 
+// ── Task Intelligence ─────────────────────────────────────
+
+export const employeeDepartmentIdSchema = z.enum(EMPLOYEE_DEPARTMENT_VALUES);
+
+export const GetDepartmentDataSchema = z.object({
+  departmentId: employeeDepartmentIdSchema,
+});
+
+export const GetAgentTasksSchema = z.object({
+  agentId: uuidSchema,
+});
+
+export const createDailyPersonalTaskSchema = z.object({
+  title: z.string().min(1).max(255),
+  description: z.string().max(2000).optional(),
+  due_date: z.string().datetime().optional().nullable(),
+  priority: taskPrioritySchema.default('medium'),
+  is_daily: z.literal(true),
+});
+export type CreateDailyPersonalTaskInput = z.infer<typeof createDailyPersonalTaskSchema>;
+
+export const getEmployeeDossierSchema = z.object({
+  agentId: z.string().uuid(),
+});
+
 // ── Inferred types ─────────────────────────────────────────
 
+export type CreateMasterTaskFormValues = z.input<typeof CreateMasterTaskSchema>;
 export type CreateMasterTaskInput  = z.infer<typeof CreateMasterTaskSchema>;
 export type UpdateMasterTaskInput  = z.infer<typeof UpdateMasterTaskSchema>;
 export type CreateSubTaskInput     = z.infer<typeof CreateSubTaskSchema>;

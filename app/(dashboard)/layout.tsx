@@ -5,6 +5,7 @@ import { TaskReminderProvider } from "@/components/task-reminder/TaskReminderPro
 import { TaskAlertProvider } from "@/components/providers/TaskAlertProvider";
 import { LeadAlertProvider } from "@/components/providers/LeadAlertProvider";
 import { CommandPaletteProvider } from "@/components/providers/CommandPaletteProvider";
+import { LeadCollaborationGrantListener } from "@/components/leads/LeadCollaborationGrantListener";
 import { ChatProvider } from "@/components/chat/ChatProvider";
 import { ProfileProvider } from "@/components/sla/ProfileProvider";
 import { SLAProvider } from "@/components/sla/SLAProvider";
@@ -58,7 +59,10 @@ export default async function DashboardLayout({
                     "
                   >
                     <CommandPaletteProvider>
-                      <TaskAlertProvider>{children}</TaskAlertProvider>
+                      <TaskAlertProvider>
+                        <LeadCollaborationGrantListener userId={user.id} />
+                        {children}
+                      </TaskAlertProvider>
                     </CommandPaletteProvider>
                   </main>
                 </div>

@@ -63,13 +63,13 @@ function DashboardSkeleton() {
   );
 }
 
-// ── Main data RSC ──────────────────────────────────────────────────────────────
+// ── Main data RSC (must be a direct child of Suspense — all awaits live here) ──
 
 interface PageProps {
   searchParams: Promise<{ tab?: string }>;
 }
 
-export default async function AtlasTasksPage({ searchParams }: PageProps) {
+async function TasksPageContent({ searchParams }: PageProps) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -81,7 +81,6 @@ export default async function AtlasTasksPage({ searchParams }: PageProps) {
   const initialTab: TabKey =
     tabParam === "my-tasks" || tabParam === "atlas-tasks" ? tabParam : "atlas-tasks";
 
-  // Fetch current user profile
   const { data: profileRow } = await supabase
     .from("profiles")
     .select("id, full_name, role, domain, department, job_title")
@@ -98,29 +97,6 @@ export default async function AtlasTasksPage({ searchParams }: PageProps) {
     department: (profileRow.department as string | null) ?? null,
   };
 
-  return (
-    <Suspense fallback={<DashboardSkeleton />}>
-      <TasksDashboardData initialTab={initialTab} currentUser={currentUser} />
-    </Suspense>
-  );
-}
-
-// ── Async data fetcher (inner RSC) ─────────────────────────────────────────────
-
-async function TasksDashboardData({
-  initialTab,
-  currentUser,
-}: {
-  initialTab: TabKey;
-  currentUser: {
-    id: string;
-    full_name: string;
-    job_title: string | null;
-    role: string;
-    department: string | null;
-  };
-}) {
-  // Fetch all data in parallel
   const [
     masterTasksResult,
     personalTasksResult,
@@ -135,15 +111,13 @@ async function TasksDashboardData({
     ? (masterTasksResult.data ?? [])
     : [];
 
-  const personalTasks: PersonalTask[] = personalTasksResult.success
-    ? (personalTasksResult.data ?? [])
+  const personalTasks: PersonalTask[] = personalTasksResult.success && personalTasksResult.data
+    ? personalTasksResult.data.personalTasks
     : [];
 
   const subTasks: Array<SubTask & { masterTaskTitle: string | null }> =
     subTasksResult.success ? (subTasksResult.data ?? []) : [];
 
-  // Fetch detail for each master task to get groups + subtasks
-  // Do this in parallel batches
   const atlasTasks: AtlasTasksData[] = [];
   const detailResults = await Promise.allSettled(
     masterTasks.map((mt) => getMasterTaskDetail(mt.id)),
@@ -153,16 +127,17 @@ async function TasksDashboardData({
     const result = detailResults[i];
     if (result.status === "fulfilled" && result.value.success && result.value.data) {
       atlasTasks.push({
-        masterTask: result.value.data.masterTask,
+        masterTask: {
+          ...result.value.data.masterTask,
+          members: result.value.data.members,
+        },
         taskGroups: result.value.data.taskGroups,
       });
     } else {
-      // Fallback: use the master task row with no groups
       atlasTasks.push({ masterTask: masterTasks[i], taskGroups: [] });
     }
   }
 
-  // Count active tasks assigned to current user
   const activeTaskCount =
     personalTasks.filter((t) => t.atlas_status !== "done" && t.atlas_status !== "cancelled").length +
     subTasks.length;
@@ -176,5 +151,14 @@ async function TasksDashboardData({
       currentUser={currentUser}
       activeTaskCount={activeTaskCount}
     />
+  );
+}
+
+/** Sync shell so every server await runs under the same Suspense boundary (React 19). */
+export default function AtlasTasksPage(props: PageProps) {
+  return (
+    <Suspense fallback={<DashboardSkeleton />}>
+      <TasksPageContent {...props} />
+    </Suspense>
   );
 }

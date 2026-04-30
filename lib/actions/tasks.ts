@@ -33,6 +33,8 @@ import {
   AddMasterTaskMemberSchema,
   CreateImportBatchSchema,
   uuidSchema,
+  createDailyPersonalTaskSchema,
+  type CreateDailyPersonalTaskInput,
 } from "@/lib/schemas/tasks";
 import type {
   Database,
@@ -56,8 +58,32 @@ import type {
   TaskStatus,
   TaskAttachment,
 } from "@/lib/types/database";
-import { ATLAS_SYSTEM_AUTHOR_ID } from "@/lib/types/database";
+import { ATLAS_SYSTEM_AUTHOR_ID, isPrivilegedRole } from "@/lib/types/database";
+import type { EmployeeDepartment, IndulgeDomain } from "@/lib/types/database";
+import { departmentsVisibleForDomain } from "@/lib/constants/departments";
 import { isAfter } from "date-fns";
+import { insertTaskNotification } from "@/lib/services/taskNotificationInsert";
+
+/** Never persist whitespace-only department/domain; fall back to profile when submitted value is blank. */
+function resolvedDepartment(
+  submitted: string | null | undefined,
+  profileDepartment: string | null,
+): string | null {
+  const s = typeof submitted === "string" ? submitted.trim() : "";
+  if (s !== "") return s;
+  const p = typeof profileDepartment === "string" ? profileDepartment.trim() : "";
+  return p !== "" ? p : null;
+}
+
+function resolvedDomain(
+  submitted: string | null | undefined,
+  profileDomain: string,
+): string {
+  const s = typeof submitted === "string" ? submitted.trim() : "";
+  if (s !== "") return s;
+  const p = typeof profileDomain === "string" ? profileDomain.trim() : "";
+  return p !== "" ? p : "indulge_concierge";
+}
 
 // ── Action result shape ────────────────────────────────────
 
@@ -87,19 +113,16 @@ async function getAuthUser() {
   return { supabase, user, role, domain, department, profile };
 }
 
-function isPrivilegedRole(role: string): boolean {
-  return ["admin", "founder"].includes(role);
-}
-
 function isPrivilegedOrManager(role: string): boolean {
   return ["admin", "founder", "manager"].includes(role);
 }
 
-/** Invalidates agent dashboard, tasks index, and master detail after Atlas task mutations. */
+/** Invalidates agent dashboard, tasks index, insights, and master detail after Atlas task mutations. */
 function revalidateAtlasTaskSurfaces(masterTaskId: string) {
-  revalidatePath("/");
-  revalidatePath("/tasks");
-  revalidatePath(`/tasks/${masterTaskId}`);
+  revalidatePath("/", "page");
+  revalidatePath("/tasks", "page");
+  revalidatePath("/task-insights", "page");
+  revalidatePath(`/tasks/${masterTaskId}`, "page");
 }
 
 /**
@@ -160,8 +183,48 @@ export async function createMasterTask(
     return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
 
   try {
-    const { supabase, user, domain, department } = await getAuthUser();
+    const { supabase, user, role, domain, department } = await getAuthUser();
     const d = parsed.data;
+
+    if (role === "agent" || role === "guest") {
+      if (!department) {
+        return {
+          success: false,
+          error: "Your profile must include a department to create master tasks.",
+        };
+      }
+      if (d.department !== department) {
+        return {
+          success: false,
+          error: "You can only create tasks in your own department.",
+        };
+      }
+      if (d.domain !== domain) {
+        return {
+          success: false,
+          error: "You can only create tasks in your own domain.",
+        };
+      }
+    }
+
+    if (role === "manager") {
+      if (d.domain !== domain) {
+        return { success: false, error: "Invalid domain for your account." };
+      }
+      const allowed = departmentsVisibleForDomain(domain as IndulgeDomain);
+      if (!allowed.includes(d.department as EmployeeDepartment)) {
+        return {
+          success: false,
+          error: "That department is not available for your domain.",
+        };
+      }
+    }
+
+    const taskDomain = resolvedDomain(d.domain, domain);
+    const taskDepartment = resolvedDepartment(d.department, department);
+    if (!taskDepartment) {
+      return { success: false, error: "Department and domain are required." };
+    }
 
     // Insert a tasks row with unified_task_type = 'master'
     const { data: task, error: taskErr } = await supabase
@@ -171,8 +234,8 @@ export async function createMasterTask(
         notes:              d.description ? sanitizeText(d.description) : null,
         unified_task_type:  "master",
         atlas_status:       "todo",
-        domain:             d.domain ?? domain,
-        department:         d.department ?? department,
+        domain:             taskDomain,
+        department:         taskDepartment,
         cover_color:        d.cover_color ?? null,
         icon_key:           d.icon_key ?? null,
         due_date:           d.due_date ?? null,
@@ -197,8 +260,8 @@ export async function createMasterTask(
       title:      sanitizeText(d.title),
       description: d.description ? sanitizeText(d.description) : null,
       owner_id:   user.id,
-      domain:     d.domain ?? domain,
-      department: d.department ?? department,
+      domain:     taskDomain,
+      department: taskDepartment,
       color:      d.cover_color ?? null,
       icon:       d.icon_key ?? null,
       due_date:   d.due_date ?? null,
@@ -235,9 +298,7 @@ export async function createMasterTask(
       .update({ project_id: task.id, master_task_id: task.id })
       .eq("id", task.id);
 
-    revalidatePath("/");
-    revalidatePath("/tasks");
-    revalidatePath(`/tasks/${task.id}`);
+    revalidateAtlasTaskSurfaces(task.id);
     return { success: true, data: { id: task.id } };
   } catch (err) {
     console.error("[createMasterTask]", err);
@@ -439,7 +500,8 @@ export async function updateMasterTask(
     return { success: false, error: "Invalid input" };
 
   try {
-    const { supabase, user, role } = await getAuthUser();
+    const { supabase, user, role, domain: profileDomain, department: profileDepartment } =
+      await getAuthUser();
     const hasAccess = await assertMasterTaskAccess(supabase, idParsed.data, user.id, role, ["owner", "manager"]);
     if (!hasAccess) return { success: false, error: "Not authorized" };
 
@@ -450,9 +512,83 @@ export async function updateMasterTask(
     if (f.cover_color !== undefined) updateData.cover_color = f.cover_color;
     if (f.icon_key !== undefined)    updateData.icon_key = f.icon_key;
     if (f.due_date !== undefined)    updateData.due_date = f.due_date;
-    if (f.domain !== undefined)      updateData.domain = f.domain;
-    if (f.department !== undefined)  updateData.department = f.department;
     if (f.atlas_status !== undefined) updateData.atlas_status = f.atlas_status;
+
+    if (f.domain !== undefined || f.department !== undefined) {
+      const { data: cur } = await supabase
+        .from("tasks")
+        .select("domain, department")
+        .eq("id", idParsed.data)
+        .single();
+
+      const mergedDomain =
+        f.domain !== undefined
+          ? resolvedDomain(
+              typeof f.domain === "string"
+                ? f.domain
+                : f.domain === null
+                  ? ""
+                  : String(f.domain),
+              (cur?.domain as string) ?? profileDomain,
+            )
+          : ((cur?.domain as string) ?? profileDomain);
+      const mergedDept =
+        f.department !== undefined
+          ? resolvedDepartment(
+              typeof f.department === "string"
+                ? f.department
+                : f.department === null
+                  ? ""
+                  : String(f.department),
+              (cur?.department as string | null) ?? profileDepartment,
+            )
+          : ((cur?.department as string | null) ?? profileDepartment);
+
+      if (role === "agent" || role === "guest") {
+        if (!profileDepartment) {
+          return {
+            success: false,
+            error: "Your profile must include a department to update master tasks.",
+          };
+        }
+        if (mergedDept !== profileDepartment) {
+          return {
+            success: false,
+            error: "You can only keep tasks in your own department.",
+          };
+        }
+        if (mergedDomain !== profileDomain) {
+          return {
+            success: false,
+            error: "You can only keep tasks in your own domain.",
+          };
+        }
+      }
+
+      if (role === "manager") {
+        if (mergedDomain !== profileDomain) {
+          return { success: false, error: "Invalid domain for your account." };
+        }
+        if (
+          mergedDept &&
+          !departmentsVisibleForDomain(profileDomain as IndulgeDomain).includes(
+            mergedDept as EmployeeDepartment,
+          )
+        ) {
+          return {
+            success: false,
+            error: "That department is not available for your domain.",
+          };
+        }
+      }
+
+      if (!mergedDept) {
+        return { success: false, error: "Department is required." };
+      }
+
+      if (f.domain !== undefined) updateData.domain = mergedDomain;
+      if (f.department !== undefined) updateData.department = mergedDept;
+    }
 
     const { error } = await supabase
       .from("tasks")
@@ -462,8 +598,16 @@ export async function updateMasterTask(
 
     if (error) return { success: false, error: "Failed to update task" };
 
-    // Mirror title/description to projects table
-    if (f.title !== undefined || f.description !== undefined) {
+    // Mirror title/description/colors/domain/department to projects table
+    if (
+      f.title !== undefined ||
+      f.description !== undefined ||
+      f.cover_color !== undefined ||
+      f.icon_key !== undefined ||
+      f.due_date !== undefined ||
+      f.domain !== undefined ||
+      f.department !== undefined
+    ) {
       const projUpdate: Record<string, unknown> = {};
       if (f.title !== undefined) projUpdate.title = sanitizeText(f.title!);
       if (f.description !== undefined)
@@ -471,6 +615,8 @@ export async function updateMasterTask(
       if (f.cover_color !== undefined) projUpdate.color = f.cover_color;
       if (f.icon_key !== undefined)    projUpdate.icon = f.icon_key;
       if (f.due_date !== undefined)    projUpdate.due_date = f.due_date;
+      if (f.domain !== undefined)      projUpdate.domain = updateData.domain;
+      if (f.department !== undefined)  projUpdate.department = updateData.department;
       await supabase.from("projects").update(projUpdate).eq("id", idParsed.data);
     }
 
@@ -536,8 +682,7 @@ export async function deleteMasterTask(taskId: unknown): Promise<ActionResult> {
 
     await supabase.from("projects").delete().eq("id", parsed.data);
 
-    revalidatePath("/");
-    revalidatePath("/tasks");
+    revalidateAtlasTaskSurfaces(parsed.data);
     return { success: true };
   } catch (err) {
     console.error("[deleteMasterTask]", err);
@@ -728,6 +873,9 @@ export async function createSubTask(
 
     const assigneeIds = d.assigned_to ? [d.assigned_to] : [user.id];
 
+    const subDomain = resolvedDomain(undefined, domain);
+    const subDepartment = resolvedDepartment(undefined, department);
+
     const { data, error } = await supabase
       .from("tasks")
       .insert({
@@ -743,8 +891,8 @@ export async function createSubTask(
         assigned_to_users: assigneeIds,
         estimated_minutes: d.estimated_minutes ?? null,
         tags:              d.tags ?? [],
-        domain:            domain,
-        department:        department,
+        domain:            subDomain,
+        department:        subDepartment,
         created_by:        user.id,
         status:            "pending",
         task_type:         "general_follow_up",
@@ -1369,6 +1517,9 @@ export async function createPersonalTask(
     const { supabase, user, domain, department } = await getAuthUser();
     const d = parsed.data;
 
+    const persDomain = resolvedDomain(undefined, domain);
+    const persDepartment = resolvedDepartment(undefined, department);
+
     const { data, error } = await supabase
       .from("tasks")
       .insert({
@@ -1379,8 +1530,8 @@ export async function createPersonalTask(
         priority:          d.priority,
         due_date:          d.due_date ?? null,
         assigned_to_users: [user.id],
-        domain:            domain,
-        department:        department,
+        domain:            persDomain,
+        department:        persDepartment,
         created_by:        user.id,
         status:            "pending",
         task_type:         "general_follow_up",
@@ -1397,8 +1548,9 @@ export async function createPersonalTask(
       return { success: false, error: error?.message ?? "Failed to create task" };
     }
 
-    revalidatePath("/");
-    revalidatePath("/tasks");
+    revalidatePath("/", "page");
+    revalidatePath("/tasks", "page");
+    revalidatePath("/task-insights", "page");
     return { success: true, data: { id: data.id } };
   } catch (err) {
     console.error("[createPersonalTask]", err);
@@ -1421,6 +1573,7 @@ export async function getMySubTasks(): Promise<ActionResult<Array<SubTask & { ma
       )
       .eq("unified_task_type", "subtask")
       .contains("assigned_to_users", [user.id])
+      .is("parent_group_task_id", null)
       .not("atlas_status", "in", '("done","cancelled")')
       .order("due_date", { ascending: true, nullsFirst: false });
 
@@ -1453,14 +1606,14 @@ export async function getMySubTasks(): Promise<ActionResult<Array<SubTask & { ma
   }
 }
 
-export async function getMyTasks(): Promise<ActionResult<PersonalTask[]>> {
+export async function getMyTasks(): Promise<ActionResult<{ personalTasks: PersonalTask[] }>> {
   try {
     const { supabase, user } = await getAuthUser();
 
-    const { data, error } = await supabase
+    const personalRes = await supabase
       .from("tasks")
       .select(
-        "id, title, notes, unified_task_type, atlas_status, priority, due_date, progress, created_by, assigned_to_users, created_at, updated_at",
+        "id, title, notes, unified_task_type, atlas_status, priority, due_date, progress, created_by, assigned_to_users, created_at, updated_at, visibility, is_daily, daily_date",
       )
       .eq("unified_task_type", "personal")
       .contains("assigned_to_users", [user.id])
@@ -1468,9 +1621,14 @@ export async function getMyTasks(): Promise<ActionResult<PersonalTask[]>> {
       .order("priority", { ascending: true })
       .order("due_date", { ascending: true, nullsFirst: false });
 
-    if (error) return { success: false, error: "Failed to fetch tasks" };
+    if (personalRes.error) return { success: false, error: "Failed to fetch tasks" };
 
-    return { success: true, data: (data ?? []) as unknown as PersonalTask[] };
+    return {
+      success: true,
+      data: {
+        personalTasks: (personalRes.data ?? []) as unknown as PersonalTask[],
+      },
+    };
   } catch (err) {
     console.error("[getMyTasks]", err);
     return { success: false, error: "An unexpected error occurred" };
@@ -1493,8 +1651,9 @@ export async function completePersonalTask(taskId: unknown): Promise<ActionResul
 
     if (error) return { success: false, error: "Failed to complete task" };
 
-    revalidatePath("/");
-    revalidatePath("/tasks");
+    revalidatePath("/", "page");
+    revalidatePath("/tasks", "page");
+    revalidatePath("/task-insights", "page");
     return { success: true };
   } catch (err) {
     console.error("[completePersonalTask]", err);
@@ -1709,14 +1868,23 @@ export async function createImportBatch(
           }
         }
 
-        // Map status
+        // Map status — spreadsheet may use legacy labels
+        const raw = row.status?.trim().toLowerCase().replace(/\s+/g, "_") ?? "todo";
+        const legacyToCanonical: Record<string, AtlasTaskStatus> = {
+          in_review: "in_progress",
+          blocked: "in_progress",
+        };
+        const normalized = legacyToCanonical[raw] ?? raw;
         const validStatuses: AtlasTaskStatus[] = [
-          "todo", "in_progress", "in_review", "done", "blocked", "error", "cancelled",
+          "todo",
+          "in_progress",
+          "done",
+          "error",
+          "cancelled",
         ];
-        const mappedStatus: AtlasTaskStatus =
-          row.status && validStatuses.includes(row.status.toLowerCase() as AtlasTaskStatus)
-            ? (row.status.toLowerCase() as AtlasTaskStatus)
-            : "todo";
+        const mappedStatus: AtlasTaskStatus = validStatuses.includes(normalized as AtlasTaskStatus)
+          ? (normalized as AtlasTaskStatus)
+          : "todo";
 
         // Map priority
         const validPriorities = ["critical", "high", "medium", "low"];
@@ -1833,8 +2001,11 @@ export async function getMasterTaskAnalytics(
 
     // By-status breakdown
     const byStatus: Record<AtlasTaskStatus, number> = {
-      todo: 0, in_progress: 0, in_review: 0, done: 0,
-      blocked: 0, error: 0, cancelled: 0,
+      todo: 0,
+      in_progress: 0,
+      done: 0,
+      error: 0,
+      cancelled: 0,
     };
     for (const t of tasks) {
       const s = (t.atlas_status ?? "todo") as AtlasTaskStatus;
@@ -2002,7 +2173,10 @@ export async function addTaskProgress(
       .from("profiles").select("full_name").eq("id", user.id).single();
 
     const { data: task } = await supabase
-      .from("tasks").select("assigned_to_users, progress_updates").eq("id", parsed.data).single();
+      .from("tasks")
+      .select("assigned_to_users, progress_updates, project_id, unified_task_type")
+      .eq("id", parsed.data)
+      .single();
 
     if (!task) return { success: false, error: "Task not found" };
 
@@ -2029,8 +2203,21 @@ export async function addTaskProgress(
 
     if (error) return { success: false, error: "Failed to add progress" };
 
-    revalidatePath("/");
-    revalidatePath("/tasks");
+    const row = task as {
+      project_id?: string | null;
+      unified_task_type?: string | null;
+    };
+    const pid = row.project_id;
+    const ut = row.unified_task_type;
+    if (ut === "master") {
+      revalidateAtlasTaskSurfaces(parsed.data);
+    } else if (ut === "subtask" && pid) {
+      revalidateAtlasTaskSurfaces(pid);
+    } else {
+      revalidatePath("/", "page");
+      revalidatePath("/tasks", "page");
+      revalidatePath("/task-insights", "page");
+    }
     return { success: true, update: newUpdate };
   } catch {
     return { success: false, error: "An unexpected error occurred" };
@@ -2620,8 +2807,8 @@ export async function deleteComment(commentId: string): Promise<ActionResult> {
   }
 }
 
-/** Add a subtask in a group from the board (inline add). */
-export async function createGroupTask(
+/** Add a subtask in a master-task column (`task_groups` row) from the board (inline add). */
+export async function createSubtaskInBoardGroup(
   groupId: string,
   params: { title: string },
 ): Promise<ActionResult<{ id: string }>> {
@@ -2645,14 +2832,14 @@ export async function createGroupTask(
       priority:       "medium",
     });
   } catch (err) {
-    console.error("[createGroupTask]", err);
+    console.error("[createSubtaskInBoardGroup]", err);
     return { success: false, error: "An unexpected error occurred" };
   }
 }
 
 /**
  * Nested sub-task in the task detail sheet (parent = another subtask row).
- * Differs from board `createGroupTask` / `createSubTask` master-task form.
+ * Differs from board `createSubtaskInBoardGroup` / `createSubTask` master-task form.
  */
 export async function createProjectNestedSubTask(
   parentTaskId: string,
@@ -2721,3 +2908,131 @@ export async function createProjectNestedSubTask(
     return { success: false, error: "An unexpected error occurred" };
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Daily personal tasks (IST calendar)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Daily personal task — IST calendar date on daily_date. */
+export async function createDailyPersonalTask(
+  rawData: CreateDailyPersonalTaskInput,
+): Promise<ActionResult<{ id: string }>> {
+  const parsed = createDailyPersonalTaskSchema.safeParse(rawData);
+  if (!parsed.success)
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+
+  try {
+    const { supabase, user, domain, department } = await getAuthUser();
+    const data = parsed.data;
+    const todayIST = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+    const persDomain = resolvedDomain(undefined, domain);
+    const persDepartment = resolvedDepartment(undefined, department);
+
+    const { data: row, error } = await supabase
+      .from("tasks")
+      .insert({
+        title:             sanitizeText(data.title),
+        notes:             data.description ? sanitizeText(data.description) : null,
+        unified_task_type: "personal",
+        atlas_status:      "todo",
+        status:            "pending",
+        priority:          data.priority,
+        due_date:          data.due_date ?? null,
+        is_daily:          true,
+        daily_date:        todayIST,
+        visibility:        "personal",
+        created_by:        user.id,
+        assigned_to_users: [user.id],
+        progress:          0,
+        domain:            persDomain,
+        department:        persDepartment,
+        task_type:         "general_follow_up",
+        progress_updates:  [],
+        tags:              [],
+        attachments:       [],
+      })
+      .select("id")
+      .single();
+
+    if (error || !row) return { success: false, error: error?.message ?? "Failed to create task" };
+
+    revalidatePath("/tasks", "page");
+    revalidatePath("/", "page");
+    revalidatePath("/task-insights", "page");
+    return { success: true, data: { id: row.id as string } };
+  } catch (err) {
+    console.error("[createDailyPersonalTask]", err);
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+export async function getDailyPersonalTasks(): Promise<
+  ActionResult<{
+    todayDaily: PersonalTask[];
+    overdue: PersonalTask[];
+    today: PersonalTask[];
+    thisWeek: PersonalTask[];
+    upcoming: PersonalTask[];
+    completedToday: PersonalTask[];
+  }>
+> {
+  try {
+    const { supabase, user } = await getAuthUser();
+    const todayIST = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+
+    const { data, error } = await supabase
+      .from("tasks")
+      .select("*")
+      .eq("unified_task_type", "personal")
+      .eq("created_by", user.id)
+      .is("archived_at", null)
+      .order("created_at", { ascending: false });
+
+    if (error) return { success: false, error: error.message };
+
+    const now = new Date();
+    const startOfTodayIST = new Date(`${todayIST}T00:00:00+05:30`);
+    const endOfTodayIST = new Date(`${todayIST}T23:59:59+05:30`);
+    const endOfWeekIST = new Date(startOfTodayIST.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    const rows = (data ?? []) as unknown as PersonalTask[];
+
+    const todayDaily = rows.filter(
+      (t) => Boolean(t.is_daily) && t.daily_date === todayIST && t.atlas_status !== "done",
+    );
+
+    const completedToday = rows.filter((t) => {
+      if (t.atlas_status !== "done" || !t.updated_at) return false;
+      const u = new Date(t.updated_at);
+      return u >= startOfTodayIST && u <= endOfTodayIST;
+    });
+
+    const active = rows.filter((t) => t.atlas_status !== "done");
+
+    const overdue = active.filter((t) => t.due_date && new Date(t.due_date) < now);
+    const today = active.filter(
+      (t) =>
+        !!t.due_date &&
+        new Date(t.due_date) >= startOfTodayIST &&
+        new Date(t.due_date) <= endOfTodayIST,
+    );
+    const thisWeek = active.filter(
+      (t) =>
+        !!t.due_date &&
+        new Date(t.due_date) > endOfTodayIST &&
+        new Date(t.due_date) <= endOfWeekIST,
+    );
+    const upcoming = active.filter(
+      (t) => !t.due_date || new Date(t.due_date) > endOfWeekIST,
+    );
+
+    return {
+      success: true,
+      data: { todayDaily, overdue, today, thisWeek, upcoming, completedToday },
+    };
+  } catch (err) {
+    console.error("[getDailyPersonalTasks]", err);
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+

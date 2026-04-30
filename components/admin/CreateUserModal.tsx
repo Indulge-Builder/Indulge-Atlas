@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useForm, Controller } from "react-hook-form";
+import { useForm, Controller, type FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -39,6 +39,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { IndulgeButton } from "@/components/ui/indulge-button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { IndulgeField } from "@/components/ui/indulge-field";
 import { cn } from "@/lib/utils";
 import { createUser, checkEmailExists, getProfilesForReportsTo } from "@/lib/actions/admin";
@@ -201,7 +202,8 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
     setValue,
     trigger,
     reset,
-    formState: { errors, isDirty },
+    clearErrors,
+    formState: { errors },
   } = useForm<CreateUserInput>({
     resolver: zodResolver(createUserSchema),
     defaultValues: {
@@ -303,6 +305,28 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
     [reset, onSuccess]
   );
 
+  function firstValidationMessage(errors: FieldErrors<CreateUserInput>): string {
+    const walk = (e: object | undefined): string | undefined => {
+      if (!e || typeof e !== "object") return undefined;
+      for (const v of Object.values(e)) {
+        if (v && typeof v === "object" && "message" in v && v.message) {
+          return String(v.message);
+        }
+        const nested = walk(v as object);
+        if (nested) return nested;
+      }
+      return undefined;
+    };
+    return (
+      walk(errors as object) ??
+      "Some fields are invalid. Use Back to review earlier steps."
+    );
+  }
+
+  const onInvalid = useCallback((errors: FieldErrors<CreateUserInput>) => {
+    setSubmitError(firstValidationMessage(errors));
+  }, []);
+
   // ── Access summary (computed for Step 4 review) ────────────────────────
   const deptCfg = watchedDepartment ? DEPARTMENT_CONFIG[watchedDepartment] : null;
   const domainCfg = DOMAIN_CONFIG[watchedDomain];
@@ -336,7 +360,7 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
           <StepIndicator currentStep={step} />
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+        <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-5">
           <AnimatePresence mode="wait">
             {/* ── STEP 1: Identity ─────────────────────────────── */}
             {step === 1 && (
@@ -750,81 +774,6 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
                     )}
                   />
                 </div>
-
-                {/* Invite toggle */}
-                <div className="border border-[#E5E4DF] rounded-xl p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-[13px] font-semibold text-[#1A1A1A]">
-                        Send invite email
-                      </p>
-                      <p className="text-[11px] text-[#8A8A6E] mt-0.5">
-                        User receives a magic link to set their own password
-                      </p>
-                    </div>
-                    <Controller
-                      name="send_invite"
-                      control={control}
-                      render={({ field }) => (
-                        <button
-                          type="button"
-                          onClick={() => field.onChange(!field.value)}
-                          className={cn(
-                            "relative w-10 h-5.5 rounded-full transition-colors",
-                            field.value ? "bg-[#D4AF37]" : "bg-[#D5D2CC]"
-                          )}
-                          style={{ height: "22px" }}
-                        >
-                          <span
-                            className={cn(
-                              "absolute top-0.5 w-[18px] h-[18px] bg-white rounded-full shadow transition-transform",
-                              field.value ? "translate-x-[21px]" : "translate-x-0.5"
-                            )}
-                          />
-                        </button>
-                      )}
-                    />
-                  </div>
-
-                  <AnimatePresence>
-                    {watchedSendInvite === false && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto" }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.15 }}
-                      >
-                        <IndulgeField
-                          label="Temporary Password"
-                          error={errors.password?.message}
-                          hint="Min. 12 characters. Share securely — user should change on first login."
-                          required
-                        >
-                          <div className="relative">
-                            <Input
-                              {...register("password")}
-                              type={showPassword ? "text" : "password"}
-                              placeholder="Min. 12 characters"
-                              error={!!errors.password}
-                              className="pr-10"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setShowPassword((v) => !v)}
-                              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#B5A99A] hover:text-[#6B6B6B] transition-colors"
-                            >
-                              {showPassword ? (
-                                <EyeOff className="w-4 h-4" />
-                              ) : (
-                                <Eye className="w-4 h-4" />
-                              )}
-                            </button>
-                          </div>
-                        </IndulgeField>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
               </motion.div>
             )}
 
@@ -841,6 +790,98 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
                 <p className="text-[11px] font-semibold text-[#8A8A6E] uppercase tracking-wider">
                   Step 4 — Review & Create
                 </p>
+
+                {/* Sign-in method — last decision before summary */}
+                <div className="rounded-xl border border-[#E5E4DF] bg-white overflow-hidden shadow-[0_1px_2px_0_rgb(0_0_0/0.03)]">
+                  <div className="px-4 py-2.5 border-b border-[#E5E4DF] bg-[#FAFAF8]">
+                    <p className="text-[10px] font-semibold text-[#8A8A6E] uppercase tracking-wider">
+                      Sign-in method
+                    </p>
+                  </div>
+                  <div className="p-4 space-y-4">
+                    <div className="flex gap-4 items-start sm:items-center">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#D4AF37]/10 border border-[#D4AF37]/20">
+                        <Mail className="h-5 w-5 text-[#A88B25]" aria-hidden />
+                      </div>
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <label
+                          htmlFor="create-user-send-invite"
+                          className="text-[13px] font-semibold text-[#1A1A1A] leading-snug block"
+                        >
+                          Send invite email
+                        </label>
+                        <p className="text-[11px] text-[#8A8A6E] leading-relaxed">
+                          {watchedSendInvite !== false
+                            ? "They'll get a secure link to choose their own password."
+                            : "You'll set a temporary password now and can share it out of band."}
+                        </p>
+                      </div>
+                      <Controller
+                        name="send_invite"
+                        control={control}
+                        render={({ field }) => (
+                          <Switch
+                            id="create-user-send-invite"
+                            checked={field.value !== false}
+                            onCheckedChange={(on) => {
+                              field.onChange(on);
+                              if (on) {
+                                setValue("password", "", {
+                                  shouldDirty: false,
+                                  shouldValidate: true,
+                                });
+                                clearErrors("password");
+                              }
+                            }}
+                            className="shrink-0 self-start sm:self-center sm:mt-0 mt-1"
+                            aria-label="Send invite email instead of setting password"
+                          />
+                        )}
+                      />
+                    </div>
+
+                    <AnimatePresence>
+                      {watchedSendInvite === false && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.15 }}
+                          className="pt-1 border-t border-[#F0EFE9]"
+                        >
+                          <IndulgeField
+                            label="Temporary password"
+                            error={errors.password?.message}
+                            hint="Minimum 12 characters. Share securely; they should change it after first login."
+                            required
+                          >
+                            <div className="relative">
+                              <Input
+                                {...register("password")}
+                                type={showPassword ? "text" : "password"}
+                                placeholder="Enter temporary password"
+                                error={!!errors.password}
+                                className="pr-10"
+                                autoComplete="new-password"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowPassword((v) => !v)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#B5A99A] hover:text-[#6B6B6B] transition-colors"
+                              >
+                                {showPassword ? (
+                                  <EyeOff className="w-4 h-4" />
+                                ) : (
+                                  <Eye className="w-4 h-4" />
+                                )}
+                              </button>
+                            </div>
+                          </IndulgeField>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </div>
 
                 {/* Summary card */}
                 <div className="border border-[#E5E4DF] rounded-xl overflow-hidden">
@@ -955,20 +996,21 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
                   </div>
                 )}
 
-                {/* Submit error */}
-                <AnimatePresence>
-                  {submitError && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0 }}
-                      className="flex items-start gap-2 text-sm text-[#C0392B] bg-[#FAEAE8] border border-[#C0392B]/20 rounded-lg px-3 py-2.5"
-                    >
-                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                      {submitError}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Validation / server errors — pinned above footer so submit feedback is always visible */}
+          <AnimatePresence>
+            {submitError && (
+              <motion.div
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="flex items-start gap-2 text-sm text-[#C0392B] bg-[#FAEAE8] border border-[#C0392B]/20 rounded-lg px-3 py-2.5 mb-2"
+              >
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                {submitError}
               </motion.div>
             )}
           </AnimatePresence>

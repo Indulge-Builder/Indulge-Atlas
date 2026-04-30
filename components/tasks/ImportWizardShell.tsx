@@ -40,7 +40,7 @@ export function ImportWizardShell({
           You need to create a master task before importing sub-tasks.
         </p>
         <IndulgeButton variant="gold" size="sm" onClick={() => router.push("/tasks")}>
-          Go to Atlas Tasks
+          Go to Group Tasks
         </IndulgeButton>
       </div>
     );

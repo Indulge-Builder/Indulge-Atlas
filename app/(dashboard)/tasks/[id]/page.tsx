@@ -52,13 +52,19 @@ async function DetailContent({
   const supabase = await createClient();
   const { data: profileRow } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role, full_name, job_title")
     .eq("id", userId)
     .single();
 
   const canDeleteMaster = ["admin", "founder"].includes(
     (profileRow?.role as string | undefined) ?? "",
   );
+
+  const currentUser = {
+    id:        userId,
+    full_name: (profileRow?.full_name as string | undefined) ?? "Agent",
+    job_title: (profileRow?.job_title as string | null | undefined) ?? null,
+  };
 
   const result = await getMasterTaskDetail(taskId);
   if (!result.success || !result.data) notFound();
@@ -71,6 +77,7 @@ async function DetailContent({
       taskGroups={taskGroups}
       members={members}
       canDeleteMaster={canDeleteMaster}
+      currentUser={currentUser}
     />
   );
 }

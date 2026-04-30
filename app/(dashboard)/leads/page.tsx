@@ -68,9 +68,21 @@ async function LeadsContent({ searchParams }: PageProps) {
     .from("leads")
     .select(LEADS_TABLE_SELECT, { count: "exact" });
 
-  // Agents only see their own leads (RLS enforces domain; explicit filter for clarity)
+  // Agents: primary pipeline (assigned + domain) OR any lead where they are an explicit collaborator.
   if (!isAdmin) {
-    query = query.eq("assigned_to", user.id).eq("domain", profile?.domain ?? "indulge_global");
+    const myDomain = profile?.domain ?? "indulge_global";
+    const { data: myCollabs } = await supabase
+      .from("lead_collaborators")
+      .select("lead_id")
+      .eq("user_id", user.id);
+    const collabIds = [...new Set((myCollabs ?? []).map((r) => r.lead_id).filter(Boolean))];
+    if (collabIds.length > 0) {
+      query = query.or(
+        `and(assigned_to.eq.${user.id},domain.eq.${myDomain}),id.in.(${collabIds.join(",")})`,
+      );
+    } else {
+      query = query.eq("assigned_to", user.id).eq("domain", myDomain);
+    }
   } else if (domainFilter) {
     query = query.eq("domain", domainFilter);
   }

@@ -52,7 +52,7 @@ export function MasterTasksIndex({ tasks }: MasterTasksIndexProps) {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="font-serif text-[28px] font-bold text-zinc-900 leading-none mb-1">
-            Atlas Tasks
+            Group Tasks
           </h1>
           <p className="text-sm text-zinc-500">
             Track objectives, projects, and deliverables across your team.

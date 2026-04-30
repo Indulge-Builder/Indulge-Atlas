@@ -20,6 +20,7 @@ import {
 import {
   ATLAS_TASK_STATUS_LABELS,
   ATLAS_TASK_STATUS_COLORS,
+  ATLAS_TASK_STATUS_VALUES,
   type AtlasTaskStatus,
   type TaskPriority,
 } from "@/lib/types/database";
@@ -44,15 +45,7 @@ const PRIORITY_OPTIONS: Array<{ value: TaskPriority | "all"; label: string }> = 
   { value: "low",    label: "Low" },
 ];
 
-const STATUSES: AtlasTaskStatus[] = [
-  "todo",
-  "in_progress",
-  "in_review",
-  "done",
-  "blocked",
-  "error",
-  "cancelled",
-];
+const STATUSES: AtlasTaskStatus[] = [...ATLAS_TASK_STATUS_VALUES];
 
 export function TaskSearchFilter({ filters, onChange, className }: TaskSearchFilterProps) {
   const [open, setOpen] = useState(false);

@@ -54,6 +54,11 @@
 }
 
 :root {
+  /* Dark surfaces — Task System v2 modals / group workspace */
+  --surface-1: #161411;
+  --surface-2: #1e1c18;
+  --canvas: #0d0c0a;
+
   --background: var(--color-surface);
   --foreground: #1a1a1a;
   --card: #ffffff;
@@ -131,6 +136,31 @@ body {
     0 0 0 1px rgba(0, 0, 0, 0.18),
     0 24px 80px rgba(0, 0, 0, 0.55),
     0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* ── Light masthead texture — Group Tasks workspace / dossier heroes ───────────
+   Same grain philosophy as .layout-canvas, tuned for off-white (#f9f9f6):
+   subtle fractal noise + warm radial washes so the band feels tactile.
+─────────────────────────────────────────────────────────────────────────────── */
+.atlas-masthead-texture {
+  background-color: #f9f9f6;
+  background-image:
+    url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n' x='0' y='0'><feTurbulence type='fractalNoise' baseFrequency='0.72' numOctaves='4' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='200' height='200' filter='url(%23n)' opacity='0.042'/></svg>"),
+    radial-gradient(
+      ellipse 72% 52% at 10% 0%,
+      rgba(212, 175, 55, 0.075) 0%,
+      transparent 58%
+    ),
+    radial-gradient(
+      ellipse 55% 65% at 92% 88%,
+      rgba(138, 138, 110, 0.065) 0%,
+      transparent 58%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.55) 0%,
+      transparent 42%
+    );
 }
 
 /* ── Luxury CPA Slider ────────────────────────────────────────

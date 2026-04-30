@@ -78,12 +78,30 @@ export async function getLeadActivities(leadId: string) {
 
   const { data, error } = await supabase
     .from("lead_activities")
-    .select("id, lead_id, actor_id, action_type, details, created_at, actor:actor_id(id, full_name)")
+    .select(
+      "id, lead_id, actor_id, action_type, details, payload, created_at, actor:actor_id(id, full_name)",
+    )
     .eq("lead_id", leadId)
     .order("created_at", { ascending: false });
 
   if (error) return [];
-  return data ?? [];
+  // Legacy rows only populated `payload`; normalized inserts dual-write both.
+  return (data ?? []).map((row) => {
+    const p = row.payload;
+    const d = row.details;
+    const payloadObj =
+      p && typeof p === "object" && !Array.isArray(p)
+        ? (p as Record<string, unknown>)
+        : {};
+    const detailsObj =
+      d && typeof d === "object" && !Array.isArray(d)
+        ? (d as Record<string, unknown>)
+        : {};
+    return {
+      ...row,
+      details: { ...payloadObj, ...detailsObj },
+    };
+  });
 }
 
 // ── Update Lead Status ─────────────────────────────────────

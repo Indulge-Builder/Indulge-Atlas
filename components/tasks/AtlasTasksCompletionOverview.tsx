@@ -5,32 +5,18 @@ import { motion } from "framer-motion";
 import { AlertTriangle, CheckCircle2, LayoutGrid, ListTodo, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { MasterTask, SubTask, TaskGroup, AtlasTaskStatus } from "@/lib/types/database";
-import { ATLAS_TASK_STATUS_LABELS } from "@/lib/types/database";
+import {
+  ATLAS_TASK_STATUS_LABELS,
+  ATLAS_STATUS_PORTFOLIO_BAR_ORDER,
+  ATLAS_STATUS_SEGMENT_BG,
+} from "@/lib/constants/tasks";
 
 export interface AtlasTasksData {
   masterTask: MasterTask;
   taskGroups: Array<TaskGroup & { tasks: SubTask[] }>;
 }
 
-const STATUS_SEGMENTS: AtlasTaskStatus[] = [
-  "done",
-  "in_progress",
-  "in_review",
-  "todo",
-  "blocked",
-  "error",
-  "cancelled",
-];
-
-const SEGMENT_CLASS: Record<AtlasTaskStatus, string> = {
-  done:        "bg-emerald-500",
-  in_progress: "bg-[#C9A227]",
-  in_review:   "bg-amber-400",
-  todo:        "bg-[#D4D0C8]",
-  blocked:     "bg-orange-500",
-  error:       "bg-red-500",
-  cancelled:   "bg-[#B5B0A8]",
-};
+const STATUS_SEGMENTS = ATLAS_STATUS_PORTFOLIO_BAR_ORDER;
 
 interface AtlasTasksCompletionOverviewProps {
   tasks: AtlasTasksData[];
@@ -66,7 +52,7 @@ function aggregate(tasks: AtlasTasksData[]) {
 
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
   const inFlight =
-    (counts.in_progress ?? 0) + (counts.in_review ?? 0) + (counts.todo ?? 0);
+    (counts.in_progress ?? 0) + (counts.todo ?? 0) + (counts.error ?? 0);
 
   return {
     workspaceCount: tasks.length,
@@ -213,7 +199,7 @@ export function AtlasTasksCompletionOverview({ tasks }: AtlasTasksCompletionOver
                         <div
                           key={status}
                           title={`${ATLAS_TASK_STATUS_LABELS[status]}: ${n}`}
-                          className={cn(SEGMENT_CLASS[status], "min-w-[3px] transition-all duration-500")}
+                          className={cn(ATLAS_STATUS_SEGMENT_BG[status], "min-w-[3px] transition-all duration-500")}
                           style={{ width: w }}
                         />
                       );

@@ -8,8 +8,20 @@
  * Never expose this return value unfiltered to browser clients.
  */
 
+import { endOfDay, startOfDay } from "date-fns";
+import { fromZonedTime, toZonedTime } from "date-fns-tz";
+import { ALL_DEPARTMENTS, DEPARTMENT_CONFIG } from "@/lib/constants/departments";
 import { getServiceSupabaseClient } from "@/lib/supabase/service";
-import type { AtlasTaskStatus, ChecklistItem, IndulgeDomain } from "@/lib/types/database";
+import type {
+  AtlasTaskStatus,
+  ChecklistItem,
+  DepartmentTaskOverview,
+  EmployeeDepartment,
+  IndulgeDomain,
+  OrganisationTaskContext,
+  TaskIntelligenceHealthSignal,
+  TaskIntelligenceOverdueSubtaskSnapshot,
+} from "@/lib/types/database";
 
 const STALE_DAYS = 7;
 
@@ -161,9 +173,7 @@ export async function getTaskContext(masterTaskId: string): Promise<TaskContext 
   const byStatus: Record<AtlasTaskStatus, number> = {
     todo:         0,
     in_progress:  0,
-    in_review:    0,
     done:         0,
-    blocked:      0,
     error:        0,
     cancelled:    0,
   };
@@ -337,6 +347,270 @@ export async function getTaskContext(masterTaskId: string): Promise<TaskContext 
       overdue_subtasks: overdue,
       unassigned_subtasks: unassigned,
       stale_subtasks: stale,
+    },
+  };
+}
+
+const IST = "Asia/Kolkata";
+
+function computeHealthSignal(
+  overdue: number,
+  completionPct: number,
+): TaskIntelligenceHealthSignal {
+  if (overdue === 0 && completionPct > 70) return "healthy";
+  if (overdue > 3 || completionPct < 40) return "critical";
+  return "needs_attention";
+}
+
+function healthSortOrder(s: TaskIntelligenceHealthSignal): number {
+  if (s === "critical") return 0;
+  if (s === "needs_attention") return 1;
+  return 2;
+}
+
+function isSubtaskActiveOverdue(
+  dueDate: string | null,
+  status: AtlasTaskStatus,
+  nowMs: number,
+): boolean {
+  if (!dueDate) return false;
+  if (status === "done" || status === "cancelled") return false;
+  return new Date(dueDate).getTime() < nowMs;
+}
+
+/**
+ * Elia entry point: founder-wide organisation task health and attention items.
+ *
+ * Uses the service-role client (bypasses RLS). Only call from trusted server
+ * contexts that have already authenticated the operator; never expose this
+ * payload directly to unprivileged browser clients.
+ */
+export async function getOrganisationTaskContext(): Promise<OrganisationTaskContext> {
+  const service = getServiceSupabaseClient();
+  const nowMs = Date.now();
+  const visibleDepts = [...ALL_DEPARTMENTS] as EmployeeDepartment[];
+
+  const zoned = toZonedTime(new Date(), IST);
+  const start = fromZonedTime(startOfDay(zoned), IST);
+  const end = fromZonedTime(endOfDay(zoned), IST);
+  const startIso = start.toISOString();
+  const endIso = end.toISOString();
+
+  const { data: masters } = await service
+    .from("tasks")
+    .select("id, department")
+    .eq("unified_task_type", "master")
+    .is("archived_at", null)
+    .in("department", visibleDepts);
+
+  const masterRows = masters ?? [];
+  const masterIds = masterRows.map((r) => r.id as string);
+  const masterDept = new Map<string, EmployeeDepartment>();
+  for (const r of masterRows) {
+    const d = r.department as EmployeeDepartment | null;
+    if (d) masterDept.set(r.id as string, d);
+  }
+
+  let subtaskRows: Array<{
+    id: string;
+    project_id: string | null;
+    title: string;
+    atlas_status: AtlasTaskStatus;
+    due_date: string | null;
+    archived_at: string | null;
+    assigned_to_users: string[] | null;
+  }> = [];
+
+  if (masterIds.length > 0) {
+    const { data: subs } = await service
+      .from("tasks")
+      .select("id, project_id, title, atlas_status, due_date, archived_at, assigned_to_users")
+      .eq("unified_task_type", "subtask")
+      .in("project_id", masterIds);
+    subtaskRows = (subs ?? []) as typeof subtaskRows;
+  }
+
+  const assigneeIds = [
+    ...new Set(
+      subtaskRows.map((r) => (r.assigned_to_users ?? [])[0]).filter((x): x is string => !!x),
+    ),
+  ];
+  const assigneeNames = new Map<string, string>();
+  if (assigneeIds.length > 0) {
+    const { data: ap } = await service
+      .from("profiles")
+      .select("id, full_name")
+      .in("id", assigneeIds);
+    for (const p of ap ?? []) assigneeNames.set(p.id as string, p.full_name as string);
+  }
+
+  const subtasksByDept = new Map<
+    EmployeeDepartment,
+    { total: number; done: number; overdue: number }
+  >();
+  for (const d of visibleDepts) subtasksByDept.set(d, { total: 0, done: 0, overdue: 0 });
+
+  const overdueByDept = new Map<EmployeeDepartment, TaskIntelligenceOverdueSubtaskSnapshot[]>();
+
+  for (const st of subtaskRows) {
+    if (st.archived_at) continue;
+    const pid = st.project_id;
+    if (!pid) continue;
+    const dept = masterDept.get(pid);
+    if (!dept) continue;
+    const bucket = subtasksByDept.get(dept)!;
+    bucket.total++;
+    if (st.atlas_status === "done") bucket.done++;
+    if (isSubtaskActiveOverdue(st.due_date, st.atlas_status, nowMs)) {
+      bucket.overdue++;
+      const uid = (st.assigned_to_users ?? [])[0];
+      const days = st.due_date
+        ? Math.max(
+            0,
+            Math.floor((nowMs - new Date(st.due_date).getTime()) / (24 * 60 * 60 * 1000)),
+          )
+        : 0;
+      const snap: TaskIntelligenceOverdueSubtaskSnapshot = {
+        subtaskId: st.id,
+        title: st.title,
+        assigneeName: uid ? (assigneeNames.get(uid) ?? "Unknown") : "Unassigned",
+        overdueDays: days,
+      };
+      const list = overdueByDept.get(dept) ?? [];
+      list.push(snap);
+      overdueByDept.set(dept, list);
+    }
+  }
+
+  const { data: profiles } = await service
+    .from("profiles")
+    .select("id, full_name, department, role, is_on_leave")
+    .in("department", visibleDepts);
+
+  const activeAgentsByDept = new Map<EmployeeDepartment, number>();
+  for (const d of visibleDepts) activeAgentsByDept.set(d, 0);
+  for (const p of profiles ?? []) {
+    const dept = p.department as EmployeeDepartment | null;
+    if (!dept || !visibleDepts.includes(dept)) continue;
+    const r = p.role as string;
+    if (r === "admin" || r === "founder") continue;
+    if (p.is_on_leave === true) continue;
+    activeAgentsByDept.set(dept, (activeAgentsByDept.get(dept) ?? 0) + 1);
+  }
+
+  const { data: personalA } = await service
+    .from("tasks")
+    .select("id, department, atlas_status, created_at, due_date")
+    .eq("unified_task_type", "personal")
+    .in("department", visibleDepts)
+    .gte("created_at", startIso)
+    .lt("created_at", endIso);
+
+  const { data: personalB } = await service
+    .from("tasks")
+    .select("id, department, atlas_status, created_at, due_date")
+    .eq("unified_task_type", "personal")
+    .in("department", visibleDepts)
+    .not("due_date", "is", null)
+    .gte("due_date", startIso)
+    .lte("due_date", endIso);
+
+  const seenPersonal = new Set<string>();
+  const personalTodayByDept = new Map<EmployeeDepartment, { total: number; done: number }>();
+  for (const d of visibleDepts) personalTodayByDept.set(d, { total: 0, done: 0 });
+
+  function bucketPersonal(row: {
+    id: string;
+    department: string | null;
+    atlas_status: AtlasTaskStatus;
+  }) {
+    if (seenPersonal.has(row.id)) return;
+    seenPersonal.add(row.id);
+    const dept = row.department as EmployeeDepartment | null;
+    if (!dept || !visibleDepts.includes(dept)) return;
+    const b = personalTodayByDept.get(dept)!;
+    b.total++;
+    if (row.atlas_status === "done") b.done++;
+  }
+
+  for (const row of personalA ?? []) bucketPersonal(row as typeof row & { id: string });
+  for (const row of personalB ?? []) bucketPersonal(row as typeof row & { id: string });
+
+  const activeMasterCount = new Map<EmployeeDepartment, number>();
+  for (const d of visibleDepts) activeMasterCount.set(d, 0);
+  for (const r of masterRows) {
+    const d = r.department as EmployeeDepartment | null;
+    if (d && visibleDepts.includes(d)) {
+      activeMasterCount.set(d, (activeMasterCount.get(d) ?? 0) + 1);
+    }
+  }
+
+  const departments: DepartmentTaskOverview[] = visibleDepts.map((departmentId) => {
+    const cfg = DEPARTMENT_CONFIG[departmentId];
+    const st = subtasksByDept.get(departmentId)!;
+    const groupSubtaskCompletionPct =
+      st.total > 0 ? Math.round((st.done / st.total) * 100) : 0;
+    const sop = personalTodayByDept.get(departmentId)!;
+    const todaySopCompletionPct =
+      sop.total > 0 ? Math.round((sop.done / sop.total) * 100) : 0;
+    const healthSignal = computeHealthSignal(st.overdue, groupSubtaskCompletionPct);
+    return {
+      departmentId,
+      label: cfg.label,
+      icon: cfg.icon,
+      accentColor: cfg.accentColor,
+      activeMasterTaskCount: activeMasterCount.get(departmentId) ?? 0,
+      groupSubtaskCompletionPct,
+      overdueSubtaskCount: st.overdue,
+      todaySopCompletionPct,
+      activeAgentCount: activeAgentsByDept.get(departmentId) ?? 0,
+      healthSignal,
+    };
+  });
+
+  departments.sort((a, b) => {
+    const h = healthSortOrder(a.healthSignal) - healthSortOrder(b.healthSignal);
+    if (h !== 0) return h;
+    return a.label.localeCompare(b.label);
+  });
+
+  const attentionItems: OrganisationTaskContext["attentionItems"] = [];
+  for (const d of departments) {
+    if (d.healthSignal === "healthy") continue;
+    const raw = overdueByDept.get(d.departmentId) ?? [];
+    raw.sort((a, b) => b.overdueDays - a.overdueDays);
+    const top = raw.slice(0, 3).map((s) => ({ ...s }));
+    if (top.length > 0) {
+      attentionItems.push({
+        departmentId: d.departmentId,
+        departmentLabel: d.label,
+        overdueSubtasks: top,
+      });
+    }
+  }
+
+  let totalMasters = 0;
+  let totalOverdue = 0;
+  let totalSubs = 0;
+  let totalDone = 0;
+  for (const d of departments) {
+    totalMasters += d.activeMasterTaskCount;
+    totalOverdue += d.overdueSubtaskCount;
+    const st = subtasksByDept.get(d.departmentId)!;
+    totalSubs += st.total;
+    totalDone += st.done;
+  }
+  const overallGroupSubtaskCompletionPct =
+    totalSubs > 0 ? Math.round((totalDone / totalSubs) * 100) : 0;
+
+  return {
+    generatedAt: new Date().toISOString(),
+    departments,
+    attentionItems,
+    organisationTotals: {
+      activeGroupMasterCount: totalMasters,
+      overdueSubtaskCount: totalOverdue,
+      overallGroupSubtaskCompletionPct,
     },
   };
 }

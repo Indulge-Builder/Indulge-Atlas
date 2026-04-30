@@ -24,7 +24,7 @@ interface LuxuryCalendarProps {
   selectedDate: Date;
   /** Dates that have personal (My Tasks) entries — shown as gold circles */
   taskDates: Date[];
-  /** Dates that have Atlas Tasks (subtasks) — shown as indigo squares */
+  /** Dates that have Group Tasks (subtasks) — shown as indigo squares */
   atlasTaskDates?: Date[];
   onSelectDate: (date: Date) => void;
 }
@@ -208,7 +208,7 @@ export function LuxuryCalendar({
           <div className="flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-sm bg-[#6366F1] shrink-0" />
             <span className="text-[9px] font-medium text-[#B5A99A] uppercase tracking-widest">
-              Atlas Tasks
+              Group Tasks
             </span>
           </div>
         </div>
