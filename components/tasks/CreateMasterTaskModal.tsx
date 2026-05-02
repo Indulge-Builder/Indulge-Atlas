@@ -445,13 +445,28 @@ export function CreateMasterTaskModal({
           ? (result.data as { id: string } | null)?.id
           : null;
 
-        // Add selected members to the new task
+        // Add selected members to a newly created task
         if (newTaskId && members.length > 0) {
           await Promise.allSettled(
             members.map((m) =>
               addMasterTaskMember({ masterTaskId: newTaskId, profileId: m.id, role: "member" }),
             ),
           );
+        }
+
+        // Add members to an existing task (same flow as create — PeoplePicker is available in edit mode)
+        if (editTask && members.length > 0) {
+          const addOut = await Promise.all(
+            members.map((m) =>
+              addMasterTaskMember({ masterTaskId: editTask.id, profileId: m.id, role: "member" }),
+            ),
+          );
+          if (addOut.some((r) => !r.success)) {
+            toast.error(
+              addOut.find((r) => !r.success)?.error ??
+                "Some members could not be added. Only owners and task managers can invite people.",
+            );
+          }
         }
 
         toast.success(editTask ? "Task updated" : "Master task created");
@@ -682,17 +697,20 @@ export function CreateMasterTaskModal({
             />
           </IndulgeField>
 
-          {/* ── Members ── */}
-          {!editTask && (
-            <IndulgeField
-              label="Add Members"
-              htmlFor="mt-members"
-            >
-              <div className="relative">
-                <PeoplePicker selected={members} onChange={setMembers} />
-              </div>
-            </IndulgeField>
-          )}
+          {/* ── Members (create + edit — invite teammates any time) ── */}
+          <IndulgeField
+            label={editTask ? "Add members" : "Add Members"}
+            hint={
+              editTask
+                ? "Search and add people here, then save — they are added to this group task."
+                : "Optional — you can also add people after the task is created via Edit."
+            }
+            htmlFor="mt-members"
+          >
+            <div className="relative">
+              <PeoplePicker selected={members} onChange={setMembers} />
+            </div>
+          </IndulgeField>
 
           {/* ── Actions ── */}
           <div className="flex justify-end gap-2 pt-1">

@@ -25,6 +25,7 @@ const TABS: { id: TabKey; label: string }[] = [
 interface TasksDashboardShellProps {
   initialTab: TabKey;
   personalTasks:  PersonalTask[];
+  dailySopTasks:   PersonalTask[];
   subTasks:       Array<SubTask & { masterTaskTitle: string | null }>;
   atlasTasks:     AtlasTasksData[];
   currentUser: {
@@ -40,6 +41,7 @@ interface TasksDashboardShellProps {
 export function TasksDashboardShell({
   initialTab,
   personalTasks,
+  dailySopTasks,
   subTasks,
   atlasTasks,
   currentUser,
@@ -187,6 +189,7 @@ export function TasksDashboardShell({
             >
               <MyTasksDashboard
                 personalTasks={personalTasks}
+                dailySopTasks={dailySopTasks}
                 subTasks={subTasks}
                 currentUser={currentUser}
                 onRefresh={() => router.refresh()}

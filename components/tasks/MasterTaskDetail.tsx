@@ -209,32 +209,28 @@ export function MasterTaskDetail({
               "flex w-full shrink-0 flex-wrap items-center justify-end gap-2 p-2.5 sm:p-3 lg:max-w-none lg:w-auto lg:self-start",
             )}
           >
-            {memberProfiles.length > 0 && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setShowMembers(!showMembers)}
-                  className={cn(
-                    "flex h-9 items-center gap-2 rounded-xl border border-[#E5E4DF] bg-[#F9F9F6] px-3",
-                    "text-left text-[12px] font-medium text-[#1A1A1A]",
-                    "transition-colors hover:border-[#D0C8BE] hover:bg-[#FAFAF8]",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]/35",
-                  )}
-                  aria-label={`${members.length} members`}
-                >
-                  <MemberAvatarStack
-                    members={memberProfiles}
-                    max={4}
-                    size="xs"
-                  />
-                  <span className="tabular-nums">Team · {members.length}</span>
-                </button>
-                <span
-                  className="hidden h-6 w-px shrink-0 bg-[#E5E4DF] sm:inline"
-                  aria-hidden
-                />
-              </>
-            )}
+            <button
+              type="button"
+              onClick={() => setShowMembers(!showMembers)}
+              className={cn(
+                "flex h-9 items-center gap-2 rounded-xl border border-[#E5E4DF] bg-[#F9F9F6] px-3",
+                "text-left text-[12px] font-medium text-[#1A1A1A]",
+                "transition-colors hover:border-[#D0C8BE] hover:bg-[#FAFAF8]",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]/35",
+              )}
+              aria-label={`${members.length} members`}
+            >
+              <MemberAvatarStack
+                members={memberProfiles}
+                max={4}
+                size="xs"
+              />
+              <span className="tabular-nums">Team · {members.length}</span>
+            </button>
+            <span
+              className="hidden h-6 w-px shrink-0 bg-[#E5E4DF] sm:inline"
+              aria-hidden
+            />
 
             <IndulgeButton
               variant="outline"
@@ -399,6 +395,11 @@ export function MasterTaskDetail({
                   );
                 })}
               </div>
+              <p className="border-t border-zinc-100 px-4 py-3 text-[11px] leading-relaxed text-zinc-500">
+                To add teammates after the task was created, open{" "}
+                <span className="font-medium text-zinc-700">Edit</span>, use{" "}
+                <span className="font-medium text-zinc-700">Add members</span>, then save.
+              </p>
             </motion.div>
           </motion.div>
         )}

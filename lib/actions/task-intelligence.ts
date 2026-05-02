@@ -934,7 +934,8 @@ export async function getEmployeeDossier(
         .from("tasks")
         .select("*")
         .eq("unified_task_type", "personal")
-        .eq("created_by", targetId)
+        .or(`assigned_to_users.cs.{${targetId}},created_by.eq.${targetId}`)
+        .neq("atlas_status", "cancelled")
         .is("archived_at", null)
         .order("created_at", { ascending: false }),
 

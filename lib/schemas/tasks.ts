@@ -160,6 +160,11 @@ export const CreatePersonalTaskSchema = z.object({
   tags:        z.array(z.string().min(1).max(80)).max(20).optional(),
 });
 
+/** Agent-owned recurring daily SOP line item (template row for pg_cron). */
+export const CreatePersonalSOPTemplateSchema = z.object({
+  title: z.string().min(1).max(255),
+});
+
 /** Manager-owned daily SOP template (stored as personal task row). */
 export const CreateSOPTemplateSchema = z.object({
   title:       z.string().min(1).max(255),
@@ -229,6 +234,7 @@ export type CreateSubTaskInput     = z.infer<typeof CreateSubTaskSchema>;
 export type UpdateSubTaskInput     = z.infer<typeof UpdateSubTaskSchema>;
 export type UpdateSubTaskStatusInput = z.infer<typeof UpdateSubTaskStatusSchema>;
 export type CreatePersonalTaskInput = z.infer<typeof CreatePersonalTaskSchema>;
+export type CreatePersonalSOPTemplateInput = z.infer<typeof CreatePersonalSOPTemplateSchema>;
 export type CreateSOPTemplateInput = z.infer<typeof CreateSOPTemplateSchema>;
 export type ImportBatchRowInput    = z.infer<typeof ImportBatchRowSchema>;
 export type CreateImportBatchInput = z.infer<typeof CreateImportBatchSchema>;

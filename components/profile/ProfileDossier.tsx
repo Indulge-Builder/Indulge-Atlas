@@ -13,11 +13,12 @@ import { DOMAIN_DISPLAY_CONFIG } from "@/lib/types/database";
 // ── Role display names ────────────────────────────────────────
 
 const ROLE_DISPLAY: Record<UserRole, string> = {
-  agent:   "Elite Agent",
-  manager: "Manager",
-  founder: "Founder",
-  admin:   "System Administrator",
-  guest:   "Finance",
+  agent:         "Elite Agent",
+  manager:       "Manager",
+  founder:       "Founder",
+  admin:         "System Administrator",
+  super_admin:   "Super Administrator",
+  guest:         "Finance",
 };
 
 // ── Date helpers ──────────────────────────────────────────────

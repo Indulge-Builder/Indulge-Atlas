@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import {
   getMasterTaskDetail,
   getMasterTasks,
+  getDailyPersonalTasks,
   getMyTasks,
   getMySubTasks,
 } from "@/lib/actions/tasks";
@@ -100,10 +101,12 @@ async function TasksPageContent({ searchParams }: PageProps) {
   const [
     masterTasksResult,
     personalTasksResult,
+    dailySopResult,
     subTasksResult,
   ] = await Promise.all([
     getMasterTasks({ archived: false }),
     getMyTasks(),
+    getDailyPersonalTasks(),
     getMySubTasks(),
   ]);
 
@@ -114,6 +117,9 @@ async function TasksPageContent({ searchParams }: PageProps) {
   const personalTasks: PersonalTask[] = personalTasksResult.success && personalTasksResult.data
     ? personalTasksResult.data.personalTasks
     : [];
+
+  const dailySopTasks: PersonalTask[] =
+    dailySopResult.success && dailySopResult.data ? dailySopResult.data.items : [];
 
   const subTasks: Array<SubTask & { masterTaskTitle: string | null }> =
     subTasksResult.success ? (subTasksResult.data ?? []) : [];
@@ -140,12 +146,14 @@ async function TasksPageContent({ searchParams }: PageProps) {
 
   const activeTaskCount =
     personalTasks.filter((t) => t.atlas_status !== "done" && t.atlas_status !== "cancelled").length +
+    dailySopTasks.filter((t) => t.atlas_status !== "done" && t.atlas_status !== "cancelled").length +
     subTasks.length;
 
   return (
     <TasksDashboardShell
       initialTab={initialTab}
       personalTasks={personalTasks}
+      dailySopTasks={dailySopTasks}
       subTasks={subTasks}
       atlasTasks={atlasTasks}
       currentUser={currentUser}

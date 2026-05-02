@@ -31,6 +31,7 @@ import {
   UpdateSubTaskProgressSchema,
   ReorderSubTasksSchema,
   CreatePersonalTaskSchema,
+  CreatePersonalSOPTemplateSchema,
   CreateSOPTemplateSchema,
   AddMasterTaskMemberSchema,
   CreateImportBatchSchema,
@@ -1576,6 +1577,91 @@ function canManageDailySOPs(role: string): boolean {
   return role === "manager" || isPrivilegedRole(role);
 }
 
+/** Tag on agent-owned SOP templates; excluded from pg_cron (see migration 082). */
+const PERSONAL_SOP_SELF_TAG = "personal_sop_self";
+
+/**
+ * Idempotent: for each self-tagged personal SOP template, inserts today’s instance
+ * if missing (mirrors spawn_daily_sop_instances for a single assignee).
+ */
+async function ensurePersonalSelfSOPInstancesForToday(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  domain: string,
+  department: string | null,
+): Promise<void> {
+  const todayIST = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  const dueDateIso = new Date(`${todayIST}T12:00:00+05:30`).toISOString();
+
+  const { data: templates, error: tErr } = await supabase
+    .from("tasks")
+    .select("id, title, notes, priority, domain, department, task_type, tags, attachments")
+    .eq("unified_task_type", "personal")
+    .eq("is_daily_sop_template", true)
+    .eq("created_by", userId)
+    .contains("tags", [PERSONAL_SOP_SELF_TAG])
+    .is("archived_at", null);
+
+  if (tErr || !templates?.length) return;
+
+  const persDomain = resolvedDomain(undefined, domain);
+
+  for (const tmpl of templates) {
+    const tplId = tmpl.id as string;
+    const marker = `sop_tpl:${tplId}`;
+
+    const { data: existing } = await supabase
+      .from("tasks")
+      .select("id")
+      .eq("unified_task_type", "personal")
+      .eq("is_daily_sop_template", false)
+      .eq("is_daily", true)
+      .eq("daily_date", todayIST)
+      .contains("assigned_to_users", [userId])
+      .contains("tags", [marker])
+      .maybeSingle();
+
+    if (existing) continue;
+
+    const dept =
+      typeof tmpl.department === "string" && tmpl.department.trim() !== ""
+        ? tmpl.department.trim()
+        : resolvedDepartment(undefined, department);
+    const dom =
+      typeof tmpl.domain === "string" && tmpl.domain.trim() !== ""
+        ? tmpl.domain.trim()
+        : persDomain;
+
+    const tmplTags = Array.isArray(tmpl.tags) ? (tmpl.tags as string[]) : [];
+    const mergedTags = [...tmplTags.filter((t) => !t.startsWith("sop_tpl:")), marker];
+
+    const { error: insErr } = await supabase.from("tasks").insert({
+      title:                 sanitizeText(String(tmpl.title ?? "")),
+      notes:                 tmpl.notes ? sanitizeText(String(tmpl.notes)) : null,
+      unified_task_type:     "personal",
+      atlas_status:          "todo",
+      status:                "pending",
+      priority:              (tmpl.priority as string) ?? "medium",
+      due_date:              dueDateIso,
+      assigned_to_users:     [userId],
+      created_by:            userId,
+      domain:                dom,
+      department:            dept,
+      task_type:             (tmpl.task_type as string) ?? "general_follow_up",
+      progress:              0,
+      progress_updates:      [],
+      tags:                  mergedTags,
+      attachments:           Array.isArray(tmpl.attachments) ? tmpl.attachments : [],
+      visibility:            "personal",
+      is_daily:              true,
+      daily_date:            todayIST,
+      is_daily_sop_template: false,
+    });
+
+    if (insErr) console.error("[ensurePersonalSelfSOPInstancesForToday]", insErr);
+  }
+}
+
 /** Manager / admin / founder: create a daily SOP template for a department (cron clones to agents). */
 export async function createSOPTemplate(
   params: unknown,
@@ -1716,6 +1802,123 @@ export async function deleteSOPTemplate(taskId: unknown): Promise<ActionResult> 
   }
 }
 
+export type PersonalSOPTemplateRow = { id: string; title: string; created_at: string };
+
+/** Agent-owned daily SOP line items (templates for self-spawn; tagged personal_sop_self). */
+export async function getPersonalSOPTemplates(): Promise<ActionResult<PersonalSOPTemplateRow[]>> {
+  try {
+    const { supabase, user } = await getAuthUser();
+
+    const { data, error } = await supabase
+      .from("tasks")
+      .select("id, title, created_at")
+      .eq("unified_task_type", "personal")
+      .eq("is_daily_sop_template", true)
+      .eq("created_by", user.id)
+      .contains("tags", [PERSONAL_SOP_SELF_TAG])
+      .is("archived_at", null)
+      .order("created_at", { ascending: true });
+
+    if (error) return { success: false, error: error.message };
+
+    return {
+      success: true,
+      data: (data ?? []).map((r) => ({
+        id:         r.id as string,
+        title:      r.title as string,
+        created_at: r.created_at as string,
+      })),
+    };
+  } catch (err) {
+    console.error("[getPersonalSOPTemplates]", err);
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+export async function createPersonalSOPTemplate(input: unknown): Promise<ActionResult<{ id: string }>> {
+  const parsed = CreatePersonalSOPTemplateSchema.safeParse(
+    typeof input === "string" ? { title: input } : input,
+  );
+  if (!parsed.success)
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+
+  try {
+    const { supabase, user, domain, department } = await getAuthUser();
+    const persDomain = resolvedDomain(undefined, domain);
+    const persDepartment = resolvedDepartment(undefined, department);
+
+    const { data, error } = await supabase
+      .from("tasks")
+      .insert({
+        title:                 sanitizeText(parsed.data.title),
+        notes:                 null,
+        unified_task_type:     "personal",
+        atlas_status:          "todo",
+        priority:              "medium",
+        due_date:              null,
+        assigned_to_users:     [user.id],
+        domain:                persDomain,
+        department:            persDepartment,
+        created_by:            user.id,
+        status:                "pending",
+        task_type:             "general_follow_up",
+        progress:              0,
+        progress_updates:      [],
+        tags:                  [PERSONAL_SOP_SELF_TAG],
+        attachments:           [],
+        visibility:            "personal",
+        is_daily_sop_template: true,
+        is_daily:              false,
+        daily_date:            null,
+      })
+      .select("id")
+      .single();
+
+    if (error || !data) {
+      console.error("[createPersonalSOPTemplate]", error);
+      return { success: false, error: error?.message ?? "Failed to save" };
+    }
+
+    await ensurePersonalSelfSOPInstancesForToday(supabase, user.id, domain, department);
+
+    revalidatePath("/", "page");
+    revalidatePath("/tasks", "page");
+    revalidatePath("/task-insights", "page");
+    return { success: true, data: { id: data.id as string } };
+  } catch (err) {
+    console.error("[createPersonalSOPTemplate]", err);
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+export async function deletePersonalSOPTemplate(taskId: unknown): Promise<ActionResult> {
+  const parsed = uuidSchema.safeParse(taskId);
+  if (!parsed.success) return { success: false, error: "Invalid task ID" };
+
+  try {
+    const { supabase, user } = await getAuthUser();
+
+    const { error } = await supabase
+      .from("tasks")
+      .delete()
+      .eq("id", parsed.data)
+      .eq("created_by", user.id)
+      .eq("unified_task_type", "personal")
+      .eq("is_daily_sop_template", true)
+      .contains("tags", [PERSONAL_SOP_SELF_TAG]);
+
+    if (error) return { success: false, error: error.message };
+
+    revalidatePath("/", "page");
+    revalidatePath("/tasks", "page");
+    revalidatePath("/task-insights", "page");
+    return { success: true };
+  } catch (err) {
+    console.error("[deletePersonalSOPTemplate]", err);
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
 /**
  * Fetch all SubTasks assigned to the current user (for the My Tasks tab).
  * Returns subtasks with their master task title for breadcrumb display.
@@ -1775,6 +1978,7 @@ export async function getMyTasks(): Promise<ActionResult<{ personalTasks: Person
       )
       .eq("unified_task_type", "personal")
       .eq("is_daily_sop_template", false)
+      .eq("is_daily", false)
       .or(`assigned_to_users.cs.{${user.id}},created_by.eq.${user.id}`)
       .neq("atlas_status", "cancelled")
       .order("priority", { ascending: true })
@@ -3109,6 +3313,7 @@ export async function createDailyPersonalTask(
         progress_updates:  [],
         tags:              [],
         attachments:       [],
+        is_daily_sop_template: false,
       })
       .select("id")
       .single();
@@ -3125,70 +3330,32 @@ export async function createDailyPersonalTask(
   }
 }
 
-export async function getDailyPersonalTasks(): Promise<
-  ActionResult<{
-    todayDaily: PersonalTask[];
-    overdue: PersonalTask[];
-    today: PersonalTask[];
-    thisWeek: PersonalTask[];
-    upcoming: PersonalTask[];
-    completedToday: PersonalTask[];
-  }>
-> {
+export async function getDailyPersonalTasks(): Promise<ActionResult<{ items: PersonalTask[] }>> {
   try {
-    const { supabase, user } = await getAuthUser();
+    const { supabase, user, domain, department } = await getAuthUser();
     const todayIST = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+
+    await ensurePersonalSelfSOPInstancesForToday(supabase, user.id, domain, department);
 
     const { data, error } = await supabase
       .from("tasks")
-      .select("*")
+      .select(
+        "id, title, notes, unified_task_type, atlas_status, priority, due_date, progress, created_by, assigned_to_users, created_at, updated_at, visibility, is_daily, daily_date, is_daily_sop_template",
+      )
       .eq("unified_task_type", "personal")
-      .eq("created_by", user.id)
       .eq("is_daily_sop_template", false)
+      .eq("is_daily", true)
+      .eq("daily_date", todayIST)
+      .contains("assigned_to_users", [user.id])
+      .neq("atlas_status", "cancelled")
       .is("archived_at", null)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: true });
 
     if (error) return { success: false, error: error.message };
 
-    const now = new Date();
-    const startOfTodayIST = new Date(`${todayIST}T00:00:00+05:30`);
-    const endOfTodayIST = new Date(`${todayIST}T23:59:59+05:30`);
-    const endOfWeekIST = new Date(startOfTodayIST.getTime() + 7 * 24 * 60 * 60 * 1000);
-
-    const rows = (data ?? []) as unknown as PersonalTask[];
-
-    const todayDaily = rows.filter(
-      (t) => Boolean(t.is_daily) && t.daily_date === todayIST && t.atlas_status !== "done",
-    );
-
-    const completedToday = rows.filter((t) => {
-      if (t.atlas_status !== "done" || !t.updated_at) return false;
-      const u = new Date(t.updated_at);
-      return u >= startOfTodayIST && u <= endOfTodayIST;
-    });
-
-    const active = rows.filter((t) => t.atlas_status !== "done");
-
-    const overdue = active.filter((t) => t.due_date && new Date(t.due_date) < now);
-    const today = active.filter(
-      (t) =>
-        !!t.due_date &&
-        new Date(t.due_date) >= startOfTodayIST &&
-        new Date(t.due_date) <= endOfTodayIST,
-    );
-    const thisWeek = active.filter(
-      (t) =>
-        !!t.due_date &&
-        new Date(t.due_date) > endOfTodayIST &&
-        new Date(t.due_date) <= endOfWeekIST,
-    );
-    const upcoming = active.filter(
-      (t) => !t.due_date || new Date(t.due_date) > endOfWeekIST,
-    );
-
     return {
       success: true,
-      data: { todayDaily, overdue, today, thisWeek, upcoming, completedToday },
+      data: { items: (data ?? []) as unknown as PersonalTask[] },
     };
   } catch (err) {
     console.error("[getDailyPersonalTasks]", err);

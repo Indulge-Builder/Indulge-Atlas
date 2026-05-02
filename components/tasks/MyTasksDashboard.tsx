@@ -25,10 +25,12 @@ import { SubTaskStatusBadge } from "./SubTaskStatusBadge";
 import { TaskPriorityBadge } from "./TaskPriorityBadge";
 import { SubTaskModal } from "./SubTaskModal";
 import { PersonalTaskModal } from "./my-tasks/PersonalTaskModal";
+import { DailySOPSection } from "./my-tasks/DailySOPSection";
 import { PrivacyBadge } from "./shared/PrivacyBadge";
 import {
   completePersonalTask,
   createPersonalTask,
+  getDailyPersonalTasks,
   getMyTasks,
   searchProfilesForTasks,
 } from "@/lib/actions/tasks";
@@ -64,7 +66,7 @@ function isUpcomingIST(iso: string): boolean {
 
 // ── Task grouping ─────────────────────────────────────────────────────────────
 
-type TaskBucket = "overdue" | "today" | "this_week" | "upcoming" | "no_date";
+type TaskBucket = "overdue" | "today" | "this_week" | "upcoming" | "no_date" | "completed";
 
 type AnyTask = (PersonalTask | (SubTask & { masterTaskTitle?: string | null })) & {
   atlas_status: AtlasTaskStatus;
@@ -80,11 +82,12 @@ function bucketTask(task: AnyTask): TaskBucket {
 }
 
 const BUCKET_LABELS: Record<TaskBucket, string> = {
-  overdue:   "Overdue",
-  today:     "Due Today",
-  this_week: "Due This Week",
-  upcoming:  "Upcoming",
-  no_date:   "No Due Date",
+  overdue:    "Overdue",
+  today:      "Due Today",
+  this_week:  "Due This Week",
+  upcoming:   "Upcoming",
+  no_date:    "No Due Date",
+  completed:  "Completed",
 };
 
 // ── Date chip ──────────────────────────────────────────────────────────────────
@@ -126,112 +129,114 @@ function TaskRow({
   onOpenPersonalTask,
   isCompleting,
 }: TaskRowProps) {
-  const [done, setDone] = useState(false);
   const masterTitle = (task as SubTask & { masterTaskTitle?: string | null }).masterTaskTitle ?? null;
   const isSubtask = (task as SubTask).unified_task_type === "subtask";
   const isPersonal = (task as PersonalTask).unified_task_type === "personal";
   const assignees = isPersonal ? ((task as PersonalTask).assigned_to_users ?? []) : [];
   const canMarkComplete = !isPersonal || assignees.includes(currentUserId);
   const priorityCfg = TASK_PRIORITY_CONFIG[task.priority as TaskPriority] ?? TASK_PRIORITY_CONFIG.medium;
+  const isDone = task.atlas_status === "done" || task.atlas_status === "cancelled";
 
-  function handleComplete(e: React.MouseEvent) {
+  function handleCompleteClick(e: React.MouseEvent) {
     e.stopPropagation();
-    setDone(true);
-    setTimeout(() => onComplete(task.id), 600);
+    if (isDone || !canMarkComplete) return;
+    void onComplete(task.id);
   }
 
   return (
-    <AnimatePresence>
-      {!done && (
-        <motion.div
-          initial={{ opacity: 1, height: "auto" }}
-          exit={{ opacity: 0, height: 0 }}
-          transition={{ duration: 0.3 }}
-          className="group flex items-center gap-3 px-4 py-3 hover:bg-[#FAFAF8] transition-colors cursor-pointer border-b border-[#E5E4DF] last:border-b-0"
-          onClick={() => {
-            if (isSubtask) onOpenModal(task.id);
-            else if (isPersonal) onOpenPersonalTask?.(task as PersonalTask);
-          }}
-          role={isSubtask || isPersonal ? "button" : undefined}
-          tabIndex={isSubtask || isPersonal ? 0 : undefined}
-        >
-          {/* Completion checkbox — personal tasks only assignee may complete from this list */}
-          {canMarkComplete ? (
-            <button
-              type="button"
-              onClick={handleComplete}
-              disabled={isCompleting}
-              className={cn(
-                "w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all duration-200",
-                "border-[#D0C8BE] hover:border-[#D4AF37]",
-              )}
-              aria-label="Complete task"
-            >
-              <AnimatePresence>
-                {done && (
-                  <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    exit={{ scale: 0 }}
-                    transition={{ duration: 0.15 }}
-                  >
-                    <CheckCircle2 className="w-5 h-5 text-[#D4AF37] -m-0.5" />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </button>
-          ) : (
-            <div
-              className="w-5 h-5 shrink-0 rounded-full border border-dashed border-[#E5E4DF]"
-              title="Assigned to a teammate — they complete this from their list."
-              aria-hidden
-            />
-          )}
-
-          {/* Title + breadcrumb */}
-          <div className="flex-1 min-w-0">
-            <p
-              className={cn(
-                "text-[13px] font-medium text-[#1A1A1A] truncate transition-all",
-                done && "line-through text-[#B5A99A]",
-              )}
-            >
-              {task.title}
-            </p>
-            {masterTitle && (
-              <p className="text-[11px] text-[#B5A99A] truncate mt-0.5">{masterTitle}</p>
-            )}
-          </div>
-
-          {/* Priority dot */}
-          <span
-            className={cn("w-2 h-2 rounded-full shrink-0", priorityCfg.dotClass)}
-            title={priorityCfg.label}
-          />
-
-          {/* Due date */}
-          {task.due_date && (
-            <DateChip isoDate={task.due_date} status={task.atlas_status} />
-          )}
-
-          {isPersonal && (
-            <div className="opacity-0 transition-opacity group-hover:opacity-100 shrink-0">
-              <PrivacyBadge />
-            </div>
-          )}
-
-          {/* Overflow menu */}
-          <button
-            type="button"
-            onClick={(e) => e.stopPropagation()}
-            className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-[#F2F2EE] text-[#B5A99A] transition-all shrink-0"
-            aria-label="Task actions"
-          >
-            <MoreHorizontal className="w-4 h-4" />
-          </button>
-        </motion.div>
+    <div
+      className={cn(
+        "group flex items-center gap-3 px-4 py-3 transition-colors border-b border-[#E5E4DF] last:border-b-0",
+        isDone ? "bg-[#FAFAF8]/90 cursor-default" : "hover:bg-[#FAFAF8] cursor-pointer",
       )}
-    </AnimatePresence>
+      onClick={() => {
+        if (isDone) return;
+        if (isSubtask) onOpenModal(task.id);
+        else if (isPersonal) onOpenPersonalTask?.(task as PersonalTask);
+      }}
+      role={!isDone && (isSubtask || isPersonal) ? "button" : undefined}
+      tabIndex={!isDone && (isSubtask || isPersonal) ? 0 : undefined}
+    >
+      {/* Completion — personal assignee only; subtasks use the modal / board */}
+      {isDone ? (
+        <div
+          className="flex h-5 w-5 shrink-0 items-center justify-center"
+          aria-hidden
+        >
+          <CheckCircle2 className="h-5 w-5 text-[#D4AF37]/80 -m-0.5" />
+        </div>
+      ) : isPersonal && canMarkComplete ? (
+        <button
+          type="button"
+          onClick={handleCompleteClick}
+          disabled={isCompleting}
+          className={cn(
+            "w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all duration-200",
+            "border-[#D0C8BE] hover:border-[#D4AF37]",
+          )}
+          aria-label="Complete task"
+        >
+          {isCompleting ? (
+            <span className="h-2 w-2 animate-pulse rounded-full bg-[#D4AF37]" />
+          ) : null}
+        </button>
+      ) : isPersonal ? (
+        <div
+          className="w-5 h-5 shrink-0 rounded-full border border-dashed border-[#E5E4DF]"
+          title="Assigned to a teammate — they complete this from their list."
+          aria-hidden
+        />
+      ) : (
+        <div className="h-5 w-5 shrink-0" aria-hidden />
+      )}
+
+      {/* Title + breadcrumb */}
+      <div className="flex-1 min-w-0">
+        <p
+          className={cn(
+            "text-[13px] font-medium truncate transition-all",
+            isDone ? "text-[#B5A99A] line-through" : "text-[#1A1A1A]",
+          )}
+        >
+          {task.title}
+        </p>
+        {masterTitle && (
+          <p className="text-[11px] text-[#B5A99A] truncate mt-0.5">{masterTitle}</p>
+        )}
+      </div>
+
+      {/* Priority dot — muted when done */}
+      <span
+        className={cn(
+          "w-2 h-2 rounded-full shrink-0",
+          isDone ? "opacity-30" : priorityCfg.dotClass,
+        )}
+        title={priorityCfg.label}
+      />
+
+      {/* Due date */}
+      {task.due_date && (
+        <DateChip isoDate={task.due_date} status={task.atlas_status} />
+      )}
+
+      {isPersonal && !isDone && (
+        <div className="opacity-0 transition-opacity group-hover:opacity-100 shrink-0">
+          <PrivacyBadge />
+        </div>
+      )}
+
+      {/* Overflow menu */}
+      {!isDone && (
+        <button
+          type="button"
+          onClick={(e) => e.stopPropagation()}
+          className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-[#F2F2EE] text-[#B5A99A] transition-all shrink-0"
+          aria-label="Task actions"
+        >
+          <MoreHorizontal className="w-4 h-4" />
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -261,6 +266,7 @@ function SectionGroup({
     <div>
       <div className="flex items-center gap-2 mb-2">
         {bucket === "overdue" && <AlertCircle className="w-3.5 h-3.5 text-[#C0392B]" />}
+        {bucket === "completed" && <CheckCircle2 className="w-3.5 h-3.5 text-[#D4AF37]" aria-hidden />}
         <span className="text-[10px] font-semibold uppercase tracking-widest text-[#8A8A6E]">
           {BUCKET_LABELS[bucket]}
         </span>
@@ -646,6 +652,7 @@ function QuickAddForm({ onAdded, currentUserId }: QuickAddFormProps) {
 
 interface MyTasksDashboardProps {
   personalTasks: PersonalTask[];
+  dailySopTasks: PersonalTask[];
   subTasks: Array<SubTask & { masterTaskTitle: string | null }>;
   currentUser: {
     id: string;
@@ -658,6 +665,7 @@ interface MyTasksDashboardProps {
 
 export function MyTasksDashboard({
   personalTasks,
+  dailySopTasks,
   subTasks,
   currentUser,
   onRefresh,
@@ -666,12 +674,17 @@ export function MyTasksDashboard({
   const [activeModalId, setActiveModalId] = useState<string | null>(null);
   const [selectedPersonalTask, setSelectedPersonalTask] = useState<PersonalTask | null>(null);
   const [localPersonal, setLocalPersonal] = useState<PersonalTask[]>(personalTasks);
+  const [localDailySop, setLocalDailySop] = useState<PersonalTask[]>(dailySopTasks);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
   /** Keep list in sync when the server passes fresh data (e.g. after creating a task + router.refresh). */
   useEffect(() => {
     setLocalPersonal(personalTasks);
   }, [personalTasks]);
+
+  useEffect(() => {
+    setLocalDailySop(dailySopTasks);
+  }, [dailySopTasks]);
 
   // Merge all tasks into one list
   const allTasks = useMemo<AnyTask[]>(() => {
@@ -692,52 +705,81 @@ export function MyTasksDashboard({
       .map((t) => parseISO(t.due_date!)),
   [subTasks]);
 
-  // If a date is selected in the calendar, filter to tasks due on that date
+  // If a date is selected in the calendar, filter to tasks due on that date (or completed that day)
   const filteredTasks = useMemo<AnyTask[]>(() => {
     if (!selectedDate) return allTasks;
-    return allTasks.filter(
-      (t) => t.due_date && isSameDay(parseISO(t.due_date), selectedDate),
-    );
+    return allTasks.filter((t) => {
+      if (t.atlas_status === "cancelled") return false;
+      if (t.due_date && isSameDay(parseISO(t.due_date), selectedDate)) return true;
+      if (t.atlas_status === "done" && t.updated_at) {
+        return isSameDay(parseISO(t.updated_at), selectedDate);
+      }
+      return false;
+    });
   }, [allTasks, selectedDate]);
 
-  // Bucket filtered tasks
+  // Bucket filtered tasks (done/cancelled → Completed; cancelled excluded from list above if we add filter)
   const buckets = useMemo<Record<TaskBucket, AnyTask[]>>(() => {
     const b: Record<TaskBucket, AnyTask[]> = {
-      overdue: [], today: [], this_week: [], upcoming: [], no_date: [],
+      overdue: [], today: [], this_week: [], upcoming: [], no_date: [], completed: [],
     };
     for (const t of filteredTasks) {
-      if (t.atlas_status === "done" || t.atlas_status === "cancelled") continue;
+      if (t.atlas_status === "cancelled") continue;
+      if (t.atlas_status === "done") {
+        b.completed.push(t);
+        continue;
+      }
       b[bucketTask(t)].push(t);
     }
+    b.completed.sort((a, b) => {
+      const ta = (a.updated_at as string | undefined) ?? "";
+      const tb = (b.updated_at as string | undefined) ?? "";
+      return tb.localeCompare(ta);
+    });
     return b;
   }, [filteredTasks]);
 
-  const totalActive = Object.values(buckets).flat().length;
+  const pendingInFilter = useMemo(
+    () => filteredTasks.filter((t) => t.atlas_status !== "done" && t.atlas_status !== "cancelled"),
+    [filteredTasks],
+  );
+  const hasAnyTasks = filteredTasks.some((t) => t.atlas_status !== "cancelled");
+  const hasPendingTasks = pendingInFilter.length > 0;
 
   async function handleComplete(taskId: string) {
+    const isPersonalRow = localPersonal.some((t) => t.id === taskId);
+    if (!isPersonalRow) return;
+
     setCompleting(taskId);
     const result = await completePersonalTask(taskId);
     if (!result.success) {
       toast.error("Failed to complete task.");
     } else {
-      setLocalPersonal((prev) => prev.filter((t) => t.id !== taskId));
+      const now = new Date().toISOString();
+      setLocalPersonal((prev) =>
+        prev.map((t) =>
+          t.id === taskId
+            ? { ...t, atlas_status: "done" as const, progress: 100, updated_at: now }
+            : t,
+        ),
+      );
     }
     setCompleting(null);
   }
 
   async function handleRefreshAfterAdd() {
-    const result = await getMyTasks();
+    const [result, dailyRes] = await Promise.all([getMyTasks(), getDailyPersonalTasks()]);
     if (result.success && result.data) {
       setLocalPersonal(result.data.personalTasks);
     }
+    if (dailyRes.success && dailyRes.data) {
+      setLocalDailySop(dailyRes.data.items);
+    }
   }
 
-  const bucketOrder: TaskBucket[] = ["overdue", "today", "this_week", "upcoming", "no_date"];
-  const hasAnyTasks = totalActive > 0;
-
-  /** Full list (no day filter): today is clear but other dates still have work — banner + rest below */
+  const bucketOrder: TaskBucket[] = ["overdue", "today", "this_week", "upcoming", "no_date", "completed"];
   const showTodayClearBanner =
-    !selectedDate && hasAnyTasks && buckets.today.length === 0;
+    !selectedDate && hasPendingTasks && buckets.today.length === 0;
 
   return (
     <div className="h-full flex min-h-0 gap-0">
@@ -793,7 +835,9 @@ export function MyTasksDashboard({
         )}
 
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5 min-h-0">
-          <QuickAddForm onAdded={handleRefreshAfterAdd} currentUserId={currentUser.id} />
+          <DailySOPSection initialTasks={localDailySop} onParentRefresh={onRefresh} />
+
+          <QuickAddForm onAdded={() => void handleRefreshAfterAdd()} currentUserId={currentUser.id} />
 
           {!hasAnyTasks ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -805,8 +849,8 @@ export function MyTasksDashboard({
               </h3>
               <p className="text-[13px] text-[#8A8A6E] max-w-xs">
                 {selectedDate
-                  ? "Nothing due on this date. Select another day or show all tasks."
-                  : "You have no pending tasks. Use the quick add above, or pick up work from Group Tasks."}
+                  ? "Nothing on this date. Select another day or show all tasks."
+                  : "You have no tasks here yet. Use the quick add above, or pick up work from Group Tasks."}
               </p>
               {selectedDate && (
                 <button

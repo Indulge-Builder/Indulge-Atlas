@@ -44,11 +44,12 @@ const ROLE_CONFIG: Record<
   UserRole,
   { label: string; icon: React.ElementType; color: string; bg: string }
 > = {
-  admin:   { label: "Admin",   icon: Shield,    color: "#C5830A", bg: "#FEF3D0" },
-  founder: { label: "Founder", icon: Briefcase, color: "#4A7C59", bg: "#EBF4EF" },
-  manager: { label: "Manager", icon: Briefcase, color: "#6B4FBB", bg: "#F0EBFF" },
-  agent:   { label: "Agent",   icon: User,      color: "#2C6FAC", bg: "#E8F0FA" },
-  guest:   { label: "Guest",   icon: User,      color: "#6B7280", bg: "#F4F4F5" },
+  admin:        { label: "Admin",        icon: Shield,    color: "#C5830A", bg: "#FEF3D0" },
+  founder:      { label: "Founder",      icon: Briefcase, color: "#4A7C59", bg: "#EBF4EF" },
+  super_admin:  { label: "Super Admin",  icon: Shield,    color: "#8B6914", bg: "#FBF5DC" },
+  manager:      { label: "Manager",      icon: Briefcase, color: "#6B4FBB", bg: "#F0EBFF" },
+  agent:        { label: "Agent",        icon: User,      color: "#2C6FAC", bg: "#E8F0FA" },
+  guest:        { label: "Guest",        icon: User,      color: "#6B7280", bg: "#F4F4F5" },
 };
 
 /** Legacy role mappings (from older schema) */

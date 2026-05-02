@@ -127,17 +127,17 @@ export const LEAD_STATUS_ORDER: LeadStatus[] = [
   "trash",
 ];
 
-export type UserRole = "admin" | "founder" | "manager" | "agent" | "guest";
+export type UserRole = "admin" | "founder" | "super_admin" | "manager" | "agent" | "guest";
 
 /** Roles that can mutate data (used for UI guardrails) */
-export const MUTABLE_ROLES: UserRole[] = ["admin", "founder", "manager", "agent"];
+export const MUTABLE_ROLES: UserRole[] = ["admin", "founder", "super_admin", "manager", "agent"];
 
 /** Roles with cross-domain visibility */
-export const GLOBAL_ROLES: UserRole[] = ["admin", "founder"];
+export const GLOBAL_ROLES: UserRole[] = ["admin", "founder", "super_admin"];
 
-/** Admin and founder — cross-cutting privileges (RLS + UI). */
+/** Admin, founder, super_admin — cross-cutting privileges (RLS + UI). Matches migration 076 task policies. */
 export function isPrivilegedRole(role: string): boolean {
-  return role === "admin" || role === "founder";
+  return role === "admin" || role === "founder" || role === "super_admin";
 }
 
 export type AdPlatform = "meta" | "google" | "website" | "events" | "referral";
