@@ -105,7 +105,7 @@ export function EmployeeDossierModal({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.18 }}
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-md"
+          className="fixed inset-0 z-[110] bg-black/60 backdrop-blur-md"
           onClick={onClose}
         />
 
@@ -117,7 +117,7 @@ export function EmployeeDossierModal({
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.97 }}
           transition={{ duration: 0.18, ease: "easeOut" }}
-          className="fixed inset-4 z-50 flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-[var(--surface-1)] shadow-2xl shadow-black/60 md:inset-[5%]"
+          className="fixed inset-4 z-[111] flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-[var(--surface-1)] shadow-2xl shadow-black/60 md:inset-[5%]"
           onClick={(e) => e.stopPropagation()}
         >
           <header className="flex h-12 shrink-0 items-center border-b border-white/8 px-4">

@@ -476,6 +476,8 @@ export interface PersonalTask {
   visibility?: 'personal' | 'group' | 'org';
   is_daily?: boolean;
   daily_date?: string | null;
+  /** When true, row is a manager SOP template (hidden from normal lists). */
+  is_daily_sop_template?: boolean;
 }
 
 /**

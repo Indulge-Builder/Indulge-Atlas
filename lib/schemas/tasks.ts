@@ -155,6 +155,18 @@ export const CreatePersonalTaskSchema = z.object({
   description: z.string().max(2000).optional(),
   due_date:    z.string().datetime().optional(),
   priority:    taskPrioritySchema.default("medium"),
+  /** Ad-hoc: assign to a peer; omit = self. */
+  assigned_to: uuidSchema.optional(),
+  tags:        z.array(z.string().min(1).max(80)).max(20).optional(),
+});
+
+/** Manager-owned daily SOP template (stored as personal task row). */
+export const CreateSOPTemplateSchema = z.object({
+  title:       z.string().min(1).max(255),
+  description: z.string().max(2000).optional(),
+  department:  z.enum(EMPLOYEE_DEPARTMENT_VALUES),
+  checklist:   z.array(z.string().min(1).max(500)).max(40).optional().default([]),
+  priority:    taskPrioritySchema.default("medium"),
 });
 
 // ── Members ────────────────────────────────────────────────
@@ -217,6 +229,7 @@ export type CreateSubTaskInput     = z.infer<typeof CreateSubTaskSchema>;
 export type UpdateSubTaskInput     = z.infer<typeof UpdateSubTaskSchema>;
 export type UpdateSubTaskStatusInput = z.infer<typeof UpdateSubTaskStatusSchema>;
 export type CreatePersonalTaskInput = z.infer<typeof CreatePersonalTaskSchema>;
+export type CreateSOPTemplateInput = z.infer<typeof CreateSOPTemplateSchema>;
 export type ImportBatchRowInput    = z.infer<typeof ImportBatchRowSchema>;
 export type CreateImportBatchInput = z.infer<typeof CreateImportBatchSchema>;
 export type ChecklistItemInput     = z.infer<typeof ChecklistItemSchema>;

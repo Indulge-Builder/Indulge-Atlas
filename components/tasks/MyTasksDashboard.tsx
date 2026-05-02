@@ -10,6 +10,8 @@ import {
   CheckCircle2,
   X,
   Sparkles,
+  AtSign,
+  Hash,
 } from "lucide-react";
 import { format, isToday as dateFnsIsToday, isThisWeek, isFuture, isSameDay, parseISO } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
@@ -18,6 +20,7 @@ import { LuxuryDatePicker } from "@/components/ui/LuxuryDatePicker";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { IndulgeButton } from "@/components/ui/indulge-button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SubTaskStatusBadge } from "./SubTaskStatusBadge";
 import { TaskPriorityBadge } from "./TaskPriorityBadge";
 import { SubTaskModal } from "./SubTaskModal";
@@ -27,6 +30,7 @@ import {
   completePersonalTask,
   createPersonalTask,
   getMyTasks,
+  searchProfilesForTasks,
 } from "@/lib/actions/tasks";
 import { TASK_PRIORITY_CONFIG } from "@/lib/types/database";
 import type { PersonalTask, SubTask, AtlasTaskStatus } from "@/lib/types/database";
@@ -107,6 +111,7 @@ function DateChip({ isoDate, status }: { isoDate: string; status: AtlasTaskStatu
 
 interface TaskRowProps {
   task: AnyTask;
+  currentUserId: string;
   onComplete: (id: string) => void;
   onOpenModal: (id: string) => void;
   onOpenPersonalTask?: (task: PersonalTask) => void;
@@ -115,6 +120,7 @@ interface TaskRowProps {
 
 function TaskRow({
   task,
+  currentUserId,
   onComplete,
   onOpenModal,
   onOpenPersonalTask,
@@ -124,6 +130,8 @@ function TaskRow({
   const masterTitle = (task as SubTask & { masterTaskTitle?: string | null }).masterTaskTitle ?? null;
   const isSubtask = (task as SubTask).unified_task_type === "subtask";
   const isPersonal = (task as PersonalTask).unified_task_type === "personal";
+  const assignees = isPersonal ? ((task as PersonalTask).assigned_to_users ?? []) : [];
+  const canMarkComplete = !isPersonal || assignees.includes(currentUserId);
   const priorityCfg = TASK_PRIORITY_CONFIG[task.priority as TaskPriority] ?? TASK_PRIORITY_CONFIG.medium;
 
   function handleComplete(e: React.MouseEvent) {
@@ -147,30 +155,38 @@ function TaskRow({
           role={isSubtask || isPersonal ? "button" : undefined}
           tabIndex={isSubtask || isPersonal ? 0 : undefined}
         >
-          {/* Completion checkbox */}
-          <button
-            type="button"
-            onClick={handleComplete}
-            disabled={isCompleting}
-            className={cn(
-              "w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all duration-200",
-              "border-[#D0C8BE] hover:border-[#D4AF37]",
-            )}
-            aria-label="Complete task"
-          >
-            <AnimatePresence>
-              {done && (
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  exit={{ scale: 0 }}
-                  transition={{ duration: 0.15 }}
-                >
-                  <CheckCircle2 className="w-5 h-5 text-[#D4AF37] -m-0.5" />
-                </motion.div>
+          {/* Completion checkbox — personal tasks only assignee may complete from this list */}
+          {canMarkComplete ? (
+            <button
+              type="button"
+              onClick={handleComplete}
+              disabled={isCompleting}
+              className={cn(
+                "w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all duration-200",
+                "border-[#D0C8BE] hover:border-[#D4AF37]",
               )}
-            </AnimatePresence>
-          </button>
+              aria-label="Complete task"
+            >
+              <AnimatePresence>
+                {done && (
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    exit={{ scale: 0 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <CheckCircle2 className="w-5 h-5 text-[#D4AF37] -m-0.5" />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </button>
+          ) : (
+            <div
+              className="w-5 h-5 shrink-0 rounded-full border border-dashed border-[#E5E4DF]"
+              title="Assigned to a teammate — they complete this from their list."
+              aria-hidden
+            />
+          )}
 
           {/* Title + breadcrumb */}
           <div className="flex-1 min-w-0">
@@ -224,6 +240,7 @@ function TaskRow({
 interface SectionGroupProps {
   bucket: TaskBucket;
   tasks: AnyTask[];
+  currentUserId: string;
   onComplete: (id: string) => void;
   onOpenModal: (id: string) => void;
   onOpenPersonalTask?: (task: PersonalTask) => void;
@@ -233,6 +250,7 @@ interface SectionGroupProps {
 function SectionGroup({
   bucket,
   tasks,
+  currentUserId,
   onComplete,
   onOpenModal,
   onOpenPersonalTask,
@@ -256,6 +274,7 @@ function SectionGroup({
           <TaskRow
             key={t.id}
             task={t}
+            currentUserId={currentUserId}
             onComplete={onComplete}
             onOpenModal={onOpenModal}
             onOpenPersonalTask={onOpenPersonalTask}
@@ -281,20 +300,46 @@ const PRIORITY_PILLS: Array<{
   { value: "low",    label: "Low",      activeClass: "bg-[#B5A99A] text-white border-[#B5A99A]",       dotClass: "bg-[#B5A99A]" },
 ];
 
+const QUICK_TAG_PRESETS = ["Client Request", "Admin", "Urgent"] as const;
+
 // ── Quick add inline form ─────────────────────────────────────────────────────
 
 interface QuickAddFormProps {
   onAdded: () => void;
+  currentUserId: string;
 }
 
-function QuickAddForm({ onAdded }: QuickAddFormProps) {
+function QuickAddForm({ onAdded, currentUserId }: QuickAddFormProps) {
   const [open, setOpen]           = useState(false);
   const [title, setTitle]         = useState("");
   const [description, setDescription] = useState("");
   const [dueDate, setDueDate]     = useState<Date | undefined>(undefined);
   const [priority, setPriority]   = useState<TaskPriority>("medium");
+  const [peer, setPeer]           = useState<{ id: string; full_name: string } | null>(null);
+  const [peerOpen, setPeerOpen]   = useState(false);
+  const [peerQuery, setPeerQuery] = useState("");
+  const [peerHits, setPeerHits]   = useState<{ id: string; full_name: string }[]>([]);
+  const [tagsOpen, setTagsOpen]   = useState(false);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [customTag, setCustomTag] = useState("");
   const [isPending, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!peerOpen) return;
+    const q = peerQuery.trim();
+    if (q.length < 2) {
+      setPeerHits([]);
+      return;
+    }
+    const t = setTimeout(() => {
+      void (async () => {
+        const rows = await searchProfilesForTasks(q);
+        setPeerHits(rows.map((r) => ({ id: r.id, full_name: r.full_name })));
+      })();
+    }, 220);
+    return () => clearTimeout(t);
+  }, [peerOpen, peerQuery]);
 
   function handleOpen() {
     setOpen(true);
@@ -307,23 +352,47 @@ function QuickAddForm({ onAdded }: QuickAddFormProps) {
     setDescription("");
     setDueDate(undefined);
     setPriority("medium");
+    setPeer(null);
+    setPeerQuery("");
+    setPeerHits([]);
+    setPeerOpen(false);
+    setTagsOpen(false);
+    setSelectedTags([]);
+    setCustomTag("");
+  }
+
+  function toggleTag(label: string) {
+    setSelectedTags((prev) =>
+      prev.includes(label) ? prev.filter((x) => x !== label) : [...prev, label],
+    );
+  }
+
+  function addCustomTag() {
+    const t = customTag.trim();
+    if (!t || selectedTags.includes(t) || selectedTags.length >= 20) return;
+    setSelectedTags((p) => [...p, t]);
+    setCustomTag("");
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = title.trim();
     if (!trimmed) return;
+    const assignee =
+      peer && peer.id !== currentUserId ? peer.id : undefined;
     startTransition(async () => {
       const result = await createPersonalTask({
         title:       trimmed,
         description: description.trim() || undefined,
         due_date:    dueDate ? dueDate.toISOString() : undefined,
         priority,
+        assigned_to: assignee,
+        tags:        selectedTags.length ? selectedTags : undefined,
       });
       if (!result.success) {
         toast.error(result.error ?? "Failed to create task.");
       } else {
-        toast.success("Task added.");
+        toast.success(assignee ? "Request sent to teammate." : "Task added.");
         handleClose();
         onAdded();
       }
@@ -363,11 +432,9 @@ function QuickAddForm({ onAdded }: QuickAddFormProps) {
               onKeyDown={(e) => { if (e.key === "Escape") handleClose(); }}
               className="rounded-xl border border-[#E0DBCF] bg-white shadow-sm overflow-hidden"
             >
-              {/* Gold accent bar */}
               <div className="h-0.5 w-full bg-gradient-to-r from-[#D4AF37] via-[#E8C84A] to-[#D4AF37]" />
 
               <div className="p-4 space-y-4">
-                {/* Title */}
                 <div>
                   <input
                     ref={inputRef}
@@ -379,7 +446,6 @@ function QuickAddForm({ onAdded }: QuickAddFormProps) {
                   />
                 </div>
 
-                {/* Description */}
                 <div>
                   <textarea
                     value={description}
@@ -390,12 +456,124 @@ function QuickAddForm({ onAdded }: QuickAddFormProps) {
                   />
                 </div>
 
-                {/* Divider */}
                 <div className="h-px bg-[#F0EBE3]" />
 
-                {/* Due date + Priority row */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <Popover open={peerOpen} onOpenChange={setPeerOpen}>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        className={cn(
+                          "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
+                          peer
+                            ? "border-[#D4AF37]/50 bg-[#FDF9EE] text-[#1A1A1A]"
+                            : "border-[#E0DBCF] bg-[#FAFAF8] text-[#6B6B6B] hover:border-[#D4AF37]/50",
+                        )}
+                      >
+                        <AtSign className="h-3 w-3 shrink-0 text-[#A88B25]" aria-hidden />
+                        {peer ? peer.full_name : "Assign: me"}
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-72 p-3" align="start">
+                      <p className="text-[10px] font-semibold uppercase tracking-widest text-[#9E9E9E] mb-2">
+                        Peer (optional)
+                      </p>
+                      <input
+                        value={peerQuery}
+                        onChange={(e) => setPeerQuery(e.target.value)}
+                        placeholder="Search by name…"
+                        className="mb-2 h-8 w-full rounded-lg border border-[#E5E4DF] px-2 text-[12px] outline-none focus:border-[#D4AF37]"
+                      />
+                      <div className="max-h-40 overflow-y-auto space-y-0.5">
+                        <button
+                          type="button"
+                          className="flex w-full rounded-md px-2 py-1.5 text-left text-[12px] text-[#1A1A1A] hover:bg-[#F9F9F6]"
+                          onClick={() => {
+                            setPeer(null);
+                            setPeerOpen(false);
+                          }}
+                        >
+                          Me (default)
+                        </button>
+                        {peerHits.map((p) => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            className="flex w-full rounded-md px-2 py-1.5 text-left text-[12px] text-[#1A1A1A] hover:bg-[#F9F9F6]"
+                            onClick={() => {
+                              setPeer(p);
+                              setPeerOpen(false);
+                            }}
+                          >
+                            {p.full_name}
+                          </button>
+                        ))}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+
+                  <Popover open={tagsOpen} onOpenChange={setTagsOpen}>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        className={cn(
+                          "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
+                          selectedTags.length
+                            ? "border-[#D4AF37]/50 bg-[#FDF9EE] text-[#1A1A1A]"
+                            : "border-[#E0DBCF] bg-[#FAFAF8] text-[#6B6B6B] hover:border-[#D4AF37]/50",
+                        )}
+                      >
+                        <Hash className="h-3 w-3 shrink-0 text-[#A88B25]" aria-hidden />
+                        Tags{selectedTags.length ? ` (${selectedTags.length})` : ""}
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-72 p-3" align="start">
+                      <p className="text-[10px] font-semibold uppercase tracking-widest text-[#9E9E9E] mb-2">
+                        Quick tags
+                      </p>
+                      <div className="mb-2 flex flex-wrap gap-1">
+                        {QUICK_TAG_PRESETS.map((tag) => (
+                          <button
+                            key={tag}
+                            type="button"
+                            onClick={() => toggleTag(tag)}
+                            className={cn(
+                              "rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors",
+                              selectedTags.includes(tag)
+                                ? "border-[#D4AF37] bg-[#FBF6E8] text-[#1A1A1A]"
+                                : "border-[#E5E4DF] bg-white text-[#6B6B6B] hover:border-[#D4AF37]/50",
+                            )}
+                          >
+                            {tag}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex gap-1.5">
+                        <input
+                          value={customTag}
+                          onChange={(e) => setCustomTag(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              addCustomTag();
+                            }
+                          }}
+                          placeholder="Custom tag…"
+                          className="h-8 min-w-0 flex-1 rounded-lg border border-[#E5E4DF] px-2 text-[12px] outline-none focus:border-[#D4AF37]"
+                        />
+                        <button
+                          type="button"
+                          onClick={addCustomTag}
+                          className="shrink-0 rounded-lg border border-[#E5E4DF] px-2 text-[11px] text-[#6B6B6B] hover:bg-[#F9F9F6]"
+                        >
+                          Add
+                        </button>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
-                  {/* Due date */}
                   <div className="flex-1 min-w-0">
                     <p className="text-[10px] font-semibold text-[#9E9E9E] uppercase tracking-widest mb-1.5">
                       Due Date
@@ -408,7 +586,6 @@ function QuickAddForm({ onAdded }: QuickAddFormProps) {
                     />
                   </div>
 
-                  {/* Priority pills */}
                   <div className="sm:w-auto">
                     <p className="text-[10px] font-semibold text-[#9E9E9E] uppercase tracking-widest mb-1.5">
                       Priority
@@ -437,7 +614,6 @@ function QuickAddForm({ onAdded }: QuickAddFormProps) {
                   </div>
                 </div>
 
-                {/* Actions */}
                 <div className="flex items-center justify-between pt-1">
                   <button
                     type="button"
@@ -617,7 +793,7 @@ export function MyTasksDashboard({
         )}
 
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5 min-h-0">
-          <QuickAddForm onAdded={handleRefreshAfterAdd} />
+          <QuickAddForm onAdded={handleRefreshAfterAdd} currentUserId={currentUser.id} />
 
           {!hasAnyTasks ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -665,6 +841,7 @@ export function MyTasksDashboard({
                     key={bucket}
                     bucket={bucket}
                     tasks={buckets[bucket]}
+                    currentUserId={currentUser.id}
                     onComplete={handleComplete}
                     onOpenModal={setActiveModalId}
                     onOpenPersonalTask={setSelectedPersonalTask}

@@ -32,7 +32,7 @@ import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getInitials } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
-import type { Profile } from "@/lib/types/database";
+import type { EmployeeDepartment, Profile } from "@/lib/types/database";
 import { DOMAIN_DISPLAY_CONFIG } from "@/lib/types/database";
 import { canAccessShopSurfaces } from "@/lib/shop/access";
 import {
@@ -75,7 +75,7 @@ const navItems = [
     href: "/",
     label: "Dashboard",
     icon: LayoutDashboard,
-    roles: ["agent", "manager", "founder"],
+    roles: ["agent", "manager", "founder", "admin"],
     section: "main",
   },
   {
@@ -175,6 +175,8 @@ const navItems = [
     label: "Elia · Concierge",
     icon: Brain,
     roles: ["admin", "founder"],
+    /** Also shown to these departments when role is not guest (see filter below). */
+    departmentAllowlist: ["tech"] satisfies EmployeeDepartment[],
     section: "admin",
   },
   {
@@ -365,8 +367,14 @@ export function Sidebar({ profile }: SidebarProps) {
       : null;
 
   const visible = navItems.filter((item) => {
-    // 1. Role gate (always applied first).
-    if (!item.roles.includes(profile.role)) return false;
+    // 1. Role gate, with optional department allowlist (e.g. Tech → Elia · Concierge).
+    const allowByDept =
+      profile.department != null &&
+      profile.role !== "guest" &&
+      (item as { departmentAllowlist?: EmployeeDepartment[] }).departmentAllowlist?.includes(
+        profile.department,
+      ) === true;
+    if (!item.roles.includes(profile.role) && !allowByDept) return false;
 
     // 2. Shop-only items: require shop domain access.
     if ((item as { shopOnly?: boolean }).shopOnly) {

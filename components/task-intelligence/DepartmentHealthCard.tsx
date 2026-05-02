@@ -6,30 +6,12 @@ import { cn } from "@/lib/utils";
 import { surfaceCardVariants } from "@/components/ui/card";
 import type { DepartmentTaskOverview, TaskIntelligenceHealthSignal } from "@/lib/types/database";
 
-/** Health strip + badge colours (tokens + brand per spec). */
+/** Top accent strip by health signal. */
 const HEALTH_BAR = {
   critical:       "bg-[#EF4444]",
   needs_attention: "bg-[#D4AF37]/70",
   healthy:        "bg-[#10B981]",
 } as const satisfies Record<TaskIntelligenceHealthSignal, string>;
-
-const BADGE_STYLES: Record<
-  TaskIntelligenceHealthSignal,
-  { label: string; className: string }
-> = {
-  critical: {
-    label: "Critical",
-    className: "bg-[#EF4444]/12 text-[#B91C1C] border-[#EF4444]/25",
-  },
-  needs_attention: {
-    label: "Needs Attention",
-    className: "bg-[#D4AF37]/15 text-[#8B7320] border-[#D4AF37]/30",
-  },
-  healthy: {
-    label: "On Track",
-    className: "bg-[#10B981]/12 text-[#047857] border-[#10B981]/25",
-  },
-};
 
 function getLucideIcon(name: string) {
   const icons = LucideIcons as unknown as Record<
@@ -47,7 +29,7 @@ interface DepartmentHealthCardProps {
 
 export function DepartmentHealthCard({ overview, onOpen, layout = true }: DepartmentHealthCardProps) {
   const Icon = getLucideIcon(overview.icon);
-  const badge = BADGE_STYLES[overview.healthSignal];
+  const noGroupTasks = overview.activeMasterTaskCount === 0;
 
   return (
     <motion.article
@@ -57,9 +39,10 @@ export function DepartmentHealthCard({ overview, onOpen, layout = true }: Depart
         show:   { opacity: 1, y: 0 },
       }}
       className={cn(
-        "group relative cursor-pointer rounded-xl text-left outline-none transition-shadow duration-300",
+        "group relative cursor-pointer rounded-xl text-left outline-none transition-[filter,box-shadow] duration-300",
         surfaceCardVariants({ tone: "luxury", elevation: "md", overflow: "hidden" }),
         "hover:shadow-[0_12px_40px_-12px_rgb(0_0_0/0.12)]",
+        noGroupTasks && "brightness-[0.94] saturate-[0.86] hover:brightness-[0.99] hover:saturate-[0.94]",
       )}
       tabIndex={0}
       role="button"
@@ -75,24 +58,14 @@ export function DepartmentHealthCard({ overview, onOpen, layout = true }: Depart
       <div className={cn("h-1 w-full", HEALTH_BAR[overview.healthSignal])} />
 
       <div className="p-5">
-        <div className="flex items-start justify-between gap-3 mb-4">
-          <div className="flex items-center gap-3 min-w-0">
-            <div
-              className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
-              style={{ backgroundColor: `${overview.accentColor}18` }}
-            >
-              <Icon className="w-5 h-5" style={{ color: overview.accentColor }} />
-            </div>
-            <h2 className="font-serif text-lg font-semibold text-[#1A1A1A] truncate">{overview.label}</h2>
-          </div>
-          <span
-            className={cn(
-              "shrink-0 text-[10px] font-semibold uppercase tracking-wide px-2.5 py-1 rounded-full border",
-              badge.className,
-            )}
+        <div className="mb-4 flex items-center gap-3 min-w-0">
+          <div
+            className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+            style={{ backgroundColor: `${overview.accentColor}18` }}
           >
-            {badge.label}
-          </span>
+            <Icon className="w-5 h-5" style={{ color: overview.accentColor }} />
+          </div>
+          <h2 className="font-serif text-lg font-semibold text-[#1A1A1A] truncate">{overview.label}</h2>
         </div>
 
         <div className="grid grid-cols-4 gap-0 border-y border-[#E5E4DF]/80 py-3">

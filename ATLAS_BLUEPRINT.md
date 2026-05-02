@@ -1,8 +1,9 @@
 # ATLAS BLUEPRINT
 ## Indulge Atlas — Complete System Reference & Architectural Contract
 
-> **Authored**: 2026-04-23  
-> **Based on**: Full codebase audit, all 66 migrations, all lib/ and app/ directories, git status  
+> **Authored**: 2026-04-23 · **Updated**: 2026-04-30  
+> **Based on**: Full codebase audit, numbered migrations through **080**, lib/ and app/, git status  
+> **Task system detail**: See **`task_details.md`** (master reference for `/tasks`, `/task-insights`, schema 067+, actions, realtime).  
 > **Status**: Authoritative specification. Supersedes all prior versions.  
 > **Audience**: Engineers, technical stakeholders.
 
@@ -69,9 +70,16 @@
 - `projects`, `project_members`, `task_groups`, `task_comments`, `task_progress_updates` tables with full RLS
 - `tasks` table extended: `project_id`, `group_id`, `parent_task_id`, `priority`, `progress`, `estimated_minutes`, `actual_minutes`, `position`, `tags`, `attachments`
 - `components/projects/` — board view, list view, project card, task card, task detail sheet, create project modal, update progress modal
-- `app/(dashboard)/projects/` — projects index + `[id]` detail page
+- `app/(dashboard)/projects/` — **permanently redirected** to `/tasks` and `/tasks/[id]` (see `next.config.ts`); the product surface is **Atlas Tasks**
 - `lib/actions/projects.ts` — full CRUD for projects, task groups, tasks within projects
 - `lib/hooks/useTaskRealtime.ts` — Realtime subscription for task comments and progress updates
+
+**Atlas Unified Task System (Migrations 067–079+ , fully live in app):**
+- **Master / subtask / personal** model on a single `tasks` table via `unified_task_type`; rich workflow via `atlas_status` (five values after migration **079**)
+- **`task_remarks`** append-only agent + system timeline; **`import_batches`** for CSV; **`task_notifications`** (077) for in-app notifications
+- Realtime publications extended by **073** (`task_remarks`), **074** (`task_groups`); legacy duplicate **`tasks` RLS** from 063 removed by **075**
+- Routes: `/tasks` (My Tasks + Atlas Tasks), `/tasks/[id]` workspace, `/tasks/import`, `/task-insights` (manager / admin / founder)
+- **`lib/actions/tasks.ts`**, **`lib/actions/task-intelligence.ts`**, **`components/tasks/`**, **`components/task-intelligence/`** — full documentation in **`task_details.md`**
 
 **Department Access Control (Migration 066, fully live):**
 - `employee_department` enum: `concierge`, `finance`, `tech`, `shop`, `house`, `legacy`, `marketing`, `onboarding`
@@ -283,6 +291,7 @@ Agent clicks status button (StatusActionPanel)
 | Lead alerts | `LeadAlertProvider` context | Supabase Realtime |
 | Chat messages | `useMessages` hook | Supabase Realtime |
 | Project task updates | `useTaskRealtime` hook | Supabase Realtime |
+| Atlas Tasks / Task Insights | `useAtlasTaskRealtime`, `useMasterTasksIndexRealtime`, `useTaskIntelligenceRealtime`, etc. | Supabase Realtime + `router.refresh()` |
 | Server data | Next.js Data Cache | RSC fetch + `revalidatePath()` |
 | Rate limit counters | Upstash Redis | External, persistent |
 | All business data | Supabase PostgreSQL | Source of truth |
@@ -331,7 +340,8 @@ TaskReminderProvider
 │   │   ├── leads/                  Leads table + Lead Dossier RSC
 │   │   │   ├── page.tsx
 │   │   │   └── [id]/page.tsx       Lead Dossier (force-dynamic RSC)
-│   │   ├── tasks/page.tsx
+│   │   ├── tasks/                  Atlas Tasks — index, [id] workspace, import
+│   │   ├── task-insights/         Task Insights (manager / admin / founder)
 │   │   ├── workspace/page.tsx
 │   │   ├── calendar/page.tsx
 │   │   ├── performance/page.tsx
@@ -342,9 +352,7 @@ TaskReminderProvider
 │   │   ├── concierge/page.tsx      ⚠️ MOCK DATA — full mock UHNI profiles served
 │   │   ├── elia-preview/page.tsx   Elia AI assistant preview (in development)
 │   │   ├── indulge-world/page.tsx  Brand/org chart page
-│   │   ├── projects/               Projects system
-│   │   │   ├── page.tsx            Projects index
-│   │   │   └── [id]/page.tsx       Project board/detail
+│   │   ├── projects/               → 301 redirect to /tasks (see next.config.ts)
 │   │   ├── manager/                Manager workspace (fully consolidated)
 │   │   │   ├── page.tsx            Manager Command Center
 │   │   │   ├── campaigns/          Campaign list + [id] dossier
@@ -389,7 +397,9 @@ TaskReminderProvider
 │   ├── dashboard/                  Agent dashboard widgets
 │   ├── escalations/                SLA escalation table
 │   ├── manager/                    Full manager suite components (Morning Briefing, etc.)
-│   ├── projects/                   Project board, list, cards, task detail sheet
+│   ├── projects/                   Shared board/list/sheet primitives (also used by Atlas `/tasks`)
+│   ├── tasks/                      Atlas Tasks UI (master list, subtask modal, import, My Tasks)
+│   ├── task-intelligence/          Task Insights (department health, dossier)
 │   ├── concierge/                  ConciergeClient.tsx — ⚠️ ALL MOCK DATA
 │   ├── elia/                       EliaSidePanel.jsx — AI assistant preview
 │   ├── shop/                       Shop War Room components
@@ -401,7 +411,8 @@ TaskReminderProvider
 ├── lib/
 │   ├── actions/                    Next.js Server Actions ("use server") — the only component-facing data layer
 │   │   ├── leads.ts                Lead status transitions, activity logging, won deal
-│   │   ├── tasks.ts                Task CRUD (CRM + personal)
+│   │   ├── tasks.ts                Atlas unified tasks + CRM/legacy exports
+│   │   ├── task-intelligence.ts   Task Insights read model
 │   │   ├── projects.ts             Project + task group + project task CRUD
 │   │   ├── shop-tasks.ts           Shop task creation + sale registration
 │   │   ├── whatsapp.ts             sendWhatsAppMessage()
@@ -421,6 +432,8 @@ TaskReminderProvider
 │   ├── services/                   Core business services (not component-facing)
 │   │   ├── leadIngestion.ts        processAndInsertLead(), IST shift waterfall
 │   │   ├── fieldMappingEngine.ts   Dynamic field mapping from DB rules
+│   │   ├── taskContext.ts          Elia / server read model (service role, cross-domain)
+│   │   ├── taskNotificationInsert.ts  task_notifications insert helper
 │   │   ├── evaluateRoutingRules.ts Pure routing rule evaluation (no I/O)
 │   │   ├── agentRoutingConfig.ts   DB-driven agent routing config (wired into ingestion)
 │   │   ├── campaign-sync.ts        Campaign metrics sync logic
@@ -440,7 +453,8 @@ TaskReminderProvider
 │   │   ├── useSlaAlerts.ts         SLA alert toast logic
 │   │   ├── useSlaAlerts.utils.ts   computeBreachLevel() pure function
 │   │   ├── useMessages.ts          Supabase Realtime subscription for chat
-│   │   ├── useTaskRealtime.ts      Realtime for task comments + progress updates
+│   │   ├── useTaskRealtime.ts      Project task comments + Atlas board/index/modal realtime
+│   │   ├── useTaskIntelligenceRealtime.ts  Task Insights + employee dossier bumps
 │   │   └── ...                     useDebounce, useClientOnly, useUserDomain
 │   │
 │   ├── constants/
@@ -462,9 +476,11 @@ TaskReminderProvider
 ├── supabase/
 │   ├── config.toml                 Supabase CLI project config
 │   ├── 20260308000000_initial_schema.sql  ⚠️ Outside numbered sequence — relationship unclear
-│   └── migrations/                 66 sequential migration files (001–066)
+│   └── migrations/                 71 numbered SQL files (001–080+); see **task_details.md** §3 for task milestones
 │
-├── proxy.ts                        Next.js middleware IMPLEMENTATION — ⚠️ NOT auto-loaded (no middleware.ts)
+├── task_details.md                 Master reference — Atlas unified tasks + Task Insights
+│
+├── proxy.ts                        Next.js middleware IMPLEMENTATION — load via **middleware.ts** (see §2.4)
 ├── next.config.ts                  Next.js config + Sentry + /scout/* redirects
 ├── TESTING_MASTER_PLAN.md          263-case test specification (only 5 cases implemented)
 ├── package.json
@@ -483,13 +499,13 @@ TaskReminderProvider
 
 1. User submits email/password at `/login` → `lib/actions/auth.ts` → `supabase.auth.signInWithPassword()`
 2. Supabase returns session JWT stored in HTTP-only cookies via `@supabase/ssr`
-3. `proxy.ts` (middleware) contains session refresh and redirect logic — **but `middleware.ts` does not exist, so this is not running**
+3. **`proxy.ts`** — Intended Next.js middleware implementation (`createServerClient`, session refresh, auth redirects). **Must be wired from a root `middleware.ts`** file (`export { proxy as middleware, config } from "./proxy"`). As of repository scan **2026-04-30**, **`middleware.ts` is not present** at the project root — edge refresh and middleware redirects do not run until that file exists.
 4. Auth gate is enforced by `app/(dashboard)/layout.tsx` RSC — calls `supabase.auth.getUser()`, redirects to `/login` if missing
 5. Password reset: `/forgot-password` → `/update-password` via `auth/callback/route.ts` (PKCE)
 
 ### Authorization — Three-Layer Defense
 
-1. **Middleware** (`proxy.ts`): ⚠️ NOT RUNNING — see critical bug
+1. **Middleware** (`proxy.ts` via root **`middleware.ts`**): ⚠️ **Not loaded** until `middleware.ts` exists — see Section 2.4 critical bug
 2. **Server Actions** (`getAuthUser()`): Every mutation re-authenticates, fetches role from `profiles`, checks ownership
 3. **PostgreSQL RLS**: All queries subject to row-level policies calling `get_user_role()`, `get_user_domain()`, `get_user_department()`
 
@@ -538,7 +554,7 @@ TaskReminderProvider
 
 ### Migration History
 
-66 sequential migrations in `supabase/migrations/001–066`. Key milestones:
+71 numbered SQL files in `supabase/migrations/` (001 through **080** as of this revision). Key milestones:
 
 | Migration | Change |
 |---|---|
@@ -559,6 +575,12 @@ TaskReminderProvider
 | 064 | `task_comments`, `task_progress_updates` tables |
 | 065 | `tasks.due_date` nullable |
 | 066 | `employee_department` enum, `profiles.department/job_title/reports_to`, `get_user_department()`, `indulge_global` re-added, updated RLS |
+| **067** | **Unified task schema** — `unified_task_type`, `atlas_status`, `task_remarks`, `import_batches` (see `task_details.md`) |
+| **068–072** | Backfill, RLS v2, indexes, `task_remarks` metadata, **priority `critical`** |
+| **073–075** | Realtime for `task_remarks` + `task_groups`; **drop legacy `tasks_*` RLS** from 063 |
+| **076–078** | Group-task experiment, notifications, backfill to **master** workspaces |
+| **079** | **`atlas_status` five values** (remap `in_review` / `blocked`) |
+| **080** | **`lead_collaborators`** + RLS (cross-domain lead access) |
 
 ### Core Tables
 
@@ -582,19 +604,23 @@ Central CRM entity. 8-stage pipeline: `new → attempted → connected → in_di
 Key columns: `phone_number` (E.164), `domain`, `status`, `assigned_to`, `assigned_at`, `is_off_duty`, `form_data` (JSONB — zero data loss), `follow_up_drafts`, `private_scratchpad`, `tags`, `deal_value`
 
 #### `tasks`
-Multi-purpose: CRM lead tasks, shop tasks, personal tasks, project tasks. Discriminated by:
+Multi-purpose: CRM lead tasks, shop tasks, personal tasks, project tasks, and **unified Atlas tasks** (`unified_task_type` = `master` | `subtask` | `personal`). Discriminated in application code by:
+- `unified_task_type` and `atlas_status` (Atlas Tasks — primary)
 - `lead_id IS NOT NULL` → CRM task
 - `shop_operation_scope IS NOT NULL` → Shop War Room task
-- `project_id IS NOT NULL` → Project task
-- All nulls → personal task
+- `project_id IS NOT NULL` (with `unified_task_type` subtask) → board subtask
+- Personal rows: `unified_task_type = 'personal'`
 
-Extended in 062/063 with: `project_id`, `group_id`, `parent_task_id`, `priority`, `progress`, `estimated_minutes`, `actual_minutes`, `position`, `tags`, `attachments`
+Extended in 062/063 with: `project_id`, `group_id`, `parent_task_id`, `priority`, `progress`, `estimated_minutes`, `actual_minutes`, `position`, `tags`, `attachments`. **067+** adds `unified_task_type`, `atlas_status`, domain/department, archive and import fields, `master_task_id`, etc. — full list in **`task_details.md`**.
 
 #### `lead_activities`
 Immutable audit log. No UPDATE or DELETE policies. Dual-write (legacy + new columns) for backward compat.
 
 #### `projects` / `project_members` / `task_groups`
 Project system (migration 062). RLS uses `is_project_member()` and `get_project_member_role()` helper functions. Four project roles: `owner`, `manager`, `member`, `viewer`.
+
+#### `task_remarks` / `import_batches` / `task_notifications`
+**067+** — Append-only **remarks** timeline for Atlas subtasks (distinct from `task_comments`). **import_batches** audit for CSV. **077** adds **`task_notifications`** for in-app task events. Policies and Realtime publication requirements are documented in **`task_details.md`**.
 
 #### `task_comments` / `task_progress_updates`
 Added in migration 064. `task_progress_updates` is append-only (no UPDATE/DELETE policies). Both published to Supabase Realtime via `useTaskRealtime` hook.
@@ -711,6 +737,16 @@ Ad Platform → Pabbly Connect
 3. Members create tasks within groups with priority, assignees, due dates
 4. Real-time updates via `useTaskRealtime` subscription on `task_comments` and `task_progress_updates`
 5. Progress logged as append-only entries in `task_progress_updates`
+
+**Routing note:** `app/(dashboard)/projects/*` is **301-redirected** to **`/tasks/*`**. New feature work should follow **`task_details.md`**, not a separate projects route.
+
+### Atlas Unified Task Workflow (summary)
+
+1. **Master task** — `createMasterTask` seeds `tasks` (`unified_task_type: master`), `projects`, `project_members`, three default Kanban groups, then sets `project_id` / `master_task_id` on the master row.
+2. **Subtasks** — Live in `task_groups` columns; agent narrative in `task_remarks`, structured % progress in `task_progress_updates`; cache invalidation via `revalidateAtlasTaskSurfaces`.
+3. **Task Insights** — `lib/actions/task-intelligence.ts`; role gate (manager or privileged); Realtime via `useTaskIntelligenceRealtime`.
+
+Authoritative detail: **`task_details.md`**.
 
 ---
 
@@ -916,10 +952,12 @@ Build order:
 | 2026-04-11 | DRY component library refactor: CVA variants, `IndulgeButton`, `IndulgeField`, `InfoRow` |
 | 2026-04-22 | `ATLAS_BLUEPRINT.md` v1 + `audit.md` v1 authored; migration 061 (`agent_routing_config`) |
 | 2026-04-22–23 | Migrations 062–066: Projects system, department access control; `/scout/*` redirects live; `sendDefaultPii` fixed; `lib/utils/sla.ts` consolidated; manager suite fully built; `lib/constants/departments.ts` added |
-| 2026-04-23 | `ATLAS_BLUEPRINT.md` v2 — this document |
+| 2026-04-23 | `ATLAS_BLUEPRINT.md` v2 |
+| 2026-04-30 | **v3** — 71 migrations through **080**; **`task_details.md`** master task reference; Atlas unified tasks + Task Insights; `/projects` → `/tasks`; schema sections for `task_remarks`, `task_notifications`; middleware wiring note |
 
 ---
 
 *End of ATLAS_BLUEPRINT.md*  
 *Supersedes all prior versions and the deleted `audit.md`.*  
+*For Atlas Tasks / Task Insights / `task_remarks` / related migrations, see **`task_details.md`***  
 *Review Section 13 (Roadmap) at the end of each Phase. Review Section 12 (Architectural Decisions) only when a revisit trigger is met.*

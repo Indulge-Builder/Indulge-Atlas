@@ -197,15 +197,11 @@ export const DEPARTMENT_ROUTE_ACCESS: Record<EmployeeDepartment, string[]> = {
     "/manager",
   ],
   tech: [
+    "/",
     "/workspace",
-    "/leads",
     "/tasks",
-    "/tasks/import",
-    "/task-insights",
     "/calendar",
-    "/admin/integrations",
-    "/admin/mappings",
-    "/admin/routing",
+    "/concierge",
   ],
   shop: [
     "/shop/workspace",

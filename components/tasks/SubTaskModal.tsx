@@ -18,7 +18,6 @@ import {
   User,
   Flag,
   Hash,
-  Clock,
   MoreHorizontal,
   CheckSquare,
   Activity,
@@ -35,8 +34,7 @@ import { surfaceCardVariants } from "@/components/ui/card";
 import { IndulgeButton } from "@/components/ui/indulge-button";
 import { IndulgeField } from "@/components/ui/indulge-field";
 import { InfoRow } from "@/components/ui/info-row";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { LuxuryDatePicker } from "@/components/ui/LuxuryDatePicker";
 import { SubTaskStatusBadge } from "./SubTaskStatusBadge";
 import { TaskPriorityBadge } from "./TaskPriorityBadge";
 import { TaskChecklist } from "./TaskChecklist";
@@ -68,7 +66,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 // ── IST-aware date formatter ───────────────────────────────────────────────────
 
 function formatDateIST(iso: string): string {
-  return format(toZonedTime(new Date(iso), IST), "EEE, d MMM yyyy");
+  return format(toZonedTime(new Date(iso), IST), "EEE, d MMM yyyy · h:mm a");
 }
 
 function isOverdue(isoDate: string | null, status: AtlasTaskStatus): boolean {
@@ -115,18 +113,14 @@ function ZoneA({
 }: ZoneAProps) {
   const [isPending, startTransition] = useTransition();
   const [description, setDescription] = useState(task.notes ?? "");
-  const [dueDate, setDueDate] = useState(
-    task.due_date ? task.due_date.slice(0, 10) : "",
+  const [dueAt, setDueAt] = useState<Date | undefined>(() =>
+    task.due_date ? new Date(task.due_date) : undefined,
   );
   const [priority, setPriority] = useState<string>(task.priority ?? "medium");
   const [status, setStatus] = useState<AtlasTaskStatus>(task.atlas_status);
-  const [dueDateOpen, setDueDateOpen] = useState(false);
   const [assigneeUserId, setAssigneeUserId] = useState(
     () => (task.assigned_to_users as string[] | null)?.[0] ?? "",
   );
-
-  // Derive a Date object for the Calendar
-  const dueDateObj = dueDate ? new Date(dueDate + "T00:00:00") : undefined;
 
   const dueDateOverdue = isOverdue(task.due_date, task.atlas_status);
 
@@ -134,11 +128,15 @@ function ZoneA({
     setAssigneeUserId((task.assigned_to_users as string[] | null)?.[0] ?? "");
   }, [task.id, task.assigned_to_users]);
 
+  useEffect(() => {
+    setDueAt(task.due_date ? new Date(task.due_date) : undefined);
+  }, [task.id, task.due_date]);
+
   function handleSave() {
     startTransition(async () => {
       const payload: UpdateSubTaskInput = {
         description:  description || null,
-        due_date:     dueDate ? new Date(dueDate).toISOString() : null,
+        due_date:     dueAt ? dueAt.toISOString() : null,
         priority:     priority as TaskPriority,
         atlas_status: status,
       };
@@ -210,48 +208,23 @@ function ZoneA({
               label="Deadline"
               value={
                 editable ? (
-                  <Popover open={dueDateOpen} onOpenChange={setDueDateOpen}>
-                    <PopoverTrigger asChild>
+                  <div className="flex w-full min-w-0 max-w-[300px] flex-col gap-2">
+                    <LuxuryDatePicker
+                      value={dueAt}
+                      onChange={setDueAt}
+                      placeholder="Pick date & time…"
+                      className="h-9 w-full text-[13px] rounded-lg border-[#E5E4DF] bg-[#F9F9F6] hover:border-[#D4AF37]/60"
+                    />
+                    {dueAt ? (
                       <button
                         type="button"
-                        className={cn(
-                          "flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] transition-colors",
-                          dueDate
-                            ? "border-[#D4AF37]/40 bg-[#FDF9EE] text-[#1A1A1A] hover:border-[#D4AF37]"
-                            : "border-[#E5E4DF] bg-[#F9F9F6] text-[#B5A99A] hover:border-[#D4AF37]",
-                        )}
+                        onClick={() => setDueAt(undefined)}
+                        className="self-start text-[11px] text-[#8A8A6E] hover:text-[#C0392B] transition-colors"
                       >
-                        <CalendarIcon className="w-3.5 h-3.5 shrink-0 text-[#A88B25]" />
-                        {dueDate
-                          ? format(new Date(dueDate + "T00:00:00"), "EEE, d MMM yyyy")
-                          : "Pick a date"}
+                        Clear deadline
                       </button>
-                    </PopoverTrigger>
-                    <PopoverContent align="start" className="w-auto p-0">
-                      <div className="rounded-xl overflow-hidden">
-                        <Calendar
-                          mode="single"
-                          selected={dueDateObj}
-                          onSelect={(day) => {
-                            setDueDate(day ? format(day, "yyyy-MM-dd") : "");
-                            setDueDateOpen(false);
-                          }}
-                          initialFocus
-                        />
-                        {dueDate && (
-                          <div className="border-t border-[#E5E4DF] px-3 py-2 flex justify-end">
-                            <button
-                              type="button"
-                              onClick={() => { setDueDate(""); setDueDateOpen(false); }}
-                              className="text-[11px] text-[#8A8A6E] hover:text-[#C0392B] transition-colors"
-                            >
-                              Clear date
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </PopoverContent>
-                  </Popover>
+                    ) : null}
+                  </div>
                 ) : task.due_date ? (
                   <span className={cn(
                     "text-[13px] font-medium",

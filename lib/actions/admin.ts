@@ -151,7 +151,10 @@ export async function checkEmailExists(email: string): Promise<ActionResult<{ ex
 // Returns managers and admins first, then other roles.
 // Excludes the currently-being-created user (no circular FK yet to worry about).
 
-export async function getProfilesForReportsTo(): Promise<
+export async function getProfilesForReportsTo(
+  /** Exclude this profile id (e.g. user being edited cannot report to themselves). */
+  excludeUserId?: string | null
+): Promise<
   ActionResult<Pick<Profile, "id" | "full_name" | "job_title" | "role" | "department">[]>
 > {
   try {
@@ -161,12 +164,18 @@ export async function getProfilesForReportsTo(): Promise<
     } = await supabase.auth.getUser();
     if (!user) return { success: false, error: "Unauthenticated" };
 
-    const { data, error } = await supabase
+    let query = supabase
       .from("profiles")
       .select("id, full_name, job_title, role, department")
       .eq("is_active", true)
       .in("role", ["admin", "founder", "manager"])
       .order("full_name", { ascending: true });
+
+    if (excludeUserId && uuidSchema.safeParse(excludeUserId).success) {
+      query = query.neq("id", excludeUserId);
+    }
+
+    const { data, error } = await query;
 
     if (error) return { success: false, error: error.message };
 
@@ -362,6 +371,26 @@ export async function updateUserProfile(
 
     const { serviceClient } = await requireAdminOnly();
 
+    if (validated.data.reports_to && validated.data.reports_to === userId) {
+      return { success: false, error: "A user cannot report to themselves." };
+    }
+
+    if (typeof validated.data.role === "string" && validated.data.role === "founder") {
+      const { data: targetProfile, error: targetErr } = await serviceClient
+        .from("profiles")
+        .select("role")
+        .eq("id", userId)
+        .maybeSingle();
+      if (targetErr) return { success: false, error: targetErr.message };
+      if ((targetProfile as { role?: string } | null)?.role !== "founder") {
+        return {
+          success: false,
+          error:
+            "Founder role cannot be assigned through user updates. Contact the platform administrator.",
+        };
+      }
+    }
+
     // Sanitize text fields before update.
     const updatePayload: Record<string, unknown> = { ...validated.data };
     if (typeof updatePayload.full_name === "string") {
@@ -378,15 +407,18 @@ export async function updateUserProfile(
 
     if (error) return { success: false, error: error.message };
 
-    // Sync Auth metadata for authorization-relevant fields.
-    const needsAuthSync =
+    const needsUserMetaSync =
       typeof validated.data.full_name === "string" ||
+      typeof validated.data.job_title === "string" ||
+      validated.data.job_title === null;
+
+    const needsAppMetaSync =
       typeof validated.data.role === "string" ||
       typeof validated.data.domain === "string" ||
       typeof validated.data.department === "string" ||
       validated.data.department === null;
 
-    if (needsAuthSync) {
+    if (needsUserMetaSync || needsAppMetaSync) {
       const { data: existingAuth, error: getUserError } =
         await serviceClient.auth.admin.getUserById(userId);
       if (getUserError) return { success: false, error: getUserError.message };
@@ -397,19 +429,22 @@ export async function updateUserProfile(
         app_metadata?: Record<string, unknown>;
       } = {};
 
-      if (typeof validated.data.full_name === "string") {
-        payload.user_metadata = {
-          ...(u?.user_metadata ?? {}),
-          full_name: sanitizeText(validated.data.full_name),
-        };
+      if (needsUserMetaSync) {
+        payload.user_metadata = { ...(u?.user_metadata ?? {}) };
+        if (typeof validated.data.full_name === "string") {
+          payload.user_metadata.full_name = sanitizeText(validated.data.full_name);
+        }
+        if ("job_title" in validated.data) {
+          if (validated.data.job_title === null) {
+            payload.user_metadata.job_title = null;
+          } else if (typeof validated.data.job_title === "string") {
+            payload.user_metadata.job_title =
+              sanitizeText(validated.data.job_title) || null;
+          }
+        }
       }
 
-      const needsAppMeta =
-        typeof validated.data.role === "string" ||
-        typeof validated.data.domain === "string" ||
-        "department" in validated.data;
-
-      if (needsAppMeta) {
+      if (needsAppMetaSync) {
         payload.app_metadata = { ...(u?.app_metadata ?? {}) };
         if (typeof validated.data.role === "string")
           payload.app_metadata.role = validated.data.role;

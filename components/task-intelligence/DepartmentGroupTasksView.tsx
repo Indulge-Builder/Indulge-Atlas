@@ -277,7 +277,6 @@ export function DepartmentGroupTasksView({
       {modalId && (
         <SubTaskModal
           taskId={modalId}
-          readOnly
           currentUser={currentUser}
           onClose={() => setModalId(null)}
         />

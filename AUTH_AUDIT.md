@@ -1,8 +1,8 @@
 # Auth Audit — Indulge Atlas
 
-**Date:** 2026-04-27  
-**Scope:** Invite flow, password recovery, callback route, middleware, environment URLs, and user-facing errors.  
-**Sources:** `app/(auth)/`, `app/auth/callback/`, `proxy.ts`, `middleware.ts`, `lib/supabase/*`, `lib/actions/auth.ts`, `lib/actions/admin.ts`, admin UI, `.env.example`, `.env.local`, `next.config.ts`.
+**Date:** 2026-04-27 · **Reviewed:** 2026-04-30  
+**Scope:** Invite flow, password recovery, callback route, middleware, environment URLs, user-facing errors; cross-cutting notes vs **RLS** and **Server Actions** (see also **`task_details.md`** for task `task_remarks` / service-role system logs).  
+**Sources:** `app/(auth)/`, `app/auth/callback/`, `proxy.ts`, `lib/supabase/*`, `lib/actions/auth.ts`, `lib/actions/admin.ts`, admin UI, `.env.example`, `next.config.ts`.
 
 ---
 
@@ -18,13 +18,16 @@ There is **no** `app/api/auth/` directory.
 
 ---
 
-## Section 2 — Middleware Status
+## Section 2 — Middleware status
 
 | Item | Finding |
-|------|---------|
-| **`middleware.ts` at repo root** | **Missing before this change.** Next.js only loads `middleware.ts`; implementation lived in `proxy.ts` and was never executed (`CLAUDE.md` / `ATLAS_BLUEPRINT.md` known bug). |
-| **After fix** | Root `middleware.ts` re-exports `{ proxy as middleware, config }` from `./proxy`. Session refresh and edge redirects are now active. |
-| **`proxy.ts` behaviour** | Uses `@supabase/ssr` `createServerClient`, `getUser()` per request, public allowlist (`/login`, `/forgot-password`, `/update-password`, `/auth/callback`, `/tv`, `/api/tv`, webhooks, Server Action POSTs), redirects unauthenticated users to `/login`, redirects authenticated users away from `/login` and `/forgot-password` to `/`. |
+| --- | --- |
+| **`proxy.ts`** | Implementation of session refresh + public path allowlist + auth redirects, using `@supabase/ssr` `createServerClient` and `getUser()`. |
+| **Root `middleware.ts`** | Next.js only executes middleware exported from a file named **`middleware.ts`** at the **repository root**. Without it, **`proxy.ts` is never run** on the Edge. |
+| **Repository state (2026-04-30)** | **`middleware.ts` is not present** in this workspace. Edge session refresh and middleware-level redirects are **not active** until a one-line re-export exists: `export { proxy as middleware, config } from "./proxy"`. |
+| **After that file exists** | Session refresh and redirect behaviour described in `proxy.ts` apply; RSC `app/(dashboard)/layout.tsx` remains a second-layer gate. |
+
+> **Task system note:** System-authored `task_remarks` (Atlas timeline) use the **service-role** client in `lib/actions/tasks.ts` so `author_id` can be the synthetic Atlas system user without violating `author_id = auth.uid()` on the user session. This is **not** an auth bug; it is an intentional separation of user tokens vs service operations. See **`task_details.md`** §6 and §10.
 
 ---
 
@@ -96,8 +99,18 @@ Configure these in the Supabase project (**Authentication → URL configuration*
 
 ## Post-fix verification checklist
 
+- [ ] **Add root `middleware.ts`** re-exporting `proxy` (if not present) so Edge session refresh runs.  
 - [ ] Set `NEXT_PUBLIC_SITE_URL` on Vercel (and locally in `.env.local`).  
 - [ ] Align Supabase **Site URL** and **Redirect URLs** with that origin.  
 - [ ] Smoke-test: invite user → email → callback → update password → `/`.  
 - [ ] Smoke-test: forgot password → email → callback → update password → `/`.  
 - [ ] Smoke-test: admin “password reset” from user table.
+
+---
+
+## Related documentation
+
+| Document | Contents |
+| --- | --- |
+| **`task_details.md`** | Unified Atlas tasks, Task Insights, `task_remarks` / service-role system logs, migrations **067–079**, RLS and realtime expectations |
+| **`ATLAS_BLUEPRINT.md`** | Full platform architecture and migration index |

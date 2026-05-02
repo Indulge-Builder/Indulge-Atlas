@@ -356,9 +356,12 @@ const IST = "Asia/Kolkata";
 function computeHealthSignal(
   overdue: number,
   completionPct: number,
+  totalSubtasks: number,
 ): TaskIntelligenceHealthSignal {
+  if (totalSubtasks === 0 && overdue === 0) return "healthy";
   if (overdue === 0 && completionPct > 70) return "healthy";
-  if (overdue > 3 || completionPct < 40) return "critical";
+  if (overdue > 3) return "critical";
+  if (overdue > 0 && completionPct < 40) return "critical";
   return "needs_attention";
 }
 
@@ -553,7 +556,11 @@ export async function getOrganisationTaskContext(): Promise<OrganisationTaskCont
     const sop = personalTodayByDept.get(departmentId)!;
     const todaySopCompletionPct =
       sop.total > 0 ? Math.round((sop.done / sop.total) * 100) : 0;
-    const healthSignal = computeHealthSignal(st.overdue, groupSubtaskCompletionPct);
+    const healthSignal = computeHealthSignal(
+      st.overdue,
+      groupSubtaskCompletionPct,
+      st.total,
+    );
     return {
       departmentId,
       label: cfg.label,

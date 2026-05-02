@@ -243,15 +243,6 @@ export function TimelineEvent({ remark, isNew = false, className }: TimelineEven
       {remark.previous_status && remark.state_at_time && remark.previous_status !== remark.state_at_time && (
         <StatusTransition from={remark.previous_status} to={remark.state_at_time} />
       )}
-
-      {/* Progress delta */}
-      {remark.progress_at_time !== null && remark.progress_at_time !== undefined && (
-        <div className="mt-2">
-          <span className="inline-flex items-center gap-1 rounded-full bg-[#D4AF37]/10 px-2 py-0.5 text-[11px] text-[#A88B25] font-medium">
-            Progress: {remark.progress_at_time}%
-          </span>
-        </div>
-      )}
     </div>
   );
 }

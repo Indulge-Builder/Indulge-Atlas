@@ -3,13 +3,15 @@
 import { useCallback, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Upload } from "lucide-react";
+import { Plus, Upload, Settings2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { IndulgeButton } from "@/components/ui/indulge-button";
 import { MyTasksDashboard } from "./MyTasksDashboard";
 import { AtlasTasksListView } from "./AtlasTasksListView";
 import { CreateMasterTaskModal } from "./CreateMasterTaskModal";
 import { CreatePersonalTaskModal } from "./CreatePersonalTaskModal";
+import { ManageSOPsModal } from "./ManageSOPsModal";
+import { isPrivilegedRole } from "@/lib/types/database";
 import type { SubTask, PersonalTask } from "@/lib/types/database";
 import type { AtlasTasksData } from "./AtlasTasksCompletionOverview";
 
@@ -48,6 +50,10 @@ export function TasksDashboardShell({
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
   const [masterModalOpen, setMasterModalOpen] = useState(false);
   const [personalModalOpen, setPersonalModalOpen] = useState(false);
+  const [sopModalOpen, setSopModalOpen] = useState(false);
+
+  const canManageSOPs =
+    currentUser.role === "manager" || isPrivilegedRole(currentUser.role);
 
   // Sync tab to URL
   const switchTab = useCallback(
@@ -97,6 +103,17 @@ export function TasksDashboardShell({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {canManageSOPs && (
+              <button
+                type="button"
+                onClick={() => setSopModalOpen(true)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#E5E4DF] bg-white text-[#6B6B6B] shadow-[0_1px_2px_rgba(26,24,20,0.05)] transition-colors hover:border-[#D4AF37]/50 hover:text-[#1A1A1A]"
+                aria-label="Manage daily SOP templates"
+                title="Daily SOP templates"
+              >
+                <Settings2 className="h-4 w-4" />
+              </button>
+            )}
             <IndulgeButton
               variant="outline"
               size="sm"
@@ -201,6 +218,7 @@ export function TasksDashboardShell({
         open={masterModalOpen}
         onClose={() => setMasterModalOpen(false)}
       />
+      <ManageSOPsModal open={sopModalOpen} onClose={() => setSopModalOpen(false)} />
     </div>
   );
 }

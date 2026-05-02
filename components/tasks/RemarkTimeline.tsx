@@ -85,11 +85,6 @@ export function RemarkTimeline({ remarks }: RemarkTimelineProps) {
                     />
                     {statusLabel}
                   </span>
-                  {remark.progress_at_time !== null && (
-                    <span className="text-[10px] text-zinc-400">
-                      {remark.progress_at_time}% progress
-                    </span>
-                  )}
                 </div>
               </div>
             </motion.li>

@@ -100,9 +100,14 @@ function resolveVisibleDepartments(
 function computeHealthSignal(
   overdue: number,
   completionPct: number,
+  /** When zero, completionPct is vacuously 0 — must not be read as "critical backlog". */
+  totalSubtasks: number,
 ): TaskIntelligenceHealthSignal {
+  if (totalSubtasks === 0 && overdue === 0) return "healthy";
   if (overdue === 0 && completionPct > 70) return "healthy";
-  if (overdue > 3 || completionPct < 40) return "critical";
+  if (overdue > 3) return "critical";
+  // Low completion alone is not "critical" if nothing is past due (common for new boards / no due dates).
+  if (overdue > 0 && completionPct < 40) return "critical";
   return "needs_attention";
 }
 
@@ -347,7 +352,11 @@ export async function getDepartmentTaskOverview(): Promise<
       const sop = personalTodayByDept.get(departmentId)!;
       const todaySopCompletionPct =
         sop.total > 0 ? Math.round((sop.done / sop.total) * 100) : 0;
-      const healthSignal = computeHealthSignal(st.overdue, groupSubtaskCompletionPct);
+      const healthSignal = computeHealthSignal(
+        st.overdue,
+        groupSubtaskCompletionPct,
+        st.total,
+      );
       return {
         departmentId,
         label: cfg.label,

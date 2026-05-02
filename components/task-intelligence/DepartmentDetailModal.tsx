@@ -87,6 +87,7 @@ export function DepartmentDetailModal({
   if (!overview) return null;
 
   const Icon = getLucideIcon(overview.icon);
+  const noGroupTasks = overview.activeMasterTaskCount === 0;
 
   return (
     <AnimatePresence>
@@ -108,8 +109,9 @@ export function DepartmentDetailModal({
             exit={{ scale: 0.96, opacity: 0 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
             className={cn(
-              "relative z-10 w-full max-w-[1100px] max-h-[min(92vh,880px)] flex flex-col overflow-hidden",
+              "relative z-10 flex h-[min(92vh,880px)] w-full max-w-[1100px] flex-col overflow-hidden transition-[filter]",
               surfaceCardVariants({ tone: "luxury", elevation: "md", overflow: "hidden" }),
+              noGroupTasks && "brightness-[0.94] saturate-[0.86]",
             )}
           >
             <header className="shrink-0 border-b border-[#E5E4DF] px-5 sm:px-6 py-4">

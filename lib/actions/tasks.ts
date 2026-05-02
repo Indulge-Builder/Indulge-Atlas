@@ -14,6 +14,7 @@
  *   5. Returns { success, data?, error? }
  */
 
+import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getServiceSupabaseClient } from "@/lib/supabase/service";
@@ -30,6 +31,7 @@ import {
   UpdateSubTaskProgressSchema,
   ReorderSubTasksSchema,
   CreatePersonalTaskSchema,
+  CreateSOPTemplateSchema,
   AddMasterTaskMemberSchema,
   CreateImportBatchSchema,
   uuidSchema,
@@ -1516,6 +1518,18 @@ export async function createPersonalTask(
   try {
     const { supabase, user, domain, department } = await getAuthUser();
     const d = parsed.data;
+    const assigneeId = d.assigned_to ?? user.id;
+    const tagList = (d.tags ?? []).map((t) => sanitizeText(t)).filter(Boolean);
+
+    if (d.assigned_to && d.assigned_to !== user.id) {
+      const { data: peer, error: peerErr } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("id", d.assigned_to)
+        .eq("is_active", true)
+        .maybeSingle();
+      if (peerErr || !peer) return { success: false, error: "Assignee not found or inactive." };
+    }
 
     const persDomain = resolvedDomain(undefined, domain);
     const persDepartment = resolvedDepartment(undefined, department);
@@ -1529,7 +1543,7 @@ export async function createPersonalTask(
         atlas_status:      "todo",
         priority:          d.priority,
         due_date:          d.due_date ?? null,
-        assigned_to_users: [user.id],
+        assigned_to_users: [assigneeId],
         domain:            persDomain,
         department:        persDepartment,
         created_by:        user.id,
@@ -1537,7 +1551,7 @@ export async function createPersonalTask(
         task_type:         "general_follow_up",
         progress:          0,
         progress_updates:  [],
-        tags:              [],
+        tags:              tagList,
         attachments:       [],
       })
       .select("id")
@@ -1554,6 +1568,150 @@ export async function createPersonalTask(
     return { success: true, data: { id: data.id } };
   } catch (err) {
     console.error("[createPersonalTask]", err);
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+function canManageDailySOPs(role: string): boolean {
+  return role === "manager" || isPrivilegedRole(role);
+}
+
+/** Manager / admin / founder: create a daily SOP template for a department (cron clones to agents). */
+export async function createSOPTemplate(
+  params: unknown,
+): Promise<ActionResult<{ id: string }>> {
+  const parsed = CreateSOPTemplateSchema.safeParse(params);
+  if (!parsed.success)
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+
+  try {
+    const { supabase, user, role, domain, department } = await getAuthUser();
+    if (!canManageDailySOPs(role))
+      return { success: false, error: "Not authorized" };
+
+    const d = parsed.data;
+    const persDomain = resolvedDomain(undefined, domain);
+    const checklist = d.checklist ?? [];
+    const attachments = checklist.map((text) => ({
+      id:      randomUUID(),
+      text:    sanitizeText(text),
+      checked: false,
+    }));
+
+    const { data, error } = await supabase
+      .from("tasks")
+      .insert({
+        title:                 sanitizeText(d.title),
+        notes:                 d.description ? sanitizeText(d.description) : null,
+        unified_task_type:     "personal",
+        atlas_status:          "todo",
+        priority:              d.priority,
+        due_date:              null,
+        assigned_to_users:     [user.id],
+        domain:                persDomain,
+        department:            d.department,
+        created_by:            user.id,
+        status:                "pending",
+        task_type:             "general_follow_up",
+        progress:              0,
+        progress_updates:      [],
+        tags:                  [],
+        attachments,
+        visibility:            "personal",
+        is_daily_sop_template: true,
+        is_daily:              false,
+        daily_date:            null,
+      })
+      .select("id")
+      .single();
+
+    if (error || !data) {
+      console.error("[createSOPTemplate]", error);
+      return { success: false, error: error?.message ?? "Failed to save template" };
+    }
+
+    revalidatePath("/tasks", "page");
+    return { success: true, data: { id: data.id as string } };
+  } catch (err) {
+    console.error("[createSOPTemplate]", err);
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+export type SOPTemplateRow = {
+  id: string;
+  title: string;
+  notes: string | null;
+  department: string;
+  created_at: string;
+  checklistCount: number;
+};
+
+export async function listSOPTemplates(): Promise<ActionResult<SOPTemplateRow[]>> {
+  try {
+    const { supabase, role, department } = await getAuthUser();
+    if (!canManageDailySOPs(role)) return { success: true, data: [] };
+
+    let q = supabase
+      .from("tasks")
+      .select("id, title, notes, department, created_at, attachments")
+      .eq("unified_task_type", "personal")
+      .eq("is_daily_sop_template", true)
+      .is("archived_at", null)
+      .order("created_at", { ascending: false });
+
+    if (!isPrivilegedRole(role)) {
+      const dept = resolvedDepartment(undefined, department);
+      q = q.eq("department", dept);
+    }
+
+    const { data, error } = await q;
+    if (error) return { success: false, error: error.message };
+
+    const rows = (data ?? []).map((r) => {
+      const att = (r.attachments as unknown[] | null) ?? [];
+      return {
+        id:             r.id as string,
+        title:          r.title as string,
+        notes:          (r.notes as string | null) ?? null,
+        department:     (r.department as string) ?? "",
+        created_at:     r.created_at as string,
+        checklistCount: Array.isArray(att) ? att.length : 0,
+      };
+    });
+
+    return { success: true, data: rows };
+  } catch (err) {
+    console.error("[listSOPTemplates]", err);
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+export async function deleteSOPTemplate(taskId: unknown): Promise<ActionResult> {
+  const parsed = uuidSchema.safeParse(taskId);
+  if (!parsed.success) return { success: false, error: "Invalid task ID" };
+
+  try {
+    const { supabase, user, role } = await getAuthUser();
+    if (!canManageDailySOPs(role)) return { success: false, error: "Not authorized" };
+
+    let q = supabase
+      .from("tasks")
+      .delete()
+      .eq("id", parsed.data)
+      .eq("is_daily_sop_template", true);
+
+    if (!isPrivilegedRole(role)) {
+      q = q.eq("created_by", user.id);
+    }
+
+    const { error } = await q;
+    if (error) return { success: false, error: error.message };
+
+    revalidatePath("/tasks", "page");
+    return { success: true };
+  } catch (err) {
+    console.error("[deleteSOPTemplate]", err);
     return { success: false, error: "An unexpected error occurred" };
   }
 }
@@ -1613,10 +1771,11 @@ export async function getMyTasks(): Promise<ActionResult<{ personalTasks: Person
     const personalRes = await supabase
       .from("tasks")
       .select(
-        "id, title, notes, unified_task_type, atlas_status, priority, due_date, progress, created_by, assigned_to_users, created_at, updated_at, visibility, is_daily, daily_date",
+        "id, title, notes, unified_task_type, atlas_status, priority, due_date, progress, created_by, assigned_to_users, created_at, updated_at, visibility, is_daily, daily_date, is_daily_sop_template",
       )
       .eq("unified_task_type", "personal")
-      .contains("assigned_to_users", [user.id])
+      .eq("is_daily_sop_template", false)
+      .or(`assigned_to_users.cs.{${user.id}},created_by.eq.${user.id}`)
       .neq("atlas_status", "cancelled")
       .order("priority", { ascending: true })
       .order("due_date", { ascending: true, nullsFirst: false });
@@ -2985,6 +3144,7 @@ export async function getDailyPersonalTasks(): Promise<
       .select("*")
       .eq("unified_task_type", "personal")
       .eq("created_by", user.id)
+      .eq("is_daily_sop_template", false)
       .is("archived_at", null)
       .order("created_at", { ascending: false });
 
