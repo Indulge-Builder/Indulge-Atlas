@@ -158,6 +158,11 @@ export const CreatePersonalTaskSchema = z.object({
   /** Ad-hoc: assign to a peer; omit = self. */
   assigned_to: uuidSchema.optional(),
   tags:        z.array(z.string().min(1).max(80)).max(20).optional(),
+  /**
+   * When true, creates a calendar-daily personal row for the assignee (IST `daily_date`),
+   * same shape as `createDailyPersonalTask` — appears in their daily / My Tasks flow.
+   */
+  is_daily:    z.boolean().optional().default(false),
 });
 
 /** Agent-owned recurring daily SOP line item (template row for pg_cron). */

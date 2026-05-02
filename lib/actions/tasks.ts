@@ -1551,6 +1551,8 @@ export async function createPersonalTask(
 
     const persDomain = resolvedDomain(undefined, domain);
     const persDepartment = resolvedDepartment(undefined, department);
+    const isDaily = Boolean(d.is_daily);
+    const todayIST = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
 
     const { data, error } = await supabase
       .from("tasks")
@@ -1571,6 +1573,14 @@ export async function createPersonalTask(
         progress_updates:  [],
         tags:              tagList,
         attachments:       [],
+        ...(isDaily
+          ? {
+              is_daily: true,
+              daily_date: todayIST,
+              visibility: "personal" as const,
+              is_daily_sop_template: false,
+            }
+          : {}),
       })
       .select("id")
       .single();

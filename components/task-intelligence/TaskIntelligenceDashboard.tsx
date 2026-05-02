@@ -18,11 +18,15 @@ import {
 } from "@/lib/actions/task-intelligence";
 import { useTaskIntelligenceRealtime } from "@/lib/hooks/useTaskIntelligenceRealtime";
 import { toast } from "sonner";
+import { formatInTimeZone } from "date-fns-tz";
+import { Send } from "lucide-react";
+import { IndulgeButton } from "@/components/ui/indulge-button";
 import { DepartmentHealthCard } from "./DepartmentHealthCard";
 import { DepartmentDetailModal } from "./DepartmentDetailModal";
 import { GroupTasksCommandView } from "./GroupTasksCommandView";
 import { DepartmentIndividualTasksView } from "./DepartmentIndividualTasksView";
 import { TaskInsightsDepartmentSelector } from "./TaskInsightsDepartmentSelector";
+import { AssignTaskModal } from "./AssignTaskModal";
 
 type TabKey = "workspaces" | "individual";
 
@@ -60,6 +64,7 @@ export function TaskIntelligenceDashboard({
   const refreshSignal = useTaskIntelligenceRealtime();
 
   const [filterDepartmentId, setFilterDepartmentId] = useState<string | null>(null);
+  const [showAssignModal, setShowAssignModal] = useState(false);
 
   useEffect(() => {
     if (filterDepartmentId && !rows.some((r) => r.departmentId === filterDepartmentId)) {
@@ -164,10 +169,25 @@ export function TaskIntelligenceDashboard({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="mx-auto w-full max-w-7xl flex-1 px-6 pt-6 pb-14">
-        <header className="mb-6">
-          <h1 className="font-serif text-[30px] font-bold leading-[1.1] text-[#1A1A1A] sm:text-[32px]">
-            Task Insights
-          </h1>
+        <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="font-serif text-[30px] font-bold leading-[1.1] text-[#1A1A1A] sm:text-[32px]">
+              Task Insights
+            </h1>
+            <p className="mt-1.5 text-[13px] text-[#8A8A6E]">
+              {formatInTimeZone(new Date(), "Asia/Kolkata", "EEEE, d MMMM yyyy · IST")}
+            </p>
+          </div>
+          <IndulgeButton
+            type="button"
+            variant="gold"
+            size="sm"
+            className="shrink-0 shadow-sm"
+            leftIcon={<Send className="h-3.5 w-3.5" aria-hidden />}
+            onClick={() => setShowAssignModal(true)}
+          >
+            Assign Task
+          </IndulgeButton>
         </header>
 
         {!loadError && rows.length > 0 && (
@@ -346,6 +366,8 @@ export function TaskIntelligenceDashboard({
         onClose={closeDepartmentModal}
         currentUser={currentUser}
       />
+
+      <AssignTaskModal open={showAssignModal} onClose={() => setShowAssignModal(false)} />
     </div>
   );
 }
