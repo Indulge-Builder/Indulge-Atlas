@@ -19,16 +19,12 @@ import type {
 
 export const dynamic = "force-dynamic";
 
-// ── Types ──────────────────────────────────────────────────────────────────────
-
 type TabKey = "my-tasks" | "atlas-tasks";
 
 interface AtlasTasksData {
   masterTask: MasterTask;
   taskGroups: Array<TaskGroup & { tasks: SubTask[] }>;
 }
-
-// ── Loading skeleton ───────────────────────────────────────────────────────────
 
 function DashboardSkeleton() {
   return (
@@ -64,23 +60,17 @@ function DashboardSkeleton() {
   );
 }
 
-// ── Main data RSC (must be a direct child of Suspense — all awaits live here) ──
-
 interface PageProps {
   searchParams: Promise<{ tab?: string }>;
 }
 
-async function TasksPageContent({ searchParams }: PageProps) {
+/** Data path — `searchParams` is resolved on the page, not passed through this boundary (React 19). */
+async function TasksPageData({ initialTab }: { initialTab: TabKey }) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
-
-  const params  = await searchParams;
-  const tabParam = params.tab;
-  const initialTab: TabKey =
-    tabParam === "my-tasks" || tabParam === "atlas-tasks" ? tabParam : "atlas-tasks";
 
   const { data: profileRow } = await supabase
     .from("profiles")
@@ -162,11 +152,14 @@ async function TasksPageContent({ searchParams }: PageProps) {
   );
 }
 
-/** Sync shell so every server await runs under the same Suspense boundary (React 19). */
-export default function AtlasTasksPage(props: PageProps) {
+export default async function AtlasTasksPage({ searchParams }: PageProps) {
+  const params = await searchParams;
+  const initialTab: TabKey =
+    params.tab === "my-tasks" || params.tab === "atlas-tasks" ? params.tab : "atlas-tasks";
+
   return (
     <Suspense fallback={<DashboardSkeleton />}>
-      <TasksPageContent {...props} />
+      <TasksPageData initialTab={initialTab} />
     </Suspense>
   );
 }

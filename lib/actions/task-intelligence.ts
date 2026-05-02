@@ -549,8 +549,8 @@ export async function getDepartmentIndividualTasks(
       .from("profiles")
       .select("id, full_name, job_title, domain, department")
       .eq("department", departmentId)
-      .neq("role", "admin")
-      .neq("role", "founder");
+      .eq("is_active", true)
+      .neq("role", "guest");
 
     if (aErr) return { success: false, error: "Failed to load agents" };
 
@@ -904,7 +904,6 @@ export async function getEmployeeDossier(
     const todayIST = now.toLocaleDateString("en-CA", { timeZone: IST });
     const startOfTodayIST = new Date(`${todayIST}T00:00:00+05:30`);
     const endOfTodayIST = new Date(`${todayIST}T23:59:59+05:30`);
-    const endOfWeekIST = new Date(startOfTodayIST.getTime() + 7 * 24 * 60 * 60 * 1000);
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
     const { data: agentProfile, error: agentErr } = await supabase
@@ -1045,25 +1044,43 @@ export async function getEmployeeDossier(
     else if (overdueCount > 2 || workloadScore > 80) healthSignal = "at_risk";
     else if (totalActive > 10 && completionRateLast30Days < 40) healthSignal = "overloaded";
 
-    const activPersonal = personal.filter((t) => t.atlas_status !== "done");
+    const visiblePersonal = personal.filter((t) => !t.is_daily_sop_template);
+
+    const dailySopTasks = visiblePersonal
+      .filter((t) => t.is_daily === true)
+      .slice()
+      .sort((a, b) => {
+        const aDone = a.atlas_status === "done" ? 1 : 0;
+        const bDone = b.atlas_status === "done" ? 1 : 0;
+        if (aDone !== bDone) return aDone - bDone;
+        const ad = a.due_date ? new Date(a.due_date).getTime() : 0;
+        const bd = b.due_date ? new Date(b.due_date).getTime() : 0;
+        return ad - bd;
+      });
+
+    const nonDaily = visiblePersonal.filter((t) => !t.is_daily);
+    const activNonDaily = nonDaily.filter((t) => t.atlas_status !== "done");
+
     const personalBuckets = {
-      overdue: activPersonal.filter((t) => t.due_date && new Date(t.due_date) < now),
-      today: activPersonal.filter(
+      dailySop: dailySopTasks,
+      today: activNonDaily.filter(
         (t) =>
           !!t.due_date &&
           new Date(t.due_date) >= startOfTodayIST &&
           new Date(t.due_date) <= endOfTodayIST,
       ),
-      thisWeek: activPersonal.filter(
-        (t) =>
-          !!t.due_date &&
-          new Date(t.due_date) > endOfTodayIST &&
-          new Date(t.due_date) <= endOfWeekIST,
-      ),
-      upcoming: activPersonal.filter(
-        (t) => !t.due_date || new Date(t.due_date) > endOfWeekIST,
-      ),
-      completedToday: personal.filter(
+      upcoming: activNonDaily
+        .filter((t) => {
+          if (!t.due_date) return true;
+          const d = new Date(t.due_date);
+          return d < startOfTodayIST || d > endOfTodayIST;
+        })
+        .sort((a, b) => {
+          const ta = a.due_date ? new Date(a.due_date).getTime() : Number.POSITIVE_INFINITY;
+          const tb = b.due_date ? new Date(b.due_date).getTime() : Number.POSITIVE_INFINITY;
+          return ta - tb;
+        }),
+      completedToday: nonDaily.filter(
         (t) =>
           t.atlas_status === "done" &&
           t.updated_at &&

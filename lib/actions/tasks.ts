@@ -1247,7 +1247,7 @@ export async function updateSubTaskStatus(
 
     const { data: task } = await supabase
       .from("tasks")
-      .select("project_id, assigned_to_users, created_by, progress, atlas_status")
+      .select("project_id, assigned_to_users, created_by, progress, atlas_status, attachments")
       .eq("id", task_id)
       .single();
 
@@ -1265,6 +1265,7 @@ export async function updateSubTaskStatus(
 
     const previousStatus = (task.atlas_status as AtlasTaskStatus) ?? "todo";
     const currentProgress = (task.progress as number) ?? 0;
+    const previousAttachments = task.attachments;
     const finalProgress = new_progress ?? (new_status === "done" ? 100 : currentProgress);
 
     // Build task update — optionally include checklist in attachments
@@ -1276,25 +1277,40 @@ export async function updateSubTaskStatus(
       taskUpdate.attachments = checklist;
     }
 
-    const [{ error: taskErr }, { data: remarkRow, error: remarkErr }] = await Promise.all([
-      supabase.from("tasks").update(taskUpdate).eq("id", task_id),
-      supabase
-        .from("task_remarks")
-        .insert({
-          task_id,
-          author_id:        user.id,
-          content:          sanitizeText(remark_content),
-          state_at_time:    new_status,
-          previous_status:  previousStatus !== new_status ? previousStatus : null,
-          progress_at_time: finalProgress,
-          source:           "agent",
-        })
-        .select("id")
-        .single(),
-    ]);
-
+    const { error: taskErr } = await supabase.from("tasks").update(taskUpdate).eq("id", task_id);
     if (taskErr) return { success: false, error: "Failed to update status" };
-    if (remarkErr) console.error("[updateSubTaskStatus] remark insert failed", remarkErr);
+
+    const { data: remarkRow, error: remarkErr } = await supabase
+      .from("task_remarks")
+      .insert({
+        task_id,
+        author_id:        user.id,
+        content:          sanitizeText(remark_content),
+        state_at_time:    new_status,
+        previous_status:  previousStatus !== new_status ? previousStatus : null,
+        progress_at_time: finalProgress,
+        source:           "agent",
+      })
+      .select("id")
+      .single();
+
+    if (remarkErr) {
+      console.error("[updateSubTaskStatus] remark insert failed", remarkErr);
+      const revert: Record<string, unknown> = {
+        atlas_status: previousStatus,
+        progress:     currentProgress,
+      };
+      if (checklist !== undefined) {
+        revert.attachments = previousAttachments ?? null;
+      }
+      await supabase.from("tasks").update(revert).eq("id", task_id);
+      return {
+        success: false,
+        error:
+          remarkErr.message ??
+          "Could not save your note (permission or network). Task changes were reverted.",
+      };
+    }
 
     const pid = task.project_id as string;
     if (pid) revalidateAtlasTaskSurfaces(pid);

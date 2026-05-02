@@ -506,9 +506,10 @@ export interface EmployeeDossierPayload {
   profile: Profile;
   metrics: EmployeeTaskMetrics;
   personalTasks: {
-    overdue: PersonalTask[];
+    /** Daily SOP rows only; shown in dossier SOP block (tick when done). */
+    dailySop: PersonalTask[];
     today: PersonalTask[];
-    thisWeek: PersonalTask[];
+    /** Non-daily active tasks not due today (incl. late), sorted by due date. */
     upcoming: PersonalTask[];
     completedToday: PersonalTask[];
   };

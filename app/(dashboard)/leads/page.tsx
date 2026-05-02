@@ -21,21 +21,22 @@ const PAGE_SIZE = 20;
 
 const VALID_DOMAINS = ["indulge_global", "indulge_house", "indulge_shop", "indulge_legacy", "the_indulge_house"];
 
+type LeadsSearchParams = {
+  q?: string;
+  status?: string;
+  agent?: string;
+  campaign?: string;
+  source?: string;
+  dateFilter?: string;
+  page?: string;
+  domain?: string;
+};
+
 interface PageProps {
-  searchParams: Promise<{
-    q?: string;
-    status?: string;
-    agent?: string;
-    campaign?: string;
-    source?: string;
-    dateFilter?: string;
-    page?: string;
-    domain?: string;
-  }>;
+  searchParams: Promise<LeadsSearchParams>;
 }
 
-async function LeadsContent({ searchParams }: PageProps) {
-  const params = await searchParams;
+async function LeadsContent({ params }: { params: LeadsSearchParams }) {
   const supabase = await createClient();
 
   const {
@@ -208,7 +209,9 @@ async function LeadsContent({ searchParams }: PageProps) {
   );
 }
 
-export default function LeadsPage(props: PageProps) {
+export default async function LeadsPage({ searchParams }: PageProps) {
+  const params = await searchParams;
+
   return (
     <div className="min-h-screen bg-[#F9F9F6]">
       <TopBar
@@ -218,7 +221,7 @@ export default function LeadsPage(props: PageProps) {
       />
       <div className="px-8 py-6">
         <Suspense fallback={<LeadsTableSkeleton />}>
-          <LeadsContent {...props} />
+          <LeadsContent params={params} />
         </Suspense>
       </div>
     </div>

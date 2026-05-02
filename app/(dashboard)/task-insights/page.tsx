@@ -1,8 +1,6 @@
 import { redirect } from "next/navigation";
-import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { TaskIntelligenceDashboard } from "@/components/task-intelligence/TaskIntelligenceDashboard";
-import { TaskIntelligenceSkeleton } from "@/components/task-intelligence/TaskIntelligenceSkeleton";
 import {
   getDepartmentTaskOverview,
   getMasterWorkspacesForDashboard,
@@ -14,7 +12,15 @@ type TaskInsightsPageProps = {
   searchParams: Promise<{ dept?: string }>;
 };
 
-async function TaskInsightsPageInner({ searchParams }: TaskInsightsPageProps) {
+/**
+ * Resolve `searchParams` here (not inside a nested Suspense child) so React 19 does not
+ * warn about async payload cleanup off the parent Suspense boundary. Segment `loading.tsx`
+ * covers navigation skeleton for this route.
+ */
+export default async function TaskInsightsPage({ searchParams }: TaskInsightsPageProps) {
+  const params = await searchParams;
+  const rawDeptQuery = params.dept?.trim().toLowerCase() ?? "";
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -38,8 +44,6 @@ async function TaskInsightsPageInner({ searchParams }: TaskInsightsPageProps) {
     job_title: (profile.job_title as string | null) ?? null,
   };
 
-  const params = await searchParams;
-
   const [overview, workspaces] = await Promise.all([
     getDepartmentTaskOverview(),
     getMasterWorkspacesForDashboard(),
@@ -49,9 +53,8 @@ async function TaskInsightsPageInner({ searchParams }: TaskInsightsPageProps) {
   const loadError = overview.success ? null : (overview.error ?? "Could not load Task Insights.");
   const workspaceItems = workspaces.success && workspaces.data ? workspaces.data : [];
 
-  const rawDept = params.dept?.trim().toLowerCase() ?? "";
   const initialOpenDepartmentId =
-    rawDept && rows.some((r) => r.departmentId === rawDept) ? rawDept : null;
+    rawDeptQuery && rows.some((r) => r.departmentId === rawDeptQuery) ? rawDeptQuery : null;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -63,13 +66,5 @@ async function TaskInsightsPageInner({ searchParams }: TaskInsightsPageProps) {
         initialOpenDepartmentId={initialOpenDepartmentId}
       />
     </div>
-  );
-}
-
-export default function TaskInsightsPage(props: TaskInsightsPageProps) {
-  return (
-    <Suspense fallback={<TaskIntelligenceSkeleton />}>
-      <TaskInsightsPageInner searchParams={props.searchParams} />
-    </Suspense>
   );
 }
