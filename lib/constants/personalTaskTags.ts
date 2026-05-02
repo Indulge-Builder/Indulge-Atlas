@@ -12,7 +12,11 @@ export const PERSONAL_TASK_TAG_PRESETS_POPOVER = [
 ] as const;
 
 export function isHiddenPersonalTaskListTag(tag: string): boolean {
-  return tag === PERSONAL_SOP_SELF_TAG || tag.startsWith("sop_tpl:");
+  return (
+    tag === PERSONAL_SOP_SELF_TAG ||
+    tag.startsWith("sop_tpl:") ||
+    tag.startsWith("delegated_by:")
+  );
 }
 
 export function visiblePersonalTaskTagsForList(

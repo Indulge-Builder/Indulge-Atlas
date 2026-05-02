@@ -43,15 +43,27 @@ import { LogUpdateForm } from "./LogUpdateForm";
 import { getSubTaskDetail, updateSubTask, deleteSubTask } from "@/lib/actions/tasks";
 import type {
   SubTask,
+  PersonalTask,
   TaskRemark,
   ChecklistItem,
   AtlasTaskStatus,
   TaskPriority,
 } from "@/lib/types/database";
-import { ATLAS_TASK_STATUS_VALUES, ATLAS_TASK_STATUS_LABELS } from "@/lib/types/database";
+import {
+  ATLAS_TASK_STATUS_VALUES,
+  ATLAS_TASK_STATUS_LABELS,
+  isPrivilegedRole,
+} from "@/lib/types/database";
 import type { UpdateSubTaskInput } from "@/lib/schemas/tasks";
 
 const IST = "Asia/Kolkata";
+
+/** Row returned by getSubTaskDetail — workspace subtask or personal task. */
+type DetailModalTask = SubTask | PersonalTask;
+
+function isPersonalDetailTask(t: DetailModalTask): t is PersonalTask {
+  return t.unified_task_type === "personal";
+}
 
 // ── Section label style (eyebrow) ─────────────────────────────────────────────
 
@@ -87,7 +99,8 @@ function extractChecklistFromAttachments(attachments: unknown): ChecklistItem[] 
 // ── Zone A — The Brief ─────────────────────────────────────────────────────────
 
 interface ZoneAProps {
-  task: SubTask;
+  task: DetailModalTask;
+  isPersonalMode: boolean;
   masterTaskTitle: string | null;
   masterTaskGroupTitle: string | null;
   assigneeProfile: { id: string; full_name: string; job_title: string | null } | null;
@@ -101,6 +114,7 @@ interface ZoneAProps {
 
 function ZoneA({
   task,
+  isPersonalMode,
   masterTaskTitle,
   masterTaskGroupTitle,
   assigneeProfile,
@@ -112,6 +126,7 @@ function ZoneA({
   onCancelEdit,
 }: ZoneAProps) {
   const [isPending, startTransition] = useTransition();
+  const [title, setTitle] = useState(task.title ?? "");
   const [description, setDescription] = useState(task.notes ?? "");
   const [dueAt, setDueAt] = useState<Date | undefined>(() =>
     task.due_date ? new Date(task.due_date) : undefined,
@@ -123,6 +138,10 @@ function ZoneA({
   );
 
   const dueDateOverdue = isOverdue(task.due_date, task.atlas_status);
+
+  useEffect(() => {
+    setTitle(task.title ?? "");
+  }, [task.id, task.title]);
 
   useEffect(() => {
     setAssigneeUserId((task.assigned_to_users as string[] | null)?.[0] ?? "");
@@ -140,6 +159,9 @@ function ZoneA({
         priority:     priority as TaskPriority,
         atlas_status: status,
       };
+      if (isPersonalMode) {
+        payload.title = title.trim() || "Untitled";
+      }
       if (canAssignSubtask) {
         payload.assigned_to_users = assigneeUserId ? [assigneeUserId] : [];
       }
@@ -159,10 +181,34 @@ function ZoneA({
       <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6 min-h-0">
         <SectionLabel>The Brief</SectionLabel>
 
-        {/* Objective */}
+        {/* Title — personal tasks only (subtask title is edited from workspace board). */}
+        {isPersonalMode && (
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-[#B5A99A] mb-2">
+              Title
+            </p>
+            {editable ? (
+              <IndulgeField htmlFor="personal-task-title">
+                <input
+                  id="personal-task-title"
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  maxLength={255}
+                  className="w-full rounded-lg border border-[#E5E4DF] bg-[#F9F9F6] px-3 py-2.5 text-[13px] text-[#1A1A1A] placeholder:text-[#B5A99A] outline-none focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]/30 transition-colors"
+                  placeholder="What needs to be done?"
+                />
+              </IndulgeField>
+            ) : (
+              <div className="text-[13px] font-medium text-[#1A1A1A]">{task.title}</div>
+            )}
+          </div>
+        )}
+
+        {/* Objective / notes */}
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-widest text-[#B5A99A] mb-2">
-            Objective
+            {isPersonalMode ? "Notes" : "Objective"}
           </p>
           {editable ? (
             <IndulgeField htmlFor="description">
@@ -172,7 +218,11 @@ function ZoneA({
                 onChange={(e) => setDescription(e.target.value)}
                 rows={4}
                 className="w-full resize-none rounded-lg border border-[#E5E4DF] bg-[#F9F9F6] px-3 py-2.5 text-[13px] text-[#1A1A1A] placeholder:text-[#B5A99A] outline-none focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]/30 transition-colors"
-                placeholder="Describe the objective of this task…"
+                placeholder={
+                  isPersonalMode
+                    ? "Context, links, or reminders…"
+                    : "Describe the objective of this task…"
+                }
               />
             </IndulgeField>
           ) : (
@@ -184,18 +234,20 @@ function ZoneA({
           )}
         </div>
 
-        {/* Checklist */}
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-[#B5A99A] mb-2 flex items-center gap-1.5">
-            <CheckSquare className="w-3 h-3" />
-            Action Items
-          </p>
-          <TaskChecklist
-            taskId={task.id}
-            initialItems={checklist}
-            editable={editable}
-          />
-        </div>
+        {/* Checklist — workspace subtasks only */}
+        {!isPersonalMode && (
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-[#B5A99A] mb-2 flex items-center gap-1.5">
+              <CheckSquare className="w-3 h-3" />
+              Action Items
+            </p>
+            <TaskChecklist
+              taskId={task.id}
+              initialItems={checklist}
+              editable={editable}
+            />
+          </div>
+        )}
 
         {/* Key Variables */}
         <div>
@@ -388,6 +440,7 @@ function ZoneA({
 
 interface ZoneBProps {
   taskId: string;
+  isPersonalMode: boolean;
   currentStatus: AtlasTaskStatus;
   currentProgress: number;
   remarks: TaskRemark[];
@@ -402,6 +455,7 @@ interface ZoneBProps {
 
 function ZoneB({
   taskId,
+  isPersonalMode,
   currentStatus,
   currentProgress,
   remarks,
@@ -426,7 +480,9 @@ function ZoneB({
     <div className="flex flex-col h-full min-h-0">
       {/* Feed header */}
       <div className="px-6 pt-5 pb-3 shrink-0">
-        <SectionLabel>Activity</SectionLabel>
+        <SectionLabel>
+          {isPersonalMode ? "Notes & messages" : "Activity"}
+        </SectionLabel>
       </div>
 
       {/* Feed — scrollable */}
@@ -435,7 +491,9 @@ function ZoneB({
           <p className="text-[13px] text-[#B5A99A] italic text-center py-8">
             {readOnly
               ? "No updates yet."
-              : "No updates yet. Be the first to log progress."}
+              : isPersonalMode
+                ? "No notes yet. Add one for yourself or for leadership to see."
+                : "No updates yet. Be the first to log progress."}
           </p>
         ) : (
           remarks.map((remark, i) => (
@@ -462,6 +520,7 @@ function ZoneB({
             currentUserId={currentUserId}
             currentUserName={currentUserName}
             currentUserJobTitle={currentUserJobTitle}
+            variant={isPersonalMode ? "personal" : "default"}
           />
         </div>
       )}
@@ -478,9 +537,13 @@ export interface SubTaskModalProps {
     id: string;
     full_name: string;
     job_title: string | null;
+    /** Used to gate delete on personal tasks (privileged roles only). */
+    role?: string;
   };
   /** When true, brief and timeline are view-only; no mutations or Log Update form. */
   readOnly?: boolean;
+  /** Override stacking (e.g. `z-[125]` when opened above another full-screen overlay). */
+  stackClassName?: string;
 }
 
 export function SubTaskModal({
@@ -488,11 +551,13 @@ export function SubTaskModal({
   onClose,
   currentUser,
   readOnly = false,
+  stackClassName,
 }: SubTaskModalProps) {
   const router = useRouter();
+  const viewerRole = currentUser.role ?? "agent";
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [task, setTask] = useState<SubTask | null>(null);
+  const [task, setTask] = useState<DetailModalTask | null>(null);
   const [masterTaskTitle, setMasterTaskTitle] = useState<string | null>(null);
   const [masterTaskGroupTitle, setMasterTaskGroupTitle] = useState<string | null>(null);
   const [assigneeProfile, setAssigneeProfile] = useState<{ id: string; full_name: string; job_title: string | null } | null>(null);
@@ -523,12 +588,13 @@ export function SubTaskModal({
   }, [menuOpen]);
 
   function handleDelete() {
+    const wasPersonal = task != null && isPersonalDetailTask(task);
     startDeleteTransition(async () => {
       const result = await deleteSubTask(taskId);
       if (!result.success) {
-        toast.error(result.error ?? "Failed to delete subtask.");
+        toast.error(result.error ?? "Failed to delete task.");
       } else {
-        toast.success("Subtask deleted.");
+        toast.success(wasPersonal ? "Task deleted." : "Subtask deleted.");
         router.refresh();
         onClose();
       }
@@ -573,11 +639,29 @@ export function SubTaskModal({
   useSubtaskRealtime(taskId, {
     onRemarkInserted: (raw) => {
       setRemarks((prev) => {
+        if (prev.some((r) => r.id === raw.id)) return prev;
+
+        // Realtime payloads have no joined `author`; optimistic rows do. Server may
+        // alter `content` via sanitizeText, so content equality often fails — drop any
+        // optimistic row for the same author and merge profile onto the real row.
+        const optimisticSelf = prev.find(
+          (r) => r.id.startsWith("optimistic-") && r.author_id === raw.author_id,
+        );
         const filtered = prev.filter(
-          (r) => !r.id.startsWith("optimistic-") || r.content !== raw.content,
+          (r) =>
+            !(
+              r.id.startsWith("optimistic-") &&
+              r.author_id === raw.author_id
+            ),
         );
         if (filtered.some((r) => r.id === raw.id)) return filtered;
-        return [raw, ...filtered];
+
+        const merged: TaskRemark =
+          optimisticSelf?.author != null
+            ? { ...raw, author: optimisticSelf.author, source: raw.source ?? "agent" }
+            : { ...raw, source: raw.source ?? "agent" };
+
+        return [merged, ...filtered];
       });
     },
     onTaskUpdated: (row) => {
@@ -601,6 +685,7 @@ export function SubTaskModal({
           row.attachments !== undefined ? row.attachments : prev.attachments;
         return {
           ...prev,
+          title: (row.title as string | undefined) ?? prev.title,
           atlas_status: (row.atlas_status as AtlasTaskStatus) ?? prev.atlas_status,
           progress: (row.progress as number) ?? prev.progress,
           priority: (row.priority as TaskPriority) ?? prev.priority,
@@ -622,9 +707,20 @@ export function SubTaskModal({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
 
+  const openTaskIsPersonal = task ? isPersonalDetailTask(task) : false;
+  const showDestructiveMenu =
+    !readOnly && task && (!openTaskIsPersonal || isPrivilegedRole(viewerRole));
+
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" role="dialog" aria-modal="true">
+      <div
+        className={cn(
+          "fixed inset-0 z-[100] flex items-center justify-center p-4",
+          stackClassName,
+        )}
+        role="dialog"
+        aria-modal="true"
+      >
         {/* Scrim */}
         <motion.div
           key="scrim"
@@ -653,14 +749,21 @@ export function SubTaskModal({
           <div className="flex items-center justify-between px-6 py-4 border-b border-[#E5E4DF] shrink-0">
             {/* Breadcrumb */}
             <div className="flex items-center gap-2 min-w-0 flex-1">
-              {masterTaskTitle && (
+              {openTaskIsPersonal ? (
+                <>
+                  <span className="text-[12px] text-[#8A8A6E] truncate max-w-[200px]">
+                    Personal task
+                  </span>
+                  <ChevronRight className="w-3.5 h-3.5 text-[#B5A99A] shrink-0" />
+                </>
+              ) : masterTaskTitle ? (
                 <>
                   <span className="text-[12px] text-[#8A8A6E] truncate max-w-[200px]">
                     {masterTaskTitle}
                   </span>
                   <ChevronRight className="w-3.5 h-3.5 text-[#B5A99A] shrink-0" />
                 </>
-              )}
+              ) : null}
               <span className="text-[14px] font-medium text-[#1A1A1A] truncate">
                 {task?.title ?? "Loading…"}
               </span>
@@ -688,62 +791,68 @@ export function SubTaskModal({
                     >
                       <Pencil className="w-4 h-4" />
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMenuOpen((p) => !p);
-                        setDeleteConfirm(false);
-                      }}
-                      className="p-1.5 rounded-lg hover:bg-[#F2F2EE] text-[#6B6B6B] transition-colors"
-                      aria-label="More actions"
-                      title="More actions"
-                    >
-                      <MoreHorizontal className="w-4 h-4" />
-                    </button>
+                    {showDestructiveMenu ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMenuOpen((p) => !p);
+                            setDeleteConfirm(false);
+                          }}
+                          className="p-1.5 rounded-lg hover:bg-[#F2F2EE] text-[#6B6B6B] transition-colors"
+                          aria-label="More actions"
+                          title="More actions"
+                        >
+                          <MoreHorizontal className="w-4 h-4" />
+                        </button>
 
-                    {menuOpen && (
-                      <div
-                        ref={menuRef}
-                        className="absolute top-full right-0 mt-1 z-50 w-44 rounded-xl border border-[#E5E4DF] bg-white shadow-lg py-1"
-                      >
-                        {!deleteConfirm ? (
-                          <button
-                            type="button"
-                            onClick={() => setDeleteConfirm(true)}
-                            className="flex w-full items-center gap-2.5 px-3 py-2 text-[13px] text-[#C0392B] hover:bg-[#FEF2F2] transition-colors"
+                        {menuOpen && (
+                          <div
+                            ref={menuRef}
+                            className="absolute top-full right-0 mt-1 z-50 w-44 rounded-xl border border-[#E5E4DF] bg-white shadow-lg py-1"
                           >
-                            <Trash2 className="w-3.5 h-3.5 shrink-0" />
-                            Delete subtask
-                          </button>
-                        ) : (
-                          <div className="px-3 py-2.5">
-                            <p className="text-[12px] text-[#1A1A1A] font-medium mb-2">
-                              Delete this subtask?
-                            </p>
-                            <p className="text-[11px] text-[#8A8A6E] mb-3 leading-snug">
-                              This cannot be undone.
-                            </p>
-                            <div className="flex gap-2">
+                            {!deleteConfirm ? (
                               <button
                                 type="button"
-                                onClick={() => setDeleteConfirm(false)}
-                                className="flex-1 rounded-lg border border-[#E5E4DF] bg-white px-2 py-1.5 text-[12px] text-[#6B6B6B] hover:bg-[#F2F2EE] transition-colors"
+                                onClick={() => setDeleteConfirm(true)}
+                                className="flex w-full items-center gap-2.5 px-3 py-2 text-[13px] text-[#C0392B] hover:bg-[#FEF2F2] transition-colors"
                               >
-                                Cancel
+                                <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                                {openTaskIsPersonal ? "Delete task" : "Delete subtask"}
                               </button>
-                              <button
-                                type="button"
-                                onClick={handleDelete}
-                                disabled={isDeleting}
-                                className="flex-1 rounded-lg bg-[#C0392B] px-2 py-1.5 text-[12px] text-white hover:bg-[#A93226] disabled:opacity-60 transition-colors"
-                              >
-                                {isDeleting ? "Deleting…" : "Delete"}
-                              </button>
-                            </div>
+                            ) : (
+                              <div className="px-3 py-2.5">
+                                <p className="text-[12px] text-[#1A1A1A] font-medium mb-2">
+                                  {openTaskIsPersonal
+                                    ? "Delete this task?"
+                                    : "Delete this subtask?"}
+                                </p>
+                                <p className="text-[11px] text-[#8A8A6E] mb-3 leading-snug">
+                                  This cannot be undone.
+                                </p>
+                                <div className="flex gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => setDeleteConfirm(false)}
+                                    className="flex-1 rounded-lg border border-[#E5E4DF] bg-white px-2 py-1.5 text-[12px] text-[#6B6B6B] hover:bg-[#F2F2EE] transition-colors"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={handleDelete}
+                                    disabled={isDeleting}
+                                    className="flex-1 rounded-lg bg-[#C0392B] px-2 py-1.5 text-[12px] text-white hover:bg-[#A93226] disabled:opacity-60 transition-colors"
+                                  >
+                                    {isDeleting ? "Deleting…" : "Delete"}
+                                  </button>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
-                      </div>
-                    )}
+                      </>
+                    ) : null}
                   </>
                 )}
               </div>
@@ -790,6 +899,7 @@ export function SubTaskModal({
               >
                 <ZoneA
                   task={task}
+                  isPersonalMode={isPersonalDetailTask(task)}
                   masterTaskTitle={masterTaskTitle}
                   masterTaskGroupTitle={masterTaskGroupTitle}
                   assigneeProfile={assigneeProfile}
@@ -810,6 +920,7 @@ export function SubTaskModal({
               <div className="flex-1 flex flex-col min-h-0 bg-[#FAFAF8]">
                 <ZoneB
                   taskId={task.id}
+                  isPersonalMode={isPersonalDetailTask(task)}
                   currentStatus={task.atlas_status}
                   currentProgress={task.progress ?? 0}
                   remarks={remarks}

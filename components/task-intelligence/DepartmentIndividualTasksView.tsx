@@ -15,6 +15,7 @@ import { EmployeeDossierModal } from "./EmployeeDossierModal";
 interface DepartmentIndividualTasksViewProps {
   agents: TaskIntelligenceAgentSummary[];
   departmentId: EmployeeDepartment | null;
+  currentUser: { id: string; full_name: string; job_title: string | null; role: string };
 }
 
 function summaryToProfile(
@@ -69,6 +70,7 @@ function deriveEmployeeHealthSignal(
 export function DepartmentIndividualTasksView({
   agents,
   departmentId,
+  currentUser,
 }: DepartmentIndividualTasksViewProps) {
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
 
@@ -106,6 +108,7 @@ export function DepartmentIndividualTasksView({
             key="dossier"
             agentId={selectedAgentId}
             agentList={filteredAgentList}
+            currentUser={currentUser}
             onClose={() => setSelectedAgentId(null)}
             onNavigate={(id) => setSelectedAgentId(id)}
           />

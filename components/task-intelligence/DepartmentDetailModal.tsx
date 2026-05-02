@@ -41,7 +41,7 @@ interface DepartmentDetailModalProps {
   open: boolean;
   overview: DepartmentTaskOverview | null;
   onClose: () => void;
-  currentUser: { id: string; full_name: string; job_title: string | null };
+  currentUser: { id: string; full_name: string; job_title: string | null; role: string };
 }
 
 export function DepartmentDetailModal({
@@ -222,6 +222,7 @@ export function DepartmentDetailModal({
                 <DepartmentIndividualTasksView
                   agents={agents}
                   departmentId={overview.departmentId}
+                  currentUser={currentUser}
                 />
               )}
             </div>

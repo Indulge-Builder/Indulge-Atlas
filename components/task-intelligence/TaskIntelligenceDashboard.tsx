@@ -33,7 +33,7 @@ type TabKey = "workspaces" | "individual";
 interface TaskIntelligenceDashboardProps {
   initialOverview: DepartmentTaskOverview[];
   initialWorkspaces: TaskInsightsWorkspaceCard[];
-  currentUser: { id: string; full_name: string; job_title: string | null };
+  currentUser: { id: string; full_name: string; job_title: string | null; role: string };
   loadError?: string | null;
   /** When set (e.g. from `/task-insights?dept=tech`), opens the department detail on load. */
   initialOpenDepartmentId?: string | null;
@@ -348,6 +348,7 @@ export function TaskIntelligenceDashboard({
                   <DepartmentIndividualTasksView
                     agents={individualAgents}
                     departmentId={(filterDepartmentId as EmployeeDepartment | null) ?? null}
+                    currentUser={currentUser}
                   />
                 ) : (
                   <p className="text-sm text-[#8A8A6E]">

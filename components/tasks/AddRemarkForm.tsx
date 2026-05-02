@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { updateSubTaskStatus } from "@/lib/actions/tasks";
+import { ATLAS_SUBTASK_UPDATE_MAX_CHARS } from "@/lib/schemas/tasks";
 import { ATLAS_TASK_STATUS_LABELS, ATLAS_TASK_STATUS_COLORS, ATLAS_TASK_STATUS_VALUES } from "@/lib/types/database";
 import type { AtlasTaskStatus, TaskRemark } from "@/lib/types/database";
 
@@ -129,14 +130,16 @@ export function AddRemarkForm({
           onChange={(e) => { setRemark(e.target.value); if (error) setError(null); }}
           placeholder="Describe what was done, what's blocking, or what changed…"
           className="min-h-[80px] resize-none border-zinc-200/80 bg-white/80 text-sm shadow-[inset_0_1px_2px_rgb(0_0_0/0.04)]"
-          maxLength={1000}
+          maxLength={ATLAS_SUBTASK_UPDATE_MAX_CHARS}
           required
           aria-required="true"
         />
       </IndulgeField>
 
       <div className="flex items-center justify-between">
-        <span className="text-[10px] text-zinc-400">{remark.length}/1000</span>
+        <span className="text-[10px] text-zinc-400">
+          {remark.length}/{ATLAS_SUBTASK_UPDATE_MAX_CHARS}
+        </span>
         <IndulgeButton
           type="submit"
           variant="gold"

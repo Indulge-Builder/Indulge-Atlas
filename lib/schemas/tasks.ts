@@ -128,10 +128,13 @@ export const ChecklistSchema = z.array(ChecklistItemSchema).max(100);
 
 // ── Sub-Task Status / Progress ─────────────────────────────
 
+/** Timeline remark (`task_remarks`) and optional progress-update note (`task_progress_updates`). */
+export const ATLAS_SUBTASK_UPDATE_MAX_CHARS = 1000;
+
 export const UpdateSubTaskStatusSchema = z.object({
   task_id:        z.string().uuid(),
   new_status:     atlasStatusSchema,
-  remark_content: z.string().min(1).max(1000),
+  remark_content: z.string().min(1).max(ATLAS_SUBTASK_UPDATE_MAX_CHARS),
   new_progress:   z.number().int().min(0).max(100).optional(),
   // Optionally save checklist state in the same round-trip
   checklist:      ChecklistSchema.optional(),
@@ -140,7 +143,7 @@ export const UpdateSubTaskStatusSchema = z.object({
 export const UpdateSubTaskProgressSchema = z.object({
   task_id:     z.string().uuid(),
   new_progress: z.number().int().min(0).max(100),
-  note:         z.string().max(500).optional(),
+  note:         z.string().max(ATLAS_SUBTASK_UPDATE_MAX_CHARS).optional(),
 });
 
 export const ReorderSubTasksSchema = z.object({

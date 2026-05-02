@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { AlertTriangle, Flame } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import type { EmployeeTaskMetrics } from "@/lib/types/database";
 
 export interface SmartMetricsPanelProps {
@@ -74,19 +74,6 @@ export function SmartMetricsPanel({ metrics }: SmartMetricsPanelProps) {
             </div>
           </div>
         ))}
-      </div>
-
-      <div className="flex items-center gap-2">
-        {metrics.streakDays > 0 ? (
-          <>
-            <Flame className="h-4 w-4 text-amber-400" />
-            <span className="text-sm font-semibold text-amber-400">
-              {metrics.streakDays} day streak
-            </span>
-          </>
-        ) : (
-          <span className="text-sm text-white/25">No current streak</span>
-        )}
       </div>
 
       <div className="mt-2 grid grid-cols-3 gap-2">

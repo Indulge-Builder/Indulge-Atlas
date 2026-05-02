@@ -919,7 +919,7 @@ export async function createSubTask(
 
 export async function getSubTaskDetail(taskId: string): Promise<
   ActionResult<{
-    task: SubTask;
+    task: SubTask | PersonalTask;
     masterTaskTitle: string | null;
     masterTaskGroupTitle: string | null;
     remarks: TaskRemark[];
@@ -943,7 +943,7 @@ export async function getSubTaskDetail(taskId: string): Promise<
       supabase
         .from("tasks")
         .select(
-          "id, project_id, group_id, parent_task_id, title, notes, atlas_status, priority, progress, due_date, assigned_to_users, estimated_minutes, actual_minutes, position, tags, attachments, created_by, created_at, updated_at, domain, department, master_task_id, imported_from, import_batch_id",
+          "id, project_id, group_id, parent_task_id, title, notes, atlas_status, priority, progress, due_date, assigned_to_users, estimated_minutes, actual_minutes, position, tags, attachments, created_by, created_at, updated_at, domain, department, master_task_id, imported_from, import_batch_id, unified_task_type",
         )
         .eq("id", parsed.data)
         .single(),
@@ -1030,14 +1030,17 @@ export async function getSubTaskDetail(taskId: string): Promise<
         typeof item === "object" && item !== null && "id" in item && "text" in item && "checked" in item,
     );
 
+    const unifiedType =
+      typedTask.unified_task_type === "personal" ? "personal" : "subtask";
+
     return {
       success: true,
       data: {
         task: {
           ...typedTask,
-          unified_task_type:      "subtask",
+          unified_task_type:      unifiedType,
           assigned_to_profiles: assignedToProfiles,
-        } as unknown as SubTask,
+        } as unknown as SubTask | PersonalTask,
         masterTaskTitle,
         masterTaskGroupTitle,
         remarks:             (remarks ?? []) as unknown as TaskRemark[],
@@ -1537,7 +1540,11 @@ export async function createPersonalTask(
     const { supabase, user, domain, department } = await getAuthUser();
     const d = parsed.data;
     const assigneeId = d.assigned_to ?? user.id;
+    const isDelegated = Boolean(d.assigned_to && d.assigned_to !== user.id);
     const tagList = (d.tags ?? []).map((t) => sanitizeText(t)).filter(Boolean);
+    if (isDelegated) {
+      tagList.push(sanitizeText(`delegated_by:${user.id}`));
+    }
 
     if (d.assigned_to && d.assigned_to !== user.id) {
       const { data: peer, error: peerErr } = await supabase
@@ -1566,7 +1573,8 @@ export async function createPersonalTask(
         assigned_to_users: [assigneeId],
         domain:            persDomain,
         department:        persDepartment,
-        created_by:        user.id,
+        /** Assignee owns the row so “My tasks” / Daily SOP / RLS stay assignee-scoped; delegator in `delegated_by:` tag. */
+        created_by:        isDelegated ? assigneeId : user.id,
         status:            "pending",
         task_type:         "general_follow_up",
         progress:          0,
@@ -2003,17 +2011,22 @@ export async function getMyTasks(): Promise<ActionResult<{ personalTasks: Person
       .eq("unified_task_type", "personal")
       .eq("is_daily_sop_template", false)
       .eq("is_daily", false)
-      .or(`assigned_to_users.cs.{${user.id}},created_by.eq.${user.id}`)
+      // Assignee-only list: delegated rows use assignee as `created_by` + optional `delegated_by:` tag.
+      .contains("assigned_to_users", [user.id])
       .neq("atlas_status", "cancelled")
       .order("priority", { ascending: true })
       .order("due_date", { ascending: true, nullsFirst: false });
 
     if (personalRes.error) return { success: false, error: "Failed to fetch tasks" };
 
+    const personalTasks = ((personalRes.data ?? []) as unknown as PersonalTask[]).filter((t) =>
+      ((t.assigned_to_users as string[] | null) ?? []).includes(user.id),
+    );
+
     return {
       success: true,
       data: {
-        personalTasks: (personalRes.data ?? []) as unknown as PersonalTask[],
+        personalTasks,
       },
     };
   } catch (err) {
@@ -2044,6 +2057,34 @@ export async function completePersonalTask(taskId: unknown): Promise<ActionResul
     return { success: true };
   } catch (err) {
     console.error("[completePersonalTask]", err);
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+/** Restore a completed personal task to the active list (assignee only). */
+export async function reopenPersonalTask(taskId: unknown): Promise<ActionResult> {
+  const parsed = uuidSchema.safeParse(taskId);
+  if (!parsed.success) return { success: false, error: "Invalid task ID" };
+
+  try {
+    const { supabase, user } = await getAuthUser();
+
+    const { error } = await supabase
+      .from("tasks")
+      .update({ atlas_status: "todo", progress: 0 })
+      .eq("id", parsed.data)
+      .eq("unified_task_type", "personal")
+      .eq("atlas_status", "done")
+      .contains("assigned_to_users", [user.id]);
+
+    if (error) return { success: false, error: "Failed to reopen task" };
+
+    revalidatePath("/", "page");
+    revalidatePath("/tasks", "page");
+    revalidatePath("/task-insights", "page");
+    return { success: true };
+  } catch (err) {
+    console.error("[reopenPersonalTask]", err);
     return { success: false, error: "An unexpected error occurred" };
   }
 }
@@ -3377,9 +3418,13 @@ export async function getDailyPersonalTasks(): Promise<ActionResult<{ items: Per
 
     if (error) return { success: false, error: error.message };
 
+    const items = ((data ?? []) as unknown as PersonalTask[]).filter((t) =>
+      ((t.assigned_to_users as string[] | null) ?? []).includes(user.id),
+    );
+
     return {
       success: true,
-      data: { items: (data ?? []) as unknown as PersonalTask[] },
+      data: { items },
     };
   } catch (err) {
     console.error("[getDailyPersonalTasks]", err);

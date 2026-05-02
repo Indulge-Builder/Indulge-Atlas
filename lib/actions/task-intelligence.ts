@@ -5,7 +5,7 @@
  * Admin & founder: all departments and tasks. Manager: only departments mapped from their domain (`departmentsVisibleForDomain`).
  */
 
-import { endOfDay, startOfDay } from "date-fns";
+import { addDays, endOfDay, startOfDay } from "date-fns";
 import { fromZonedTime, toZonedTime } from "date-fns-tz";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -1061,32 +1061,74 @@ export async function getEmployeeDossier(
     const nonDaily = visiblePersonal.filter((t) => !t.is_daily);
     const activNonDaily = nonDaily.filter((t) => t.atlas_status !== "done");
 
-    const personalBuckets = {
-      dailySop: dailySopTasks,
-      today: activNonDaily.filter(
+    const nowIst = toZonedTime(now, IST);
+    const startTodayIst = startOfDay(nowIst);
+    const endTodayIst = endOfDay(nowIst);
+    const startTodayUtc = fromZonedTime(startTodayIst, IST);
+    const endTodayUtc = fromZonedTime(endTodayIst, IST);
+    /** End of the calendar day 7 days after today (IST) — used to prioritize “this week” in sort order. */
+    const endUpcomingIst = endOfDay(addDays(nowIst, 7));
+    const endUpcomingUtc = fromZonedTime(endUpcomingIst, IST);
+
+    const oneWeekAgoMs = now.getTime() - 7 * 24 * 60 * 60 * 1000;
+
+    const pendingToday = activNonDaily
+      .filter(
         (t) =>
           !!t.due_date &&
-          new Date(t.due_date) >= startOfTodayIST &&
-          new Date(t.due_date) <= endOfTodayIST,
-      ),
-      upcoming: activNonDaily
-        .filter((t) => {
-          if (!t.due_date) return true;
+          new Date(t.due_date) >= startTodayUtc &&
+          new Date(t.due_date) <= endTodayUtc,
+      )
+      .slice()
+      .sort((a, b) => {
+        const ta = new Date(a.due_date as string).getTime();
+        const tb = new Date(b.due_date as string).getTime();
+        return ta - tb;
+      });
+
+    const upcoming = activNonDaily
+      .filter((t) => {
+        if (!t.due_date) return true;
+        const d = new Date(t.due_date);
+        if (d >= startTodayUtc && d <= endTodayUtc) return false;
+        return true;
+      })
+      .slice()
+      .sort((a, b) => {
+        const tier = (t: PersonalTask) => {
+          if (!t.due_date) return 3;
           const d = new Date(t.due_date);
-          return d < startOfTodayIST || d > endOfTodayIST;
-        })
-        .sort((a, b) => {
-          const ta = a.due_date ? new Date(a.due_date).getTime() : Number.POSITIVE_INFINITY;
-          const tb = b.due_date ? new Date(b.due_date).getTime() : Number.POSITIVE_INFINITY;
-          return ta - tb;
-        }),
-      completedToday: nonDaily.filter(
+          if (d < startTodayUtc) return 0;
+          if (d > endTodayUtc && d <= endUpcomingUtc) return 1;
+          return 2;
+        };
+        const tA = tier(a);
+        const tB = tier(b);
+        if (tA !== tB) return tA - tB;
+        const da = a.due_date ? new Date(a.due_date).getTime() : 0;
+        const db = b.due_date ? new Date(b.due_date).getTime() : 0;
+        return da - db;
+      });
+
+    const completedLastWeek = nonDaily
+      .filter(
         (t) =>
           t.atlas_status === "done" &&
           t.updated_at &&
-          new Date(t.updated_at) >= startOfTodayIST &&
-          new Date(t.updated_at) <= endOfTodayIST,
-      ),
+          new Date(t.updated_at).getTime() >= oneWeekAgoMs,
+      )
+      .slice()
+      .sort(
+        (a, b) =>
+          new Date(b.updated_at as string).getTime() -
+          new Date(a.updated_at as string).getTime(),
+      );
+
+    const personalBuckets = {
+      dailySop:        dailySopTasks,
+      pendingToday,
+      upcoming,
+      completedLastWeek,
     };
 
     if (!(await assertTaskIntelligenceRoleForUser(user.id)))

@@ -479,6 +479,9 @@ export interface PersonalTask {
   /** When true, row is a manager SOP template (hidden from normal lists). */
   is_daily_sop_template?: boolean;
   tags?: string[];
+  /** Same storage as project tasks; optional on personal rows. */
+  attachments?: TaskAttachment[];
+  imported_from?: string | null;
 }
 
 /**
@@ -509,10 +512,12 @@ export interface EmployeeDossierPayload {
   personalTasks: {
     /** Daily SOP rows only; shown in dossier SOP block (tick when done). */
     dailySop: PersonalTask[];
-    today: PersonalTask[];
-    /** Non-daily active tasks not due today (incl. late), sorted by due date. */
+    /** Non-daily, active, due today (IST). */
+    pendingToday: PersonalTask[];
+    /** Non-daily, active, not due today: overdue; then by due (next week first); undated last — excludes SOP. */
     upcoming: PersonalTask[];
-    completedToday: PersonalTask[];
+    /** Non-daily completed in the past 7 days (rolling). */
+    completedLastWeek: PersonalTask[];
   };
   workspaceSubtasks: WorkspaceSubtaskAssignment[];
 }

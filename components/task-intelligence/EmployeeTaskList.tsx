@@ -3,8 +3,7 @@
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
-import { Check, Circle, Inbox, Lock, Users } from "lucide-react";
-import Link from "next/link";
+import { Check, Circle, Inbox, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   ATLAS_TASK_STATUS_COLORS,
@@ -17,8 +16,6 @@ import type {
   PersonalTask,
   WorkspaceSubtaskAssignment,
 } from "@/lib/types/database";
-import { PrivacyBadge } from "@/components/tasks/shared/PrivacyBadge";
-import { TooltipProvider } from "@/components/ui/tooltip";
 
 const IST = "Asia/Kolkata";
 
@@ -46,16 +43,24 @@ export interface EmployeeTaskListProps {
   personalTasks: EmployeeDossierPayload["personalTasks"];
   workspaceSubtasks: WorkspaceSubtaskAssignment[];
   agentName: string;
+  onOpenWorkspaceSubtask: (subtaskId: string) => void;
+  onOpenPersonalTask: (taskId: string) => void;
 }
 
 type TabKey = "personal" | "workspace";
 
-type PersonalSectionKey = "dailySop" | "today" | "upcoming" | "completedToday";
+type PersonalSectionKey =
+  | "dailySop"
+  | "pendingToday"
+  | "upcoming"
+  | "completedLastWeek";
 
 export function EmployeeTaskList({
   personalTasks,
   workspaceSubtasks,
   agentName,
+  onOpenWorkspaceSubtask,
+  onOpenPersonalTask,
 }: EmployeeTaskListProps) {
   const [tab, setTab] = useState<TabKey>("personal");
 
@@ -65,10 +70,10 @@ export function EmployeeTaskList({
       thisWeek?: PersonalTask[];
     };
     return {
-      dailySop:        pt.dailySop ?? [],
-      today:           pt.today ?? [],
-      upcoming:        pt.upcoming ?? [],
-      completedToday:  pt.completedToday ?? [],
+      dailySop:          pt.dailySop ?? [],
+      pendingToday:      pt.pendingToday ?? [],
+      upcoming:          pt.upcoming ?? [],
+      completedLastWeek: pt.completedLastWeek ?? [],
     };
   }, [personalTasks]);
 
@@ -83,9 +88,9 @@ export function EmployeeTaskList({
 
   const personalEmpty =
     safePersonal.dailySop.length === 0 &&
-    safePersonal.today.length === 0 &&
+    safePersonal.pendingToday.length === 0 &&
     safePersonal.upcoming.length === 0 &&
-    safePersonal.completedToday.length === 0;
+    safePersonal.completedLastWeek.length === 0;
 
   const sections: {
     key: PersonalSectionKey;
@@ -93,11 +98,19 @@ export function EmployeeTaskList({
     labelClass: string;
   }[] = [
     { key: "dailySop", label: "SOP", labelClass: "text-[#D4AF37]/90" },
-    { key: "today", label: "TODAY", labelClass: "text-white/30" },
-    { key: "upcoming", label: "UPCOMING", labelClass: "text-white/30" },
     {
-      key: "completedToday",
-      label: "COMPLETED TODAY",
+      key: "pendingToday",
+      label: "PENDING TODAY",
+      labelClass: "text-white/30",
+    },
+    {
+      key: "upcoming",
+      label: "UPCOMING",
+      labelClass: "text-white/30",
+    },
+    {
+      key: "completedLastWeek",
+      label: "COMPLETED (PAST 7 DAYS)",
       labelClass: "text-white/30",
     },
   ];
@@ -133,11 +146,10 @@ export function EmployeeTaskList({
 
       <div className="flex-1 overflow-y-auto">
         {tab === "personal" && (
-          <TooltipProvider delayDuration={200}>
-            <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-white/5 bg-[var(--surface-1)] px-5 py-2.5">
-              <Lock className="h-3 w-3 shrink-0 text-white/25" />
+          <>
+            <div className="sticky top-0 z-10 border-b border-white/5 bg-[var(--surface-1)] px-5 py-2.5">
               <p className="text-[11px] text-white/35">
-                These tasks are private to {agentName}
+                Personal and group-assigned tasks for {agentName}
               </p>
             </div>
 
@@ -171,41 +183,39 @@ export function EmployeeTaskList({
                         {(bucket as PersonalTask[]).map((task) => {
                           const done = task.atlas_status === "done";
                           return (
-                            <li
-                              key={task.id}
-                              className="flex items-center gap-3 px-5 py-2 transition-colors hover:bg-white/[0.03]"
-                            >
-                              <span
-                                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/[0.04]"
-                                aria-hidden
+                            <li key={task.id}>
+                              <button
+                                type="button"
+                                onClick={() => onOpenPersonalTask(task.id)}
+                                className="flex w-full items-center gap-3 px-5 py-2 text-left transition-colors hover:bg-white/[0.06]"
                               >
-                                {done ? (
-                                  <Check
-                                    className="h-3.5 w-3.5 text-[#D4AF37]"
-                                    strokeWidth={2.5}
-                                  />
-                                ) : (
-                                  <Circle className="h-2 w-2 text-white/20" fill="currentColor" />
-                                )}
-                              </span>
-                              <span
-                                className={cn(
-                                  "min-w-0 flex-1 truncate text-sm",
-                                  done ? "text-white/40 line-through" : "text-white/85",
-                                )}
-                              >
-                                {task.title}
-                              </span>
-                              {task.due_date ? (
-                                <span className="shrink-0 text-[11px] text-white/35">
-                                  {formatDueIst(task.due_date)}
+                                <span
+                                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/[0.04]"
+                                  aria-hidden
+                                >
+                                  {done ? (
+                                    <Check
+                                      className="h-3.5 w-3.5 text-[#D4AF37]"
+                                      strokeWidth={2.5}
+                                    />
+                                  ) : (
+                                    <Circle className="h-2 w-2 text-white/20" fill="currentColor" />
+                                  )}
                                 </span>
-                              ) : null}
-                              <PrivacyBadge
-                                isManagerView
-                                withProvider={false}
-                                className="shrink-0"
-                              />
+                                <span
+                                  className={cn(
+                                    "min-w-0 flex-1 truncate text-sm",
+                                    done ? "text-white/40 line-through" : "text-white/85",
+                                  )}
+                                >
+                                  {task.title}
+                                </span>
+                                {task.due_date ? (
+                                  <span className="shrink-0 text-[11px] text-white/35">
+                                    {formatDueIst(task.due_date)}
+                                  </span>
+                                ) : null}
+                              </button>
                             </li>
                           );
                         })}
@@ -231,44 +241,46 @@ export function EmployeeTaskList({
                     </div>
                     <ul>
                       {(bucket as PersonalTask[]).map((task) => {
-                        const doneBucket = key === "completedToday";
+                        const doneBucket = key === "completedLastWeek";
                         const pri = TASK_PRIORITY_CONFIG[task.priority];
                         const late =
                           key === "upcoming" && isPersonalOverdue(task);
                         return (
-                          <li
-                            key={task.id}
-                            className="flex items-center gap-3 px-5 py-2.5 transition-colors hover:bg-white/[0.03]"
-                          >
-                            <span
-                              className={cn(
-                                "h-1.5 w-1.5 shrink-0 rounded-full",
-                                pri?.dotClass ?? "bg-white/30",
-                              )}
-                            />
-                            <span
-                              className={cn(
-                                "min-w-0 flex-1 truncate text-sm",
-                                doneBucket
-                                  ? "text-white/35 line-through"
-                                  : "text-white/80",
-                              )}
+                          <li key={task.id}>
+                            <button
+                              type="button"
+                              onClick={() => onOpenPersonalTask(task.id)}
+                              className="flex w-full items-center gap-3 px-5 py-2.5 text-left transition-colors hover:bg-white/[0.06]"
                             >
-                              {task.title}
-                            </span>
-                            <span
-                              className={cn(
-                                "shrink-0 text-[11px]",
-                                late ? "text-red-400/80" : "text-white/40",
-                              )}
-                            >
-                              {task.due_date ? formatDueIst(task.due_date) : ""}
-                            </span>
-                            <PrivacyBadge
-                              isManagerView
-                              withProvider={false}
-                              className="shrink-0"
-                            />
+                              <span
+                                className={cn(
+                                  "h-1.5 w-1.5 shrink-0 rounded-full",
+                                  pri?.dotClass ?? "bg-white/30",
+                                )}
+                              />
+                              <span
+                                className={cn(
+                                  "min-w-0 flex-1 truncate text-sm",
+                                  doneBucket
+                                    ? "text-white/35 line-through"
+                                    : "text-white/80",
+                                )}
+                              >
+                                {task.title}
+                              </span>
+                              <span
+                                className={cn(
+                                  "shrink-0 text-[11px]",
+                                  late ? "text-red-400/80" : "text-white/40",
+                                )}
+                              >
+                                {doneBucket && task.updated_at
+                                  ? formatDueIst(task.updated_at)
+                                  : task.due_date
+                                    ? formatDueIst(task.due_date)
+                                    : ""}
+                              </span>
+                            </button>
                           </li>
                         );
                       })}
@@ -277,7 +289,7 @@ export function EmployeeTaskList({
                 );
               })
             )}
-          </TooltipProvider>
+          </>
         )}
 
         {tab === "workspace" && (
@@ -305,14 +317,12 @@ export function EmployeeTaskList({
                     parentTitle.length > 20
                       ? `${parentTitle.slice(0, 20)}…`
                       : parentTitle;
-                  const masterHref = sub.project_id
-                    ? `/tasks/${sub.project_id}`
-                    : "/tasks";
                   return (
                     <li key={sub.id}>
-                      <Link
-                        href={masterHref}
-                        className="flex items-center gap-3 px-5 py-2.5 transition-colors hover:bg-white/[0.03]"
+                      <button
+                        type="button"
+                        onClick={() => onOpenWorkspaceSubtask(sub.id)}
+                        className="flex w-full items-center gap-3 px-5 py-2.5 text-left transition-colors hover:bg-white/[0.03]"
                       >
                         <span
                           className="max-w-[100px] shrink-0 truncate rounded-full border px-2 py-0.5 text-[10px]"
@@ -355,7 +365,7 @@ export function EmployeeTaskList({
                         >
                           {sub.due_date ? formatDueIst(sub.due_date) : ""}
                         </span>
-                      </Link>
+                      </button>
                     </li>
                   );
                 })}

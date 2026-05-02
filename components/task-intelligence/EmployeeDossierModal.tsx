@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { AlertTriangle } from "lucide-react";
 import { getEmployeeDossier } from "@/lib/actions/task-intelligence";
 import { DEPARTMENT_CONFIG } from "@/lib/constants/departments";
 import { useEmployeeDossierRealtime } from "@/lib/hooks/useTaskIntelligenceRealtime";
+import { SubTaskModal } from "@/components/tasks/SubTaskModal";
 import type {
   EmployeeDepartment,
   EmployeeDossierPayload,
@@ -20,6 +21,7 @@ export interface EmployeeDossierModalProps {
   agentList: Profile[];
   onClose: () => void;
   onNavigate: (agentId: string) => void;
+  currentUser: { id: string; full_name: string; job_title: string | null; role: string };
 }
 
 export function EmployeeDossierModal({
@@ -27,11 +29,18 @@ export function EmployeeDossierModal({
   agentList,
   onClose,
   onNavigate,
+  currentUser,
 }: EmployeeDossierModalProps) {
   const [mounted, setMounted] = useState(false);
   const [dossier, setDossier] = useState<EmployeeDossierPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
+  const detailTaskOpenRef = useRef(false);
+
+  useEffect(() => {
+    detailTaskOpenRef.current = detailTaskId !== null;
+  }, [detailTaskId]);
 
   useEffect(() => setMounted(true), []);
 
@@ -53,6 +62,10 @@ export function EmployeeDossierModal({
     void load(agentId);
   }, [agentId, load]);
 
+  useEffect(() => {
+    setDetailTaskId(null);
+  }, [agentId]);
+
   const refetch = useCallback(() => {
     if (agentId) void load(agentId);
   }, [agentId, load]);
@@ -70,6 +83,7 @@ export function EmployeeDossierModal({
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        if (detailTaskOpenRef.current) return;
         onClose();
         return;
       }
@@ -106,7 +120,10 @@ export function EmployeeDossierModal({
           exit={{ opacity: 0 }}
           transition={{ duration: 0.18 }}
           className="fixed inset-0 z-[110] bg-black/60 backdrop-blur-md"
-          onClick={onClose}
+          onClick={() => {
+            if (detailTaskOpenRef.current) return;
+            onClose();
+          }}
         />
 
         <motion.div
@@ -123,7 +140,13 @@ export function EmployeeDossierModal({
           <header className="flex h-12 shrink-0 items-center border-b border-white/8 px-4">
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => {
+            if (detailTaskOpenRef.current) {
+              setDetailTaskId(null);
+              return;
+            }
+                onClose();
+              }}
               className="rounded-lg p-2 text-xl leading-none text-white/50 hover:bg-white/[0.06] hover:text-white"
               aria-label="Close"
             >
@@ -213,11 +236,25 @@ export function EmployeeDossierModal({
                   personalTasks={dossier.personalTasks}
                   workspaceSubtasks={dossier.workspaceSubtasks}
                   agentName={dossier.profile.full_name}
+                  onOpenWorkspaceSubtask={(id) => setDetailTaskId(id)}
+                  onOpenPersonalTask={(id) => setDetailTaskId(id)}
                 />
               ) : null}
             </div>
           </div>
         </motion.div>
+
+        {detailTaskId ? (
+          <SubTaskModal
+            taskId={detailTaskId}
+            currentUser={currentUser}
+            stackClassName="z-[125]"
+            onClose={() => {
+              setDetailTaskId(null);
+              if (agentId) void load(agentId);
+            }}
+          />
+        ) : null}
       </>
     </AnimatePresence>,
     document.body,

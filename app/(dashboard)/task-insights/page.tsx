@@ -42,6 +42,7 @@ export default async function TaskInsightsPage({ searchParams }: TaskInsightsPag
     id:        profile.id as string,
     full_name: (profile.full_name as string) ?? "User",
     job_title: (profile.job_title as string | null) ?? null,
+    role:      role,
   };
 
   const [overview, workspaces] = await Promise.all([

@@ -4,7 +4,11 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CheckCircle, CheckCircle2, Circle, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { completePersonalTask, getDailyPersonalTasks } from "@/lib/actions/tasks";
+import {
+  completePersonalTask,
+  getDailyPersonalTasks,
+  reopenPersonalTask,
+} from "@/lib/actions/tasks";
 import type { PersonalTask } from "@/lib/types/database";
 import { ManagePersonalSOPsModal } from "./ManagePersonalSOPsModal";
 import { visiblePersonalTaskTagsForList } from "@/lib/constants/personalTaskTags";
@@ -37,7 +41,28 @@ export function DailySOPSection({ initialTasks, onParentRefresh }: DailySOPSecti
   }
 
   async function handleToggleComplete(task: PersonalTask) {
-    if (task.atlas_status === "done" || optimisticDoneIds.has(task.id) || completingId) return;
+    if (completingId) return;
+
+    const serverDone = task.atlas_status === "done";
+    const optimisticDone = optimisticDoneIds.has(task.id);
+    if (!serverDone && optimisticDone) return;
+
+    if (serverDone) {
+      setCompletingId(task.id);
+      const result = await reopenPersonalTask(task.id);
+      if (!result.success) {
+        toast.error(result.error ?? "Could not restore task.");
+      } else {
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === task.id ? { ...t, atlas_status: "todo", progress: 0 } : t,
+          ),
+        );
+        onParentRefresh?.();
+      }
+      setCompletingId(null);
+      return;
+    }
 
     setOptimisticDoneIds((s) => new Set(s).add(task.id));
     setCompletingId(task.id);
@@ -116,16 +141,16 @@ export function DailySOPSection({ initialTasks, onParentRefresh }: DailySOPSecti
                   <li key={task.id} className="flex items-center gap-3 py-2.5 pl-1 pr-2">
                     <button
                       type="button"
-                      disabled={done || busy}
+                      disabled={busy}
                       onClick={() => void handleToggleComplete(task)}
                       className={cn(
                         "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition-colors",
                         done
-                          ? "border-[#D4AF37]/40 bg-[#D4AF37]/10 text-[#B8962E]"
+                          ? "border-[#D4AF37]/40 bg-[#D4AF37]/10 text-[#B8962E] hover:border-[#D4AF37]/60"
                           : "border-[#D4AF37]/30 text-[#B5A99A] hover:border-[#D4AF37]/55 hover:text-[#D4AF37]",
                         busy && "opacity-50",
                       )}
-                      aria-label={done ? "Completed" : "Mark complete"}
+                      aria-label={done ? "Mark as not complete" : "Mark complete"}
                     >
                       {done ? (
                         <CheckCircle2 className="h-4 w-4 text-[#D4AF37]" />

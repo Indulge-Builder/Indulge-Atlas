@@ -30,7 +30,6 @@ import {
 import { SubTaskStatusBadge } from "./SubTaskStatusBadge";
 import { TaskPriorityBadge } from "./TaskPriorityBadge";
 import { SubTaskModal } from "./SubTaskModal";
-import { PersonalTaskModal } from "./my-tasks/PersonalTaskModal";
 import { DailySOPSection } from "./my-tasks/DailySOPSection";
 import { PrivacyBadge } from "./shared/PrivacyBadge";
 import { PersonalTaskTagControls } from "./PersonalTaskTagControls";
@@ -40,6 +39,7 @@ import {
   createPersonalTask,
   getDailyPersonalTasks,
   getMyTasks,
+  reopenPersonalTask,
   searchProfilesForTasks,
 } from "@/lib/actions/tasks";
 import { TASK_PRIORITY_CONFIG } from "@/lib/types/database";
@@ -124,8 +124,8 @@ interface TaskRowProps {
   task: AnyTask;
   currentUserId: string;
   onComplete: (id: string) => void;
+  onReopen: (id: string) => void;
   onOpenModal: (id: string) => void;
-  onOpenPersonalTask?: (task: PersonalTask) => void;
   isCompleting: boolean;
 }
 
@@ -133,8 +133,8 @@ function TaskRow({
   task,
   currentUserId,
   onComplete,
+  onReopen,
   onOpenModal,
-  onOpenPersonalTask,
   isCompleting,
 }: TaskRowProps) {
   const masterTitle = (task as SubTask & { masterTaskTitle?: string | null }).masterTaskTitle ?? null;
@@ -146,11 +146,19 @@ function TaskRow({
   const canMarkComplete = !isPersonal || assignees.includes(currentUserId);
   const priorityCfg = TASK_PRIORITY_CONFIG[task.priority as TaskPriority] ?? TASK_PRIORITY_CONFIG.medium;
   const isDone = task.atlas_status === "done" || task.atlas_status === "cancelled";
+  const canReopenPersonalDone =
+    isPersonal && canMarkComplete && task.atlas_status === "done";
 
   function handleCompleteClick(e: React.MouseEvent) {
     e.stopPropagation();
     if (isDone || !canMarkComplete) return;
     void onComplete(task.id);
+  }
+
+  function handleReopenClick(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!canReopenPersonalDone) return;
+    void onReopen(task.id);
   }
 
   return (
@@ -161,14 +169,31 @@ function TaskRow({
       )}
       onClick={() => {
         if (isDone) return;
-        if (isSubtask) onOpenModal(task.id);
-        else if (isPersonal) onOpenPersonalTask?.(task as PersonalTask);
+        if (isSubtask || isPersonal) onOpenModal(task.id);
       }}
       role={!isDone && (isSubtask || isPersonal) ? "button" : undefined}
       tabIndex={!isDone && (isSubtask || isPersonal) ? 0 : undefined}
     >
       {/* Completion — personal assignee only; subtasks use the modal / board */}
-      {isDone ? (
+      {canReopenPersonalDone ? (
+        <button
+          type="button"
+          onClick={handleReopenClick}
+          disabled={isCompleting}
+          className={cn(
+            "flex h-5 w-5 shrink-0 items-center justify-center rounded-full transition-opacity",
+            "text-[#D4AF37]/80 hover:text-[#D4AF37] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]/40",
+            isCompleting && "opacity-60",
+          )}
+          aria-label="Mark task as not complete"
+        >
+          {isCompleting ? (
+            <span className="h-2 w-2 animate-pulse rounded-full bg-[#D4AF37]" />
+          ) : (
+            <CheckCircle2 className="h-5 w-5 -m-0.5" />
+          )}
+        </button>
+      ) : isDone ? (
         <div
           className="flex h-5 w-5 shrink-0 items-center justify-center"
           aria-hidden
@@ -266,8 +291,7 @@ function TaskRow({
             <DropdownMenuContent align="end" className="w-40">
               <DropdownMenuItem
                 onClick={() => {
-                  if (isSubtask) onOpenModal(task.id);
-                  else if (isPersonal) onOpenPersonalTask?.(task as PersonalTask);
+                  if (isSubtask || isPersonal) onOpenModal(task.id);
                 }}
               >
                 <Pencil className="mr-2 h-3.5 w-3.5" />
@@ -288,8 +312,8 @@ interface SectionGroupProps {
   tasks: AnyTask[];
   currentUserId: string;
   onComplete: (id: string) => void;
+  onReopen: (id: string) => void;
   onOpenModal: (id: string) => void;
-  onOpenPersonalTask?: (task: PersonalTask) => void;
   completing: string | null;
 }
 
@@ -298,8 +322,8 @@ function SectionGroup({
   tasks,
   currentUserId,
   onComplete,
+  onReopen,
   onOpenModal,
-  onOpenPersonalTask,
   completing,
 }: SectionGroupProps) {
   if (tasks.length === 0) return null;
@@ -323,8 +347,8 @@ function SectionGroup({
             task={t}
             currentUserId={currentUserId}
             onComplete={onComplete}
+            onReopen={onReopen}
             onOpenModal={onOpenModal}
-            onOpenPersonalTask={onOpenPersonalTask}
             isCompleting={completing === t.id}
           />
         ))}
@@ -666,7 +690,6 @@ export function MyTasksDashboard({
 }: MyTasksDashboardProps) {
   const [completing, setCompleting] = useState<string | null>(null);
   const [activeModalId, setActiveModalId] = useState<string | null>(null);
-  const [selectedPersonalTask, setSelectedPersonalTask] = useState<PersonalTask | null>(null);
   const [localPersonal, setLocalPersonal] = useState<PersonalTask[]>(personalTasks);
   const [localDailySop, setLocalDailySop] = useState<PersonalTask[]>(dailySopTasks);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -754,6 +777,26 @@ export function MyTasksDashboard({
         prev.map((t) =>
           t.id === taskId
             ? { ...t, atlas_status: "done" as const, progress: 100, updated_at: now }
+            : t,
+        ),
+      );
+    }
+    setCompleting(null);
+  }
+
+  async function handleReopen(taskId: string) {
+    if (!localPersonal.some((t) => t.id === taskId)) return;
+
+    setCompleting(taskId);
+    const result = await reopenPersonalTask(taskId);
+    if (!result.success) {
+      toast.error(result.error ?? "Failed to restore task.");
+    } else {
+      const now = new Date().toISOString();
+      setLocalPersonal((prev) =>
+        prev.map((t) =>
+          t.id === taskId
+            ? { ...t, atlas_status: "todo" as const, progress: 0, updated_at: now }
             : t,
         ),
       );
@@ -881,8 +924,8 @@ export function MyTasksDashboard({
                     tasks={buckets[bucket]}
                     currentUserId={currentUser.id}
                     onComplete={handleComplete}
+                    onReopen={handleReopen}
                     onOpenModal={setActiveModalId}
-                    onOpenPersonalTask={setSelectedPersonalTask}
                     completing={completing}
                   />
                 ))}
@@ -902,18 +945,11 @@ export function MyTasksDashboard({
               id: currentUser.id,
               full_name: currentUser.full_name,
               job_title: currentUser.job_title,
+              role: currentUser.role,
             }}
           />
         )}
       </AnimatePresence>
-
-      <PersonalTaskModal
-        task={selectedPersonalTask}
-        onClose={() => setSelectedPersonalTask(null)}
-        onUpdated={() => void handleRefreshAfterAdd()}
-        userRole={currentUser.role}
-      />
     </div>
   );
 }
-

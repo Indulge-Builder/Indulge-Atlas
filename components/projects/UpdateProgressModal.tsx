@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { updateTaskProgress } from "@/lib/actions/projects";
+import { ATLAS_SUBTASK_UPDATE_MAX_CHARS } from "@/lib/schemas/tasks";
 import { toast } from "sonner";
 
 interface UpdateProgressModalProps {
@@ -180,7 +181,7 @@ export function UpdateProgressModal({
             onChange={(e) => setNote(e.target.value)}
             placeholder="Add a note..."
             rows={2}
-            maxLength={1000}
+            maxLength={ATLAS_SUBTASK_UPDATE_MAX_CHARS}
             className="w-full text-sm px-3 py-2 rounded-xl border border-[#E5E4DF] bg-white resize-none focus:outline-none focus:ring-1 focus:ring-[#D4AF37] focus:border-[#D4AF37] placeholder:text-zinc-400"
           />
         </div>

@@ -9,6 +9,7 @@ import { IndulgeButton } from "@/components/ui/indulge-button";
 import { IndulgeField } from "@/components/ui/indulge-field";
 import { SubTaskStatusBadge } from "./SubTaskStatusBadge";
 import { updateSubTaskStatus } from "@/lib/actions/tasks";
+import { ATLAS_SUBTASK_UPDATE_MAX_CHARS } from "@/lib/schemas/tasks";
 import { ATLAS_TASK_STATUS_LABELS, ATLAS_TASK_STATUS_VALUES } from "@/lib/types/database";
 import type { AtlasTaskStatus, TaskRemark } from "@/lib/types/database";
 
@@ -22,6 +23,8 @@ interface LogUpdateFormProps {
   currentUserId: string;
   currentUserName: string;
   currentUserJobTitle: string | null;
+  /** Softer copy for personal tasks (notes visible to you and leadership). */
+  variant?: "default" | "personal";
 }
 
 export function LogUpdateForm({
@@ -34,6 +37,7 @@ export function LogUpdateForm({
   currentUserId,
   currentUserName,
   currentUserJobTitle,
+  variant = "default",
 }: LogUpdateFormProps) {
   const [expanded, setExpanded] = useState(false);
   const [content, setContent] = useState("");
@@ -41,7 +45,7 @@ export function LogUpdateForm({
   const [isPending, startTransition] = useTransition();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const MAX_CHARS = 1000;
+  const MAX_CHARS = ATLAS_SUBTASK_UPDATE_MAX_CHARS;
   const statusChanged = selectedStatus !== currentStatus;
 
   // Mirror server logic: done → 100, everything else keeps current
@@ -153,7 +157,9 @@ export function LogUpdateForm({
               className="flex-1 h-9 flex items-center px-3 rounded-lg border border-[#E5E4DF]/90 bg-[#F9F9F6]/90 cursor-text text-left text-[13px] text-[#B5A99A] shadow-none transition-colors hover:border-[#D4AF37]/35 hover:bg-[#FCFAF4]"
               onClick={openComposer}
             >
-              Log a progress update, note, or observation…
+              {variant === "personal"
+                ? "Add a note or message (visible to you and leadership)…"
+                : "Log a progress update, note, or observation…"}
             </button>
             <button
               type="button"
@@ -212,7 +218,7 @@ export function LogUpdateForm({
 
             {/* Text area */}
             <IndulgeField
-              label="Update"
+              label={variant === "personal" ? "Message" : "Update"}
               htmlFor="log-content"
               error={content.length > MAX_CHARS ? `${content.length - MAX_CHARS} chars over limit` : undefined}
             >
@@ -222,12 +228,16 @@ export function LogUpdateForm({
                   ref={textareaRef}
                   value={content}
                   onChange={handleTextareaChange}
-                  placeholder="Describe what was completed, what you're working on, what's blocking progress, or any important observation…"
+                  placeholder={
+                    variant === "personal"
+                      ? "Write a reminder for yourself, or a message for your manager…"
+                      : "Describe what was completed, what you're working on, what's blocking progress, or any important observation…"
+                  }
                   className={cn(
-                    "w-full resize-none rounded-lg border border-[#E5E4DF]/90 bg-white/90 px-3 py-2.5 text-[13px] text-[#1A1A1A] placeholder:text-[#B5A99A] outline-none focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]/25 transition-colors min-h-[72px] overflow-hidden shadow-[inset_0_1px_2px_rgb(0_0_0/0.03)]",
+                    "w-full resize-none rounded-lg border border-[#E5E4DF]/90 bg-white/90 px-3 py-2.5 text-[13px] text-[#1A1A1A] placeholder:text-[#B5A99A] outline-none focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]/25 transition-colors min-h-[72px] max-h-[144px] overflow-y-auto shadow-[inset_0_1px_2px_rgb(0_0_0/0.03)]",
                     content.length > MAX_CHARS && "border-[#C0392B] focus:border-[#C0392B]",
                   )}
-                  maxLength={MAX_CHARS + 50}
+                  maxLength={MAX_CHARS}
                 />
                 <span
                   className={cn(
