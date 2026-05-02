@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { completePersonalTask, getDailyPersonalTasks } from "@/lib/actions/tasks";
 import type { PersonalTask } from "@/lib/types/database";
 import { ManagePersonalSOPsModal } from "./ManagePersonalSOPsModal";
+import { visiblePersonalTaskTagsForList } from "@/lib/constants/personalTaskTags";
 
 interface DailySOPSectionProps {
   initialTasks: PersonalTask[];
@@ -109,6 +110,7 @@ export function DailySOPSection({ initialTasks, onParentRefresh }: DailySOPSecti
                 const done =
                   task.atlas_status === "done" || optimisticDoneIds.has(task.id);
                 const busy = completingId === task.id;
+                const rowTags = visiblePersonalTaskTagsForList(task.tags);
 
                 return (
                   <li key={task.id} className="flex items-center gap-3 py-2.5 pl-1 pr-2">
@@ -131,14 +133,28 @@ export function DailySOPSection({ initialTasks, onParentRefresh }: DailySOPSecti
                         <Circle className="h-4 w-4" />
                       )}
                     </button>
-                    <span
-                      className={cn(
-                        "min-w-0 flex-1 text-[13px] font-medium leading-snug transition-colors",
-                        done ? "text-[#1A1A1A]/30 line-through" : "text-[#1A1A1A]/85",
+                    <div className="min-w-0 flex-1">
+                      <span
+                        className={cn(
+                          "block text-[13px] font-medium leading-snug transition-colors",
+                          done ? "text-[#1A1A1A]/30 line-through" : "text-[#1A1A1A]/85",
+                        )}
+                      >
+                        {task.title}
+                      </span>
+                      {rowTags.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {rowTags.map((tag) => (
+                            <span
+                              key={tag}
+                              className="max-w-[120px] truncate rounded-full bg-white/90 px-1.5 py-0.5 text-[9px] font-medium text-[#1A1A1A] ring-1 ring-[#D4AF37]/25"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
                       )}
-                    >
-                      {task.title}
-                    </span>
+                    </div>
                   </li>
                 );
               })}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Sparkles, Calendar } from "lucide-react";
@@ -19,6 +19,7 @@ import { LuxuryDatePicker } from "@/components/ui/LuxuryDatePicker";
 import { cn } from "@/lib/utils";
 import { createPersonalTask } from "@/lib/actions/tasks";
 import type { TaskPriority } from "@/lib/types/database";
+import { PersonalTaskTagControls } from "./PersonalTaskTagControls";
 
 const PRIORITY_PILLS: Array<{
   value: TaskPriority;
@@ -44,7 +45,10 @@ export function CreatePersonalTaskModal({ open, onClose }: CreatePersonalTaskMod
   const [dueDate, setDueDate] = useState<Date | undefined>(undefined);
   const [priority, setPriority] = useState<TaskPriority>("medium");
   const [showNotes, setShowNotes] = useState(false);
-  const [isPending, startTransition] = useTransition();
+  const [tagsOpen, setTagsOpen] = useState(false);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [customTag, setCustomTag] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
 
   const reset = useCallback(() => {
@@ -53,7 +57,23 @@ export function CreatePersonalTaskModal({ open, onClose }: CreatePersonalTaskMod
     setDueDate(undefined);
     setPriority("medium");
     setShowNotes(false);
+    setTagsOpen(false);
+    setSelectedTags([]);
+    setCustomTag("");
   }, []);
+
+  function toggleTag(label: string) {
+    setSelectedTags((prev) =>
+      prev.includes(label) ? prev.filter((x) => x !== label) : [...prev, label],
+    );
+  }
+
+  function addCustomTag() {
+    const t = customTag.trim();
+    if (!t || selectedTags.includes(t) || selectedTags.length >= 20) return;
+    setSelectedTags((p) => [...p, t]);
+    setCustomTag("");
+  }
 
   function handleClose() {
     reset();
@@ -70,22 +90,28 @@ export function CreatePersonalTaskModal({ open, onClose }: CreatePersonalTaskMod
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = title.trim();
-    if (!trimmed) return;
-    startTransition(async () => {
-      const result = await createPersonalTask({
-        title: trimmed,
-        description: description.trim() || undefined,
-        due_date: dueDate ? dueDate.toISOString() : undefined,
-        priority,
-      });
-      if (!result.success) {
-        toast.error(result.error ?? "Failed to create task.");
-      } else {
-        toast.success("My task created.");
-        await router.refresh();
-        handleClose();
+    if (!trimmed || isSubmitting) return;
+    setIsSubmitting(true);
+    void (async () => {
+      try {
+        const result = await createPersonalTask({
+          title: trimmed,
+          description: description.trim() || undefined,
+          due_date: dueDate ? dueDate.toISOString() : undefined,
+          priority,
+          tags: selectedTags.length ? selectedTags : undefined,
+        });
+        if (!result.success) {
+          toast.error(result.error ?? "Failed to create task.");
+        } else {
+          toast.success("My task created.");
+          await router.refresh();
+          handleClose();
+        }
+      } finally {
+        setIsSubmitting(false);
       }
-    });
+    })();
   }
 
   function setDuePreset(daysFromNow: number) {
@@ -130,6 +156,19 @@ export function CreatePersonalTaskModal({ open, onClose }: CreatePersonalTaskMod
                   <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-[#6B6B6B] ring-1 ring-[#E5E4DF]">
                     <Calendar className="h-3 w-3" aria-hidden />
                     {dueLabel}
+                  </span>
+                )}
+                {selectedTags.slice(0, 4).map((tag) => (
+                  <span
+                    key={tag}
+                    className="max-w-[120px] truncate rounded-full bg-[#FBF6E8] px-2 py-0.5 text-[10px] font-medium text-[#1A1A1A] ring-1 ring-[#D4AF37]/35"
+                  >
+                    {tag}
+                  </span>
+                ))}
+                {selectedTags.length > 4 && (
+                  <span className="text-[10px] font-medium text-[#8A8A6E]">
+                    +{selectedTags.length - 4}
                   </span>
                 )}
               </div>
@@ -208,6 +247,21 @@ export function CreatePersonalTaskModal({ open, onClose }: CreatePersonalTaskMod
             </div>
           </div>
 
+          <div>
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#9E9E9E]">
+              Tags (optional)
+            </p>
+            <PersonalTaskTagControls
+              selectedTags={selectedTags}
+              onToggleTag={toggleTag}
+              customTag={customTag}
+              onCustomTagChange={setCustomTag}
+              onAddCustomTag={addCustomTag}
+              tagsOpen={tagsOpen}
+              onTagsOpenChange={setTagsOpen}
+            />
+          </div>
+
           {!showNotes ? (
             <button
               type="button"
@@ -223,7 +277,7 @@ export function CreatePersonalTaskModal({ open, onClose }: CreatePersonalTaskMod
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Context, links, or reminders…"
-                className="min-h-[72px] resize-none text-sm"
+                className="min-h-[72px] resize-none text-sm text-[#1A1A1A] placeholder:text-[#8A8A6E]"
                 maxLength={2000}
               />
             </IndulgeField>
@@ -237,7 +291,7 @@ export function CreatePersonalTaskModal({ open, onClose }: CreatePersonalTaskMod
               type="submit"
               variant="gold"
               size="sm"
-              loading={isPending}
+              loading={isSubmitting}
               disabled={!trimmedTitle}
               leftIcon={<Plus className="h-3.5 w-3.5" />}
             >

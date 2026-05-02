@@ -53,6 +53,7 @@ export function MyTasksWidget({ initialTasks }: MyTasksWidgetProps) {
   const [addingGroup, setAddingGroup]     = useState<DateGroup | null>(null);
   const [newTitle, setNewTitle]           = useState("");
   const [completingId, setCompletingId]  = useState<string | null>(null);
+  const [isAdding, setIsAdding] = useState(false);
   const [isPending, startTransition]      = useTransition();
 
   function handleComplete(taskId: string) {
@@ -73,42 +74,47 @@ export function MyTasksWidget({ initialTasks }: MyTasksWidgetProps) {
   }
 
   function handleAdd(group: DateGroup) {
-    if (!newTitle.trim()) return;
-    startTransition(async () => {
-      const dueDate =
-        group === "today"
-          ? new Date().toISOString()
-          : group === "upcoming"
-          ? addDays(new Date(), 3).toISOString()
-          : undefined;
+    if (!newTitle.trim() || isAdding) return;
+    setIsAdding(true);
+    void (async () => {
+      try {
+        const dueDate =
+          group === "today"
+            ? new Date().toISOString()
+            : group === "upcoming"
+            ? addDays(new Date(), 3).toISOString()
+            : undefined;
 
-      const result = await createPersonalTask({
-        title:    newTitle.trim(),
-        due_date: dueDate,
-      });
-      if (result.success && result.data) {
-        const newTask: PersonalTask = {
-          id:               result.data.id,
-          title:            newTitle.trim(),
-          notes:            null,
-          unified_task_type: "personal",
-          atlas_status:     "todo",
-          priority:         "medium",
-          due_date:         dueDate ?? null,
-          progress:         0,
-          created_by:       null,
-          assigned_to_users: [],
-          created_at:       new Date().toISOString(),
-          updated_at:       new Date().toISOString(),
-        };
-        setTasks((prev) => [...prev, newTask]);
-        setNewTitle("");
-        setAddingGroup(null);
-        toast.success("Task added");
-      } else {
-        toast.error(result.error ?? "Failed to add task");
+        const result = await createPersonalTask({
+          title:    newTitle.trim(),
+          due_date: dueDate,
+        });
+        if (result.success && result.data) {
+          const newTask: PersonalTask = {
+            id:               result.data.id,
+            title:            newTitle.trim(),
+            notes:            null,
+            unified_task_type: "personal",
+            atlas_status:     "todo",
+            priority:         "medium",
+            due_date:         dueDate ?? null,
+            progress:         0,
+            created_by:       null,
+            assigned_to_users: [],
+            created_at:       new Date().toISOString(),
+            updated_at:       new Date().toISOString(),
+          };
+          setTasks((prev) => [...prev, newTask]);
+          setNewTitle("");
+          setAddingGroup(null);
+          toast.success("Task added");
+        } else {
+          toast.error(result.error ?? "Failed to add task");
+        }
+      } finally {
+        setIsAdding(false);
       }
-    });
+    })();
   }
 
   const groups: DateGroup[] = ["overdue", "today", "upcoming", "none"];
@@ -177,7 +183,7 @@ export function MyTasksWidget({ initialTasks }: MyTasksWidgetProps) {
                         {/* Complete checkbox */}
                         <button
                           onClick={() => handleComplete(task.id)}
-                          disabled={isCompleting || isPending}
+                          disabled={isCompleting || isPending || isAdding}
                           className="flex-shrink-0 text-zinc-300 hover:text-emerald-500 transition-colors disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-[#D4AF37] rounded"
                           aria-label={`Mark "${task.title}" as complete`}
                         >
@@ -236,7 +242,7 @@ export function MyTasksWidget({ initialTasks }: MyTasksWidgetProps) {
                         type="submit"
                         size="sm"
                         variant="gold"
-                        loading={isPending}
+                        loading={isAdding}
                         className="h-8 px-2.5"
                       >
                         <Plus className="h-3.5 w-3.5" />

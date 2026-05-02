@@ -1,17 +1,17 @@
 "use client";
 
-import { useState, useTransition, useRef, useMemo, useEffect } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus,
   MoreHorizontal,
+  Pencil,
   Calendar,
   AlertCircle,
   CheckCircle2,
   X,
   Sparkles,
   AtSign,
-  Hash,
 } from "lucide-react";
 import { format, isToday as dateFnsIsToday, isThisWeek, isFuture, isSameDay, parseISO } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
@@ -21,12 +21,20 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { IndulgeButton } from "@/components/ui/indulge-button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { SubTaskStatusBadge } from "./SubTaskStatusBadge";
 import { TaskPriorityBadge } from "./TaskPriorityBadge";
 import { SubTaskModal } from "./SubTaskModal";
 import { PersonalTaskModal } from "./my-tasks/PersonalTaskModal";
 import { DailySOPSection } from "./my-tasks/DailySOPSection";
 import { PrivacyBadge } from "./shared/PrivacyBadge";
+import { PersonalTaskTagControls } from "./PersonalTaskTagControls";
+import { visiblePersonalTaskTagsForList } from "@/lib/constants/personalTaskTags";
 import {
   completePersonalTask,
   createPersonalTask,
@@ -132,6 +140,8 @@ function TaskRow({
   const masterTitle = (task as SubTask & { masterTaskTitle?: string | null }).masterTaskTitle ?? null;
   const isSubtask = (task as SubTask).unified_task_type === "subtask";
   const isPersonal = (task as PersonalTask).unified_task_type === "personal";
+  const listTags =
+    isPersonal ? visiblePersonalTaskTagsForList((task as PersonalTask).tags) : [];
   const assignees = isPersonal ? ((task as PersonalTask).assigned_to_users ?? []) : [];
   const canMarkComplete = !isPersonal || assignees.includes(currentUserId);
   const priorityCfg = TASK_PRIORITY_CONFIG[task.priority as TaskPriority] ?? TASK_PRIORITY_CONFIG.medium;
@@ -203,6 +213,18 @@ function TaskRow({
         {masterTitle && (
           <p className="text-[11px] text-[#B5A99A] truncate mt-0.5">{masterTitle}</p>
         )}
+        {listTags.length > 0 && (
+          <div className="mt-1 flex flex-wrap gap-1">
+            {listTags.map((tag) => (
+              <span
+                key={tag}
+                className="max-w-[140px] truncate rounded-full bg-[#FBF6E8] px-2 py-0.5 text-[10px] font-medium text-[#1A1A1A] ring-1 ring-[#D4AF37]/30"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Priority dot — muted when done */}
@@ -225,16 +247,35 @@ function TaskRow({
         </div>
       )}
 
-      {/* Overflow menu */}
-      {!isDone && (
-        <button
-          type="button"
+      {/* Overflow menu — Edit opens the same modals as row click (subtask / personal) */}
+      {!isDone && (isSubtask || isPersonal) && (
+        <div
+          className="opacity-0 group-hover:opacity-100 shrink-0"
           onClick={(e) => e.stopPropagation()}
-          className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-[#F2F2EE] text-[#B5A99A] transition-all shrink-0"
-          aria-label="Task actions"
         >
-          <MoreHorizontal className="w-4 h-4" />
-        </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="p-1 rounded hover:bg-[#F2F2EE] text-[#B5A99A] hover:text-[#6B6B6B] transition-all"
+                aria-label="Task actions"
+              >
+                <MoreHorizontal className="w-4 h-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-40">
+              <DropdownMenuItem
+                onClick={() => {
+                  if (isSubtask) onOpenModal(task.id);
+                  else if (isPersonal) onOpenPersonalTask?.(task as PersonalTask);
+                }}
+              >
+                <Pencil className="mr-2 h-3.5 w-3.5" />
+                Edit
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       )}
     </div>
   );
@@ -306,8 +347,6 @@ const PRIORITY_PILLS: Array<{
   { value: "low",    label: "Low",      activeClass: "bg-[#B5A99A] text-white border-[#B5A99A]",       dotClass: "bg-[#B5A99A]" },
 ];
 
-const QUICK_TAG_PRESETS = ["Client Request", "Admin", "Urgent"] as const;
-
 // ── Quick add inline form ─────────────────────────────────────────────────────
 
 interface QuickAddFormProps {
@@ -328,7 +367,7 @@ function QuickAddForm({ onAdded, currentUserId }: QuickAddFormProps) {
   const [tagsOpen, setTagsOpen]   = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [customTag, setCustomTag] = useState("");
-  const [isPending, startTransition] = useTransition();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -383,26 +422,31 @@ function QuickAddForm({ onAdded, currentUserId }: QuickAddFormProps) {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = title.trim();
-    if (!trimmed) return;
+    if (!trimmed || isSubmitting) return;
     const assignee =
       peer && peer.id !== currentUserId ? peer.id : undefined;
-    startTransition(async () => {
-      const result = await createPersonalTask({
-        title:       trimmed,
-        description: description.trim() || undefined,
-        due_date:    dueDate ? dueDate.toISOString() : undefined,
-        priority,
-        assigned_to: assignee,
-        tags:        selectedTags.length ? selectedTags : undefined,
-      });
-      if (!result.success) {
-        toast.error(result.error ?? "Failed to create task.");
-      } else {
-        toast.success(assignee ? "Request sent to teammate." : "Task added.");
-        handleClose();
-        onAdded();
+    setIsSubmitting(true);
+    void (async () => {
+      try {
+        const result = await createPersonalTask({
+          title:       trimmed,
+          description: description.trim() || undefined,
+          due_date:    dueDate ? dueDate.toISOString() : undefined,
+          priority,
+          assigned_to: assignee,
+          tags:        selectedTags.length ? selectedTags : undefined,
+        });
+        if (!result.success) {
+          toast.error(result.error ?? "Failed to create task.");
+        } else {
+          toast.success(assignee ? "Request sent to teammate." : "Task added.");
+          handleClose();
+          onAdded();
+        }
+      } finally {
+        setIsSubmitting(false);
       }
-    });
+    })();
   }
 
   return (
@@ -448,7 +492,7 @@ function QuickAddForm({ onAdded, currentUserId }: QuickAddFormProps) {
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                     placeholder="What needs to be done?"
-                    className="w-full bg-transparent text-[15px] font-medium text-[#1A1A1A] placeholder:text-[#C8BFB5] outline-none border-none"
+                    className="w-full border-none bg-transparent text-[15px] font-medium text-[#1A1A1A] outline-none placeholder:text-[#8A8A6E]"
                   />
                 </div>
 
@@ -458,7 +502,7 @@ function QuickAddForm({ onAdded, currentUserId }: QuickAddFormProps) {
                     onChange={(e) => setDescription(e.target.value)}
                     placeholder="Add notes or context…"
                     rows={2}
-                    className="w-full bg-transparent text-[13px] text-[#5A5A5A] placeholder:text-[#C8BFB5] outline-none border-none resize-none leading-relaxed"
+                    className="w-full resize-none border-none bg-transparent text-[13px] leading-relaxed text-[#1A1A1A] outline-none placeholder:text-[#8A8A6E]"
                   />
                 </div>
 
@@ -484,12 +528,12 @@ function QuickAddForm({ onAdded, currentUserId }: QuickAddFormProps) {
                       <p className="text-[10px] font-semibold uppercase tracking-widest text-[#9E9E9E] mb-2">
                         Peer (optional)
                       </p>
-                      <input
-                        value={peerQuery}
-                        onChange={(e) => setPeerQuery(e.target.value)}
-                        placeholder="Search by name…"
-                        className="mb-2 h-8 w-full rounded-lg border border-[#E5E4DF] px-2 text-[12px] outline-none focus:border-[#D4AF37]"
-                      />
+                  <input
+                    value={peerQuery}
+                    onChange={(e) => setPeerQuery(e.target.value)}
+                    placeholder="Search by name…"
+                    className="mb-2 h-8 w-full rounded-lg border border-[#E5E4DF] bg-white px-2 text-[12px] text-[#1A1A1A] placeholder:text-[#8A8A6E] outline-none focus:border-[#D4AF37]"
+                  />
                       <div className="max-h-40 overflow-y-auto space-y-0.5">
                         <button
                           type="button"
@@ -518,65 +562,15 @@ function QuickAddForm({ onAdded, currentUserId }: QuickAddFormProps) {
                     </PopoverContent>
                   </Popover>
 
-                  <Popover open={tagsOpen} onOpenChange={setTagsOpen}>
-                    <PopoverTrigger asChild>
-                      <button
-                        type="button"
-                        className={cn(
-                          "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
-                          selectedTags.length
-                            ? "border-[#D4AF37]/50 bg-[#FDF9EE] text-[#1A1A1A]"
-                            : "border-[#E0DBCF] bg-[#FAFAF8] text-[#6B6B6B] hover:border-[#D4AF37]/50",
-                        )}
-                      >
-                        <Hash className="h-3 w-3 shrink-0 text-[#A88B25]" aria-hidden />
-                        Tags{selectedTags.length ? ` (${selectedTags.length})` : ""}
-                      </button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-72 p-3" align="start">
-                      <p className="text-[10px] font-semibold uppercase tracking-widest text-[#9E9E9E] mb-2">
-                        Quick tags
-                      </p>
-                      <div className="mb-2 flex flex-wrap gap-1">
-                        {QUICK_TAG_PRESETS.map((tag) => (
-                          <button
-                            key={tag}
-                            type="button"
-                            onClick={() => toggleTag(tag)}
-                            className={cn(
-                              "rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors",
-                              selectedTags.includes(tag)
-                                ? "border-[#D4AF37] bg-[#FBF6E8] text-[#1A1A1A]"
-                                : "border-[#E5E4DF] bg-white text-[#6B6B6B] hover:border-[#D4AF37]/50",
-                            )}
-                          >
-                            {tag}
-                          </button>
-                        ))}
-                      </div>
-                      <div className="flex gap-1.5">
-                        <input
-                          value={customTag}
-                          onChange={(e) => setCustomTag(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              e.preventDefault();
-                              addCustomTag();
-                            }
-                          }}
-                          placeholder="Custom tag…"
-                          className="h-8 min-w-0 flex-1 rounded-lg border border-[#E5E4DF] px-2 text-[12px] outline-none focus:border-[#D4AF37]"
-                        />
-                        <button
-                          type="button"
-                          onClick={addCustomTag}
-                          className="shrink-0 rounded-lg border border-[#E5E4DF] px-2 text-[11px] text-[#6B6B6B] hover:bg-[#F9F9F6]"
-                        >
-                          Add
-                        </button>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
+                  <PersonalTaskTagControls
+                    selectedTags={selectedTags}
+                    onToggleTag={toggleTag}
+                    customTag={customTag}
+                    onCustomTagChange={setCustomTag}
+                    onAddCustomTag={addCustomTag}
+                    tagsOpen={tagsOpen}
+                    onTagsOpenChange={setTagsOpen}
+                  />
                 </div>
 
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
@@ -632,7 +626,7 @@ function QuickAddForm({ onAdded, currentUserId }: QuickAddFormProps) {
                     type="submit"
                     variant="gold"
                     size="sm"
-                    loading={isPending}
+                    loading={isSubmitting}
                     disabled={!title.trim()}
                     leftIcon={<Plus className="h-3.5 w-3.5" />}
                   >

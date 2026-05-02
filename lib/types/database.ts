@@ -478,6 +478,7 @@ export interface PersonalTask {
   daily_date?: string | null;
   /** When true, row is a manager SOP template (hidden from normal lists). */
   is_daily_sop_template?: boolean;
+  tags?: string[];
 }
 
 /**

@@ -19,6 +19,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getServiceSupabaseClient } from "@/lib/supabase/service";
 import { sanitizeText } from "@/lib/utils/sanitize";
+import { PERSONAL_SOP_SELF_TAG } from "@/lib/constants/personalTaskTags";
 import { parse as dateParse } from "date-fns";
 import {
   CreateMasterTaskSchema,
@@ -1593,9 +1594,6 @@ function canManageDailySOPs(role: string): boolean {
   return role === "manager" || isPrivilegedRole(role);
 }
 
-/** Tag on agent-owned SOP templates; excluded from pg_cron (see migration 082). */
-const PERSONAL_SOP_SELF_TAG = "personal_sop_self";
-
 /**
  * Idempotent: for each self-tagged personal SOP template, inserts today’s instance
  * if missing (mirrors spawn_daily_sop_instances for a single assignee).
@@ -1990,7 +1988,7 @@ export async function getMyTasks(): Promise<ActionResult<{ personalTasks: Person
     const personalRes = await supabase
       .from("tasks")
       .select(
-        "id, title, notes, unified_task_type, atlas_status, priority, due_date, progress, created_by, assigned_to_users, created_at, updated_at, visibility, is_daily, daily_date, is_daily_sop_template",
+        "id, title, notes, unified_task_type, atlas_status, priority, due_date, progress, created_by, assigned_to_users, created_at, updated_at, visibility, is_daily, daily_date, is_daily_sop_template, tags",
       )
       .eq("unified_task_type", "personal")
       .eq("is_daily_sop_template", false)
@@ -3356,7 +3354,7 @@ export async function getDailyPersonalTasks(): Promise<ActionResult<{ items: Per
     const { data, error } = await supabase
       .from("tasks")
       .select(
-        "id, title, notes, unified_task_type, atlas_status, priority, due_date, progress, created_by, assigned_to_users, created_at, updated_at, visibility, is_daily, daily_date, is_daily_sop_template",
+        "id, title, notes, unified_task_type, atlas_status, priority, due_date, progress, created_by, assigned_to_users, created_at, updated_at, visibility, is_daily, daily_date, is_daily_sop_template, tags",
       )
       .eq("unified_task_type", "personal")
       .eq("is_daily_sop_template", false)
