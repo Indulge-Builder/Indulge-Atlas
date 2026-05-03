@@ -1,10 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { motion } from "framer-motion";
 import * as LucideIcons from "lucide-react";
 import { cn } from "@/lib/utils";
 import { surfaceCardVariants } from "@/components/ui/card";
 import type { DepartmentTaskOverview, TaskIntelligenceHealthSignal } from "@/lib/types/database";
+
+const MotionLink = motion(Link);
 
 /** Top accent strip by health signal. */
 const HEALTH_BAR = {
@@ -23,36 +26,28 @@ function getLucideIcon(name: string) {
 
 interface DepartmentHealthCardProps {
   overview: DepartmentTaskOverview;
-  onOpen: () => void;
+  href: string;
   layout?: boolean;
 }
 
-export function DepartmentHealthCard({ overview, onOpen, layout = true }: DepartmentHealthCardProps) {
+export function DepartmentHealthCard({ overview, href, layout = true }: DepartmentHealthCardProps) {
   const Icon = getLucideIcon(overview.icon);
   const noGroupTasks = overview.activeMasterTaskCount === 0;
 
   return (
-    <motion.article
+    <MotionLink
+      href={href}
       layout={layout}
       variants={{
         hidden: { opacity: 0, y: 10 },
-        show:   { opacity: 1, y: 0 },
+        show: { opacity: 1, y: 0 },
       }}
       className={cn(
-        "group relative cursor-pointer rounded-xl text-left outline-none transition-[filter,box-shadow] duration-300",
+        "group relative block cursor-pointer rounded-xl text-left outline-none transition-[filter,box-shadow] duration-300",
         surfaceCardVariants({ tone: "luxury", elevation: "md", overflow: "hidden" }),
         "hover:shadow-[0_12px_40px_-12px_rgb(0_0_0/0.12)]",
         noGroupTasks && "brightness-[0.94] saturate-[0.86] hover:brightness-[0.99] hover:saturate-[0.94]",
       )}
-      tabIndex={0}
-      role="button"
-      onClick={onOpen}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onOpen();
-        }
-      }}
       aria-label={`Open ${overview.label} in Task Insights`}
     >
       <div className={cn("h-1 w-full", HEALTH_BAR[overview.healthSignal])} />
@@ -96,7 +91,7 @@ export function DepartmentHealthCard({ overview, onOpen, layout = true }: Depart
           </span>
         </div>
       </div>
-    </motion.article>
+    </MotionLink>
   );
 }
 

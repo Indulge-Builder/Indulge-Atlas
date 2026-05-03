@@ -13,12 +13,12 @@ import { DOMAIN_DISPLAY_CONFIG } from "@/lib/types/database";
 // ── Role display names ────────────────────────────────────────
 
 const ROLE_DISPLAY: Record<UserRole, string> = {
-  agent:         "Elite Agent",
-  manager:       "Manager",
-  founder:       "Founder",
-  admin:         "System Administrator",
-  super_admin:   "Super Administrator",
-  guest:         "Finance",
+  agent: "Elite Agent",
+  manager: "Manager",
+  founder: "Founder",
+  admin: "System Administrator",
+  super_admin: "Super Administrator",
+  guest: "Finance",
 };
 
 // ── Date helpers ──────────────────────────────────────────────
@@ -48,7 +48,7 @@ const container = {
 };
 
 const item = {
-  hidden:  { opacity: 0, y: 16 },
+  hidden: { opacity: 0, y: 16 },
   visible: {
     opacity: 1,
     y: 0,
@@ -79,7 +79,7 @@ function Field({
       <p
         className={cn(
           "text-sm leading-snug font-medium",
-          muted ? "text-[#C0BDB5] italic" : "text-[#1A1A1A]"
+          muted ? "text-[#C0BDB5] italic" : "text-[#1A1A1A]",
         )}
       >
         {value}
@@ -110,7 +110,7 @@ export function ProfileDossier({ profile }: ProfileDossierProps) {
           animate="visible"
           className={cn(
             "w-full max-w-xl bg-[#F9F9F6] rounded-3xl overflow-hidden",
-            "shadow-[0_12px_48px_rgba(0,0,0,0.10),0_4px_12px_rgba(0,0,0,0.06),inset_0_1px_0_rgba(255,255,255,0.85)]"
+            "shadow-[0_12px_48px_rgba(0,0,0,0.10),0_4px_12px_rgba(0,0,0,0.06),inset_0_1px_0_rgba(255,255,255,0.85)]",
           )}
         >
           {/* ── Hero Section ─────────────────────────────────── */}
@@ -177,7 +177,7 @@ export function ProfileDossier({ profile }: ProfileDossierProps) {
               value={
                 profile.domain && DOMAIN_DISPLAY_CONFIG[profile.domain]
                   ? DOMAIN_DISPLAY_CONFIG[profile.domain].label
-                  : profile.domain?.replace(/_/g, " ") ?? "Not assigned"
+                  : (profile.domain?.replace(/_/g, " ") ?? "Not assigned")
               }
             />
 
@@ -200,7 +200,7 @@ export function ProfileDossier({ profile }: ProfileDossierProps) {
               <span
                 className={cn(
                   "w-1.5 h-1.5 rounded-full",
-                  profile.is_active ? "bg-[#4A7C59]" : "bg-[#9E9E9E]"
+                  profile.is_active ? "bg-[#4A7C59]" : "bg-[#9E9E9E]",
                 )}
               />
               <span className="text-[10px] text-[#9E9E9E] font-medium uppercase tracking-[0.14em]">
@@ -215,7 +215,7 @@ export function ProfileDossier({ profile }: ProfileDossierProps) {
                 "px-5 py-2 rounded-xl text-sm font-medium tracking-[0.02em]",
                 "border border-[#1A1A1A]/18 text-[#1A1A1A]/60",
                 "hover:bg-[#1A1A1A] hover:text-white hover:border-transparent",
-                "transition-all duration-200"
+                "transition-all duration-200",
               )}
             >
               Update Details
@@ -224,14 +224,11 @@ export function ProfileDossier({ profile }: ProfileDossierProps) {
         </motion.div>
 
         {/* ── Security Section ───────────────────────────────────────── */}
-        <motion.div
-          variants={item}
-          className="mt-8 w-full max-w-xl"
-        >
+        <motion.div variants={item} className="mt-8 w-full max-w-xl">
           <div
             className={cn(
               "rounded-2xl p-6 border",
-              "border-[#1A1A1A]/[0.08] bg-white/60"
+              "border-[#1A1A1A]/[0.08] bg-white/60",
             )}
           >
             <p className="text-[9px] font-semibold text-[#9E9E9E] uppercase tracking-[0.2em] mb-3">
@@ -243,7 +240,7 @@ export function ProfileDossier({ profile }: ProfileDossierProps) {
                 "px-5 py-2.5 rounded-xl text-sm font-medium tracking-[0.02em]",
                 "border border-[#1A1A1A]/25 text-[#1A1A1A]/80",
                 "hover:bg-[#1A1A1A] hover:text-white hover:border-transparent",
-                "transition-all duration-200"
+                "transition-all duration-200",
               )}
             >
               Change Password

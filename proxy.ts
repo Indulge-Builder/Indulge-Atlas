@@ -56,6 +56,9 @@ export async function proxy(request: NextRequest) {
       pathname.startsWith(route),
     );
 
+    // Elia Preview chat — JSON API; return 401 from the route, not an HTML redirect
+    const isEliaApi = pathname.startsWith("/api/elia");
+
     // Webhook routes use their own secret-based auth — keep them public
     const isWebhookRoute = pathname.startsWith("/api/webhooks");
 
@@ -65,7 +68,13 @@ export async function proxy(request: NextRequest) {
     const isServerAction =
       request.method === "POST" && request.headers.has("next-action");
 
-    if (!user && !isPublicRoute && !isWebhookRoute && !isServerAction) {
+    if (
+      !user &&
+      !isPublicRoute &&
+      !isWebhookRoute &&
+      !isEliaApi &&
+      !isServerAction
+    ) {
       const loginUrl = request.nextUrl.clone();
       loginUrl.pathname = "/login";
       loginUrl.searchParams.set("redirectedFrom", pathname);

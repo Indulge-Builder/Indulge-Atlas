@@ -160,7 +160,9 @@ export const DOMAIN_CONFIG: Record<IndulgeDomain, DomainConfig> = {
  * Invalid or empty values become `indulge_concierge` so domain-scoped helpers
  * (e.g. Task Insights `departmentsVisibleForDomain`) never return an empty list.
  */
-export function coerceIndulgeDomain(raw: string | null | undefined): IndulgeDomain {
+export function coerceIndulgeDomain(
+  raw: string | null | undefined,
+): IndulgeDomain {
   const v = (raw ?? "").trim();
   const keys = Object.keys(DOMAIN_CONFIG) as IndulgeDomain[];
   if (keys.includes(v as IndulgeDomain)) return v as IndulgeDomain;
@@ -170,7 +172,7 @@ export function coerceIndulgeDomain(raw: string | null | undefined): IndulgeDoma
 // ── Department Route Access Map ──────────────────────────────
 //
 // Defines which route prefixes each department can navigate to.
-// Used by the Sidebar to filter nav items for non-admin/founder users.
+// Used by the Sidebar to filter nav items for users outside GLOBAL_ROLES.
 // "/" is treated as an EXACT match to avoid matching all routes.
 
 export const DEPARTMENT_ROUTE_ACCESS: Record<EmployeeDepartment, string[]> = {
@@ -178,8 +180,10 @@ export const DEPARTMENT_ROUTE_ACCESS: Record<EmployeeDepartment, string[]> = {
     "/",
     "/workspace",
     "/leads",
+    "/clients",
     "/whatsapp",
     "/tasks",
+    "/projects",
     "/task-insights",
     "/calendar",
     "/performance",
@@ -189,7 +193,9 @@ export const DEPARTMENT_ROUTE_ACCESS: Record<EmployeeDepartment, string[]> = {
   finance: [
     "/workspace",
     "/leads",
+    "/clients",
     "/tasks",
+    "/projects",
     "/calendar",
     "/manager/campaigns",
     "/manager/dashboard",
@@ -200,14 +206,18 @@ export const DEPARTMENT_ROUTE_ACCESS: Record<EmployeeDepartment, string[]> = {
     "/",
     "/workspace",
     "/tasks",
+    "/projects",
     "/calendar",
-    "/concierge",
+    "/clients",
+    "/elia-preview",
   ],
   shop: [
     "/shop/workspace",
     "/workspace",
     "/leads",
+    "/clients",
     "/tasks",
+    "/projects",
     "/task-insights",
     "/calendar",
     "/whatsapp",
@@ -216,8 +226,10 @@ export const DEPARTMENT_ROUTE_ACCESS: Record<EmployeeDepartment, string[]> = {
     "/",
     "/workspace",
     "/leads",
+    "/clients",
     "/whatsapp",
     "/tasks",
+    "/projects",
     "/task-insights",
     "/calendar",
     "/performance",
@@ -228,8 +240,10 @@ export const DEPARTMENT_ROUTE_ACCESS: Record<EmployeeDepartment, string[]> = {
     "/",
     "/workspace",
     "/leads",
+    "/clients",
     "/whatsapp",
     "/tasks",
+    "/projects",
     "/task-insights",
     "/calendar",
     "/performance",
@@ -239,7 +253,9 @@ export const DEPARTMENT_ROUTE_ACCESS: Record<EmployeeDepartment, string[]> = {
   marketing: [
     "/workspace",
     "/leads",
+    "/clients",
     "/tasks",
+    "/projects",
     "/calendar",
     "/manager/campaigns",
     "/manager/planner",
@@ -252,8 +268,10 @@ export const DEPARTMENT_ROUTE_ACCESS: Record<EmployeeDepartment, string[]> = {
     "/",
     "/workspace",
     "/leads",
+    "/clients",
     "/whatsapp",
     "/tasks",
+    "/projects",
     "/tasks/import",
     "/task-insights",
     "/calendar",
@@ -265,7 +283,9 @@ export const DEPARTMENT_ROUTE_ACCESS: Record<EmployeeDepartment, string[]> = {
 // ── Helpers ──────────────────────────────────────────────────
 
 /** Returns the pre-selected domain for a given department. */
-export function getDefaultDomainForDepartment(dept: EmployeeDepartment): IndulgeDomain {
+export function getDefaultDomainForDepartment(
+  dept: EmployeeDepartment,
+): IndulgeDomain {
   return DEPARTMENT_CONFIG[dept].primaryDomain;
 }
 
@@ -296,7 +316,9 @@ export function isDepartmentRoute(href: string, routes: string[]): boolean {
  * Departments whose primary or allowed domain matches the user's domain.
  * Used by managers for Task Insights and similar domain-scoped surfaces.
  */
-export function departmentsVisibleForDomain(domain: IndulgeDomain): EmployeeDepartment[] {
+export function departmentsVisibleForDomain(
+  domain: IndulgeDomain,
+): EmployeeDepartment[] {
   return ALL_DEPARTMENTS.filter(
     (d) =>
       DEPARTMENT_CONFIG[d].primaryDomain === domain ||

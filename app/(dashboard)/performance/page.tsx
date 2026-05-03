@@ -5,6 +5,7 @@ import { getAgentPerformance } from "@/lib/actions/performance";
 import { AnimatedMetricCard } from "@/components/manager/AnimatedMetricCard";
 import { PipelineChart } from "@/components/performance/PipelineChart";
 import { RecentWinsLedger } from "@/components/performance/RecentWinsLedger";
+import { LeaderPerspectiveNotice } from "@/components/layout/LeaderPerspectiveNotice";
 import { TopBar } from "@/components/layout/TopBar";
 import { MonthSelector } from "@/components/manager/MonthSelector";
 import { CommandCenterAnimator } from "@/components/manager/CommandCenterAnimator";
@@ -31,10 +32,6 @@ async function getAuthorisedAgent() {
     .single();
 
   if (!profile) redirect("/login");
-
-  // This page is strictly for agents. Scouts and admins have their
-  // own analytics views; silently redirect them to their root.
-  if (profile.role !== "agent") redirect("/");
 
   return profile;
 }
@@ -215,8 +212,19 @@ export default async function PerformancePage({
 }: {
   searchParams: Promise<{ period?: string }>;
 }) {
-  // 1. Auth + role guard (agent only)
-  await getAuthorisedAgent();
+  const profile = await getAuthorisedAgent();
+
+  if (profile.role !== "agent") {
+    return (
+      <LeaderPerspectiveNotice
+        title="My Performance"
+        subtitle="Agent perspective"
+        body="Pipeline and win metrics here are calculated for a single agent account. For organization-wide analytics and team benchmarks, use the manager Command Center."
+        ctaHref="/manager/dashboard"
+        ctaLabel="Open Command Center"
+      />
+    );
+  }
 
   // 2. Resolve + validate the period from the URL
   const { period: rawPeriod = "this_month" } = await searchParams;

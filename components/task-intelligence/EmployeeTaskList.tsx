@@ -70,9 +70,9 @@ export function EmployeeTaskList({
       thisWeek?: PersonalTask[];
     };
     return {
-      dailySop:          pt.dailySop ?? [],
-      pendingToday:      pt.pendingToday ?? [],
-      upcoming:          pt.upcoming ?? [],
+      dailySop: pt.dailySop ?? [],
+      pendingToday: pt.pendingToday ?? [],
+      upcoming: pt.upcoming ?? [],
       completedLastWeek: pt.completedLastWeek ?? [],
     };
   }, [personalTasks]);
@@ -97,47 +97,55 @@ export function EmployeeTaskList({
     label: string;
     labelClass: string;
   }[] = [
-    { key: "dailySop", label: "SOP", labelClass: "text-[#D4AF37]/90" },
+    { key: "dailySop", label: "SOP", labelClass: "text-[#9A7B2E]" },
     {
       key: "pendingToday",
-      label: "PENDING TODAY",
-      labelClass: "text-white/30",
+      label: "Pending today",
+      labelClass: "text-stone-500",
     },
     {
       key: "upcoming",
-      label: "UPCOMING",
-      labelClass: "text-white/30",
+      label: "Upcoming",
+      labelClass: "text-stone-500",
     },
     {
       key: "completedLastWeek",
-      label: "COMPLETED (PAST 7 DAYS)",
-      labelClass: "text-white/30",
+      label: "Completed (past 7 days)",
+      labelClass: "text-stone-500",
     },
   ];
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      <div className="flex shrink-0 border-b border-white/8">
+    <div className="flex h-full flex-col overflow-hidden bg-white">
+      <div
+        className="flex shrink-0 gap-1 border-b border-[#E5E4DF] bg-[#F2F2EE] p-1.5"
+        role="tablist"
+        aria-label="Task source"
+      >
         <button
           type="button"
+          role="tab"
+          aria-selected={tab === "personal"}
           onClick={() => setTab("personal")}
           className={cn(
-            "-mb-px px-5 py-3 text-sm transition-colors",
+            "flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
             tab === "personal"
-              ? "border-b-2 border-white font-medium text-white"
-              : "text-white/40 hover:text-white/60",
+              ? "bg-white text-stone-900 shadow-sm ring-1 ring-[#E5E4DF]/80"
+              : "text-stone-600 hover:bg-white/60 hover:text-stone-900",
           )}
         >
-          Personal Tasks
+          Personal tasks
         </button>
         <button
           type="button"
+          role="tab"
+          aria-selected={tab === "workspace"}
           onClick={() => setTab("workspace")}
           className={cn(
-            "-mb-px px-5 py-3 text-sm transition-colors",
+            "flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
             tab === "workspace"
-              ? "border-b-2 border-white font-medium text-white"
-              : "text-white/40 hover:text-white/60",
+              ? "bg-white text-stone-900 shadow-sm ring-1 ring-[#E5E4DF]/80"
+              : "text-stone-600 hover:bg-white/60 hover:text-stone-900",
           )}
         >
           Workspace tasks
@@ -147,16 +155,17 @@ export function EmployeeTaskList({
       <div className="flex-1 overflow-y-auto">
         {tab === "personal" && (
           <>
-            <div className="sticky top-0 z-10 border-b border-white/5 bg-[var(--surface-1)] px-5 py-2.5">
-              <p className="text-[11px] text-white/35">
-                Personal and group-assigned tasks for {agentName}
+            <div className="sticky top-0 z-10 border-b border-[#E5E4DF] bg-[#FAFAF8]/95 px-5 py-2.5 backdrop-blur-sm">
+              <p className="text-[11px] leading-relaxed text-stone-600">
+                Personal and group-assigned tasks for{" "}
+                <span className="font-medium text-stone-800">{agentName}</span>
               </p>
             </div>
 
             {personalEmpty ? (
               <div className="flex flex-col items-center justify-center gap-3 py-16">
-                <Inbox className="h-10 w-10 text-white/15" />
-                <p className="text-sm text-white/30">No personal tasks</p>
+                <Inbox className="h-10 w-10 text-stone-300" aria-hidden />
+                <p className="text-sm text-stone-500">No personal tasks</p>
               </div>
             ) : (
               sections.map(({ key, label, labelClass }) => {
@@ -169,17 +178,17 @@ export function EmployeeTaskList({
                       <div className="flex items-center gap-2 px-5 pb-1 pt-4">
                         <span
                           className={cn(
-                            "text-[10px] font-semibold uppercase tracking-widest",
+                            "text-[10px] font-semibold uppercase tracking-wider",
                             labelClass,
                           )}
                         >
                           {label}
                         </span>
-                        <span className="rounded-full bg-white/8 px-1.5 text-[10px] text-white/40">
+                        <span className="rounded-full bg-stone-100 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-stone-600 ring-1 ring-[#E5E4DF]">
                           {bucket.length}
                         </span>
                       </div>
-                      <ul>
+                      <ul className="divide-y divide-[#E5E4DF]/70">
                         {(bucket as PersonalTask[]).map((task) => {
                           const done = task.atlas_status === "done";
                           return (
@@ -187,31 +196,36 @@ export function EmployeeTaskList({
                               <button
                                 type="button"
                                 onClick={() => onOpenPersonalTask(task.id)}
-                                className="flex w-full items-center gap-3 px-5 py-2 text-left transition-colors hover:bg-white/[0.06]"
+                                className="flex w-full items-center gap-3 px-5 py-2.5 text-left transition-colors hover:bg-[#F9F9F6]"
                               >
                                 <span
-                                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/[0.04]"
+                                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#E5E4DF] bg-white shadow-[0_1px_2px_rgb(0_0_0/0.04)]"
                                   aria-hidden
                                 >
                                   {done ? (
                                     <Check
-                                      className="h-3.5 w-3.5 text-[#D4AF37]"
+                                      className="h-3.5 w-3.5 text-[#B8941E]"
                                       strokeWidth={2.5}
                                     />
                                   ) : (
-                                    <Circle className="h-2 w-2 text-white/20" fill="currentColor" />
+                                    <Circle
+                                      className="h-2 w-2 text-stone-300"
+                                      fill="currentColor"
+                                    />
                                   )}
                                 </span>
                                 <span
                                   className={cn(
                                     "min-w-0 flex-1 truncate text-sm",
-                                    done ? "text-white/40 line-through" : "text-white/85",
+                                    done
+                                      ? "text-stone-400 line-through"
+                                      : "text-stone-800",
                                   )}
                                 >
                                   {task.title}
                                 </span>
                                 {task.due_date ? (
-                                  <span className="shrink-0 text-[11px] text-white/35">
+                                  <span className="shrink-0 text-[11px] tabular-nums text-stone-500">
                                     {formatDueIst(task.due_date)}
                                   </span>
                                 ) : null}
@@ -229,17 +243,17 @@ export function EmployeeTaskList({
                     <div className="flex items-center gap-2 px-5 pb-1 pt-4">
                       <span
                         className={cn(
-                          "text-[10px] font-semibold uppercase tracking-widest",
+                          "text-[10px] font-semibold uppercase tracking-wider",
                           labelClass,
                         )}
                       >
                         {label}
                       </span>
-                      <span className="rounded-full bg-white/8 px-1.5 text-[10px] text-white/40">
+                      <span className="rounded-full bg-stone-100 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-stone-600 ring-1 ring-[#E5E4DF]">
                         {bucket.length}
                       </span>
                     </div>
-                    <ul>
+                    <ul className="divide-y divide-[#E5E4DF]/70">
                       {(bucket as PersonalTask[]).map((task) => {
                         const doneBucket = key === "completedLastWeek";
                         const pri = TASK_PRIORITY_CONFIG[task.priority];
@@ -250,28 +264,28 @@ export function EmployeeTaskList({
                             <button
                               type="button"
                               onClick={() => onOpenPersonalTask(task.id)}
-                              className="flex w-full items-center gap-3 px-5 py-2.5 text-left transition-colors hover:bg-white/[0.06]"
+                              className="flex w-full items-center gap-3 px-5 py-2.5 text-left transition-colors hover:bg-[#F9F9F6]"
                             >
                               <span
                                 className={cn(
                                   "h-1.5 w-1.5 shrink-0 rounded-full",
-                                  pri?.dotClass ?? "bg-white/30",
+                                  pri?.dotClass ?? "bg-stone-400",
                                 )}
                               />
                               <span
                                 className={cn(
                                   "min-w-0 flex-1 truncate text-sm",
                                   doneBucket
-                                    ? "text-white/35 line-through"
-                                    : "text-white/80",
+                                    ? "text-stone-400 line-through"
+                                    : "text-stone-800",
                                 )}
                               >
                                 {task.title}
                               </span>
                               <span
                                 className={cn(
-                                  "shrink-0 text-[11px]",
-                                  late ? "text-red-400/80" : "text-white/40",
+                                  "shrink-0 text-[11px] tabular-nums",
+                                  late ? "font-medium text-red-700" : "text-stone-500",
                                 )}
                               >
                                 {doneBucket && task.updated_at
@@ -294,20 +308,19 @@ export function EmployeeTaskList({
 
         {tab === "workspace" && (
           <>
-            <p className="px-5 pb-2 pt-4 text-xs text-white/40">
-              Master workspace assignments for {agentName}
+            <p className="border-b border-[#E5E4DF]/80 px-5 pb-2.5 pt-4 text-xs text-stone-600">
+              Master workspace assignments for{" "}
+              <span className="font-medium text-stone-800">{agentName}</span>
             </p>
             {sortedWorkspace.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-3 py-16">
-                <Users className="h-10 w-10 text-white/15" />
-                <p className="text-sm text-white/30">
-                  No workspace task assignments
-                </p>
+                <Users className="h-10 w-10 text-stone-300" aria-hidden />
+                <p className="text-sm text-stone-500">No workspace task assignments</p>
               </div>
             ) : (
-              <ul>
+              <ul className="divide-y divide-[#E5E4DF]/70">
                 {sortedWorkspace.map((sub) => {
-                  const coverColor = sub.masterCoverColor ?? "#6366f1";
+                  const coverColor = sub.masterCoverColor ?? "#78716c";
                   const parentTitle = sub.masterTaskTitle ?? "Workspace";
                   const overdue = isGroupSubOverdue(
                     sub.due_date,
@@ -317,38 +330,42 @@ export function EmployeeTaskList({
                     parentTitle.length > 20
                       ? `${parentTitle.slice(0, 20)}…`
                       : parentTitle;
+                  const statusColor =
+                    ATLAS_TASK_STATUS_COLORS[sub.atlas_status] ?? "#6B7280";
                   return (
                     <li key={sub.id}>
                       <button
                         type="button"
                         onClick={() => onOpenWorkspaceSubtask(sub.id)}
-                        className="flex w-full items-center gap-3 px-5 py-2.5 text-left transition-colors hover:bg-white/[0.03]"
+                        className="flex w-full flex-wrap items-center gap-x-2 gap-y-2 px-5 py-3 text-left transition-colors hover:bg-[#F9F9F6] sm:flex-nowrap"
                       >
                         <span
-                          className="max-w-[100px] shrink-0 truncate rounded-full border px-2 py-0.5 text-[10px]"
+                          className="max-w-[120px] shrink-0 truncate rounded-full border px-2 py-0.5 text-[10px] font-medium"
                           style={{
-                            borderColor: `${coverColor}80`,
+                            borderColor: `${coverColor}55`,
                             color: coverColor,
                             backgroundColor: `${coverColor}12`,
                           }}
                         >
                           {crumb}
                         </span>
-                        <span className="shrink-0 text-[10px] text-white/20">
+                        <span className="shrink-0 text-[10px] text-stone-400" aria-hidden>
                           ›
                         </span>
-                        <span className="min-w-0 flex-1 truncate text-sm text-white/80">
+                        <span className="min-w-0 flex-1 truncate text-sm text-stone-800">
                           {sub.title}
                         </span>
                         <span
-                          className="shrink-0 rounded-full px-2 py-0.5 text-[10px] text-white"
+                          className="shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium"
                           style={{
-                            backgroundColor: `${ATLAS_TASK_STATUS_COLORS[sub.atlas_status]}35`,
+                            borderColor: `${statusColor}50`,
+                            color: statusColor,
+                            backgroundColor: `${statusColor}12`,
                           }}
                         >
                           {ATLAS_TASK_STATUS_LABELS[sub.atlas_status]}
                         </span>
-                        <div className="relative h-1 w-12 shrink-0 overflow-hidden rounded-full bg-white/8">
+                        <div className="relative h-1.5 w-14 shrink-0 overflow-hidden rounded-full bg-stone-200">
                           <div
                             className="absolute left-0 top-0 h-full rounded-full"
                             style={{
@@ -359,8 +376,8 @@ export function EmployeeTaskList({
                         </div>
                         <span
                           className={cn(
-                            "shrink-0 text-[11px]",
-                            overdue ? "text-red-400" : "text-white/40",
+                            "shrink-0 text-[11px] tabular-nums",
+                            overdue ? "font-medium text-red-700" : "text-stone-500",
                           )}
                         >
                           {sub.due_date ? formatDueIst(sub.due_date) : ""}

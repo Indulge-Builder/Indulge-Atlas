@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback, useTransition, useMemo } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { surfaceCardVariants } from "@/components/ui/card";
@@ -22,7 +21,6 @@ import { formatInTimeZone } from "date-fns-tz";
 import { Send } from "lucide-react";
 import { IndulgeButton } from "@/components/ui/indulge-button";
 import { DepartmentHealthCard } from "./DepartmentHealthCard";
-import { DepartmentDetailModal } from "./DepartmentDetailModal";
 import { GroupTasksCommandView } from "./GroupTasksCommandView";
 import { DepartmentIndividualTasksView } from "./DepartmentIndividualTasksView";
 import { TaskInsightsDepartmentSelector } from "./TaskInsightsDepartmentSelector";
@@ -35,8 +33,6 @@ interface TaskIntelligenceDashboardProps {
   initialWorkspaces: TaskInsightsWorkspaceCard[];
   currentUser: { id: string; full_name: string; job_title: string | null; role: string };
   loadError?: string | null;
-  /** When set (e.g. from `/task-insights?dept=tech`), opens the department detail on load. */
-  initialOpenDepartmentId?: string | null;
 }
 
 export function TaskIntelligenceDashboard({
@@ -44,19 +40,10 @@ export function TaskIntelligenceDashboard({
   initialWorkspaces,
   currentUser,
   loadError = null,
-  initialOpenDepartmentId = null,
 }: TaskIntelligenceDashboardProps) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-
   const [rows, setRows] = useState<DepartmentTaskOverview[]>(initialOverview);
   const [workspaceTasks, setWorkspaceTasks] =
     useState<TaskInsightsWorkspaceCard[]>(initialWorkspaces);
-  const [selected, setSelected] = useState<DepartmentTaskOverview | null>(() => {
-    if (!initialOpenDepartmentId) return null;
-    return initialOverview.find((r) => r.departmentId === initialOpenDepartmentId) ?? null;
-  });
   const [activeTab, setActiveTab] = useState<TabKey>("workspaces");
   const [individualAgents, setIndividualAgents] = useState<TaskIntelligenceAgentSummary[]>([]);
   const [individualLoading, setIndividualLoading] = useState(false);
@@ -89,10 +76,6 @@ export function TaskIntelligenceDashboard({
         ]);
         if (ov.success && ov.data) {
           setRows(ov.data);
-          setSelected((prev) => {
-            if (!prev) return null;
-            return ov.data!.find((r) => r.departmentId === prev.departmentId) ?? prev;
-          });
         } else if (!ov.success) toast.error(ov.error ?? "Could not refresh overview.");
         if (gt.success && gt.data) setWorkspaceTasks(gt.data);
       })();
@@ -103,23 +86,6 @@ export function TaskIntelligenceDashboard({
     if (refreshSignal === 0) return;
     refetchAll();
   }, [refreshSignal, refetchAll]);
-
-  const openDepartment = useCallback(
-    (o: DepartmentTaskOverview) => {
-      setSelected(o);
-      const next = new URLSearchParams(searchParams.toString());
-      next.set("dept", o.departmentId);
-      router.replace(`${pathname}?${next.toString()}`, { scroll: false });
-    },
-    [pathname, router, searchParams],
-  );
-
-  const closeDepartmentModal = useCallback(() => {
-    setSelected(null);
-    if (searchParams.get("dept")) {
-      router.replace(pathname, { scroll: false });
-    }
-  }, [pathname, router, searchParams]);
 
   const filteredRows = useMemo(() => {
     if (!filterDepartmentId) return rows;
@@ -234,7 +200,7 @@ export function TaskIntelligenceDashboard({
                   Departments
                 </h2>
                 <p className="mt-1 text-[13px] text-[#8A8A6E]">
-                  Click a card for the full department breakdown.
+                  Open a department for the full breakdown.
                 </p>
               </div>
             </div>
@@ -253,7 +219,7 @@ export function TaskIntelligenceDashboard({
                 <DepartmentHealthCard
                   key={o.departmentId}
                   overview={o}
-                  onOpen={() => openDepartment(o)}
+                  href={`/task-insights/${o.departmentId}`}
                 />
               ))}
             </motion.div>
@@ -349,6 +315,9 @@ export function TaskIntelligenceDashboard({
                     agents={individualAgents}
                     departmentId={(filterDepartmentId as EmployeeDepartment | null) ?? null}
                     currentUser={currentUser}
+                    returnToPath={
+                      filterDepartmentId ? `/task-insights/${filterDepartmentId}` : null
+                    }
                   />
                 ) : (
                   <p className="text-sm text-[#8A8A6E]">
@@ -360,13 +329,6 @@ export function TaskIntelligenceDashboard({
           </AnimatePresence>
         </div>
       </div>
-
-      <DepartmentDetailModal
-        open={!!selected}
-        overview={selected}
-        onClose={closeDepartmentModal}
-        currentUser={currentUser}
-      />
 
       <AssignTaskModal open={showAssignModal} onClose={() => setShowAssignModal(false)} />
     </div>

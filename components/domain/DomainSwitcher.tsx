@@ -36,7 +36,10 @@ export function DomainSwitcher({ variant = "default" }: DomainSwitcherProps) {
     setMounted(true);
   }, []);
 
-  const isPrivileged = profile?.role === "admin" || profile?.role === "founder" || profile?.role === "manager";
+  const isPrivileged =
+    profile?.role === "admin" ||
+    profile?.role === "founder" ||
+    profile?.role === "manager";
   if (!mounted || !isPrivileged || !profile?.domain) return null;
 
   const currentDomain = (searchParams.get("domain") as IndulgeDomain) || null;
@@ -67,28 +70,35 @@ export function DomainSwitcher({ variant = "default" }: DomainSwitcherProps) {
             "flex items-center gap-2 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors duration-150",
             isDark
               ? "bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] text-white/80"
-              : "bg-black/[0.04] hover:bg-black/[0.08] border border-black/[0.06] text-[#1A1A1A]/80"
+              : "bg-black/[0.04] hover:bg-black/[0.08] border border-black/[0.06] text-[#1A1A1A]/80",
           )}
           style={{
             boxShadow: `0 0 0 1px ${config.ringColor}30`,
           }}
         >
           <span>{config.shortLabel}</span>
-          <ChevronDown className={cn("w-3 h-3", isDark ? "text-white/50" : "text-[#1A1A1A]/50")} />
+          <ChevronDown
+            className={cn(
+              "w-3 h-3",
+              isDark ? "text-white/50" : "text-[#1A1A1A]/50",
+            )}
+          />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
         className={cn(
           "min-w-[160px]",
-          isDark ? "bg-[#1a1917] border-white/10" : "bg-white border-[#E5E4DF]"
+          isDark ? "bg-[#1a1917] border-white/10" : "bg-white border-[#E5E4DF]",
         )}
       >
         <DropdownMenuItem
           onClick={() => setDomain(null)}
           className={cn(
             !currentDomain ? "bg-[#D4AF37]/10 text-[#D4AF37]" : "",
-            isDark ? "text-white/80 hover:bg-white/[0.06]" : "text-[#1A1A1A] hover:bg-[#F2F2EE]"
+            isDark
+              ? "text-white/80 hover:bg-white/[0.06]"
+              : "text-[#1A1A1A] hover:bg-[#F2F2EE]",
           )}
         >
           All Domains
@@ -101,7 +111,9 @@ export function DomainSwitcher({ variant = "default" }: DomainSwitcherProps) {
               onClick={() => setDomain(d)}
               className={cn(
                 currentDomain === d ? "bg-[#D4AF37]/10 text-[#D4AF37]" : "",
-                isDark ? "text-white/80 hover:bg-white/[0.06]" : "text-[#1A1A1A] hover:bg-[#F2F2EE]"
+                isDark
+                  ? "text-white/80 hover:bg-white/[0.06]"
+                  : "text-[#1A1A1A] hover:bg-[#F2F2EE]",
               )}
             >
               {cfg?.shortLabel ?? d.replace(/_/g, " ")}

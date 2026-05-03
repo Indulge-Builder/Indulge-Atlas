@@ -100,8 +100,9 @@ export function RoutingRulesClient({
               No routing rules yet
             </p>
             <p className="text-xs text-[#9A9A94] mt-2 max-w-md mx-auto">
-              Add a rule to translate incoming lead attributes into automatic assignments.
-              Webhook evaluation will be enabled in a later release.
+              Add a rule to translate incoming lead attributes into automatic
+              assignments. Webhook evaluation will be enabled in a later
+              release.
             </p>
           </div>
         ) : (
@@ -131,8 +132,8 @@ export function RoutingRulesClient({
                     {rule.action_type === "route_to_domain_pool" &&
                       rule.action_target_domain && (
                         <p className="text-[11px] text-[#B5A99A]">
-                          {DOMAIN_DISPLAY_CONFIG[rule.action_target_domain]?.label ??
-                            rule.action_target_domain}
+                          {DOMAIN_DISPLAY_CONFIG[rule.action_target_domain]
+                            ?.label ?? rule.action_target_domain}
                         </p>
                       )}
                   </div>
@@ -146,7 +147,9 @@ export function RoutingRulesClient({
                       checked={rule.is_active}
                       disabled={pendingId === rule.id}
                       onCheckedChange={(v) => onToggle(rule.id, v)}
-                      aria-label={rule.is_active ? "Deactivate rule" : "Activate rule"}
+                      aria-label={
+                        rule.is_active ? "Deactivate rule" : "Activate rule"
+                      }
                     />
                   </div>
                   <Button

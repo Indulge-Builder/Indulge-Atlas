@@ -54,8 +54,9 @@ export default async function TaskInsightsPage({ searchParams }: TaskInsightsPag
   const loadError = overview.success ? null : (overview.error ?? "Could not load Task Insights.");
   const workspaceItems = workspaces.success && workspaces.data ? workspaces.data : [];
 
-  const initialOpenDepartmentId =
-    rawDeptQuery && rows.some((r) => r.departmentId === rawDeptQuery) ? rawDeptQuery : null;
+  if (rawDeptQuery && rows.some((r) => r.departmentId === rawDeptQuery)) {
+    redirect(`/task-insights/${rawDeptQuery}`);
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -64,7 +65,6 @@ export default async function TaskInsightsPage({ searchParams }: TaskInsightsPag
         initialWorkspaces={workspaceItems}
         currentUser={currentUser}
         loadError={loadError}
-        initialOpenDepartmentId={initialOpenDepartmentId}
       />
     </div>
   );

@@ -1,21 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { AnimatePresence } from "framer-motion";
 import type {
   EmployeeDepartment,
-  EmployeeHealthSignal,
   IndulgeDomain,
   Profile,
   TaskIntelligenceAgentSummary,
 } from "@/lib/types/database";
 import { AgentHealthCard } from "./AgentHealthCard";
-import { EmployeeDossierModal } from "./EmployeeDossierModal";
 
 interface DepartmentIndividualTasksViewProps {
   agents: TaskIntelligenceAgentSummary[];
   departmentId: EmployeeDepartment | null;
   currentUser: { id: string; full_name: string; job_title: string | null; role: string };
+  /** When set, dossier page includes ?from= for back navigation */
+  returnToPath?: string | null;
 }
 
 function summaryToProfile(
@@ -53,67 +51,38 @@ function activePersonalCount(agent: TaskIntelligenceAgentSummary): number {
   return n;
 }
 
-function deriveEmployeeHealthSignal(
-  agent: TaskIntelligenceAgentSummary,
-): EmployeeHealthSignal {
-  if (agent.is_on_leave) return "on_leave";
-  if (agent.overduePersonalCount > 2) return "at_risk";
-  if (
-    agent.overduePersonalCount > 0 &&
-    agent.todaySopCompletionPct < 45
-  ) {
-    return "overloaded";
+function agentDossierHref(agentId: string, returnToPath?: string | null): string {
+  if (returnToPath && returnToPath.length > 0) {
+    return `/task-insights/agents/${agentId}?from=${encodeURIComponent(returnToPath)}`;
   }
-  return "on_track";
+  return `/task-insights/agents/${agentId}`;
 }
 
 export function DepartmentIndividualTasksView({
   agents,
   departmentId,
   currentUser,
+  returnToPath = null,
 }: DepartmentIndividualTasksViewProps) {
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
-
-  const filteredAgentList = useMemo(
-    () => agents.map((a) => summaryToProfile(a, departmentId)),
-    [agents, departmentId],
-  );
+  void currentUser;
 
   return (
     <div className="flex min-h-0 flex-col gap-4">
-      <div className="flex gap-3 overflow-x-auto pb-2">
+      <div className="-mx-1 flex gap-4 overflow-x-auto px-1 pb-2 pt-1 [scrollbar-width:thin]">
         {agents.map((agent) => (
           <AgentHealthCard
             key={agent.id}
             profile={summaryToProfile(agent, departmentId)}
-            healthSignal={deriveEmployeeHealthSignal(agent)}
-            completionRate={
-              agent.todaySopCompletionPct > 0 ? agent.todaySopCompletionPct : 0
-            }
             activeTaskCount={activePersonalCount(agent)}
-            overdueCount={agent.overduePersonalCount}
             isOnLeave={agent.is_on_leave}
-            onSelect={(id) => setSelectedAgentId(id)}
+            href={agentDossierHref(agent.id, returnToPath)}
           />
         ))}
       </div>
 
-      <p className="text-center font-serif text-[15px] italic text-[#8A8A6E]">
-        Click an agent card to open their dossier.
+      <p className="text-center font-[family-name:var(--font-playfair)] text-sm italic text-stone-500">
+        Select a teammate to open their dossier and tasks.
       </p>
-
-      <AnimatePresence>
-        {selectedAgentId ? (
-          <EmployeeDossierModal
-            key="dossier"
-            agentId={selectedAgentId}
-            agentList={filteredAgentList}
-            currentUser={currentUser}
-            onClose={() => setSelectedAgentId(null)}
-            onNavigate={(id) => setSelectedAgentId(id)}
-          />
-        ) : null}
-      </AnimatePresence>
     </div>
   );
 }

@@ -8,7 +8,12 @@ import type { Profile } from "@/lib/types/database";
 export function canAccessShopSurfaces(
   profile: Pick<Profile, "role" | "domain">,
 ): boolean {
-  if (profile.role === "admin" || profile.role === "founder") return true;
+  if (
+    profile.role === "admin" ||
+    profile.role === "founder" ||
+    profile.role === "super_admin"
+  )
+    return true;
   if (profile.domain !== "indulge_shop") return false;
   return ["manager", "agent", "guest"].includes(profile.role);
 }

@@ -4,7 +4,11 @@ import { useState } from "react";
 import Link from "next/link";
 import { formatIST } from "@/lib/utils/time";
 import { toast } from "sonner";
-import { completeTask, type AgentDailyRoster, type DailyRosterTask } from "@/lib/actions/tasks";
+import {
+  completeTask,
+  type AgentDailyRoster,
+  type DailyRosterTask,
+} from "@/lib/actions/tasks";
 import { dispatchTaskAlertRefresh } from "@/lib/task-alert-refresh";
 import { DOMAIN_DISPLAY_CONFIG } from "@/lib/types/database";
 import {
@@ -18,10 +22,18 @@ import { cn } from "@/lib/utils";
 
 function domainLabel(domain: string | undefined) {
   if (!domain) return "—";
-  return DOMAIN_DISPLAY_CONFIG[domain]?.shortLabel ?? domain.replace(/^indulge_/, "");
+  return (
+    DOMAIN_DISPLAY_CONFIG[domain]?.shortLabel ?? domain.replace(/^indulge_/, "")
+  );
 }
 
-function RosterCard({ task, accent }: { task: DailyRosterTask; accent: "rose" | "neutral" | "muted" }) {
+function RosterCard({
+  task,
+  accent,
+}: {
+  task: DailyRosterTask;
+  accent: "rose" | "neutral" | "muted";
+}) {
   const [hidden, setHidden] = useState(false);
 
   const lead = task.lead;
@@ -44,9 +56,7 @@ function RosterCard({ task, accent }: { task: DailyRosterTask; accent: "rose" | 
 
   if (hidden) return null;
 
-  const dueTime = task.due_date
-    ? formatIST(task.due_date, "h:mm a")
-    : "—";
+  const dueTime = task.due_date ? formatIST(task.due_date, "h:mm a") : "—";
 
   return (
     <div
@@ -89,9 +99,20 @@ function RosterCard({ task, accent }: { task: DailyRosterTask; accent: "rose" | 
   );
 }
 
-function SectionTitle({ children, className }: { children: React.ReactNode; className?: string }) {
+function SectionTitle({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <h3 className={cn("font-serif text-base font-medium tracking-tight text-stone-900", className)}>
+    <h3
+      className={cn(
+        "font-serif text-base font-medium tracking-tight text-stone-900",
+        className,
+      )}
+    >
       {children}
     </h3>
   );
@@ -142,7 +163,11 @@ export function DailyRoster({ roster }: DailyRosterProps) {
       </div>
 
       {upcoming.length > 0 && (
-        <Accordion type="single" collapsible className="rounded-xl border border-stone-200/70 bg-white/40 px-4">
+        <Accordion
+          type="single"
+          collapsible
+          className="rounded-xl border border-stone-200/70 bg-white/40 px-4"
+        >
           <AccordionItem value="upcoming" className="border-0">
             <AccordionTrigger className="text-stone-500 hover:text-stone-700">
               Upcoming ({upcoming.length})

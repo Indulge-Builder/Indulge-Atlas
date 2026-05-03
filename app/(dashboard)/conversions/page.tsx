@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { Trophy } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { TopBar } from "@/components/layout/TopBar";
+import { LeaderPerspectiveNotice } from "@/components/layout/LeaderPerspectiveNotice";
 import { ConversionsTable } from "@/components/leads/ConversionsTable";
 import type { ConversionRow } from "@/components/leads/ConversionsTable";
 
@@ -9,31 +10,16 @@ export const dynamic = "force-dynamic";
 
 // ── Auth + data ───────────────────────────────────────────
 
-async function getConversions(): Promise<ConversionRow[]> {
+async function getConversionsForAgent(
+  userId: string,
+): Promise<ConversionRow[]> {
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) redirect("/login");
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (!profile) redirect("/login");
-
-  // Only agents have access to this page.
-  if (profile.role !== "agent") redirect("/");
 
   const { data, error } = await supabase
     .from("leads")
     .select("id, first_name, last_name, deal_value, deal_duration, updated_at")
     .eq("status", "won")
-    .eq("assigned_to", user.id)
+    .eq("assigned_to", userId)
     .order("updated_at", { ascending: false });
 
   if (error) {
@@ -47,7 +33,33 @@ async function getConversions(): Promise<ConversionRow[]> {
 // ── Page ──────────────────────────────────────────────────
 
 export default async function ConversionsPage() {
-  const conversions = await getConversions();
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile) redirect("/login");
+
+  if (profile.role !== "agent") {
+    return (
+      <LeaderPerspectiveNotice
+        title="My Conversions"
+        subtitle="Agent perspective"
+        body="This table lists wins tied to the signed-in agent account. For organization-wide sales analytics, open the Command Center."
+        ctaHref="/manager/dashboard"
+        ctaLabel="Open Command Center"
+      />
+    );
+  }
+
+  const conversions = await getConversionsForAgent(user.id);
   const totalValue = conversions.reduce(
     (sum, c) => sum + (c.deal_value ?? 0),
     0,

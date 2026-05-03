@@ -47,7 +47,10 @@ function DashboardSkeleton() {
       </div>
       <div className="px-6 pt-6 max-w-7xl mx-auto space-y-4">
         {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="rounded-xl border border-[#E5E4DF] bg-white p-4 space-y-3">
+          <div
+            key={i}
+            className="rounded-xl border border-[#E5E4DF] bg-white p-4 space-y-3"
+          >
             <div className="flex items-center gap-3">
               <Skeleton className="w-8 h-8 rounded-lg" />
               <Skeleton className="h-5 flex-1" />
@@ -81,10 +84,10 @@ async function TasksPageData({ initialTab }: { initialTab: TabKey }) {
   if (!profileRow) redirect("/login");
 
   const currentUser = {
-    id:         profileRow.id as string,
-    full_name:  (profileRow.full_name as string) ?? "Agent",
-    job_title:  (profileRow.job_title as string | null) ?? null,
-    role:       (profileRow.role as string) ?? "agent",
+    id: profileRow.id as string,
+    full_name: (profileRow.full_name as string) ?? "Agent",
+    job_title: (profileRow.job_title as string | null) ?? null,
+    role: (profileRow.role as string) ?? "agent",
     department: (profileRow.department as string | null) ?? null,
   };
 
@@ -104,12 +107,15 @@ async function TasksPageData({ initialTab }: { initialTab: TabKey }) {
     ? (masterTasksResult.data ?? [])
     : [];
 
-  const personalTasks: PersonalTask[] = personalTasksResult.success && personalTasksResult.data
-    ? personalTasksResult.data.personalTasks
-    : [];
+  const personalTasks: PersonalTask[] =
+    personalTasksResult.success && personalTasksResult.data
+      ? personalTasksResult.data.personalTasks
+      : [];
 
   const dailySopTasks: PersonalTask[] =
-    dailySopResult.success && dailySopResult.data ? dailySopResult.data.items : [];
+    dailySopResult.success && dailySopResult.data
+      ? dailySopResult.data.items
+      : [];
 
   const subTasks: Array<SubTask & { masterTaskTitle: string | null }> =
     subTasksResult.success ? (subTasksResult.data ?? []) : [];
@@ -121,7 +127,11 @@ async function TasksPageData({ initialTab }: { initialTab: TabKey }) {
 
   for (let i = 0; i < masterTasks.length; i++) {
     const result = detailResults[i];
-    if (result.status === "fulfilled" && result.value.success && result.value.data) {
+    if (
+      result.status === "fulfilled" &&
+      result.value.success &&
+      result.value.data
+    ) {
       atlasTasks.push({
         masterTask: {
           ...result.value.data.masterTask,
@@ -135,8 +145,12 @@ async function TasksPageData({ initialTab }: { initialTab: TabKey }) {
   }
 
   const activeTaskCount =
-    personalTasks.filter((t) => t.atlas_status !== "done" && t.atlas_status !== "cancelled").length +
-    dailySopTasks.filter((t) => t.atlas_status !== "done" && t.atlas_status !== "cancelled").length +
+    personalTasks.filter(
+      (t) => t.atlas_status !== "done" && t.atlas_status !== "cancelled",
+    ).length +
+    dailySopTasks.filter(
+      (t) => t.atlas_status !== "done" && t.atlas_status !== "cancelled",
+    ).length +
     subTasks.length;
 
   return (
@@ -154,8 +168,11 @@ async function TasksPageData({ initialTab }: { initialTab: TabKey }) {
 
 export default async function AtlasTasksPage({ searchParams }: PageProps) {
   const params = await searchParams;
+
   const initialTab: TabKey =
-    params.tab === "my-tasks" || params.tab === "atlas-tasks" ? params.tab : "atlas-tasks";
+    params.tab === "my-tasks" || params.tab === "atlas-tasks"
+      ? params.tab
+      : "my-tasks";
 
   return (
     <Suspense fallback={<DashboardSkeleton />}>

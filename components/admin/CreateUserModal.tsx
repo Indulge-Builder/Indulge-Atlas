@@ -42,14 +42,23 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { IndulgeField } from "@/components/ui/indulge-field";
 import { cn } from "@/lib/utils";
-import { createUser, checkEmailExists, getProfilesForReportsTo } from "@/lib/actions/admin";
+import {
+  createUser,
+  checkEmailExists,
+  getProfilesForReportsTo,
+} from "@/lib/actions/admin";
 import { mapAuthError } from "@/lib/utils/auth-errors";
 import {
   createUserSchema,
   type CreateUserFormInput,
   type CreateUserInput,
 } from "@/lib/validations/user";
-import type { EmployeeDepartment, IndulgeDomain, UserRole, Profile } from "@/lib/types/database";
+import type {
+  EmployeeDepartment,
+  IndulgeDomain,
+  UserRole,
+  Profile,
+} from "@/lib/types/database";
 import {
   DEPARTMENT_CONFIG,
   DOMAIN_CONFIG,
@@ -95,11 +104,13 @@ const ROLE_CONFIG: {
   {
     value: "founder",
     label: "Founder",
-    description: "Business owner — assigned directly by the platform administrator",
+    description:
+      "Business owner — assigned directly by the platform administrator",
     color: "#A88B25",
     bg: "#FEF3C7",
     locked: true,
-    lockedReason: "Founders are assigned directly by the platform administrator",
+    lockedReason:
+      "Founders are assigned directly by the platform administrator",
   },
   {
     value: "admin",
@@ -155,8 +166,8 @@ function StepIndicator({ currentStep }: { currentStep: WizardStep }) {
                   done
                     ? "bg-[#D4AF37] border-[#D4AF37] text-white"
                     : active
-                    ? "bg-white border-[#D4AF37] text-[#D4AF37]"
-                    : "bg-white border-[#E5E4DF] text-[#B5A99A]"
+                      ? "bg-white border-[#D4AF37] text-[#D4AF37]"
+                      : "bg-white border-[#E5E4DF] text-[#B5A99A]",
                 )}
               >
                 {done ? <Check className="w-3.5 h-3.5" /> : step.n}
@@ -164,7 +175,11 @@ function StepIndicator({ currentStep }: { currentStep: WizardStep }) {
               <span
                 className={cn(
                   "text-[9px] font-medium uppercase tracking-wider whitespace-nowrap",
-                  active ? "text-[#D4AF37]" : done ? "text-[#8A8A6E]" : "text-[#C0B8B0]"
+                  active
+                    ? "text-[#D4AF37]"
+                    : done
+                      ? "text-[#8A8A6E]"
+                      : "text-[#C0B8B0]",
                 )}
               >
                 {step.label}
@@ -174,7 +189,7 @@ function StepIndicator({ currentStep }: { currentStep: WizardStep }) {
               <div
                 className={cn(
                   "h-px flex-1 mx-1 mb-5 transition-colors",
-                  done ? "bg-[#D4AF37]/40" : "bg-[#E5E4DF]"
+                  done ? "bg-[#D4AF37]/40" : "bg-[#E5E4DF]",
                 )}
               />
             )}
@@ -187,11 +202,17 @@ function StepIndicator({ currentStep }: { currentStep: WizardStep }) {
 
 // ── Main Component ────────────────────────────────────────────
 
-export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalProps) {
+export function CreateUserModal({
+  open,
+  onClose,
+  onSuccess,
+}: CreateUserModalProps) {
   const [step, setStep] = useState<WizardStep>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [emailCheckState, setEmailCheckState] = useState<"idle" | "checking" | "taken" | "ok">("idle");
+  const [emailCheckState, setEmailCheckState] = useState<
+    "idle" | "checking" | "taken" | "ok"
+  >("idle");
   const [showPassword, setShowPassword] = useState(false);
   const [reportsToOptions, setReportsToOptions] = useState<
     Pick<Profile, "id" | "full_name" | "job_title" | "role" | "department">[]
@@ -236,7 +257,11 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
 
   // Real-time email duplicate check (debounced).
   useEffect(() => {
-    if (!watchedEmail || watchedEmail.length < 5 || !watchedEmail.includes("@")) {
+    if (
+      !watchedEmail ||
+      watchedEmail.length < 5 ||
+      !watchedEmail.includes("@")
+    ) {
       setEmailCheckState("idle");
       return;
     }
@@ -278,7 +303,9 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
       4: [],
     };
 
-    const valid = await trigger(stepFields[step] as (keyof CreateUserFormInput)[]);
+    const valid = await trigger(
+      stepFields[step] as (keyof CreateUserFormInput)[],
+    );
     if (!valid) return;
 
     if (step === 1 && emailCheckState === "taken") return;
@@ -306,10 +333,12 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
       setStep(1);
       onSuccess();
     },
-    [reset, onSuccess]
+    [reset, onSuccess],
   );
 
-  function firstValidationMessage(errors: FieldErrors<CreateUserFormInput>): string {
+  function firstValidationMessage(
+    errors: FieldErrors<CreateUserFormInput>,
+  ): string {
     const walk = (e: object | undefined): string | undefined => {
       if (!e || typeof e !== "object") return undefined;
       for (const v of Object.values(e)) {
@@ -332,7 +361,9 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
   }, []);
 
   // ── Access summary (computed for Step 4 review) ────────────────────────
-  const deptCfg = watchedDepartment ? DEPARTMENT_CONFIG[watchedDepartment] : null;
+  const deptCfg = watchedDepartment
+    ? DEPARTMENT_CONFIG[watchedDepartment]
+    : null;
   const domainCfg = DOMAIN_CONFIG[watchedDomain];
   const roleCfg = ROLE_CONFIG.find((r) => r.value === watchedRole);
 
@@ -340,7 +371,7 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
   const filteredReportsToCandidates = reportsToOptions.filter(
     (p) =>
       p.full_name.toLowerCase().includes(reportsToSearch.toLowerCase()) ||
-      (p.job_title ?? "").toLowerCase().includes(reportsToSearch.toLowerCase())
+      (p.job_title ?? "").toLowerCase().includes(reportsToSearch.toLowerCase()),
   );
 
   // ── Render ─────────────────────────────────────────────────────────────
@@ -364,7 +395,10 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
           <StepIndicator currentStep={step} />
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-5">
+        <form
+          onSubmit={handleSubmit(onSubmit, onInvalid)}
+          className="space-y-5"
+        >
           <AnimatePresence mode="wait">
             {/* ── STEP 1: Identity ─────────────────────────────── */}
             {step === 1 && (
@@ -400,12 +434,20 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
                     label="Job Title"
                     error={errors.job_title?.message}
                     required
-                    hint={watchedDepartment ? `e.g. Senior ${deptCfg?.label} Manager` : "e.g. Senior Concierge Manager"}
+                    hint={
+                      watchedDepartment
+                        ? `e.g. Senior ${deptCfg?.label} Manager`
+                        : "e.g. Senior Concierge Manager"
+                    }
                     className="col-span-2 sm:col-span-1"
                   >
                     <Input
                       {...register("job_title")}
-                      placeholder={watchedDepartment ? `e.g. ${deptCfg?.label} Lead` : "Job title"}
+                      placeholder={
+                        watchedDepartment
+                          ? `e.g. ${deptCfg?.label} Lead`
+                          : "Job title"
+                      }
                       error={!!errors.job_title}
                     />
                   </IndulgeField>
@@ -413,7 +455,12 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
 
                 <IndulgeField
                   label="Work Email"
-                  error={errors.email?.message ?? (emailCheckState === "taken" ? "This email is already registered." : undefined)}
+                  error={
+                    errors.email?.message ??
+                    (emailCheckState === "taken"
+                      ? "This email is already registered."
+                      : undefined)
+                  }
                   required
                 >
                   <div className="relative">
@@ -459,7 +506,9 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
 
                 {/* Department card grid */}
                 <div>
-                  <p className="text-xs font-semibold text-[#1A1A1A] mb-2">Department</p>
+                  <p className="text-xs font-semibold text-[#1A1A1A] mb-2">
+                    Department
+                  </p>
                   <Controller
                     name="department"
                     control={control}
@@ -467,7 +516,7 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
                       <div className="grid grid-cols-4 gap-2">
                         {ALL_DEPARTMENTS.map((dept) => {
                           const cfg = DEPARTMENT_CONFIG[dept];
-                              const DeptIcon = DEPT_ICON_MAP[cfg.icon] ?? Sparkles;
+                          const DeptIcon = DEPT_ICON_MAP[cfg.icon] ?? Sparkles;
                           const isSelected = field.value === dept;
                           return (
                             <button
@@ -478,7 +527,7 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
                                 "flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all text-center",
                                 isSelected
                                   ? "border-[#D4AF37] bg-[#D4AF37]/6"
-                                  : "border-[#E5E4DF] hover:border-[#D0C8BE] bg-white"
+                                  : "border-[#E5E4DF] hover:border-[#D0C8BE] bg-white",
                               )}
                             >
                               <div
@@ -491,13 +540,17 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
                               >
                                 <DeptIcon
                                   className="w-4 h-4"
-                                  color={isSelected ? cfg.accentColor : "#8A8A6E"}
+                                  color={
+                                    isSelected ? cfg.accentColor : "#8A8A6E"
+                                  }
                                 />
                               </div>
                               <p
                                 className={cn(
                                   "text-[11px] font-semibold leading-tight",
-                                  isSelected ? "text-[#1A1A1A]" : "text-[#4A4A4A]"
+                                  isSelected
+                                    ? "text-[#1A1A1A]"
+                                    : "text-[#4A4A4A]",
                                 )}
                               >
                                 {cfg.label}
@@ -530,10 +583,11 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
                         control={control}
                         render={({ field }) => {
                           const deptDomains: IndulgeDomain[] = [
-                            ...(DEPARTMENT_CONFIG[watchedDepartment]?.allowedDomains ?? []),
+                            ...(DEPARTMENT_CONFIG[watchedDepartment]
+                              ?.allowedDomains ?? []),
                             "indulge_global",
                           ].filter(
-                            (d, i, arr) => arr.indexOf(d) === i
+                            (d, i, arr) => arr.indexOf(d) === i,
                           ) as IndulgeDomain[];
 
                           return (
@@ -542,7 +596,9 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
                                 const cfg = DOMAIN_CONFIG[domain];
                                 const isSelected = field.value === domain;
                                 const isPrimary =
-                                  domain === DEPARTMENT_CONFIG[watchedDepartment]?.primaryDomain;
+                                  domain ===
+                                  DEPARTMENT_CONFIG[watchedDepartment]
+                                    ?.primaryDomain;
                                 return (
                                   <button
                                     key={domain}
@@ -552,7 +608,7 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
                                       "w-full flex items-start gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all",
                                       isSelected
                                         ? "border-[#D4AF37] bg-[#D4AF37]/5"
-                                        : "border-[#E5E4DF] hover:border-[#D0C8BE] bg-white"
+                                        : "border-[#E5E4DF] hover:border-[#D0C8BE] bg-white",
                                     )}
                                   >
                                     <div
@@ -605,9 +661,9 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
                     >
                       <Info className="w-4 h-4 text-[#A88B25] shrink-0 mt-0.5" />
                       <p className="text-[12px] text-[#6B5E3A] leading-relaxed">
-                        <strong>{deptCfg?.label}</strong> team members access the{" "}
-                        <strong>{deptCfg?.workspaceRoute}</strong> workspace and see{" "}
-                        <strong>{domainCfg?.label}</strong> data.
+                        <strong>{deptCfg?.label}</strong> team members access
+                        the <strong>{deptCfg?.workspaceRoute}</strong> workspace
+                        and see <strong>{domainCfg?.label}</strong> data.
                       </p>
                     </motion.div>
                   )}
@@ -647,15 +703,17 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
                               key={opt.value}
                               type="button"
                               disabled={isLocked}
-                              onClick={() => !isLocked && field.onChange(opt.value)}
+                              onClick={() =>
+                                !isLocked && field.onChange(opt.value)
+                              }
                               title={isLocked ? opt.lockedReason : undefined}
                               className={cn(
                                 "w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all",
                                 isLocked
                                   ? "border-[#EAEAEA] bg-[#F9F9F9] opacity-60 cursor-not-allowed"
                                   : isSelected
-                                  ? "border-[#D4AF37] bg-[#D4AF37]/5"
-                                  : "border-[#E5E4DF] hover:border-[#D0C8BE] bg-white cursor-pointer"
+                                    ? "border-[#D4AF37] bg-[#D4AF37]/5"
+                                    : "border-[#E5E4DF] hover:border-[#D0C8BE] bg-white cursor-pointer",
                               )}
                             >
                               <div
@@ -663,13 +721,26 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
                                 style={{ backgroundColor: opt.bg }}
                               >
                                 {isLocked ? (
-                                  <Lock className="w-4 h-4" style={{ color: opt.color }} />
-                                ) : opt.value === "admin" || opt.value === "founder" ? (
-                                  <Crown className="w-4 h-4" style={{ color: opt.color }} />
+                                  <Lock
+                                    className="w-4 h-4"
+                                    style={{ color: opt.color }}
+                                  />
+                                ) : opt.value === "admin" ||
+                                  opt.value === "founder" ? (
+                                  <Crown
+                                    className="w-4 h-4"
+                                    style={{ color: opt.color }}
+                                  />
                                 ) : opt.value === "manager" ? (
-                                  <Briefcase className="w-4 h-4" style={{ color: opt.color }} />
+                                  <Briefcase
+                                    className="w-4 h-4"
+                                    style={{ color: opt.color }}
+                                  />
                                 ) : (
-                                  <User className="w-4 h-4" style={{ color: opt.color }} />
+                                  <User
+                                    className="w-4 h-4"
+                                    style={{ color: opt.color }}
+                                  />
                                 )}
                               </div>
                               <div className="flex-1 min-w-0">
@@ -723,14 +794,16 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
                             "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left transition-all text-sm",
                             field.value === null
                               ? "border-[#D4AF37]/40 bg-[#D4AF37]/6 text-[#A88B25]"
-                              : "border-[#E5E4DF] hover:border-[#D0C8BE] bg-white text-[#8A8A6E]"
+                              : "border-[#E5E4DF] hover:border-[#D0C8BE] bg-white text-[#8A8A6E]",
                           )}
                         >
                           <div className="w-7 h-7 rounded-full bg-[#F2F2EE] flex items-center justify-center shrink-0">
                             <User className="w-3.5 h-3.5 text-[#B5A99A]" />
                           </div>
                           <span className="text-[12px]">No direct manager</span>
-                          {field.value === null && <Check className="w-3.5 h-3.5 ml-auto text-[#D4AF37]" />}
+                          {field.value === null && (
+                            <Check className="w-3.5 h-3.5 ml-auto text-[#D4AF37]" />
+                          )}
                         </button>
 
                         {filteredReportsToCandidates.map((candidate) => {
@@ -747,7 +820,7 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
                                 "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left transition-all",
                                 isSelected
                                   ? "border-[#D4AF37]/40 bg-[#D4AF37]/6"
-                                  : "border-[#E5E4DF] hover:border-[#D0C8BE] bg-white"
+                                  : "border-[#E5E4DF] hover:border-[#D0C8BE] bg-white",
                               )}
                             >
                               <div className="w-7 h-7 rounded-full bg-[#D4AF37]/15 flex items-center justify-center shrink-0 text-[10px] font-bold text-[#A88B25]">
@@ -769,11 +842,12 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
                           );
                         })}
 
-                        {filteredReportsToCandidates.length === 0 && reportsToSearch && (
-                          <p className="text-[11px] text-[#B5A99A] text-center py-3">
-                            No managers matching "{reportsToSearch}"
-                          </p>
-                        )}
+                        {filteredReportsToCandidates.length === 0 &&
+                          reportsToSearch && (
+                            <p className="text-[11px] text-[#B5A99A] text-center py-3">
+                              No managers matching "{reportsToSearch}"
+                            </p>
+                          )}
                       </div>
                     )}
                   />
@@ -905,7 +979,9 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
                         <p className="text-[11px] text-[#6B6B6B]">
                           {watch("job_title") || "—"}
                         </p>
-                        <p className="text-[11px] text-[#8A8A6E]">{watch("email") || "—"}</p>
+                        <p className="text-[11px] text-[#8A8A6E]">
+                          {watch("email") || "—"}
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -937,12 +1013,15 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
                           className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold"
                           style={{
                             backgroundColor:
-                              DOMAIN_DISPLAY_CONFIG[watchedDomain]?.pillBg ?? "#F4F4F5",
+                              DOMAIN_DISPLAY_CONFIG[watchedDomain]?.pillBg ??
+                              "#F4F4F5",
                             color:
-                              DOMAIN_DISPLAY_CONFIG[watchedDomain]?.pillColor ?? "#6B7280",
+                              DOMAIN_DISPLAY_CONFIG[watchedDomain]?.pillColor ??
+                              "#6B7280",
                           }}
                         >
-                          {DOMAIN_DISPLAY_CONFIG[watchedDomain]?.shortLabel ?? watchedDomain}
+                          {DOMAIN_DISPLAY_CONFIG[watchedDomain]?.shortLabel ??
+                            watchedDomain}
                         </span>
                         {domainCfg && (
                           <p className="text-[10px] text-[#8A8A6E] mt-1 leading-tight">
@@ -978,10 +1057,12 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
                           "text-[10px] font-semibold px-2 py-0.5 rounded-full",
                           watchedSendInvite !== false
                             ? "bg-emerald-50 text-emerald-700"
-                            : "bg-amber-50 text-amber-700"
+                            : "bg-amber-50 text-amber-700",
                         )}
                       >
-                        {watchedSendInvite !== false ? "Invite email" : "Password set"}
+                        {watchedSendInvite !== false
+                          ? "Invite email"
+                          : "Password set"}
                       </span>
                     </div>
                   </div>
@@ -992,14 +1073,13 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
                   <div className="flex gap-3 p-3.5 rounded-xl bg-[#F9F7F0] border border-[#E5E0D0]">
                     <Shield className="w-4 h-4 text-[#A88B25] shrink-0 mt-0.5" />
                     <div className="text-[11px] text-[#6B5E3A] leading-relaxed">
-                      <strong>{watch("full_name") || "This user"}</strong> will access the{" "}
-                      <strong>{deptCfg.workspaceRoute}</strong> workspace, see{" "}
-                      <strong>{domainCfg?.label}</strong> data, and have{" "}
-                      <strong>{watchedRole}</strong> permissions.
+                      <strong>{watch("full_name") || "This user"}</strong> will
+                      access the <strong>{deptCfg.workspaceRoute}</strong>{" "}
+                      workspace, see <strong>{domainCfg?.label}</strong> data,
+                      and have <strong>{watchedRole}</strong> permissions.
                     </div>
                   </div>
                 )}
-
               </motion.div>
             )}
           </AnimatePresence>
@@ -1043,7 +1123,9 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
                 type="button"
                 variant="gold"
                 onClick={goNext}
-                disabled={emailCheckState === "taken" || emailCheckState === "checking"}
+                disabled={
+                  emailCheckState === "taken" || emailCheckState === "checking"
+                }
                 className="gap-1.5"
               >
                 Continue
@@ -1056,7 +1138,9 @@ export function CreateUserModal({ open, onClose, onSuccess }: CreateUserModalPro
                 loading={isSubmitting}
                 leftIcon={<UserPlus className="w-4 h-4" />}
               >
-                {watchedSendInvite !== false ? "Create & Send Invite" : "Create User"}
+                {watchedSendInvite !== false
+                  ? "Create & Send Invite"
+                  : "Create User"}
               </IndulgeButton>
             )}
           </div>

@@ -33,9 +33,7 @@ async function ImportContent({ masterTaskId }: { masterTaskId?: string }) {
   const dept = profile?.department as string | null;
 
   const canImport =
-    isPrivilegedRole(role) ||
-    dept === "tech" ||
-    dept === "onboarding";
+    isPrivilegedRole(role) || dept === "tech" || dept === "onboarding";
 
   if (!canImport) redirect("/tasks");
 
@@ -44,7 +42,7 @@ async function ImportContent({ masterTaskId }: { masterTaskId?: string }) {
 
   // If a master_task_id was pre-selected via query param, verify it exists
   const preselectedTask = masterTaskId
-    ? masterTasks.find((t) => t.id === masterTaskId) ?? null
+    ? (masterTasks.find((t) => t.id === masterTaskId) ?? null)
     : null;
 
   return (

@@ -44,18 +44,33 @@ const ROLE_CONFIG: Record<
   UserRole,
   { label: string; icon: React.ElementType; color: string; bg: string }
 > = {
-  admin:        { label: "Admin",        icon: Shield,    color: "#C5830A", bg: "#FEF3D0" },
-  founder:      { label: "Founder",      icon: Briefcase, color: "#4A7C59", bg: "#EBF4EF" },
-  super_admin:  { label: "Super Admin",  icon: Shield,    color: "#8B6914", bg: "#FBF5DC" },
-  manager:      { label: "Manager",      icon: Briefcase, color: "#6B4FBB", bg: "#F0EBFF" },
-  agent:        { label: "Agent",        icon: User,      color: "#2C6FAC", bg: "#E8F0FA" },
-  guest:        { label: "Guest",        icon: User,      color: "#6B7280", bg: "#F4F4F5" },
+  admin: { label: "Admin", icon: Shield, color: "#C5830A", bg: "#FEF3D0" },
+  founder: {
+    label: "Founder",
+    icon: Briefcase,
+    color: "#4A7C59",
+    bg: "#EBF4EF",
+  },
+  super_admin: {
+    label: "Super Admin",
+    icon: Shield,
+    color: "#8B6914",
+    bg: "#FBF5DC",
+  },
+  manager: {
+    label: "Manager",
+    icon: Briefcase,
+    color: "#6B4FBB",
+    bg: "#F0EBFF",
+  },
+  agent: { label: "Agent", icon: User, color: "#2C6FAC", bg: "#E8F0FA" },
+  guest: { label: "Guest", icon: User, color: "#6B7280", bg: "#F4F4F5" },
 };
 
 /** Legacy role mappings (from older schema) */
 const LEGACY_ROLE_MAP: Record<string, UserRole> = {
   sales_agent: "agent",
-  finance:     "guest",
+  finance: "guest",
 };
 
 function getRoleConfig(role: string | null | undefined) {
@@ -69,7 +84,10 @@ interface UsersTableProps {
   currentUserId: string;
 }
 
-export function UsersTable({ profiles: initialProfiles, currentUserId }: UsersTableProps) {
+export function UsersTable({
+  profiles: initialProfiles,
+  currentUserId,
+}: UsersTableProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [profiles, setProfiles] = useState<Profile[]>(initialProfiles);
@@ -100,7 +118,7 @@ export function UsersTable({ profiles: initialProfiles, currentUserId }: UsersTa
       showToast(
         profile.is_active
           ? `${profile.full_name} deactivated.`
-          : `${profile.full_name} reactivated.`
+          : `${profile.full_name} reactivated.`,
       );
       refreshData();
     } else {
@@ -122,7 +140,7 @@ export function UsersTable({ profiles: initialProfiles, currentUserId }: UsersTa
   async function handleDelete(profile: Profile) {
     if (
       !confirm(
-        `Permanently delete ${profile.full_name}? This cannot be undone.`
+        `Permanently delete ${profile.full_name}? This cannot be undone.`,
       )
     )
       return;
@@ -147,9 +165,24 @@ export function UsersTable({ profiles: initialProfiles, currentUserId }: UsersTa
       {/* Stats row */}
       <div className="grid grid-cols-4 gap-3">
         {[
-          { label: "Total Users", value: profiles.length, color: "#1A1A1A", bg: "#F2F2EE" },
-          { label: "Active", value: activeCount, color: "#4A7C59", bg: "#EBF4EF" },
-          { label: "Sales Agents", value: agentCount, color: "#2C6FAC", bg: "#E8F0FA" },
+          {
+            label: "Total Users",
+            value: profiles.length,
+            color: "#1A1A1A",
+            bg: "#F2F2EE",
+          },
+          {
+            label: "Active",
+            value: activeCount,
+            color: "#4A7C59",
+            bg: "#EBF4EF",
+          },
+          {
+            label: "Sales Agents",
+            value: agentCount,
+            color: "#2C6FAC",
+            bg: "#E8F0FA",
+          },
           {
             label: "Admins & Managers",
             value: profiles.filter((p) => p.role !== "agent").length,
@@ -177,7 +210,9 @@ export function UsersTable({ profiles: initialProfiles, currentUserId }: UsersTa
         {/* Table header bar */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#E5E4DF]">
           <div>
-            <h2 className="text-sm font-semibold text-[#1A1A1A]">Team Members</h2>
+            <h2 className="text-sm font-semibold text-[#1A1A1A]">
+              Team Members
+            </h2>
             <p className="text-xs text-[#9E9E9E] mt-0.5">
               {profiles.length} user{profiles.length !== 1 ? "s" : ""} total
             </p>
@@ -231,7 +266,7 @@ export function UsersTable({ profiles: initialProfiles, currentUserId }: UsersTa
                     transition={{ delay: i * 0.03 }}
                     className={cn(
                       "border-b border-[#F2F2EE] last:border-0 transition-colors",
-                      !profile.is_active && "opacity-50"
+                      !profile.is_active && "opacity-50",
                     )}
                   >
                     {/* User */}
@@ -260,7 +295,9 @@ export function UsersTable({ profiles: initialProfiles, currentUserId }: UsersTa
                               </span>
                             )}
                           </div>
-                          <p className="text-xs text-[#9E9E9E]">{profile.email}</p>
+                          <p className="text-xs text-[#9E9E9E]">
+                            {profile.email}
+                          </p>
                         </div>
                       </div>
                     </td>
@@ -285,11 +322,16 @@ export function UsersTable({ profiles: initialProfiles, currentUserId }: UsersTa
                         <span
                           className="inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-full"
                           style={{
-                            backgroundColor: DOMAIN_DISPLAY_CONFIG[profile.domain]?.pillBg ?? "#F4F4F5",
-                            color: DOMAIN_DISPLAY_CONFIG[profile.domain]?.pillColor ?? "#6B7280",
+                            backgroundColor:
+                              DOMAIN_DISPLAY_CONFIG[profile.domain]?.pillBg ??
+                              "#F4F4F5",
+                            color:
+                              DOMAIN_DISPLAY_CONFIG[profile.domain]
+                                ?.pillColor ?? "#6B7280",
                           }}
                         >
-                          {DOMAIN_DISPLAY_CONFIG[profile.domain]?.shortLabel ?? profile.domain.replace(/_/g, " ")}
+                          {DOMAIN_DISPLAY_CONFIG[profile.domain]?.shortLabel ??
+                            profile.domain.replace(/_/g, " ")}
                         </span>
                       ) : (
                         <span className="text-xs text-[#9E9E9E]">—</span>
@@ -303,13 +345,13 @@ export function UsersTable({ profiles: initialProfiles, currentUserId }: UsersTa
                           "inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full",
                           profile.is_active
                             ? "bg-[#EBF4EF] text-[#4A7C59]"
-                            : "bg-[#F5F5F5] text-[#9E9E9E]"
+                            : "bg-[#F5F5F5] text-[#9E9E9E]",
                         )}
                       >
                         <span
                           className={cn(
                             "w-1.5 h-1.5 rounded-full",
-                            profile.is_active ? "bg-[#4A7C59]" : "bg-[#9E9E9E]"
+                            profile.is_active ? "bg-[#4A7C59]" : "bg-[#9E9E9E]",
                           )}
                         />
                         {profile.is_active ? "Active" : "Inactive"}
@@ -366,12 +408,14 @@ export function UsersTable({ profiles: initialProfiles, currentUserId }: UsersTa
                                 "gap-2",
                                 profile.is_active
                                   ? "text-[#C5830A] focus:bg-[#FEF3D0]"
-                                  : "text-[#4A7C59] focus:bg-[#EBF4EF]"
+                                  : "text-[#4A7C59] focus:bg-[#EBF4EF]",
                               )}
                               onClick={() => handleToggleActive(profile)}
                             >
                               <Power className="w-3.5 h-3.5" />
-                              {profile.is_active ? "Deactivate user" : "Reactivate user"}
+                              {profile.is_active
+                                ? "Deactivate user"
+                                : "Reactivate user"}
                             </DropdownMenuItem>
 
                             <DropdownMenuItem
@@ -429,7 +473,7 @@ export function UsersTable({ profiles: initialProfiles, currentUserId }: UsersTa
             <div
               className={cn(
                 "w-5 h-5 rounded-full flex items-center justify-center shrink-0",
-                toastType === "error" ? "bg-[#C0392B]" : "bg-[#4A7C59]"
+                toastType === "error" ? "bg-[#C0392B]" : "bg-[#4A7C59]",
               )}
             >
               <Check className="w-3 h-3 text-white" />
@@ -458,7 +502,10 @@ export function UsersTableSkeleton() {
           <Skeleton className="h-8 w-24 rounded-md" />
         </div>
         {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="flex items-center gap-4 px-5 py-3.5 border-b border-[#F2F2EE] last:border-0">
+          <div
+            key={i}
+            className="flex items-center gap-4 px-5 py-3.5 border-b border-[#F2F2EE] last:border-0"
+          >
             <Skeleton className="w-8 h-8 rounded-full shrink-0" />
             <div className="flex-1 space-y-1.5">
               <Skeleton className="h-3.5 w-36" />

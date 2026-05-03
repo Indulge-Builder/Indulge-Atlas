@@ -1275,3 +1275,102 @@ export interface NotificationSummary {
   notifications: TaskNotification[];
   unreadCount: number;
 }
+
+export type ClientStatus = 'active' | 'expired' | 'prospect' | 'inactive' | 'unknown';
+
+export type MembershipType = 'Premium' | 'Standard' | 'Celebrity' | 'Genie' | 'Monthly Trial';
+
+export type MembershipInterval = 'year' | 'month' | 'week';
+
+export type ProfileSourceType = 'typeform' | 'whatsapp' | 'manual' | 'social_enrichment' | 'meeting_transcript' | 'lead_form_data';
+
+export type ClientTravelProfile = {
+  seat_preference?: string;
+  stay_preferences?: string[];
+  go_to_country?: string;
+  needs_assistance_with?: string;
+};
+
+export type ClientLifestyleProfile = {
+  dietary_preference?: string;
+  favourite_cuisine?: string[];
+  favourite_food?: string;
+  favourite_drink?: string;
+  go_to_restaurant?: string[];
+  favourite_brands?: string[];
+};
+
+export type ClientPassionsProfile = {
+  favourite_sports?: string[];
+  favourite_car?: string;
+  favourite_watch?: string;
+};
+
+export type ClientEliaProfile = {
+  summary?: string;
+  hard_nos?: string[];
+  special_dates?: string[];
+  last_enriched_at?: string;
+};
+
+export interface Client {
+  id: string;
+  first_name: string;
+  last_name: string | null;
+  phone_number: string;
+  email: string | null;
+  queendom: string | null;
+  former_queendom: string | null;
+  client_status: ClientStatus;
+  membership_type: MembershipType | null;
+  membership_start: string | null;
+  membership_end: string | null;
+  membership_amount_paid: number | null;
+  membership_interval: MembershipInterval | null;
+  external_id: string | null;
+  assigned_agent_id: string | null;
+  avatar_url: string | null;
+  notes: string | null;
+  lead_origin_id: string | null;
+  closed_by: string | null;
+  membership_status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ClientProfile {
+  id: string;
+  client_id: string;
+  personality_type: string | null;
+  date_of_birth: string | null;
+  blood_group: string | null;
+  marital_status: string | null;
+  wedding_anniversary: string | null;
+  primary_city: string | null;
+  company_designation: string | null;
+  social_handles: string | null;
+  travel: ClientTravelProfile;
+  lifestyle: ClientLifestyleProfile;
+  passions: ClientPassionsProfile;
+  elia_notes: ClientEliaProfile;
+  profile_completeness: number;
+  last_enriched_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProfileSource {
+  id: string;
+  client_id: string;
+  source_type: ProfileSourceType;
+  source_ref: string | null;
+  raw_data: Record<string, unknown>;
+  mapped_fields: Record<string, unknown>;
+  confidence: number;
+  ingested_by: string | null;
+  ingested_at: string;
+}
+
+export interface ClientWithProfile extends Client {
+  client_profiles: ClientProfile | null;
+}

@@ -24,7 +24,11 @@ import {
   createRoutingRule,
   type CreateRoutingRuleInput,
 } from "@/lib/actions/routing-rules";
-import type { IndulgeDomain, LeadRoutingActionType, Profile } from "@/lib/types/database";
+import type {
+  IndulgeDomain,
+  LeadRoutingActionType,
+  Profile,
+} from "@/lib/types/database";
 import { DOMAIN_DISPLAY_CONFIG } from "@/lib/types/database";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -37,12 +41,14 @@ const CONDITION_FIELDS: { value: string; label: string }[] = [
   { value: "source", label: "Source" },
 ];
 
-const OPERATORS: { value: CreateRoutingRuleInput["condition_operator"]; label: string }[] =
-  [
-    { value: "equals", label: "equals" },
-    { value: "contains", label: "contains" },
-    { value: "starts_with", label: "starts with" },
-  ];
+const OPERATORS: {
+  value: CreateRoutingRuleInput["condition_operator"];
+  label: string;
+}[] = [
+  { value: "equals", label: "equals" },
+  { value: "contains", label: "contains" },
+  { value: "starts_with", label: "starts with" },
+];
 
 const DOMAIN_OPTIONS: IndulgeDomain[] = [
   "indulge_concierge",
@@ -69,8 +75,9 @@ export function CreateRuleModal({
   const [conditionOperator, setConditionOperator] =
     useState<CreateRoutingRuleInput["condition_operator"]>("equals");
   const [conditionValue, setConditionValue] = useState("");
-  const [actionType, setActionType] =
-    useState<LeadRoutingActionType>("route_to_domain_pool");
+  const [actionType, setActionType] = useState<LeadRoutingActionType>(
+    "route_to_domain_pool",
+  );
   const [agentId, setAgentId] = useState<string>("");
   const [domain, setDomain] = useState<IndulgeDomain>("indulge_shop");
   const [loading, setLoading] = useState(false);
@@ -133,8 +140,8 @@ export function CreateRuleModal({
             New routing rule
           </DialogTitle>
           <DialogDescription className="text-sm text-[#6B6B6B]">
-            Define a single condition and the action to take when it matches. Rules are
-            evaluated in priority order.
+            Define a single condition and the action to take when it matches.
+            Rules are evaluated in priority order.
           </DialogDescription>
         </DialogHeader>
 
@@ -160,7 +167,10 @@ export function CreateRuleModal({
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs text-[#6B6B6B]">Field</Label>
-                <Select value={conditionField} onValueChange={setConditionField}>
+                <Select
+                  value={conditionField}
+                  onValueChange={setConditionField}
+                >
                   <SelectTrigger className="border-[#E5E4DF] bg-[#FAFAF8]">
                     <SelectValue />
                   </SelectTrigger>
@@ -178,7 +188,9 @@ export function CreateRuleModal({
                 <Select
                   value={conditionOperator}
                   onValueChange={(v) =>
-                    setConditionOperator(v as CreateRoutingRuleInput["condition_operator"])
+                    setConditionOperator(
+                      v as CreateRoutingRuleInput["condition_operator"],
+                    )
                   }
                 >
                   <SelectTrigger className="border-[#E5E4DF] bg-[#FAFAF8]">
@@ -215,13 +227,17 @@ export function CreateRuleModal({
                 <Label className="text-xs text-[#6B6B6B]">Action</Label>
                 <Select
                   value={actionType}
-                  onValueChange={(v) => setActionType(v as LeadRoutingActionType)}
+                  onValueChange={(v) =>
+                    setActionType(v as LeadRoutingActionType)
+                  }
                 >
                   <SelectTrigger className="border-[#E5E4DF] bg-[#FAFAF8]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="assign_to_agent">Assign to agent</SelectItem>
+                    <SelectItem value="assign_to_agent">
+                      Assign to agent
+                    </SelectItem>
                     <SelectItem value="route_to_domain_pool">
                       Route to domain pool
                     </SelectItem>
@@ -240,7 +256,8 @@ export function CreateRuleModal({
                       {agents.map((a) => (
                         <SelectItem key={a.id} value={a.id}>
                           {a.full_name} —{" "}
-                          {DOMAIN_DISPLAY_CONFIG[a.domain]?.shortLabel ?? a.domain}
+                          {DOMAIN_DISPLAY_CONFIG[a.domain]?.shortLabel ??
+                            a.domain}
                         </SelectItem>
                       ))}
                     </SelectContent>

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { ComponentType } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
@@ -27,16 +28,18 @@ import {
   Workflow,
   Brain,
   Activity,
+  FolderKanban,
+  ClipboardList,
+  Table2,
+  Library,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getInitials } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import type { EmployeeDepartment, Profile } from "@/lib/types/database";
-import { DOMAIN_DISPLAY_CONFIG } from "@/lib/types/database";
 import { canAccessShopSurfaces } from "@/lib/shop/access";
 import {
-  DEPARTMENT_CONFIG,
   DEPARTMENT_ROUTE_ACCESS,
   isDepartmentRoute,
 } from "@/lib/constants/departments";
@@ -48,200 +51,354 @@ import { NotificationBell } from "@/components/notifications/NotificationBell";
 // (e.g. /manager would incorrectly match /manager/dashboard).
 
 // Roles that can mutate data — used for canEdit guardrail in UI
-export const MUTABLE_ROLES = ["admin", "founder", "manager", "agent"] as const;
+export const MUTABLE_ROLES = [
+  "admin",
+  "founder",
+  "super_admin",
+  "manager",
+  "agent",
+] as const;
 export type MutableRole = (typeof MUTABLE_ROLES)[number];
 
 export function canEdit(role: string): boolean {
   return (MUTABLE_ROLES as readonly string[]).includes(role);
 }
 
-const navItems = [
+/** Sidebar grouping for global roles (admin / founder / super_admin). */
+type NavGroup =
+  | "overview"
+  | "crm"
+  | "delivery"
+  | "insight"
+  | "command"
+  | "platform";
+
+const ADMIN_NAV_GROUP_ORDER: NavGroup[] = [
+  "overview",
+  "crm",
+  "delivery",
+  "insight",
+  "command",
+  "platform",
+];
+
+const ADMIN_NAV_GROUP_LABEL: Record<NavGroup, string> = {
+  overview: "Overview & home",
+  crm: "Sales & relationships",
+  delivery: "Work & delivery",
+  insight: "Agent desk",
+  command: "Command center",
+  platform: "Platform & control",
+};
+
+/** Founders see only these destinations (department route map is not applied). */
+const FOUNDER_SIDEBAR_PREFIXES = [
+  "/workspace",
+  "/clients",
+  "/tasks",
+  "/task-insights",
+  "/calendar",
+  "/elia-preview",
+  "/indulge-world",
+] as const;
+
+function hrefMatchesFounderNav(href: string): boolean {
+  return (FOUNDER_SIDEBAR_PREFIXES as readonly string[]).some((prefix) =>
+    href === prefix || href.startsWith(prefix + "/"),
+  );
+}
+
+type NavItemDef = {
+  href: string;
+  label: string;
+  icon: ComponentType<{ className?: string }>;
+  roles: readonly string[];
+  section: "main" | "manager" | "admin";
+  navGroup: NavGroup;
+  exact?: boolean;
+  shopOnly?: boolean;
+  departmentAllowlist?: readonly EmployeeDepartment[];
+};
+
+/** Founder-only sidebar: three groups, fixed link order within each. */
+const FOUNDER_NAV_SECTIONS: { label: string; hrefs: readonly string[] }[] = [
+  {
+    label: "Home & ecosystem",
+    hrefs: ["/workspace", "/indulge-world"],
+  },
+  {
+    label: "Work & schedule",
+    hrefs: ["/tasks", "/calendar"],
+  },
+  {
+    label: "Intelligence",
+    hrefs: ["/elia-preview", "/clients", "/task-insights"],
+  },
+];
+
+function founderNavModels(
+  visible: NavItemDef[],
+): { label: string; items: NavItemDef[] }[] {
+  return FOUNDER_NAV_SECTIONS.map((section) => ({
+    label: section.label,
+    items: section.hrefs
+      .map((href) => visible.find((v) => v.href === href))
+      .filter((v): v is NavItemDef => v != null),
+  })).filter((s) => s.items.length > 0);
+}
+
+const navItems: NavItemDef[] = [
   {
     href: "/workspace",
     label: "Workspace",
     icon: Compass,
-    roles: ["agent", "manager", "founder", "admin"],
+    roles: ["agent", "manager", "founder", "admin", "super_admin"],
     section: "main",
+    navGroup: "overview",
   },
   {
     href: "/shop/workspace",
     label: "Shop Workspace",
     icon: ShoppingBag,
-    roles: ["agent", "manager", "founder", "admin"],
+    roles: ["agent", "manager", "founder", "admin", "super_admin"],
     section: "main",
+    navGroup: "overview",
     shopOnly: true,
   },
   {
     href: "/",
     label: "Dashboard",
     icon: LayoutDashboard,
-    roles: ["agent", "manager", "founder", "admin"],
+    roles: ["agent", "manager", "founder", "admin", "super_admin"],
     section: "main",
+    navGroup: "overview",
   },
   {
     href: "/leads",
     label: "All Leads",
     icon: Users,
-    roles: ["agent", "manager", "founder", "guest"],
+    roles: ["agent", "manager", "founder", "guest", "admin", "super_admin"],
     section: "main",
+    navGroup: "crm",
+  },
+  {
+    href: "/clients",
+    label: "Clients",
+    icon: Users,
+    roles: ["agent", "manager", "founder", "admin", "super_admin", "guest"],
+    section: "main",
+    navGroup: "crm",
   },
   {
     href: "/whatsapp",
     label: "WhatsApp Hub",
     icon: MessageSquare,
-    roles: ["agent", "manager", "founder", "admin"],
+    roles: ["agent", "manager", "founder", "admin", "super_admin"],
     section: "main",
+    navGroup: "crm",
   },
   {
     href: "/tasks",
     label: "Tasks",
     icon: CheckSquare,
-    roles: ["agent", "manager", "founder", "admin"],
+    roles: ["agent", "manager", "founder", "admin", "super_admin"],
     section: "main",
+    navGroup: "delivery",
+  },
+  {
+    href: "/projects",
+    label: "Projects",
+    icon: FolderKanban,
+    roles: ["agent", "manager", "founder", "admin", "super_admin"],
+    section: "main",
+    navGroup: "delivery",
   },
   {
     href: "/calendar",
     label: "Calendar",
     icon: CalendarDays,
-    roles: ["agent", "manager", "founder", "admin"],
+    roles: ["agent", "manager", "founder", "admin", "super_admin"],
     section: "main",
+    navGroup: "delivery",
   },
   {
     href: "/performance",
     label: "My Performance",
     icon: Award,
-    roles: ["agent"],
+    roles: ["agent", "admin", "founder", "super_admin", "manager"],
     section: "main",
+    navGroup: "insight",
   },
   {
     href: "/conversions",
     label: "My Conversions",
     icon: Trophy,
-    roles: ["agent"],
+    roles: ["agent", "admin", "founder", "super_admin", "manager"],
     section: "main",
+    navGroup: "insight",
   },
   {
     href: "/escalations",
     label: "Escalations",
     icon: AlertTriangle,
-    roles: ["agent"],
+    roles: ["agent", "admin", "founder", "super_admin", "manager"],
     section: "main",
+    navGroup: "insight",
   },
   {
     href: "/manager/campaigns",
     label: "Live Campaigns",
     icon: Megaphone,
-    roles: ["manager", "founder"],
+    roles: ["manager", "founder", "admin", "super_admin"],
     section: "manager",
+    navGroup: "command",
   },
   {
     href: "/manager/team",
     label: "Team Roster",
     icon: UsersRound,
-    roles: ["manager", "founder"],
+    roles: ["manager", "founder", "admin", "super_admin"],
     section: "manager",
+    navGroup: "command",
+  },
+  {
+    href: "/manager/roster",
+    label: "Leave & roster",
+    icon: ClipboardList,
+    roles: ["manager", "founder", "admin", "super_admin"],
+    section: "manager",
+    navGroup: "command",
   },
   {
     href: "/manager",
     label: "Morning Briefing",
     icon: Coffee,
-    roles: ["manager", "founder"],
+    roles: ["manager", "founder", "admin", "super_admin"],
     section: "manager",
+    navGroup: "command",
     exact: true,
   },
   {
     href: "/manager/dashboard",
     label: "Command Center",
     icon: BarChart3,
-    roles: ["manager", "founder"],
+    roles: ["manager", "founder", "admin", "super_admin"],
     section: "manager",
+    navGroup: "command",
   },
   {
     href: "/task-insights",
     label: "Task Insights",
     icon: Activity,
-    roles: ["manager", "founder", "admin"],
+    roles: ["manager", "founder", "admin", "super_admin"],
     section: "manager",
+    navGroup: "command",
   },
   {
     href: "/manager/planner",
     label: "Ad Planner",
     icon: Sparkles,
-    roles: ["manager", "founder"],
+    roles: ["manager", "founder", "admin", "super_admin"],
     section: "manager",
+    navGroup: "command",
   },
   {
-    href: "/concierge",
-    label: "Elia · Concierge",
+    href: "/elia-preview",
+    label: "Elia",
     icon: Brain,
-    roles: ["admin", "founder"],
-    /** Also shown to these departments when role is not guest (see filter below). */
-    departmentAllowlist: ["tech"] satisfies EmployeeDepartment[],
+    roles: ["admin", "founder", "super_admin"],
+    departmentAllowlist: ["tech"] as const,
     section: "admin",
+    navGroup: "platform",
   },
   {
     href: "/indulge-world",
     label: "Indulge Eco",
     icon: Globe,
-    roles: ["admin", "founder"],
+    roles: ["admin", "founder", "super_admin"],
     section: "admin",
+    navGroup: "platform",
+  },
+  {
+    href: "/concierge",
+    label: "Concierge intelligence",
+    icon: Library,
+    roles: ["admin", "founder", "super_admin"],
+    section: "admin",
+    navGroup: "platform",
   },
   {
     href: "/admin/onboarding",
-    label: "Onboarding Oversight",
+    label: "Onboarding oversight",
     icon: BarChart3,
-    roles: ["admin", "founder"],
+    roles: ["admin", "founder", "super_admin"],
     section: "admin",
+    navGroup: "platform",
   },
   {
     href: "/admin/conversions",
-    label: "Conversions",
+    label: "Onboarding conversions",
     icon: Trophy,
-    roles: ["admin", "founder"],
+    roles: ["admin", "founder", "super_admin"],
     section: "admin",
+    navGroup: "platform",
   },
   {
     href: "/admin/shop",
-    label: "Shop Operations",
+    label: "Shop operations",
     icon: ShoppingBag,
-    roles: ["admin", "founder"],
+    roles: ["admin", "founder", "super_admin"],
     section: "admin",
+    navGroup: "platform",
   },
   {
     href: "/admin/shop/workspace",
-    label: "Shop Workspace",
+    label: "Shop admin workspace",
     icon: ShoppingBag,
-    roles: ["admin", "founder"],
+    roles: ["admin", "founder", "super_admin"],
     section: "admin",
+    navGroup: "platform",
   },
   {
     href: "/admin/marketing",
-    label: "Marketing Oversight",
+    label: "Marketing oversight",
     icon: Megaphone,
-    roles: ["admin", "founder"],
+    roles: ["admin", "founder", "super_admin"],
     section: "admin",
+    navGroup: "platform",
+  },
+  {
+    href: "/admin/mappings",
+    label: "Field mappings",
+    icon: Table2,
+    roles: ["admin"],
+    section: "admin",
+    navGroup: "platform",
   },
   {
     href: "/admin/routing",
-    label: "Lead Routing",
+    label: "Lead routing",
     icon: Route,
-    roles: ["admin", "founder", "manager"],
+    roles: ["admin", "founder", "super_admin", "manager"],
     section: "admin",
+    navGroup: "platform",
     exact: true,
   },
   {
     href: "/admin/integrations",
-    label: "Data Pipeline",
+    label: "Data pipeline",
     icon: Workflow,
     roles: ["admin"],
     section: "admin",
+    navGroup: "platform",
   },
   {
     href: "/admin",
-    label: "User Management",
+    label: "User management",
     icon: ShieldCheck,
-    roles: ["admin", "founder"],
+    roles: ["admin", "founder", "super_admin"],
     section: "admin",
+    navGroup: "platform",
     exact: true,
   },
 ];
@@ -260,7 +417,7 @@ function NavItem({
 }: {
   href: string;
   label: string;
-  icon: React.FC<{ className?: string }>;
+  icon: ComponentType<{ className?: string }>;
   isActive: boolean;
 }) {
   return (
@@ -311,24 +468,25 @@ function NavSection({
   label,
   items,
   pathname,
+  showTopDivider = true,
 }: {
   label: string;
-  items: typeof navItems;
+  items: NavItemDef[];
   pathname: string;
+  showTopDivider?: boolean;
 }) {
   if (items.length === 0) return null;
 
   return (
-    <div className="pt-4">
-      {/* Hairline divider */}
-      <div className="h-px bg-white/[0.07] mx-2 mb-3" />
+    <div className={cn("pt-4", !showTopDivider && "pt-1")}>
+      {showTopDivider && <div className="h-px bg-white/[0.07] mx-2 mb-3" />}
       <p className="px-3 mb-2 text-[10px] font-semibold text-white/[0.2] uppercase tracking-[0.12em]">
         {label}
       </p>
       <div className="space-y-0.5">
         {items.map((item) => {
           const isActive =
-            item.href === "/" || (item as { exact?: boolean }).exact
+            item.href === "/" || item.exact
               ? pathname === item.href
               : pathname === item.href || pathname.startsWith(item.href + "/");
           return (
@@ -359,38 +517,35 @@ export function Sidebar({ profile }: SidebarProps) {
     router.refresh();
   }
 
-  // Admin and founder bypass all department filtering — they see everything.
-  const isGlobalRole = profile.role === "admin" || profile.role === "founder";
+  const isFullSidebarRole =
+    profile.role === "admin" || profile.role === "super_admin";
+  const isFounder = profile.role === "founder";
+
   const deptRoutes =
-    !isGlobalRole && profile.department
+    !isFullSidebarRole && !isFounder && profile.department
       ? DEPARTMENT_ROUTE_ACCESS[profile.department]
       : null;
 
-  const visible = navItems.filter((item) => {
-    // 1. Role gate, with optional department allowlist (e.g. Tech → Elia · Concierge).
-    const allowByDept =
-      profile.department != null &&
-      profile.role !== "guest" &&
-      (item as { departmentAllowlist?: EmployeeDepartment[] }).departmentAllowlist?.includes(
-        profile.department,
-      ) === true;
-    if (!item.roles.includes(profile.role) && !allowByDept) return false;
+  const visible = navItems
+    .filter((item) => {
+      const allowByDept =
+        profile.department != null &&
+        profile.role !== "guest" &&
+        item.departmentAllowlist?.includes(profile.department) === true;
+      if (!item.roles.includes(profile.role) && !allowByDept) return false;
 
-    // 2. Shop-only items: require shop domain access.
-    if ((item as { shopOnly?: boolean }).shopOnly) {
-      if (!canAccessShopSurfaces(profile)) return false;
-      if (profile.role === "admin") return false;
+      if (item.shopOnly) {
+        if (!canAccessShopSurfaces(profile)) return false;
+        return true;
+      }
+
+      if (deptRoutes !== null) {
+        if (!isDepartmentRoute(item.href, deptRoutes)) return false;
+      }
+
       return true;
-    }
-
-    // 3. Department route gate (non-admin/founder with a department set).
-    //    If department is null (safety fallback for edge cases) skip this gate.
-    if (deptRoutes !== null) {
-      if (!isDepartmentRoute(item.href, deptRoutes)) return false;
-    }
-
-    return true;
-  });
+    })
+    .filter((item) => !isFounder || hrefMatchesFounderNav(item.href));
 
   const mainItems = visible.filter((i) => i.section === "main");
   const managerItems = visible.filter((i) => i.section === "manager");
@@ -434,86 +589,68 @@ export function Sidebar({ profile }: SidebarProps) {
               "linear-gradient(to right, transparent, rgba(212,175,55,0.22) 30%, rgba(212,175,55,0.22) 70%, transparent)",
           }}
         />
-
-        {/* ── Department / Domain badge (glassmorphic) ───── */}
-        {(profile.department || profile.domain) &&
-          (() => {
-            const deptCfg = profile.department
-              ? DEPARTMENT_CONFIG[profile.department]
-              : null;
-            const accentColor =
-              deptCfg?.accentColor ??
-              DOMAIN_DISPLAY_CONFIG[profile.domain]?.ringColor ??
-              "rgba(212,175,55,0.4)";
-            const workspaceLabel =
-              deptCfg?.label ??
-              DOMAIN_DISPLAY_CONFIG[profile.domain]?.label ??
-              profile.domain.replace(/_/g, " ");
-            const subLabel = deptCfg
-              ? (profile.job_title ?? profile.role)
-              : profile.domain.replace(/_/g, " ");
-
-            return (
-              <div
-                className="mt-4 px-3 py-2 rounded-xl bg-white/[0.04] backdrop-blur-sm border border-white/[0.08]"
-                style={{ boxShadow: `0 0 0 1px ${accentColor}40` }}
-              >
-                <p className="text-[10px] font-semibold text-white/[0.35] uppercase tracking-[0.14em]">
-                  Workspace
-                </p>
-                <p className="text-[13px] font-medium text-white/90 mt-0.5 capitalize">
-                  {workspaceLabel}
-                </p>
-                {subLabel && (
-                  <p className="text-[10px] text-white/40 mt-0.5 truncate capitalize">
-                    {subLabel}
-                  </p>
-                )}
-              </div>
-            );
-          })()}
       </div>
 
       {/* ── Navigation ─────────────────────────────────── */}
       <nav className="flex-1 px-3 py-2 overflow-y-auto space-y-0.5">
-        {/* Main navigation label */}
-        <p className="px-3 mb-2 text-[10px] font-semibold text-white/[0.2] uppercase tracking-[0.12em]">
-          Navigation
-        </p>
+        {isFullSidebarRole ? (
+          ADMIN_NAV_GROUP_ORDER.map((group, idx) => (
+            <NavSection
+              key={group}
+              label={ADMIN_NAV_GROUP_LABEL[group]}
+              items={visible.filter((i) => i.navGroup === group)}
+              pathname={pathname}
+              showTopDivider={idx > 0}
+            />
+          ))
+        ) : isFounder ? (
+          founderNavModels(visible).map((sec, idx) => (
+            <NavSection
+              key={sec.label}
+              label={sec.label}
+              items={sec.items}
+              pathname={pathname}
+              showTopDivider={idx > 0}
+            />
+          ))
+        ) : (
+          <>
+            <p className="px-3 mb-2 text-[10px] font-semibold text-white/[0.2] uppercase tracking-[0.12em]">
+              Navigation
+            </p>
 
-        {/* Main items */}
-        <div className="space-y-0.5">
-          {mainItems.map((item) => {
-            const isActive =
-              item.href === "/" || (item as { exact?: boolean }).exact
-                ? pathname === item.href
-                : pathname === item.href ||
-                  pathname.startsWith(item.href + "/");
-            return (
-              <NavItem
-                key={item.href}
-                href={item.href}
-                label={item.label}
-                icon={item.icon}
-                isActive={isActive}
-              />
-            );
-          })}
-        </div>
+            <div className="space-y-0.5">
+              {mainItems.map((item) => {
+                const isActive =
+                  item.href === "/" || item.exact
+                    ? pathname === item.href
+                    : pathname === item.href ||
+                      pathname.startsWith(item.href + "/");
+                return (
+                  <NavItem
+                    key={item.href}
+                    href={item.href}
+                    label={item.label}
+                    icon={item.icon}
+                    isActive={isActive}
+                  />
+                );
+              })}
+            </div>
 
-        {/* Manager section */}
-        <NavSection
-          label="Management"
-          items={managerItems}
-          pathname={pathname}
-        />
+            <NavSection
+              label="Management"
+              items={managerItems}
+              pathname={pathname}
+            />
 
-        {/* Administration */}
-        <NavSection
-          label="Administration"
-          items={adminItems}
-          pathname={pathname}
-        />
+            <NavSection
+              label="Administration"
+              items={adminItems}
+              pathname={pathname}
+            />
+          </>
+        )}
       </nav>
 
       {/* ── User profile footer ─────────────────────────── */}
