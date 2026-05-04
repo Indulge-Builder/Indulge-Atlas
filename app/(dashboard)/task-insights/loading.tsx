@@ -4,7 +4,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function TaskInsightsLoading() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="mx-auto w-full max-w-7xl flex-1 space-y-6 px-6 pt-6 pb-14">
+      <div className="mx-auto w-full max-w-5xl flex-1 space-y-6 px-5 pt-6 pb-14 sm:px-6">
         <header className="mb-6">
           <div className="min-w-0 space-y-2">
             <Skeleton className="h-8 w-56 max-w-full" />

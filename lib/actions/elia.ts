@@ -1,6 +1,11 @@
 "use server";
 
 import { format } from "date-fns";
+import { z } from "zod";
+import {
+  findFreshdeskContactForClient,
+  listTicketsForRequester,
+} from "@/lib/freshdesk/client";
 import { createClient } from "@/lib/supabase/server";
 import type {
   ClientLifestyleProfile,
@@ -146,6 +151,235 @@ function serializeClient(row: ClientContextRow): string {
   return lines.join("\n");
 }
 
+const CLIENT_PROFILES_SUBSELECT = `
+      client_profiles (
+        personality_type,
+        date_of_birth,
+        blood_group,
+        marital_status,
+        primary_city,
+        company_designation,
+        social_handles,
+        travel,
+        lifestyle,
+        passions,
+        profile_completeness
+      )
+    `;
+
+const CLIENT_SELECT_FOR_ELIA = `
+      first_name,
+      last_name,
+      queendom,
+      client_status,
+      membership_type,
+      membership_start,
+      membership_end,
+      membership_amount_paid,
+      notes,
+      ${CLIENT_PROFILES_SUBSELECT}
+    `;
+
+/** Same as global Elia context row shape, plus phone for Freshdesk match. */
+const CLIENT_SELECT_FOR_SUMMARY = `
+      first_name,
+      last_name,
+      phone_number,
+      queendom,
+      client_status,
+      membership_type,
+      membership_start,
+      membership_end,
+      membership_amount_paid,
+      notes,
+      ${CLIENT_PROFILES_SUBSELECT}
+    `;
+
+const OPEN_FD_STATUSES = new Set([2, 3, 6]);
+
+function buildFreshdeskContextBlock(params: {
+  linked: boolean;
+  total: number;
+  open: number;
+  lastSubject: string | null;
+  lastCreatedAt: string | null;
+  fetchError: boolean;
+}): string {
+  if (params.fetchError) {
+    return "Freshdesk: temporarily unavailable; assume no ticket data.";
+  }
+  if (!params.linked) {
+    return "Freshdesk: no support contact matched for this member. Total tickets: 0.";
+  }
+  const last =
+    params.lastSubject && params.lastCreatedAt
+      ? `Last ticket: "${params.lastSubject}" (created ${params.lastCreatedAt})`
+      : params.lastSubject
+        ? `Last ticket subject: "${params.lastSubject}"`
+        : "No ticket subjects on file.";
+  return [
+    `Freshdesk: linked contact found.`,
+    `Total tickets: ${params.total}`,
+    `Open tickets: ${params.open}`,
+    last,
+  ].join("\n");
+}
+
+async function loadFreshdeskTicketSnapshot(params: {
+  phone: string | null;
+  firstName: string | null;
+  lastName: string | null;
+}): Promise<{
+  linked: boolean;
+  total: number;
+  open: number;
+  lastSubject: string | null;
+  lastCreatedAt: string | null;
+  fetchError: boolean;
+}> {
+  try {
+    const contact = await findFreshdeskContactForClient({
+      phone: params.phone,
+      firstName: params.firstName,
+      lastName: params.lastName,
+    });
+    if (!contact) {
+      return {
+        linked: false,
+        total: 0,
+        open: 0,
+        lastSubject: null,
+        lastCreatedAt: null,
+        fetchError: false,
+      };
+    }
+    const tickets = await listTicketsForRequester(contact.id);
+    const open = tickets.filter((t) => OPEN_FD_STATUSES.has(t.status)).length;
+    const last = tickets[0];
+    return {
+      linked: true,
+      total: tickets.length,
+      open,
+      lastSubject: last?.subject ?? null,
+      lastCreatedAt: last?.created_at ?? null,
+      fetchError: false,
+    };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "";
+    if (msg.includes("FRESHDESK_API_KEY")) {
+      return {
+        linked: false,
+        total: 0,
+        open: 0,
+        lastSubject: null,
+        lastCreatedAt: null,
+        fetchError: true,
+      };
+    }
+    return {
+      linked: false,
+      total: 0,
+      open: 0,
+      lastSubject: null,
+      lastCreatedAt: null,
+      fetchError: true,
+    };
+  }
+}
+
+const CLIENT_SUMMARY_SYSTEM_PROMPT =
+  "You are Elia, concierge intelligence for Indulge. Write a 3-sentence executive summary of this member for their concierge agent. Sentence 1: who they are (personality, city, company, membership). Sentence 2: what they love (top preferences from lifestyle/travel/passions). Sentence 3: their service history (Freshdesk tickets — if none, note that). Be warm, specific, and use their first name. Never mention 'profile completeness' or technical terms. Max 3 sentences.";
+
+/**
+ * Single-member profile text for client-scoped Elia chat. Returns null if missing or unauthenticated.
+ */
+export async function getEliaSingleClientProfileText(
+  clientId: string,
+): Promise<string | null> {
+  const parsed = z.string().uuid().safeParse(clientId);
+  if (!parsed.success) return null;
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+  if (error || !user) return null;
+
+  const { data, error: qErr } = await supabase
+    .from("clients")
+    .select(CLIENT_SELECT_FOR_ELIA)
+    .eq("id", parsed.data)
+    .maybeSingle();
+
+  if (qErr || !data) return null;
+
+  return serializeClient(data as ClientContextRow);
+}
+
+export async function getClientSummary(clientId: string): Promise<string> {
+  const parsed = z.string().uuid().safeParse(clientId);
+  if (!parsed.success) return "";
+
+  const key = process.env.ANTHROPIC_API_KEY?.trim();
+  if (!key) return "";
+
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
+    if (error || !user) return "";
+
+    const { data, error: qErr } = await supabase
+      .from("clients")
+      .select(CLIENT_SELECT_FOR_SUMMARY)
+      .eq("id", parsed.data)
+      .maybeSingle();
+
+    if (qErr || !data) return "";
+
+    const row = data as ClientContextRow & { phone_number?: string | null };
+    const phone =
+      typeof row.phone_number === "string" ? row.phone_number : null;
+
+    const fd = await loadFreshdeskTicketSnapshot({
+      phone,
+      firstName: row.first_name,
+      lastName: row.last_name,
+    });
+
+    const base = serializeClient(row);
+    const fdBlock = buildFreshdeskContextBlock(fd);
+    const userContent = `${base}\n\n${fdBlock}`;
+
+    const ar = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": key,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 300,
+        stream: false,
+        system: CLIENT_SUMMARY_SYSTEM_PROMPT,
+        messages: [{ role: "user", content: userContent }],
+      }),
+    });
+
+    if (!ar.ok) return "";
+
+    const result = (await ar.json()) as { content?: { text?: string }[] };
+    const text = result.content?.[0]?.text?.trim() ?? "";
+    return text;
+  } catch {
+    return "";
+  }
+}
+
 /**
  * Serialized member database for Elia Preview (context stuffing).
  *
@@ -164,32 +398,7 @@ export async function getEliaClientContext(): Promise<string> {
 
   const { data, error: qErr } = await supabase
     .from("clients")
-    .select(
-      `
-      first_name,
-      last_name,
-      queendom,
-      client_status,
-      membership_type,
-      membership_start,
-      membership_end,
-      membership_amount_paid,
-      notes,
-      client_profiles (
-        personality_type,
-        date_of_birth,
-        blood_group,
-        marital_status,
-        primary_city,
-        company_designation,
-        social_handles,
-        travel,
-        lifestyle,
-        passions,
-        profile_completeness
-      )
-    `,
-    )
+    .select(CLIENT_SELECT_FOR_ELIA)
     .order("first_name", { ascending: true });
 
   if (qErr) {

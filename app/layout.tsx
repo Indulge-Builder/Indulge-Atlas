@@ -28,6 +28,11 @@ export const metadata: Metadata = {
   title: "Indulge Atlas",
   description: "Bespoke lead management for Indulge Global concierge services",
   robots: { index: false, follow: false },
+  icons: {
+    icon: [{ url: "/logo.svg", type: "image/svg+xml" }],
+    shortcut: "/logo.svg",
+    apple: "/logo.svg",
+  },
 };
 
 export const viewport: Viewport = {

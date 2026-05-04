@@ -1929,11 +1929,26 @@ export async function deletePersonalSOPTemplate(taskId: unknown): Promise<Action
 
   try {
     const { supabase, user } = await getAuthUser();
+    const templateId = parsed.data;
+    const marker = `sop_tpl:${templateId}`;
+
+    // Spawned checklist rows for today (and past days) are separate task rows tagged with
+    // `sop_tpl:<templateId>`. Removing only the template leaves those instances visible.
+    const { error: instanceErr } = await supabase
+      .from("tasks")
+      .delete()
+      .eq("created_by", user.id)
+      .eq("unified_task_type", "personal")
+      .eq("is_daily_sop_template", false)
+      .eq("is_daily", true)
+      .contains("tags", [marker]);
+
+    if (instanceErr) return { success: false, error: instanceErr.message };
 
     const { error } = await supabase
       .from("tasks")
       .delete()
-      .eq("id", parsed.data)
+      .eq("id", templateId)
       .eq("created_by", user.id)
       .eq("unified_task_type", "personal")
       .eq("is_daily_sop_template", true)

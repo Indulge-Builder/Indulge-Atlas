@@ -5,33 +5,20 @@ import { motion } from "framer-motion";
 import {
   AlertTriangle,
   ArrowRight,
-  Calendar,
   Layers,
   LayoutGrid,
 } from "lucide-react";
 import * as LucideIcons from "lucide-react";
-import { format } from "date-fns";
-import { toZonedTime } from "date-fns-tz";
-import type { AtlasTaskStatus, TaskInsightsWorkspaceCard } from "@/lib/types/database";
-import {
-  ATLAS_TASK_STATUS_LABELS,
-  TASK_PRIORITY_CONFIG,
-} from "@/lib/types/database";
+import type { EmployeeDepartment, TaskInsightsWorkspaceCard } from "@/lib/types/database";
+import { TASK_PRIORITY_CONFIG } from "@/lib/types/database";
 import { cn, getInitials } from "@/lib/utils";
 import { surfaceCardVariants } from "@/components/ui/card";
 import { DEPARTMENT_CONFIG } from "@/lib/constants/departments";
-import type { EmployeeDepartment } from "@/lib/types/database";
-
-const IST = "Asia/Kolkata";
-
-/** Status chips tuned for luxury light surfaces (white / #F9F9F6). */
-const STATUS_CHIP: Record<AtlasTaskStatus, string> = {
-  todo:        "bg-[#F4F4F2] text-[#57534E] border-[#E5E4DF]",
-  in_progress: "bg-[#FBF6E8] text-[#8B7320] border-[#D4AF37]/35",
-  done:        "bg-[#ECFDF5] text-[#047857] border-[#A7F3D0]",
-  error:       "bg-[#FFF7ED] text-[#C2410C] border-[#FED7AA]",
-  cancelled:   "bg-[#F4F4F5] text-[#71717A] border-[#E4E4E7]",
-};
+import {
+  taskInsightsBentoColClass,
+  taskInsightsBentoGridClass,
+  taskInsightsCardDensity,
+} from "./taskInsightsBento";
 
 function TaskCardIcon({
   iconKey,
@@ -49,17 +36,12 @@ function TaskCardIcon({
   return <Cmp className={className} />;
 }
 
-function isOverdue(due: string | null, status: AtlasTaskStatus): boolean {
-  if (!due) return false;
-  if (status === "done" || status === "cancelled") return false;
-  return new Date(due).getTime() < Date.now();
-}
-
 interface WorkspaceCardProps {
   task: TaskInsightsWorkspaceCard;
   index: number;
   onOpenWorkspace: (task: TaskInsightsWorkspaceCard) => void;
   showDepartmentBadge?: boolean;
+  density?: "relaxed" | "compact";
 }
 
 function WorkspaceCard({
@@ -67,21 +49,20 @@ function WorkspaceCard({
   index,
   onOpenWorkspace,
   showDepartmentBadge = false,
+  density = "relaxed",
 }: WorkspaceCardProps) {
-  const pct = Math.round(task.progress ?? 0);
   const coverColor = task.cover_color ?? "#D4AF37";
   const overdue = task.overdue_subtask_count ?? 0;
   const profiles = task.memberProfiles ?? [];
-  const stack = profiles.slice(0, 3);
+  const stack = profiles.slice(0, density === "compact" ? 2 : 3);
   const pri = TASK_PRIORITY_CONFIG[task.priority]?.label ?? task.priority;
-
-  const dueOverdue = isOverdue(task.due_date, task.atlas_status);
-  const statusClass = STATUS_CHIP[task.atlas_status] ?? STATUS_CHIP.todo;
 
   const deptRaw = task.department?.trim() ?? "";
   const deptKey =
     deptRaw && deptRaw in DEPARTMENT_CONFIG ? (deptRaw as EmployeeDepartment) : null;
   const deptLabel = deptKey ? DEPARTMENT_CONFIG[deptKey].label : null;
+
+  const compact = density === "compact";
 
   return (
     <motion.article
@@ -89,9 +70,10 @@ function WorkspaceCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.22, ease: "easeOut", delay: Math.min(index * 0.04, 0.4) }}
       className={cn(
-        "group relative cursor-pointer text-left outline-none transition-shadow duration-300",
+        "group relative flex h-full min-h-0 cursor-pointer flex-col text-left outline-none transition-shadow duration-300",
         surfaceCardVariants({ tone: "luxury", elevation: "sm", overflow: "hidden" }),
-        "hover:shadow-[0_12px_40px_-12px_rgb(0_0_0/0.10)]",
+        "rounded-xl",
+        "hover:shadow-[0_10px_32px_-14px_rgb(0_0_0/0.10)]",
         "focus-visible:ring-2 focus-visible:ring-[#D4AF37]/35 focus-visible:ring-offset-2 focus-visible:ring-offset-[#F9F9F6]",
       )}
       role="button"
@@ -103,34 +85,47 @@ function WorkspaceCard({
           onOpenWorkspace(task);
         }
       }}
-      aria-label={`Open workspace ${task.title}`}
+      aria-label={`Open workspace ${task.title}${
+        (task.subtask_count ?? 0) > 0 ? `, ${task.subtask_count} subtasks` : ""
+      }`}
     >
       <div
-        className="h-1 w-full shrink-0"
+        className="h-0.5 w-full shrink-0"
         style={{ backgroundColor: coverColor }}
         aria-hidden
       />
 
-      <div className="relative p-5">
-        <div className="flex items-start gap-3">
+      <div className={cn("relative flex min-h-0 flex-1 flex-col", compact ? "p-3.5" : "p-4")}>
+        <div className={cn("flex items-start", compact ? "gap-2.5" : "gap-3")}>
           <div
-            className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+            className={cn(
+              "mt-0.5 flex shrink-0 items-center justify-center rounded-lg",
+              compact ? "h-8 w-8" : "h-9 w-9",
+            )}
             style={{ backgroundColor: `${coverColor}18` }}
           >
             <span style={{ color: coverColor }}>
-              <TaskCardIcon iconKey={task.icon_key} className="h-5 w-5" />
+              <TaskCardIcon
+                iconKey={task.icon_key}
+                className={compact ? "h-4 w-4" : "h-[18px] w-[18px]"}
+              />
             </span>
           </div>
 
-          <div className="min-w-0 flex-1">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <div className="flex items-start justify-between gap-2">
-              <h3 className="min-w-0 flex-1 font-serif text-[17px] font-semibold leading-snug tracking-tight text-[#1A1A1A] line-clamp-2">
+              <h3
+                className={cn(
+                  "min-w-0 flex-1 font-serif font-semibold leading-snug tracking-tight text-[#1A1A1A]",
+                  compact ? "line-clamp-1 text-[14px]" : "line-clamp-2 text-[15px] sm:text-[16px]",
+                )}
+              >
                 {task.title}
               </h3>
-              <div className="flex shrink-0 flex-col items-end gap-1.5">
+              <div className="flex shrink-0 flex-col items-end gap-1">
                 {showDepartmentBadge && deptLabel && (
                   <span
-                    className="rounded-full border border-[#E5E4DF] bg-[#FAFAF8] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#6B6B6B]"
+                    className="rounded-full border border-[#E5E4DF] bg-[#FAFAF8] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-[#6B6B6B]"
                     title={`Department: ${deptLabel}`}
                   >
                     {deptLabel}
@@ -138,7 +133,7 @@ function WorkspaceCard({
                 )}
                 <span
                   className={cn(
-                    "rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                    "rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide",
                     TASK_PRIORITY_CONFIG[task.priority]?.className ??
                       "border-[#E5E4DF] bg-[#F9F9F6] text-[#6B6B6B]",
                   )}
@@ -148,82 +143,76 @@ function WorkspaceCard({
               </div>
             </div>
 
-            <div className="mt-4 flex items-center gap-2">
-              <div className="h-2 flex-1 overflow-hidden rounded-full bg-[#E5E4DF]">
-                <div
-                  className="h-full rounded-full transition-[width] duration-500 ease-out"
-                  style={{
-                    width: `${pct}%`,
-                    background: `linear-gradient(90deg, ${coverColor}, ${coverColor}CC)`,
-                  }}
-                />
-              </div>
-              <span className="w-9 shrink-0 text-right text-[11px] font-medium tabular-nums text-[#6B6B6B]">
-                {pct}%
-              </span>
-            </div>
-
-            <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[11px] text-[#8A8A6E]">
-              <div className="flex -space-x-1.5">
+            <div
+              className={cn(
+                "mt-auto flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-[#E5E4DF]/80 pt-2.5 text-[11px] text-[#8A8A6E]",
+                compact && "mt-2 gap-x-1.5 pt-2 text-[10px]",
+              )}
+            >
+              <div className="flex -space-x-1">
                 {stack.map((p) => (
                   <span
                     key={p.id}
                     title={p.full_name}
-                    className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-[#F2F2EE] text-[10px] font-semibold text-[#57534E] shadow-sm"
+                    className={cn(
+                      "flex items-center justify-center rounded-full border-2 border-white bg-[#F2F2EE] font-semibold text-[#57534E] shadow-sm",
+                      compact ? "h-5 w-5 text-[8px]" : "h-6 w-6 text-[10px]",
+                    )}
                   >
                     {getInitials(p.full_name)}
                   </span>
                 ))}
               </div>
-              <span className="font-medium text-[#6B6B6B]">{profiles.length} members</span>
+              {!compact && (
+                <span className="font-medium text-[#6B6B6B]">{profiles.length} members</span>
+              )}
+              {compact ? (
+                <span className="tabular-nums text-[#6B6B6B]">{profiles.length}</span>
+              ) : null}
               <span className="text-[#E5E4DF]" aria-hidden>
                 ·
               </span>
-              <span className="inline-flex items-center gap-1">
-                <Layers className="h-3.5 w-3.5 text-[#B5A99A]" aria-hidden />
-                <span>{task.subtask_count ?? 0} subtasks</span>
+              <span className="inline-flex items-center gap-1 font-semibold text-[#1A1814]">
+                <Layers
+                  className={cn(
+                    compact ? "h-3.5 w-3.5" : "h-4 w-4",
+                    "shrink-0 text-[#44403C]",
+                  )}
+                  aria-hidden
+                />
+                <span className="tabular-nums tracking-tight">
+                  {task.subtask_count ?? 0}
+                  {!compact ? " subtasks" : ""}
+                </span>
               </span>
               {overdue > 0 && (
                 <>
                   <span className="text-[#E5E4DF]" aria-hidden>
                     ·
                   </span>
-                  <span className="inline-flex items-center gap-1 font-medium text-[#C0392B]">
-                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                    {overdue} overdue
+                  <span className="inline-flex items-center gap-0.5 font-semibold text-[#C0392B]">
+                    <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden />
+                    {overdue}
+                    {!compact ? " overdue" : ""}
                   </span>
                 </>
               )}
-            </div>
 
-            <div className="mt-4 flex items-center justify-between gap-3 border-t border-[#E5E4DF]/90 pt-4">
-              {task.due_date ? (
+              <span className="ml-auto flex shrink-0 items-center justify-end">
                 <span
                   className={cn(
-                    "inline-flex items-center gap-1.5 text-[12px]",
-                    dueOverdue ? "font-medium text-[#C0392B]" : "text-[#6B6B6B]",
+                    "flex items-center justify-center rounded-full bg-[#F9F9F6] text-[#57534E] transition-colors duration-200 group-hover:bg-[#FBF6E8] group-hover:text-[#8B7320]",
+                    compact ? "h-7 w-7" : "h-8 w-8",
                   )}
                 >
-                  <Calendar className="h-3.5 w-3.5 shrink-0 text-[#B5A99A]" aria-hidden />
-                  {format(toZonedTime(new Date(task.due_date), IST), "d MMM yyyy")}
+                  <ArrowRight
+                    className={cn(
+                      "transition-transform duration-200 group-hover:translate-x-0.5",
+                      compact ? "h-3.5 w-3.5" : "h-4 w-4",
+                    )}
+                  />
                 </span>
-              ) : (
-                <span className="text-[12px] text-[#B5A99A]">No due date</span>
-              )}
-
-              <div className="flex items-center gap-2 shrink-0">
-                <span
-                  className={cn(
-                    "rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-                    statusClass,
-                  )}
-                >
-                  {ATLAS_TASK_STATUS_LABELS[task.atlas_status]}
-                </span>
-                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F9F9F6] text-[#B5A99A] transition-colors duration-200 group-hover:bg-[#FBF6E8] group-hover:text-[#8B7320]">
-                  <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
-                </span>
-              </div>
+              </span>
             </div>
           </div>
         </div>
@@ -270,15 +259,17 @@ export function GroupTasksCommandView({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-5 md:grid-cols-2 md:gap-6 xl:grid-cols-3">
+    <div className={taskInsightsBentoGridClass()}>
       {items.map((t, i) => (
-        <WorkspaceCard
-          key={t.id}
-          task={t}
-          index={i}
-          showDepartmentBadge={showDepartmentBadge}
-          onOpenWorkspace={(task) => router.push(`/tasks/${task.id}`)}
-        />
+        <div key={t.id} className={cn("min-w-0", taskInsightsBentoColClass(i))}>
+          <WorkspaceCard
+            task={t}
+            index={i}
+            density={taskInsightsCardDensity(i)}
+            showDepartmentBadge={showDepartmentBadge}
+            onOpenWorkspace={(task) => router.push(`/tasks/${task.id}`)}
+          />
+        </div>
       ))}
     </div>
   );

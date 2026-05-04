@@ -1,0 +1,1162 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { createClient } from "@/lib/supabase/server";
+import type {
+  LeadStatus,
+  LostReason,
+  LostReasonTag,
+  NurtureReason,
+  TrashReason,
+} from "@/lib/types/database";
+import { addMonths } from "date-fns";
+import { z } from "zod";
+
+interface ActionResult {
+  success: boolean;
+  error?: string;
+  attemptCount?: number;
+  /** True when this is the 3rd scheduled retry (3rd call_attempt) — show nurture toast */
+  showNurtureToast?: boolean;
+}
+
+async function getAuthUser() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+  if (error || !user) throw new Error("Unauthenticated");
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role, domain")
+    .eq("id", user.id)
+    .single();
+
+  const role = (profile as { role: string } | null)?.role ?? "agent";
+  const domain = (profile as { domain?: string } | null)?.domain ?? "indulge_concierge";
+  return { supabase, user, role, domain };
+}
+
+function isPrivilegedRole(role: string): boolean {
+  return role === "admin" || role === "founder" || role === "manager";
+}
+
+/** Legacy activity_type enum — keep in sync for rows that still have `type` NOT NULL (pre-048). */
+function legacyActivityTypeFor(
+  actionType: "lead_created" | "status_changed" | "note_added" | "agent_assigned",
+): "status_change" | "note" {
+  if (actionType === "status_changed") return "status_change";
+  return "note";
+}
+
+async function logLeadActivity(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  params: {
+    leadId: string;
+    actionType: "lead_created" | "status_changed" | "note_added" | "agent_assigned";
+    actorId?: string | null;
+    details?: Record<string, unknown>;
+  },
+) {
+  const details = params.details ?? {};
+  const legacyType = legacyActivityTypeFor(params.actionType);
+  await supabase.from("lead_activities").insert({
+    lead_id: params.leadId,
+    actor_id: params.actorId ?? null,
+    action_type: params.actionType,
+    details,
+    performed_by: params.actorId ?? null,
+    type: legacyType,
+    payload: details,
+  });
+}
+
+export async function getLeadActivities(leadId: string) {
+  const { supabase } = await getAuthUser();
+
+  const { data, error } = await supabase
+    .from("lead_activities")
+    .select(
+      "id, lead_id, actor_id, action_type, details, payload, created_at, actor:actor_id(id, full_name)",
+    )
+    .eq("lead_id", leadId)
+    .order("created_at", { ascending: false });
+
+  if (error) return [];
+  // Legacy rows only populated `payload`; normalized inserts dual-write both.
+  return (data ?? []).map((row) => {
+    const p = row.payload;
+    const d = row.details;
+    const payloadObj =
+      p && typeof p === "object" && !Array.isArray(p)
+        ? (p as Record<string, unknown>)
+        : {};
+    const detailsObj =
+      d && typeof d === "object" && !Array.isArray(d)
+        ? (d as Record<string, unknown>)
+        : {};
+    return {
+      ...row,
+      details: { ...payloadObj, ...detailsObj },
+    };
+  });
+}
+
+// ── Update Lead Status ─────────────────────────────────────
+
+export async function updateLeadStatus(
+  leadId: string,
+  newStatus: LeadStatus,
+  note?: string
+): Promise<ActionResult> {
+  try {
+    const { supabase, user, role } = await getAuthUser();
+
+    const { data: lead, error: fetchError } = await supabase
+      .from("leads")
+      .select("status, assigned_to, attempt_count")
+      .eq("id", leadId)
+      .single();
+
+    if (fetchError || !lead) return { success: false, error: "Lead not found" };
+
+    if (!isPrivilegedRole(role) && lead.assigned_to !== user.id) {
+      return { success: false, error: "Unauthorised" };
+    }
+
+    const oldStatus = lead.status;
+    const currentAttemptCount = (lead as { attempt_count?: number }).attempt_count ?? 0;
+
+    const updatePayload: Record<string, unknown> = { status: newStatus };
+    if (newStatus === "attempted") {
+      updatePayload.attempt_count = currentAttemptCount + 1;
+    }
+
+    const { error: updateError } = await supabase
+      .from("leads")
+      .update(updatePayload)
+      .eq("id", leadId);
+
+    if (updateError)
+      return { success: false, error: "Failed to update lead status" };
+
+    await logLeadActivity(supabase, {
+      leadId,
+      actorId: user.id,
+      actionType: "status_changed",
+      details: {
+        old_status: oldStatus,
+        new_status: newStatus,
+        note: note ?? null,
+        attempt_count:
+          newStatus === "attempted" ? currentAttemptCount + 1 : undefined,
+      },
+    });
+
+    if (newStatus === "won") {
+      await triggerFinanceNotification(leadId, user.id);
+    }
+
+    if (newStatus === "nurturing") {
+      await createNurturingTask(leadId, user.id);
+    }
+
+    revalidatePath(`/leads/${leadId}`);
+    revalidatePath("/leads");
+    revalidatePath("/");
+
+    return { success: true, attemptCount: newStatus === "attempted" ? currentAttemptCount + 1 : undefined };
+  } catch {
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+// ── Mark Attempted + Schedule Retry ───────────────────────
+
+export async function markAttemptedAndScheduleRetry(
+  leadId: string,
+  retryAt: Date
+): Promise<ActionResult> {
+  try {
+    const { supabase, user, role } = await getAuthUser();
+
+    const { data: lead, error: fetchError } = await supabase
+      .from("leads")
+      .select("assigned_to, attempt_count")
+      .eq("id", leadId)
+      .single();
+
+    if (fetchError || !lead) return { success: false, error: "Lead not found" };
+
+    if (!isPrivilegedRole(role) && lead.assigned_to !== user.id) {
+      return { success: false, error: "Unauthorised" };
+    }
+
+    const currentAttemptCount = (lead as { attempt_count?: number }).attempt_count ?? 0;
+    const newAttemptCount = currentAttemptCount + 1;
+
+    // Count existing call_attempt activities — toast only on 3rd scheduled retry
+    const { count: existingRetryCount } = await supabase
+      .from("lead_activities")
+      .select("*", { count: "exact", head: true })
+      .eq("lead_id", leadId)
+      .eq("type", "call_attempt");
+
+    const { error: updateError } = await supabase
+      .from("leads")
+      .update({ status: "attempted", attempt_count: newAttemptCount })
+      .eq("id", leadId);
+
+    if (updateError) return { success: false, error: "Failed to update lead" };
+
+    await supabase.from("lead_activities").insert({
+      lead_id:      leadId,
+      performed_by: user.id,
+      type:         "call_attempt",
+      payload: {
+        outcome:             "no_answer",
+        retry_scheduled_at: retryAt.toISOString(),
+        timestamp:          new Date().toISOString(),
+      },
+    });
+
+    const { error: taskError } = await supabase.from("tasks").insert({
+      lead_id:            leadId,
+      assigned_to_users:  [user.id],
+      title:              "Follow-up call",
+      due_date:           retryAt.toISOString(),
+      task_type:          "call",
+      status:             "pending",
+    });
+
+    if (taskError) return { success: false, error: "Failed to create task" };
+
+    await supabase.from("lead_activities").insert({
+      lead_id:      leadId,
+      performed_by: user.id,
+      type:         "task_created",
+      payload: {
+        task_type: "call",
+        due_date:  retryAt.toISOString(),
+      },
+    });
+
+    revalidatePath(`/leads/${leadId}`);
+    revalidatePath("/");
+
+    // Show nurture toast only when this is the 3rd scheduled retry (3rd call_attempt)
+    const totalRetriesAfterThis = (existingRetryCount ?? 0) + 1;
+    const showNurtureToast = totalRetriesAfterThis === 3;
+
+    return { success: true, attemptCount: newAttemptCount, showNurtureToast };
+  } catch {
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+// ── Add Note ───────────────────────────────────────────────
+
+export async function addLeadNote(
+  leadId: string,
+  noteText: string
+): Promise<ActionResult> {
+  try {
+    const { supabase, user, role } = await getAuthUser();
+
+    if (!noteText.trim()) return { success: false, error: "Note cannot be empty" };
+
+    const { data: lead, error: fetchError } = await supabase
+      .from("leads")
+      .select("assigned_to")
+      .eq("id", leadId)
+      .single();
+
+    if (fetchError || !lead) return { success: false, error: "Lead not found" };
+
+    if (!isPrivilegedRole(role) && lead.assigned_to !== user.id) {
+      return { success: false, error: "Unauthorised" };
+    }
+
+    const trimmed = noteText.trim();
+
+    const { error: updateError } = await supabase
+      .from("leads")
+      .update({ notes: trimmed })
+      .eq("id", leadId);
+
+    if (updateError) {
+      return { success: false, error: updateError.message || "Could not save note" };
+    }
+
+    await logLeadActivity(supabase, {
+      leadId,
+      actorId: user.id,
+      actionType: "note_added",
+      details: { note: trimmed },
+    });
+
+    revalidatePath(`/leads/${leadId}`);
+
+    return { success: true };
+  } catch {
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+// ── Internal: Create Nurturing Task ───────────────────────
+
+async function createNurturingTask(leadId: string, agentId: string) {
+  const supabase = await createClient();
+  const threeMonthsOut = addMonths(new Date(), 3);
+
+  await supabase.from("tasks").insert({
+    lead_id:           leadId,
+    assigned_to_users: [agentId],
+    title:             "Nurture follow-up",
+    due_date:          threeMonthsOut.toISOString(),
+    task_type:         "general_follow_up",
+    status:            "pending",
+  });
+
+  await supabase.from("lead_activities").insert({
+    lead_id:      leadId,
+    performed_by: agentId,
+    type:         "task_created",
+    payload: {
+      task_type: "general_follow_up",
+      due_date:  threeMonthsOut.toISOString(),
+      note:      "Automatic 3-month nurture reminder created",
+    },
+  });
+}
+
+// ── Internal: Trigger Finance Notification ─────────────────
+
+async function triggerFinanceNotification(leadId: string, agentId: string) {
+  try {
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    const secret = process.env.INTERNAL_API_SECRET ?? "";
+    await fetch(`${baseUrl}/api/finance-notify`, {
+      method:  "POST",
+      headers: {
+        "Content-Type":    "application/json",
+        "x-internal-secret": secret,
+      },
+      body: JSON.stringify({ leadId, agentId }),
+    });
+  } catch {
+    console.error("[finance-notify] Failed to trigger notification");
+  }
+}
+
+// ── Update Lead Demographics ──────────────────────────────
+
+export async function updateLeadDemographics(
+  leadId: string,
+  data: {
+    city?:             string | null;
+    personal_details?: string | null;
+    company?:          string | null;
+  }
+): Promise<ActionResult> {
+  try {
+    const { supabase, user, role } = await getAuthUser();
+
+    const { data: lead, error: fetchError } = await supabase
+      .from("leads")
+      .select("assigned_to")
+      .eq("id", leadId)
+      .single();
+
+    if (fetchError || !lead) return { success: false, error: "Lead not found" };
+
+    if (!isPrivilegedRole(role) && lead.assigned_to !== user.id) {
+      return { success: false, error: "Unauthorised" };
+    }
+
+    const patch: Record<string, string | null> = {};
+    if ("city"             in data) patch.city             = data.city?.trim()             || null;
+    if ("personal_details" in data) patch.personal_details = data.personal_details?.trim() || null;
+    if ("company"          in data) patch.company          = data.company?.trim()          || null;
+
+    if (Object.keys(patch).length === 0) return { success: true };
+
+    const { error } = await supabase
+      .from("leads")
+      .update(patch)
+      .eq("id", leadId);
+
+    if (error) return { success: false, error: "Failed to update demographics" };
+
+    revalidatePath(`/leads/${leadId}`);
+    return { success: true };
+  } catch {
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+// ── Update Lead Email ─────────────────────────────────────
+
+const updateEmailSchema = z.object({
+  leadId: z.string().uuid(),
+  email:  z.string().email("Invalid email address").max(200).or(z.literal("")),
+});
+
+export async function updateLeadEmail(
+  leadId: string,
+  email: string
+): Promise<ActionResult> {
+  try {
+    const parsed = updateEmailSchema.safeParse({ leadId, email });
+    if (!parsed.success) {
+      return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+    }
+
+    const { supabase, user, role } = await getAuthUser();
+
+    const { data: lead, error: fetchError } = await supabase
+      .from("leads")
+      .select("assigned_to")
+      .eq("id", leadId)
+      .single();
+
+    if (fetchError || !lead) return { success: false, error: "Lead not found" };
+
+    if (!isPrivilegedRole(role) && lead.assigned_to !== user.id) {
+      return { success: false, error: "Unauthorised" };
+    }
+
+    const { error } = await supabase
+      .from("leads")
+      .update({ email: email.trim() || null })
+      .eq("id", leadId);
+
+    if (error) return { success: false, error: "Failed to update email" };
+
+    revalidatePath(`/leads/${leadId}`);
+    return { success: true };
+  } catch {
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+// ── Update Lead Tags ───────────────────────────────────────
+
+const updateTagsSchema = z.object({
+  leadId: z.string().uuid(),
+  tags:   z.array(z.string().min(1).max(80)).max(50),
+});
+
+export async function updateLeadTags(
+  leadId: string,
+  tags: string[]
+): Promise<ActionResult> {
+  try {
+    const parsed = updateTagsSchema.safeParse({ leadId, tags });
+    if (!parsed.success) {
+      return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+    }
+
+    const { supabase, user, role } = await getAuthUser();
+
+    const { data: lead, error: fetchError } = await supabase
+      .from("leads")
+      .select("assigned_to")
+      .eq("id", leadId)
+      .single();
+
+    if (fetchError || !lead) return { success: false, error: "Lead not found" };
+
+    if (!isPrivilegedRole(role) && lead.assigned_to !== user.id) {
+      return { success: false, error: "Unauthorised" };
+    }
+
+    const deduped = [...new Set(parsed.data.tags.map((t) => t.trim().toLowerCase()).filter(Boolean))];
+
+    const { error } = await supabase
+      .from("leads")
+      .update({ tags: deduped })
+      .eq("id", leadId);
+
+    if (error) return { success: false, error: "Failed to update tags" };
+
+    revalidatePath(`/leads/${leadId}`);
+    revalidatePath("/leads");
+    return { success: true };
+  } catch {
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+// ── Mark Lead SLA Alert Sent (for escalation history) ────────────────────────
+
+export async function markLeadSLAAlertSent(
+  leadId: string,
+  agentLevel: boolean,
+  managerLevel: boolean
+): Promise<ActionResult> {
+  try {
+    const { supabase, user, role } = await getAuthUser();
+
+    const { data: lead, error: fetchError } = await supabase
+      .from("leads")
+      .select("assigned_to")
+      .eq("id", leadId)
+      .single();
+
+    if (fetchError || !lead) return { success: false, error: "Lead not found" };
+
+    if (!isPrivilegedRole(role) && lead.assigned_to !== user.id) {
+      return { success: false, error: "Unauthorised" };
+    }
+
+    const update: Record<string, boolean> = {};
+    if (agentLevel) update.agent_alert_sent = true;
+    if (managerLevel) update.manager_alert_sent = true;
+    if (Object.keys(update).length === 0) return { success: true };
+
+    const { error } = await supabase
+      .from("leads")
+      .update(update)
+      .eq("id", leadId);
+
+    if (error) return { success: false, error: "Failed to update" };
+
+    revalidatePath("/escalations");
+    return { success: true };
+  } catch {
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+// ── Disposition actions (Trash, Lost, Nurturing) with required reasons ───────
+
+const VALID_LOST_REASONS: LostReason[] = [
+  "Not Interested",
+  "Price Objection",
+  "Bought Competitor",
+  "Other",
+];
+
+const VALID_TRASH_REASONS: TrashReason[] = [
+  "Incorrect Data",
+  "Not our TG",
+  "Spam",
+];
+
+const VALID_NURTURE_REASONS: NurtureReason[] = [
+  "Future Prospect",
+  "Cold",
+];
+
+// ── Mark Lead as Trash ───────────────────────────────────────────────────────
+
+export async function markLeadTrash(
+  leadId: string,
+  reason: TrashReason
+): Promise<ActionResult> {
+  try {
+    if (!VALID_TRASH_REASONS.includes(reason)) {
+      return { success: false, error: "Invalid trash reason" };
+    }
+
+    const { supabase, user, role } = await getAuthUser();
+
+    const { data: lead, error: fetchError } = await supabase
+      .from("leads")
+      .select("status, assigned_to")
+      .eq("id", leadId)
+      .single();
+
+    if (fetchError || !lead) return { success: false, error: "Lead not found" };
+
+    if (!isPrivilegedRole(role) && lead.assigned_to !== user.id) {
+      return { success: false, error: "Unauthorised" };
+    }
+
+    const oldStatus = lead.status;
+
+    const { error: updateError } = await supabase
+      .from("leads")
+      .update({ status: "trash", trash_reason: reason })
+      .eq("id", leadId);
+
+    if (updateError) return { success: false, error: "Failed to update lead" };
+
+    await supabase.from("lead_activities").insert({
+      lead_id:      leadId,
+      performed_by: user.id,
+      type:         "status_change",
+      payload: {
+        from:         oldStatus,
+        to:           "trash",
+        trash_reason: reason,
+        timestamp:    new Date().toISOString(),
+      },
+    });
+
+    revalidatePath(`/leads/${leadId}`);
+    revalidatePath("/leads");
+    revalidatePath("/");
+
+    return { success: true };
+  } catch {
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+// ── Mark Lead as Lost (new disposition flow) ─────────────────────────────────
+
+export async function markLeadLost(
+  leadId: string,
+  reason: LostReason,
+  notes?: string
+): Promise<ActionResult> {
+  try {
+    if (!VALID_LOST_REASONS.includes(reason)) {
+      return { success: false, error: "Invalid lost reason" };
+    }
+
+    const { supabase, user, role } = await getAuthUser();
+
+    const { data: lead, error: fetchError } = await supabase
+      .from("leads")
+      .select("status, assigned_to")
+      .eq("id", leadId)
+      .single();
+
+    if (fetchError || !lead) return { success: false, error: "Lead not found" };
+
+    if (!isPrivilegedRole(role) && lead.assigned_to !== user.id) {
+      return { success: false, error: "Unauthorised" };
+    }
+
+    const oldStatus = lead.status;
+
+    const { error: updateError } = await supabase
+      .from("leads")
+      .update({
+        status:       "lost",
+        lost_reason:  reason,
+        lost_reason_notes: notes?.trim() || null,
+      })
+      .eq("id", leadId);
+
+    if (updateError) return { success: false, error: "Failed to update lead" };
+
+    await supabase.from("lead_activities").insert({
+      lead_id:      leadId,
+      performed_by: user.id,
+      type:         "status_change",
+      payload: {
+        from:        oldStatus,
+        to:          "lost",
+        lost_reason: reason,
+        note:        notes?.trim() ?? null,
+        timestamp:   new Date().toISOString(),
+      },
+    });
+
+    revalidatePath(`/leads/${leadId}`);
+    revalidatePath("/leads");
+    revalidatePath("/");
+
+    return { success: true };
+  } catch {
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+// ── Mark Lead as Nurturing (with reason) ────────────────────────────────────
+
+export async function markLeadNurturing(
+  leadId: string,
+  reason: NurtureReason
+): Promise<ActionResult> {
+  try {
+    if (!VALID_NURTURE_REASONS.includes(reason)) {
+      return { success: false, error: "Invalid nurture reason" };
+    }
+
+    const { supabase, user, role } = await getAuthUser();
+
+    const { data: lead, error: fetchError } = await supabase
+      .from("leads")
+      .select("status, assigned_to")
+      .eq("id", leadId)
+      .single();
+
+    if (fetchError || !lead) return { success: false, error: "Lead not found" };
+
+    if (!isPrivilegedRole(role) && lead.assigned_to !== user.id) {
+      return { success: false, error: "Unauthorised" };
+    }
+
+    const oldStatus = lead.status;
+
+    const { error: updateError } = await supabase
+      .from("leads")
+      .update({ status: "nurturing", nurture_reason: reason })
+      .eq("id", leadId);
+
+    if (updateError) return { success: false, error: "Failed to update lead" };
+
+    await supabase.from("lead_activities").insert({
+      lead_id:        leadId,
+      performed_by:   user.id,
+      type:           "status_change",
+      payload: {
+        from:           oldStatus,
+        to:             "nurturing",
+        nurture_reason: reason,
+        timestamp:      new Date().toISOString(),
+      },
+    });
+
+    await createNurturingTask(leadId, user.id);
+
+    revalidatePath(`/leads/${leadId}`);
+    revalidatePath("/leads");
+    revalidatePath("/");
+
+    return { success: true };
+  } catch {
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+// ── Legacy: Mark Lead as Lost (old tag-based, kept for backward compat) ──────
+
+const VALID_LOST_TAGS = [
+  "budget_exceeded",
+  "irrelevant_unqualified",
+  "timing_not_ready",
+  "went_with_competitor",
+  "ghosted_unresponsive",
+] as const;
+
+export async function markLeadLostLegacy(
+  leadId: string,
+  tag: LostReasonTag,
+  notes?: string
+): Promise<ActionResult> {
+  try {
+    const { supabase, user, role } = await getAuthUser();
+
+    const { data: lead, error: fetchError } = await supabase
+      .from("leads")
+      .select("status, assigned_to")
+      .eq("id", leadId)
+      .single();
+
+    if (fetchError || !lead) return { success: false, error: "Lead not found" };
+
+    if (!isPrivilegedRole(role) && lead.assigned_to !== user.id) {
+      return { success: false, error: "Unauthorised" };
+    }
+
+    const oldStatus = lead.status;
+
+    const { error: updateError } = await supabase
+      .from("leads")
+      .update({
+        status:            "lost",
+        lost_reason_tag:   tag,
+        lost_reason_notes: notes?.trim() || null,
+      })
+      .eq("id", leadId);
+
+    if (updateError) return { success: false, error: "Failed to update lead" };
+
+    await supabase.from("lead_activities").insert({
+      lead_id:      leadId,
+      performed_by: user.id,
+      type:         "status_change",
+      payload: {
+        from:            oldStatus,
+        to:              "lost",
+        lost_reason_tag: tag,
+        note:            notes?.trim() ?? null,
+        timestamp:       new Date().toISOString(),
+      },
+    });
+
+    revalidatePath(`/leads/${leadId}`);
+    revalidatePath("/leads");
+    revalidatePath("/");
+
+    return { success: true };
+  } catch {
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+// ── Save Agent Private Scratchpad ─────────────────────────
+
+const scratchpadSchema = z.object({
+  leadId: z.string().uuid(),
+  text:   z.string().max(10000),
+});
+
+export async function saveAgentScratchpad(
+  leadId: string,
+  text: string
+): Promise<ActionResult> {
+  try {
+    const parsed = scratchpadSchema.safeParse({ leadId, text });
+    if (!parsed.success) {
+      return { success: false, error: "Invalid input" };
+    }
+
+    const { supabase, user, role } = await getAuthUser();
+
+    // Security: only the assigned agent (or privileged roles) can write to the scratchpad
+    const { data: lead, error: fetchError } = await supabase
+      .from("leads")
+      .select("assigned_to")
+      .eq("id", leadId)
+      .single();
+
+    if (fetchError || !lead) return { success: false, error: "Lead not found" };
+    if (!isPrivilegedRole(role) && lead.assigned_to !== user.id) {
+      return { success: false, error: "Unauthorised" };
+    }
+
+    const { error } = await supabase
+      .from("leads")
+      .update({ private_scratchpad: text.trim() || null })
+      .eq("id", leadId);
+
+    if (error) return { success: false, error: "Failed to save scratchpad" };
+
+    return { success: true };
+  } catch {
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+// ── Save Follow-Up draft notes (Follow Up 1–3) ────────────
+
+const followUpDraftsSaveSchema = z.object({
+  leadId: z.string().uuid(),
+  drafts: z.object({
+    "1": z.string().max(5000),
+    "2": z.string().max(5000),
+    "3": z.string().max(5000),
+  }),
+});
+
+export async function saveLeadFollowUpDrafts(
+  leadId: string,
+  drafts: { "1": string; "2": string; "3": string },
+): Promise<ActionResult> {
+  try {
+    const parsed = followUpDraftsSaveSchema.safeParse({ leadId, drafts });
+    if (!parsed.success) {
+      return { success: false, error: "Invalid input" };
+    }
+
+    const { supabase, user, role } = await getAuthUser();
+
+    const { data: lead, error: fetchError } = await supabase
+      .from("leads")
+      .select("assigned_to")
+      .eq("id", leadId)
+      .single();
+
+    if (fetchError || !lead) return { success: false, error: "Lead not found" };
+    if (!isPrivilegedRole(role) && lead.assigned_to !== user.id) {
+      return { success: false, error: "Unauthorised" };
+    }
+
+    const payload = {
+      "1": parsed.data.drafts["1"].trim() || "",
+      "2": parsed.data.drafts["2"].trim() || "",
+      "3": parsed.data.drafts["3"].trim() || "",
+    };
+
+    const { error } = await supabase
+      .from("leads")
+      .update({ follow_up_drafts: payload })
+      .eq("id", leadId);
+
+    if (error) return { success: false, error: "Failed to save follow-up notes" };
+
+    return { success: true };
+  } catch {
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+// ── Reassign Lead ─────────────────────────────────────────
+
+const reassignLeadSchema = z.object({
+  leadId:     z.string().uuid(),
+  newAgentId: z.string().uuid(),
+});
+
+export async function reassignLead(
+  leadId: string,
+  newAgentId: string
+): Promise<ActionResult> {
+  try {
+    const parsed = reassignLeadSchema.safeParse({ leadId, newAgentId });
+    if (!parsed.success) {
+      return { success: false, error: "Invalid input" };
+    }
+
+    const { supabase, user, role } = await getAuthUser();
+
+    if (!isPrivilegedRole(role)) {
+      return { success: false, error: "Only managers and admins can reassign leads" };
+    }
+
+    // Confirm target agent exists and is active
+    const { data: agent, error: agentError } = await supabase
+      .from("profiles")
+      .select("id, full_name")
+      .eq("id", newAgentId)
+      .eq("role", "agent")
+      .eq("is_active", true)
+      .single();
+
+    if (agentError || !agent) {
+      return { success: false, error: "Target agent not found or inactive" };
+    }
+
+    const { data: leadBefore, error: leadBeforeError } = await supabase
+      .from("leads")
+      .select("assigned_to, status")
+      .eq("id", leadId)
+      .single();
+
+    if (leadBeforeError || !leadBefore) {
+      return { success: false, error: "Lead not found" };
+    }
+
+    if (leadBefore.assigned_to === newAgentId && leadBefore.status === "new") {
+      return { success: true };
+    }
+
+    const { error: updateError } = await supabase
+      .from("leads")
+      .update({ assigned_to: newAgentId, status: "new" })
+      .eq("id", leadId);
+
+    if (updateError) return { success: false, error: "Failed to reassign lead" };
+
+    const assignDetails = {
+      previous_assigned_to: leadBefore.assigned_to,
+      assigned_to: newAgentId,
+      assigned_to_name: agent.full_name,
+    };
+    const statusDetails = {
+      old_status: leadBefore.status,
+      new_status: "new",
+      reason: "system_reset_on_reassignment",
+    };
+
+    const { error: activityError } = await supabase.from("lead_activities").insert([
+      {
+        lead_id: leadId,
+        actor_id: user.id,
+        action_type: "agent_assigned",
+        details: assignDetails,
+        performed_by: user.id,
+        type: "note",
+        payload: assignDetails,
+      },
+      {
+        lead_id: leadId,
+        actor_id: user.id,
+        action_type: "status_changed",
+        details: statusDetails,
+        performed_by: user.id,
+        type: "status_change",
+        payload: statusDetails,
+      },
+    ]);
+
+    if (activityError) {
+      // Best-effort compensation so lead update and immutable audit trail stay in sync.
+      await supabase
+        .from("leads")
+        .update({
+          assigned_to: leadBefore.assigned_to,
+          status: leadBefore.status,
+        })
+        .eq("id", leadId);
+      return { success: false, error: "Failed to record reassignment activity logs" };
+    }
+
+    revalidatePath(`/leads/${leadId}`);
+    revalidatePath("/leads");
+    revalidatePath("/");
+
+    return { success: true };
+  } catch {
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+// ── Close Won Deal (Revenue Modal) ────────────────────────
+
+const closeWonDealSchema = z.object({
+  leadId:       z.string().uuid(),
+  dealValue:    z.number().positive("Deal value must be greater than zero"),
+  dealDuration: z.string().min(1),
+});
+
+export async function closeWonDeal(
+  leadId:       string,
+  dealValue:    number,
+  dealDuration: string,
+): Promise<ActionResult> {
+  try {
+    const parsed = closeWonDealSchema.safeParse({ leadId, dealValue, dealDuration });
+    if (!parsed.success) {
+      return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+    }
+
+    const { supabase, user, role } = await getAuthUser();
+
+    const { data: lead, error: fetchError } = await supabase
+      .from("leads")
+      .select("status, assigned_to, first_name, last_name, phone_number, email")
+      .eq("id", leadId)
+      .single();
+
+    if (fetchError || !lead) return { success: false, error: "Lead not found" };
+
+    if (!isPrivilegedRole(role) && lead.assigned_to !== user.id) {
+      return { success: false, error: "Unauthorised" };
+    }
+
+    const oldStatus = lead.status;
+
+    const { error: updateError } = await supabase
+      .from("leads")
+      .update({
+        status:        "won",
+        deal_value:    dealValue,
+        deal_duration: dealDuration,
+      })
+      .eq("id", leadId);
+
+    if (updateError) return { success: false, error: "Failed to close deal" };
+
+    // Promote won lead to clients table
+    const { error: clientError } = await supabase.from("clients").insert({
+      first_name:         lead.first_name,
+      last_name:          lead.last_name ?? null,
+      phone_number:       lead.phone_number,
+      email:              lead.email ?? null,
+      lead_origin_id:     leadId,
+      membership_status: "active",
+    });
+
+    if (clientError) {
+      // Log but don't fail the deal close — client insert is secondary
+      console.error("[closeWonDeal] Failed to insert client:", clientError);
+    }
+
+    await supabase.from("lead_activities").insert({
+      lead_id:      leadId,
+      performed_by: user.id,
+      type:         "status_change",
+      payload: {
+        from:          oldStatus,
+        to:            "won",
+        deal_value:    dealValue,
+        deal_duration: dealDuration,
+        timestamp:     new Date().toISOString(),
+      },
+    });
+
+    await triggerFinanceNotification(leadId, user.id);
+
+    revalidatePath(`/leads/${leadId}`);
+    revalidatePath("/leads");
+    revalidatePath("/");
+
+    return { success: true };
+  } catch {
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+// ── Fetch Dashboard Data ───────────────────────────────────
+
+export async function getDashboardData() {
+  const { supabase, user } = await getAuthUser();
+
+  const [
+    { data: unattainedOnDuty },
+    { data: unattainedOffDuty },
+    { data: pastLeads },
+    { data: upcomingTasks },
+    { data: wonLeads },
+  ] = await Promise.all([
+    // Speed-to-Lead: on-duty (not true) — newest first (matches prior JS sort for !is_off_duty)
+    supabase
+      .from("leads")
+      .select("id, first_name, last_name, status, is_off_duty, city, utm_source, utm_medium, utm_campaign, created_at")
+      .eq("assigned_to", user.id)
+      .eq("status", "new")
+      .or("is_off_duty.is.null,is_off_duty.eq.false")
+      .order("created_at", { ascending: false })
+      .limit(10),
+
+    // Off-duty — oldest first (matches prior JS sort for is_off_duty === true)
+    supabase
+      .from("leads")
+      .select("id, first_name, last_name, status, is_off_duty, city, utm_source, utm_medium, utm_campaign, created_at")
+      .eq("assigned_to", user.id)
+      .eq("status", "new")
+      .eq("is_off_duty", true)
+      .order("created_at", { ascending: true })
+      .limit(10),
+
+    supabase
+      .from("leads")
+      .select("id, first_name, last_name, status, updated_at")
+      .eq("assigned_to", user.id)
+      .not("status", "eq", "new")
+      .order("updated_at", { ascending: false })
+      .limit(10),
+
+    supabase
+      .from("tasks")
+      .select(
+        "*, lead:leads!lead_id(id, first_name, last_name, phone_number, status)",
+      )
+      .contains("assigned_to_users", [user.id])
+      .eq("status", "pending")
+      .gte("due_date", new Date().toISOString())
+      .order("due_date", { ascending: true })
+      .limit(10),
+
+    supabase
+      .from("leads")
+      .select("id, first_name, last_name, deal_value, updated_at, city")
+      .eq("assigned_to", user.id)
+      .eq("status", "won")
+      .order("updated_at", { ascending: false })
+      .limit(6),
+  ]);
+
+  // Same ordering as before: on-duty block first (newest-first), then off-duty (oldest-first), max 10.
+  const unattainedLeadsSorted = [
+    ...(unattainedOnDuty ?? []),
+    ...(unattainedOffDuty ?? []),
+  ].slice(0, 10);
+
+  return {
+    unattainedLeads: unattainedLeadsSorted,
+    pastLeads:       pastLeads ?? [],
+    upcomingTasks:   upcomingTasks ?? [],
+    wonLeads:        wonLeads ?? [],
+  };
+}

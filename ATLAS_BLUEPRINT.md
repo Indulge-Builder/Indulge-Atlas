@@ -1,7 +1,7 @@
 # ATLAS BLUEPRINT
 ## Indulge Atlas — Complete System Reference & Architectural Contract
 
-> **Authored**: 2026-04-23 · **Updated**: 2026-04-30  
+> **Authored**: 2026-04-23 · **Updated**: 2026-05-05  
 > **Based on**: Full codebase audit, numbered migrations through **080**, lib/ and app/, git status  
 > **Task system detail**: See **`task_details.md`** (master reference for `/tasks`, `/task-insights`, schema 067+, actions, realtime).  
 > **Status**: Authoritative specification. Supersedes all prior versions.  
@@ -52,6 +52,7 @@
 - `agentRoutingConfig` is now wired into `leadIngestion.ts` — hardcoded email pool is supplemented by the DB-driven config
 - Lead dossier (`/leads/[id]`) — full 8-stage pipeline, WhatsApp two-way sync, activity timeline, tasks, disposition modals, scratchpad, follow-up drafts, executive dossier, tags
 - Leads table (`/leads`) — paginated, filterable by status/domain/source
+- **Clients** (`/clients`, `/clients/[id]`) — member directory + full client profile tabs (**Overview** default tab, Profile, Notes, Membership, **Service History**). **Overview** (`components/clients/overview/`): Elia **3-sentence member summary** is **on demand only** — `ClientOverviewTab` + `ClientSummaryCard` expose **Generate summary** (`IndulgeButton` variant `gold`); `getClientSummary` in `lib/actions/elia.ts` (Haiku, client + `client_profiles` + Freshdesk snapshot; `ANTHROPIC_API_KEY` server-only) runs **after** the user clicks, not on every tab visit (saves tokens). **Metric pills** (membership, Freshdesk ticket counts via `getClientFreshdeskTickets`, profile completeness) still load on visit. **Client-scoped Elia chat** (POST `app/api/elia/chat` with optional `clientId` — single-member context + `eliaClientScopedPrompt` in `lib/elia/chat-prompt.ts`; session not persisted; chat UI resets when leaving the tab). Service History reads **Freshdesk** tickets live (server-only `FRESHDESK_API_KEY`); contact match order: E.164 `phone` / `mobile` on Freshdesk contacts, then name query. AI **ticket** summary via **Anthropic** (`getTicketAISummary` in `lib/actions/freshdesk.ts` — same non-streaming pattern as `app/api/elia/chat`). Implementation: `lib/freshdesk/client.ts`, `lib/freshdesk/types.ts`, `lib/actions/freshdesk.ts`, `lib/actions/elia.ts`, `components/clients/FreshdeskTab.tsx`, `TicketCard.tsx`, `TicketSummaryModal.tsx`, `components/clients/overview/*`; `ClientProfileSheet.tsx` re-exports `ClientDetailView`.
 - Global WhatsApp Hub (`/whatsapp`) — master-detail, `DISTINCT ON` view for latest threads
 - SLA monitor (`useSLA_Monitor`) — 60s polling, Level 1/2/3 breach detection, IST-aware off-duty anchors via consolidated `lib/utils/sla.ts`
 - Shop War Room (`/shop/workspace`) — task-based WhatsApp sales, atomic `target_sold` RPC, order registration, master targets
@@ -78,8 +79,8 @@
 - **Master / subtask / personal** model on a single `tasks` table via `unified_task_type`; rich workflow via `atlas_status` (five values after migration **079**)
 - **`task_remarks`** append-only agent + system timeline; **`import_batches`** for CSV; **`task_notifications`** (077) for in-app notifications
 - Realtime publications extended by **073** (`task_remarks`), **074** (`task_groups`); legacy duplicate **`tasks` RLS** from 063 removed by **075**
-- Routes: `/tasks` (My Tasks + Atlas Tasks), `/tasks/[id]` workspace, `/tasks/import`, `/task-insights` (manager / admin / founder)
-- **`lib/actions/tasks.ts`**, **`lib/actions/task-intelligence.ts`**, **`components/tasks/`**, **`components/task-intelligence/`** — full documentation in **`task_details.md`**
+- Routes: `/tasks` (My Tasks + Atlas Tasks), `/tasks/[id]` workspace, `/tasks/import`; **`/task-insights`** (manager / admin / founder) — index, **`/task-insights/[departmentId]`** (department modal-style detail), **`/task-insights/agents/[agentId]`** (employee dossier)
+- **`lib/actions/tasks.ts`**, **`lib/actions/task-intelligence.ts`**, **`components/tasks/`**, **`components/task-intelligence/`** — full workflow in **`task_details.md`**. **Index UX (2026-05):** `TaskIntelligenceDashboard` — `max-w-5xl`; department **chip** filter (departments with active masters or overdue subtasks only); **Agents** tab first, **All workspaces** second; agent rows **prefetched** on scope change; **no** department health **card grid** on the index (cards removed; deep links unchanged). Workspaces: bento column spans via `components/task-intelligence/taskInsightsBento.ts` + denser `GroupTasksCommandView` cards. Dossier personal list: SOP strip omits completed rows; hint copy updated.
 
 **Department Access Control (Migration 066, fully live):**
 - `employee_department` enum: `concierge`, `finance`, `tech`, `shop`, `house`, `legacy`, `marketing`, `onboarding`
@@ -101,7 +102,7 @@
 
 | Feature | Location | Status |
 |---|---|---|
-| Elia AI Assistant | `app/(dashboard)/elia-preview/page.tsx`, `components/elia/EliaSidePanel.jsx` | UI built in JSX (not TSX), design tokens inline; no backend yet |
+| Elia AI Assistant | `app/(dashboard)/elia-preview/page.tsx`, `components/elia/EliaSidePanel.jsx` | Sidebar + preview UI in JSX (not TSX). **Backend:** `app/api/elia/chat/route.ts` (Anthropic Haiku) — global member DB context from `getEliaClientContext` in `lib/actions/elia.ts`, or optional **`clientId`** body field for single-member scoped prompts. Client dossier **Overview** tab uses the same route with `clientId`. |
 | Manager Morning Briefing | `components/manager/MorningBriefing.tsx` | Some widgets real, some stubs |
 | Executive Briefing | `lib/briefing/executiveBriefing.ts`, `lib/actions/briefing.ts` | Service exists, no clear UI page consuming it |
 | Performance analytics | `app/(dashboard)/performance/page.tsx` | Page + `lib/actions/performance.ts` exists; mix of real and stubbed data |
@@ -216,6 +217,8 @@
 | Upstash Redis | REST | Sliding-window rate limiting on webhooks |
 | Sentry | SDK | Error monitoring + performance tracing |
 | Supabase | Managed Postgres + Auth + Realtime + Storage | Database, auth, real-time subscriptions |
+| Freshdesk | REST (`indulge.freshdesk.com/api/v2`) | Client Service History: contacts + tickets (Basic auth, server-only key) |
+| Anthropic | REST (`api.anthropic.com`) | `app/api/elia/chat` (global or `clientId`-scoped), `getClientSummary` (Overview), `getTicketAISummary` (Freshdesk); Haiku; server-only `ANTHROPIC_API_KEY` |
 
 ---
 
@@ -317,6 +320,13 @@ TaskReminderProvider
 
 ## Section 5 — File & Folder Structure
 
+### 5.1 Design tokens (`app/globals.css`)
+
+- **`@theme inline`** defines `--color-brand-black`, **`--color-brand-gold`**, **`--color-brand-gold-light`**, **`--color-brand-gold-dark`** (Tailwind utilities: `bg-brand-gold`, `text-brand-gold-dark`, etc.). The **`gold` suffix is legacy naming**; values are a **muted warm umber** (stone/cream-adjacent primary accent, not bright metallic gold). `:root { --ring: var(--color-brand-gold); }` drives default focus rings.
+- **Surfaces & chrome** — `--color-surface` / `--color-surface-subtle` / `--color-surface-border`, taupe/olive helpers, `--shadow-gold` (soft umber-tinted elevation, name retained).
+- **Primary CTA** — `components/ui/button.tsx` variant **`gold`**: `bg-brand-gold`, `text-surface` (cream on fill), `hover:bg-brand-gold-dark`, `focus-visible:ring-brand-gold` (wired to globals so CTAs track the accent).
+- **Tech debt:** many components still use hardcoded **`#D4AF37`** / old gold hex in class strings; new work should prefer **`brand-gold`** / theme tokens for consistency.
+
 ```
 /
 ├── __tests__/                      Vitest test files (5 cases — see Section 11)
@@ -328,7 +338,7 @@ TaskReminderProvider
 │
 ├── app/
 │   ├── layout.tsx                  Root layout: fonts, Sentry, global providers
-│   ├── globals.css                 Tailwind @import + design tokens (colors, surfaces, canvas)
+│   ├── globals.css                 Tailwind @import + `@theme inline` tokens (Section 5.1)
 │   ├── error.tsx                   Non-catastrophic error boundary
 │   ├── global-error.tsx            Last-resort boundary + Sentry.captureException
 │   │
@@ -340,8 +350,11 @@ TaskReminderProvider
 │   │   ├── leads/                  Leads table + Lead Dossier RSC
 │   │   │   ├── page.tsx
 │   │   │   └── [id]/page.tsx       Lead Dossier (force-dynamic RSC)
+│   │   ├── clients/                Client directory + profile (`ClientDetailView` / `ClientProfileSheet`)
+│   │   │   ├── page.tsx
+│   │   │   └── [id]/page.tsx       Default Overview: on-demand Elia summary + metrics + scoped chat; Freshdesk Service History, etc.
 │   │   ├── tasks/                  Atlas Tasks — index, [id] workspace, import
-│   │   ├── task-insights/         Task Insights (manager / admin / founder)
+│   │   ├── task-insights/         Task Insights index + `[departmentId]` + `agents/[agentId]` (manager / admin / founder)
 │   │   ├── workspace/page.tsx
 │   │   ├── calendar/page.tsx
 │   │   ├── performance/page.tsx
@@ -363,6 +376,7 @@ TaskReminderProvider
 │   │   └── shop/workspace/         Shop War Room
 │   │
 │   ├── api/
+│   │   ├── elia/chat/route.ts      POST — Anthropic Haiku; optional `clientId` for single-member scoped chat
 │   │   ├── bootstrap/              One-time DB bootstrap helper
 │   │   ├── campaigns/sync/         Campaign metrics sync
 │   │   ├── finance-notify/         Internal: called on won deal
@@ -399,9 +413,10 @@ TaskReminderProvider
 │   ├── manager/                    Full manager suite components (Morning Briefing, etc.)
 │   ├── projects/                   Shared board/list/sheet primitives (also used by Atlas `/tasks`)
 │   ├── tasks/                      Atlas Tasks UI (master list, subtask modal, import, My Tasks)
-│   ├── task-intelligence/          Task Insights (department health, dossier)
+│   ├── task-intelligence/          Task Insights UI: `TaskIntelligenceDashboard`, `GroupTasksCommandView`, `DepartmentDetailView`, `EmployeeDossierView`, `DepartmentIndividualTasksView`, `taskInsightsBento.ts`, etc.
+│   ├── clients/                    Client list + profile; `overview/` (Overview: on-demand Elia summary, metrics, scoped chat); Freshdesk tab
 │   ├── concierge/                  ConciergeClient.tsx — ⚠️ ALL MOCK DATA
-│   ├── elia/                       EliaSidePanel.jsx — AI assistant preview
+│   ├── elia/                       EliaSidePanel.jsx, EliaChat.tsx — AI assistant; POST `/api/elia/chat`
 │   ├── shop/                       Shop War Room components
 │   ├── sla/                        SLAProvider + ProfileProvider
 │   ├── providers/                  TaskAlertProvider, LeadAlertProvider, CommandPaletteProvider
@@ -427,6 +442,9 @@ TaskReminderProvider
 │   │   ├── routing-rules.ts        Routing rules CRUD
 │   │   ├── search.ts               Global command palette search
 │   │   ├── team-stats.ts           Team statistics
+│   │   ├── clients.ts              Client directory + profile + notes
+│   │   ├── freshdesk.ts            Freshdesk ticket fetch + Elia ticket summary (server-only)
+│   │   ├── elia.ts                 Elia: global member context, active count, single-client profile text, **getClientSummary** (Haiku)
 │   │   └── ...                     briefing, calendar, messages, profile, workspace, etc.
 │   │
 │   ├── services/                   Core business services (not component-facing)
@@ -469,6 +487,9 @@ TaskReminderProvider
 │   │   ├── database.ts             All TypeScript types + constants (HAND-WRITTEN — not generated)
 │   │   └── campaigns.ts            Campaign-specific types
 │   │
+│   ├── elia/
+│   │   └── chat-prompt.ts          System prompts (`eliaSystemPrompt`, `eliaClientScopedPrompt`) + `parseEliaClientDisplayNameFromProfile` — **not** `"use server"` (sync helpers cannot live in `lib/actions/elia.ts` exports)
+│   ├── freshdesk/                  Freshdesk API client + types (never import client from browser code)
 │   ├── concierge/mockData.ts       ⚠️ MOCK DATA in production path
 │   ├── data/campaigns-mock.ts      ⚠️ MOCK DATA (latent — may not be imported)
 │   └── ...                         briefing, leads/, schemas/, tv/, shop/, onboarding/
@@ -744,7 +765,7 @@ Ad Platform → Pabbly Connect
 
 1. **Master task** — `createMasterTask` seeds `tasks` (`unified_task_type: master`), `projects`, `project_members`, three default Kanban groups, then sets `project_id` / `master_task_id` on the master row.
 2. **Subtasks** — Live in `task_groups` columns; agent narrative in `task_remarks`, structured % progress in `task_progress_updates`; cache invalidation via `revalidateAtlasTaskSurfaces`.
-3. **Task Insights** — `lib/actions/task-intelligence.ts`; role gate (manager or privileged); Realtime via `useTaskIntelligenceRealtime`.
+3. **Task Insights** — `lib/actions/task-intelligence.ts`; role gate (manager or privileged); Realtime via `useTaskIntelligenceRealtime`. **Main index** (`components/task-intelligence/TaskIntelligenceDashboard.tsx`): department filter chips, Agents + Workspaces tabs, prefetched agent summaries, no department card grid. **Department detail** tab key `agents` (label **Agents**); workspace list bento + card density in `GroupTasksCommandView`.
 
 Authoritative detail: **`task_details.md`**.
 
@@ -876,6 +897,8 @@ These are load-bearing decisions. Changing any requires a full architectural rev
 9. `profiles.id` = `auth.users.id`. Every `profiles` row must have a corresponding `auth.users` row.
 10. Every new table must have RLS enabled.
 
+**Next.js Server Actions:** Every **export** from `lib/actions/*.ts` (`"use server"`) must be an **`async`** Server Action. Synchronous helpers (pure functions, prompt builders, parsers) belong in plain modules such as `lib/elia/chat-prompt.ts`, not exported from action files.
+
 ---
 
 ## Section 13 — Roadmap
@@ -953,6 +976,7 @@ Build order:
 | 2026-04-22 | `ATLAS_BLUEPRINT.md` v1 + `audit.md` v1 authored; migration 061 (`agent_routing_config`) |
 | 2026-04-22–23 | Migrations 062–066: Projects system, department access control; `/scout/*` redirects live; `sendDefaultPii` fixed; `lib/utils/sla.ts` consolidated; manager suite fully built; `lib/constants/departments.ts` added |
 | 2026-04-23 | `ATLAS_BLUEPRINT.md` v2 |
+| 2026-05-05 | **v3.1** — Task Insights index refresh: `max-w-5xl`, Agents-first tabs + prefetch, department chips only (no index department grid), bento workspace tiles (`taskInsightsBento.ts`), dossier SOP strip + copy tweaks; `CLAUDE.md` / blueprint aligned |
 | 2026-04-30 | **v3** — 71 migrations through **080**; **`task_details.md`** master task reference; Atlas unified tasks + Task Insights; `/projects` → `/tasks`; schema sections for `task_remarks`, `task_notifications`; middleware wiring note |
 
 ---

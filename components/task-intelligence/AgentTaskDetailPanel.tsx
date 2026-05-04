@@ -11,12 +11,21 @@ import { SubTaskStatusBadge } from "@/components/tasks/SubTaskStatusBadge";
 import { TaskPriorityBadge } from "@/components/tasks/TaskPriorityBadge";
 import { CompletionRing } from "./CompletionRing";
 import { getAgentPersonalTasks } from "@/lib/actions/task-intelligence";
-import type { TaskIntelligenceAgentSummary, TaskIntelligencePersonalTaskRow } from "@/lib/types/database";
+import type {
+  TaskIntelligenceAgentSummary,
+  TaskIntelligencePersonalTaskRow,
+} from "@/lib/types/database";
 import type { AtlasTaskStatus } from "@/lib/types/database";
 
 const IST = "Asia/Kolkata";
 
-function DateChip({ isoDate, status }: { isoDate: string | null; status: AtlasTaskStatus }) {
+function DateChip({
+  isoDate,
+  status,
+}: {
+  isoDate: string | null;
+  status: AtlasTaskStatus;
+}) {
   if (!isoDate) return <span className="text-[11px] text-[#B5A99A]">—</span>;
   const overdue =
     status !== "done" &&
@@ -26,7 +35,9 @@ function DateChip({ isoDate, status }: { isoDate: string | null; status: AtlasTa
     <span
       className={cn(
         "inline-flex text-[11px] font-medium rounded-full px-2 py-0.5",
-        overdue ? "bg-[#C0392B]/10 text-[#C0392B]" : "bg-[#F2F2EE] text-[#6B6B6B]",
+        overdue
+          ? "bg-[#C0392B]/10 text-[#C0392B]"
+          : "bg-[#F2F2EE] text-[#6B6B6B]",
       )}
     >
       {format(toZonedTime(new Date(isoDate), IST), "d MMM")}
@@ -63,7 +74,9 @@ function TaskRow({ task }: { task: TaskIntelligencePersonalTaskRow }) {
   return (
     <div className="flex items-center gap-3 py-3 border-b border-[#E5E4DF] last:border-0">
       <SubTaskStatusBadge status={st} size="sm" />
-      <span className="flex-1 text-[13px] text-[#1A1A1A] min-w-0 truncate">{task.title}</span>
+      <span className="flex-1 text-[13px] text-[#1A1A1A] min-w-0 truncate">
+        {task.title}
+      </span>
       <TaskPriorityBadge priority={task.priority} size="sm" />
       <DateChip isoDate={task.due_date} status={st} />
     </div>
@@ -118,9 +131,13 @@ export function AgentTaskDetailPanel({ agent }: AgentTaskDetailPanelProps) {
           </AvatarFallback>
         </Avatar>
         <div className="flex-1 min-w-0">
-          <h3 className="font-serif text-xl font-semibold text-[#1A1A1A] truncate">{agent.full_name}</h3>
+          <h3 className="font-serif text-xl font-semibold text-[#1A1A1A] truncate">
+            {agent.full_name}
+          </h3>
           {agent.job_title && (
-            <p className="text-[13px] text-[#8A8A6E] truncate">{agent.job_title}</p>
+            <p className="text-[13px] text-[#8A8A6E] truncate">
+              {agent.job_title}
+            </p>
           )}
         </div>
         <div className="flex flex-col items-center shrink-0">
@@ -131,18 +148,25 @@ export function AgentTaskDetailPanel({ agent }: AgentTaskDetailPanelProps) {
             animate
             center={
               <div className="flex flex-col items-center">
-                <span className="font-serif text-lg font-semibold text-[#1A1A1A] tabular-nums">{pct}%</span>
+                <span className="font-serif text-lg font-semibold text-[#1A1A1A] tabular-nums">
+                  {pct}%
+                </span>
               </div>
             }
           />
-          <span className="text-[10px] text-[#8A8A6E] mt-1">Today&apos;s SOPs</span>
+          <span className="text-[10px] text-[#8A8A6E] mt-1">
+            Today&apos;s SOPs
+          </span>
         </div>
       </div>
 
       {loading ? (
         <div className="space-y-3 py-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-12 rounded-lg bg-[#F2F2EE] animate-pulse" />
+            <div
+              key={i}
+              className="h-12 rounded-lg bg-[#F2F2EE] animate-pulse"
+            />
           ))}
         </div>
       ) : !data ? null : (
@@ -176,7 +200,10 @@ export function AgentTaskDetailPanel({ agent }: AgentTaskDetailPanelProps) {
                   </Section>
                 )}
                 {data.completedToday.length > 0 && (
-                  <Section eyebrow="Completed Today" count={data.completedToday.length}>
+                  <Section
+                    eyebrow="Completed Today"
+                    count={data.completedToday.length}
+                  >
                     {data.completedToday.map((t) => (
                       <TaskRow key={t.id} task={t} />
                     ))}

@@ -20,3 +20,23 @@ Rules:
 MEMBER DATABASE:
 ${memberContext}`;
 }
+
+/** Scoped chat: single member context only (used when `clientId` is passed to /api/elia/chat). */
+export function eliaClientScopedPrompt(
+  clientName: string,
+  fullClientProfileText: string,
+): string {
+  const name = clientName.trim() || "this member";
+  return `You are Elia, personal concierge AI for Indulge. You are answering questions about a specific member: ${name}. Here is everything you know about them:
+
+${fullClientProfileText}
+
+Answer agent questions about this member helpfully and concisely. You can reference their preferences, history, and membership details. If asked something you don't know, say so honestly.`;
+}
+
+/** Display name from first line of Elia serialized profile (`CLIENT: …`). */
+export function parseEliaClientDisplayNameFromProfile(serialized: string): string {
+  const line = serialized.split("\n")[0] ?? "";
+  const m = /^CLIENT:\s*(.+)$/.exec(line.trim());
+  return m?.[1]?.trim() || "this member";
+}

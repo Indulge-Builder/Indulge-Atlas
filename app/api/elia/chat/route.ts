@@ -1,6 +1,14 @@
-import { getEliaClientContext } from "@/lib/actions/elia";
-import { eliaSystemPrompt } from "@/lib/elia/chat-prompt";
+import {
+  getEliaClientContext,
+  getEliaSingleClientProfileText,
+} from "@/lib/actions/elia";
+import {
+  eliaClientScopedPrompt,
+  eliaSystemPrompt,
+  parseEliaClientDisplayNameFromProfile,
+} from "@/lib/elia/chat-prompt";
 import { createClient } from "@/lib/supabase/server";
+import { z } from "zod";
 
 export const runtime = "nodejs";
 
@@ -13,12 +21,38 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as {
     message?: string;
     conversationHistory?: { role: "user" | "assistant"; content: string }[];
+    clientId?: string;
   } | null;
   const message = body?.message?.trim();
   if (!body || !message) return Response.json({ error: "Bad request" }, { status: 400 });
   const conversationHistory = body.conversationHistory ?? [];
-  let memberContext: string;
-  try { memberContext = await getEliaClientContext(); } catch { return Response.json({ error: "Context fetch failed" }, { status: 500 }); }
+  const clientIdRaw = body.clientId?.trim();
+  let systemPrompt: string;
+  if (clientIdRaw) {
+    const uuid = z.string().uuid().safeParse(clientIdRaw);
+    if (!uuid.success) {
+      return Response.json({ error: "Invalid client id" }, { status: 400 });
+    }
+    let single: string | null;
+    try {
+      single = await getEliaSingleClientProfileText(uuid.data);
+    } catch {
+      return Response.json({ error: "Context fetch failed" }, { status: 500 });
+    }
+    if (single === null) {
+      return Response.json({ error: "Client not found" }, { status: 404 });
+    }
+    const displayName = parseEliaClientDisplayNameFromProfile(single);
+    systemPrompt = eliaClientScopedPrompt(displayName, single);
+  } else {
+    let memberContext: string;
+    try {
+      memberContext = await getEliaClientContext();
+    } catch {
+      return Response.json({ error: "Context fetch failed" }, { status: 500 });
+    }
+    systemPrompt = eliaSystemPrompt(memberContext);
+  }
   const ar = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
@@ -26,7 +60,7 @@ export async function POST(req: Request) {
       model: "claude-haiku-4-5-20251001",
       max_tokens: 1024,
       stream: false,
-      system: eliaSystemPrompt(memberContext),
+      system: systemPrompt,
       messages: [...conversationHistory, { role: "user", content: message }],
     }),
   });

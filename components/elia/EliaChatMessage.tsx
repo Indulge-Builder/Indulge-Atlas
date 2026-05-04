@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
 export type EliaMessage = {
@@ -13,19 +14,116 @@ export type EliaMessage = {
 /** Alias for product spec / external references */
 export type Message = EliaMessage;
 
+/** First names used for light highlighting + session stats (approximate). */
+export const ELIA_KNOWN_FIRST_NAMES: readonly string[] = [
+  "Aarav",
+  "Aditya",
+  "Ananya",
+  "Ananyshree",
+  "Arjun",
+  "Diya",
+  "Ishaan",
+  "Kabir",
+  "Kiara",
+  "Neha",
+  "Priya",
+  "Rahul",
+  "Rohan",
+  "Saanvi",
+  "Samaira",
+  "Vikram",
+  "James",
+  "Sarah",
+  "Michael",
+  "Emma",
+  "David",
+  "Sophia",
+  "Alex",
+  "Olivia",
+  "Ryan",
+  "Nina",
+  "Marcus",
+  "Elena",
+  "Victoria",
+  "William",
+  "Charlotte",
+  "Daniel",
+  "Amelia",
+  "Raj",
+  "Meera",
+  "Sanjay",
+  "Kavita",
+  "Ravi",
+  "Sunita",
+  "Vivek",
+  "Anjali",
+  "Pooja",
+  "Siddharth",
+  "Tara",
+  "Zara",
+  "Noah",
+  "Ethan",
+  "Maya",
+  "Leo",
+  "Grace",
+] as const;
+
+function escapeRegExp(s: string) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function renderBoldSegments(line: string): React.ReactNode[] {
   const parts = line.split(/(\*\*[^*]+\*\*)/g);
   return parts.map((part, i) => {
     const m = /^\*\*([^*]+)\*\*$/.exec(part);
     if (m) {
       return (
-        <strong key={i} className="font-semibold text-inherit">
+        <strong key={i} className="font-semibold text-[#1A1814]">
           {m[1]}
         </strong>
       );
     }
     return <React.Fragment key={i}>{part}</React.Fragment>;
   });
+}
+
+function highlightMemberNamesInLine(line: string): React.ReactNode {
+  const sorted = [...ELIA_KNOWN_FIRST_NAMES].sort((a, b) => b.length - a.length);
+  if (sorted.length === 0) {
+    return <>{renderBoldSegments(line)}</>;
+  }
+  const pattern = new RegExp(
+    `\\b(${sorted.map(escapeRegExp).join("|")})\\b`,
+    "gi",
+  );
+  const parts: React.ReactNode[] = [];
+  let last = 0;
+  let m: RegExpExecArray | null;
+  const re = new RegExp(pattern.source, pattern.flags);
+  let key = 0;
+  while ((m = re.exec(line)) !== null) {
+    if (m.index > last) {
+      parts.push(
+        <React.Fragment key={`t-${key++}`}>
+          {renderBoldSegments(line.slice(last, m.index))}
+        </React.Fragment>,
+      );
+    }
+    parts.push(
+      <span key={`n-${key++}`} className="font-medium text-[#1A1814]">
+        {m[1]}
+      </span>,
+    );
+    last = m.index + m[0].length;
+  }
+  if (last < line.length) {
+    parts.push(
+      <React.Fragment key={`t-${key++}`}>
+        {renderBoldSegments(line.slice(last))}
+      </React.Fragment>,
+    );
+  }
+  return parts.length > 0 ? <>{parts}</> : <>{renderBoldSegments(line)}</>;
 }
 
 function renderFormattedAssistantText(text: string): React.ReactNode {
@@ -55,23 +153,38 @@ function renderFormattedAssistantText(text: string): React.ReactNode {
       blockKey += 1;
       if (ordered) {
         blocks.push(
-          <ol
-            key={`ol-${blockKey}`}
-            className="my-2 list-decimal space-y-1 pl-5 text-[0.9375rem] leading-relaxed"
-          >
-            {items.map((item, j) => (
-              <li key={j}>{renderBoldSegments(item)}</li>
-            ))}
+          <ol key={`ol-${blockKey}`} className="my-2 list-none space-y-1 pl-0">
+            {items.map((item, j) => {
+              const num = j + 1;
+              return (
+                <li
+                  key={j}
+                  className="flex gap-2 font-sans text-sm leading-[1.7] text-[#1A1814]"
+                >
+                  <span className="shrink-0 font-mono tabular-nums text-brand-gold">
+                    {num}.
+                  </span>
+                  <span className="min-w-0 font-sans">
+                    {highlightMemberNamesInLine(item)}
+                  </span>
+                </li>
+              );
+            })}
           </ol>,
         );
       } else {
         blocks.push(
-          <ul
-            key={`ul-${blockKey}`}
-            className="my-2 list-disc space-y-1 pl-5 text-[0.9375rem] leading-relaxed"
-          >
+          <ul key={`ul-${blockKey}`} className="my-2 list-none space-y-1 pl-0">
             {items.map((item, j) => (
-              <li key={j}>{renderBoldSegments(item)}</li>
+              <li
+                key={j}
+                className="flex gap-2 font-sans text-sm leading-[1.7] text-[#1A1814]"
+              >
+                <span className="shrink-0 text-brand-gold" aria-hidden>
+                  ·
+                </span>
+                <span className="min-w-0">{highlightMemberNamesInLine(item)}</span>
+              </li>
             ))}
           </ul>,
         );
@@ -88,9 +201,9 @@ function renderFormattedAssistantText(text: string): React.ReactNode {
     blocks.push(
       <p
         key={`p-${i}`}
-        className="mb-1 text-[0.9375rem] leading-relaxed last:mb-0"
+        className="mb-1 font-sans text-sm leading-[1.7] text-[#1A1814] last:mb-0"
       >
-        {renderBoldSegments(line)}
+        {highlightMemberNamesInLine(line)}
       </p>,
     );
     i += 1;
@@ -99,16 +212,23 @@ function renderFormattedAssistantText(text: string): React.ReactNode {
   return <div className="space-y-0.5">{blocks}</div>;
 }
 
-function EliaAvatar({ className }: { className?: string }) {
+function ThinkingRow() {
   return (
-    <div
-      className={cn(
-        "flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#1A1814] text-sm font-semibold text-[#D4AF37] ring-2 ring-[#D4AF37]/35",
-        className,
-      )}
-      aria-hidden
-    >
-      E
+    <div className="flex min-w-0 items-center py-0.5" aria-live="polite">
+      <div className="flex items-center gap-1 py-0.5" aria-hidden>
+        <span className="elia-dot-pulse h-[5px] w-[5px] rounded-full bg-brand-gold" />
+        <span
+          className="elia-dot-pulse h-[5px] w-[5px] rounded-full bg-brand-gold"
+          style={{ animationDelay: "150ms" }}
+        />
+        <span
+          className="elia-dot-pulse h-[5px] w-[5px] rounded-full bg-brand-gold"
+          style={{ animationDelay: "300ms" }}
+        />
+      </div>
+      <span className="ml-2 font-sans text-xs font-normal text-[#6b6b6b]">
+        Elia is thinking
+      </span>
     </div>
   );
 }
@@ -116,17 +236,31 @@ function EliaAvatar({ className }: { className?: string }) {
 export function EliaChatMessage({
   message,
   showThinking,
+  isFirstInAssistantSequence,
 }: {
   message: EliaMessage;
   /** Shown when the assistant reply is still loading (non-streaming). */
   showThinking?: boolean;
+  isFirstInAssistantSequence: boolean;
 }) {
+  const ts = format(message.timestamp, "h:mm a");
+
   if (message.role === "user") {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[min(100%,36rem)] rounded-2xl rounded-tr-sm border border-[#E5E4DF] bg-white px-4 py-3 text-[#1A1814] shadow-[0_1px_4px_0_rgb(0_0_0/0.05)]">
-          <p className="whitespace-pre-wrap text-[0.9375rem] leading-relaxed">
-            {message.content}
+        <div className="max-w-[65%]">
+          <div
+            className={cn(
+              "rounded-[16px] rounded-br-[4px] border border-[#E5E4DF] bg-white px-4 py-3",
+              "shadow-[0_1px_4px_0_rgb(0_0_0/0.05)]",
+            )}
+          >
+            <p className="whitespace-pre-wrap font-sans text-sm font-normal leading-relaxed text-[#1A1814]">
+              {message.content}
+            </p>
+          </div>
+          <p className="mt-1 text-right font-mono text-[10px] font-normal text-[#6b6b6b]">
+            {ts}
           </p>
         </div>
       </div>
@@ -134,22 +268,34 @@ export function EliaChatMessage({
   }
 
   return (
-    <div className="flex max-w-[min(100%,42rem)] gap-3">
-      <EliaAvatar className="mt-0.5" />
-      <div className="min-w-0 flex-1 rounded-2xl rounded-tl-sm border border-[#E5E4DF] border-l-[3px] border-l-[#D4AF37] bg-white px-4 py-3 text-[#1A1814] shadow-[0_1px_4px_0_rgb(0_0_0/0.05)]">
+    <div className="flex max-w-[75%] flex-col items-start">
+      {isFirstInAssistantSequence ? (
+        <div className="mb-2 flex flex-wrap items-center gap-2 font-sans text-[11px]">
+          <span className="font-serif text-[11px] font-semibold text-brand-gold">
+            E
+          </span>
+          <span className="font-medium text-brand-gold-dark">Elia</span>
+          <span className="font-mono text-[10px] text-[#6b6b6b]">{ts}</span>
+        </div>
+      ) : null}
+      <div className="w-full border-l-2 border-brand-gold py-3 pl-4 pr-4 font-sans">
         {message.content ? (
-          <div className="text-[#2a2824]">
-            {renderFormattedAssistantText(message.content)}
-          </div>
+          <div>{renderFormattedAssistantText(message.content)}</div>
         ) : showThinking ? (
-          <p
-            className="animate-pulse text-[0.9375rem] italic text-[#6b6b6b]"
-            aria-live="polite"
-          >
-            Elia is thinking...
-          </p>
+          <ThinkingRow />
         ) : null}
       </div>
     </div>
   );
+}
+
+export function countDistinctMemberMentionsInText(text: string): Set<string> {
+  const found = new Set<string>();
+  for (const name of ELIA_KNOWN_FIRST_NAMES) {
+    const re = new RegExp(`\\b${escapeRegExp(name)}\\b`, "i");
+    if (re.test(text)) {
+      found.add(name);
+    }
+  }
+  return found;
 }

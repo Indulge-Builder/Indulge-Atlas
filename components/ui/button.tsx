@@ -11,20 +11,20 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-[#0A0A0A] text-white hover:bg-[#1A1A1A] focus-visible:ring-[#D4AF37]",
+          "bg-[#0A0A0A] text-white hover:bg-[#1A1A1A] focus-visible:ring-brand-gold",
         gold:
-          "bg-[#D4AF37] text-[#0A0A0A] hover:bg-[#C9A530] font-semibold focus-visible:ring-[#D4AF37] shadow-sm",
+          "bg-brand-gold text-surface hover:bg-brand-gold-dark font-semibold focus-visible:ring-brand-gold shadow-sm",
         outline:
-          "border border-[#E5E4DF] bg-transparent text-[#1A1A1A] hover:bg-[#F2F2EE] focus-visible:ring-[#D4AF37]",
+          "border border-[#E5E4DF] bg-transparent text-[#1A1A1A] hover:bg-[#F2F2EE] focus-visible:ring-brand-gold",
         ghost:
-          "bg-transparent text-[#1A1A1A] hover:bg-[#F2F2EE] focus-visible:ring-[#D4AF37]",
+          "bg-transparent text-[#1A1A1A] hover:bg-[#F2F2EE] focus-visible:ring-brand-gold",
         destructive:
           "bg-[#C0392B] text-white hover:bg-[#A93226] focus-visible:ring-[#C0392B]",
         success:
           "bg-[#4A7C59] text-white hover:bg-[#3D6649] focus-visible:ring-[#4A7C59]",
         muted:
-          "bg-[#F2F2EE] text-[#6B6B6B] hover:bg-[#E5E4DF] focus-visible:ring-[#D4AF37]",
-        link: "text-[#D4AF37] underline-offset-4 hover:underline p-0 h-auto",
+          "bg-[#F2F2EE] text-[#6B6B6B] hover:bg-[#E5E4DF] focus-visible:ring-brand-gold",
+        link: "text-brand-gold underline-offset-4 hover:underline p-0 h-auto",
       },
       size: {
         default: "h-9 px-4 py-2",

@@ -62,6 +62,7 @@ async function WorkspaceContent({ userId }: { userId: string }) {
       <TopBar
         title="Workspace."
         subtitle="Your calm, focused space."
+        hideDomainSwitcher
       />
       <WorkspaceBoard
         greeting={greeting}

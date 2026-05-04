@@ -20,13 +20,12 @@ import { toast } from "sonner";
 import { formatInTimeZone } from "date-fns-tz";
 import { Send } from "lucide-react";
 import { IndulgeButton } from "@/components/ui/indulge-button";
-import { DepartmentHealthCard } from "./DepartmentHealthCard";
 import { GroupTasksCommandView } from "./GroupTasksCommandView";
 import { DepartmentIndividualTasksView } from "./DepartmentIndividualTasksView";
 import { TaskInsightsDepartmentSelector } from "./TaskInsightsDepartmentSelector";
 import { AssignTaskModal } from "./AssignTaskModal";
 
-type TabKey = "workspaces" | "individual";
+type TabKey = "workspaces" | "agents";
 
 interface TaskIntelligenceDashboardProps {
   initialOverview: DepartmentTaskOverview[];
@@ -92,6 +91,15 @@ export function TaskIntelligenceDashboard({
     return rows.filter((r) => r.departmentId === filterDepartmentId);
   }, [rows, filterDepartmentId]);
 
+  /** Landing grid + chips: only departments with group work (masters and/or overdue subtasks). */
+  const departmentsWithTasks = useMemo(
+    () =>
+      rows.filter(
+        (r) => r.activeMasterTaskCount > 0 || r.overdueSubtaskCount > 0,
+      ),
+    [rows],
+  );
+
   const filteredWorkspaceTasks = useMemo(() => {
     if (!filterDepartmentId) return workspaceTasks;
     return workspaceTasks.filter(
@@ -99,10 +107,11 @@ export function TaskIntelligenceDashboard({
     );
   }, [workspaceTasks, filterDepartmentId]);
 
+  /** Prefetch agent summaries whenever scope changes so the Agents tab opens without waiting. */
   useEffect(() => {
-    if (activeTab !== "individual") return;
     if (filteredRows.length === 0) {
       setIndividualAgents([]);
+      setIndividualLoading(false);
       return;
     }
 
@@ -130,11 +139,11 @@ export function TaskIntelligenceDashboard({
     return () => {
       cancelled = true;
     };
-  }, [activeTab, filteredRows]);
+  }, [filteredRows]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="mx-auto w-full max-w-7xl flex-1 px-6 pt-6 pb-14">
+      <div className="mx-auto w-full max-w-5xl flex-1 px-5 pt-6 pb-14 sm:px-6">
         <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1 className="font-serif text-[30px] font-bold leading-[1.1] text-[#1A1A1A] sm:text-[32px]">
@@ -158,7 +167,7 @@ export function TaskIntelligenceDashboard({
 
         {!loadError && rows.length > 0 && (
           <TaskInsightsDepartmentSelector
-            departments={rows}
+            departments={departmentsWithTasks}
             value={filterDepartmentId}
             onChange={setFilterDepartmentId}
           />
@@ -189,48 +198,31 @@ export function TaskIntelligenceDashboard({
           </div>
         )}
 
-        {!loadError && rows.length > 0 && (
-          <section className="mb-10" aria-labelledby="ti-departments-heading">
-            <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <h2
-                  id="ti-departments-heading"
-                  className="font-serif text-[22px] font-bold leading-tight text-[#1A1A1A]"
-                >
-                  Departments
-                </h2>
-                <p className="mt-1 text-[13px] text-[#8A8A6E]">
-                  Open a department for the full breakdown.
-                </p>
-              </div>
-            </div>
-            <motion.div
-              className="grid grid-cols-1 gap-5 md:grid-cols-2 md:gap-6 xl:grid-cols-3"
-              variants={{
-                hidden: {},
-                show: {
-                  transition: { staggerChildren: 0.06 },
-                },
-              }}
-              initial="hidden"
-              animate="show"
-            >
-              {filteredRows.map((o) => (
-                <DepartmentHealthCard
-                  key={o.departmentId}
-                  overview={o}
-                  href={`/task-insights/${o.departmentId}`}
-                />
-              ))}
-            </motion.div>
-          </section>
-        )}
-
         <div
           className="relative flex items-stretch gap-0 border-b border-[#E5E4DF]"
           role="tablist"
           aria-label="Organization task views"
         >
+          <button
+            id="ti-agents-tab"
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "agents"}
+            onClick={() => setActiveTab("agents")}
+            className={cn(
+              "relative select-none px-5 py-3.5 text-[14px] font-medium transition-colors duration-150",
+              activeTab === "agents" ? "text-[#1A1A1A]" : "text-[#8A8A6E] hover:text-[#1A1A1A]",
+            )}
+          >
+            Agents
+            {activeTab === "agents" && (
+              <motion.div
+                layoutId="ti-tab-indicator"
+                className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-[#D4AF37]"
+                transition={{ type: "spring", stiffness: 400, damping: 32 }}
+              />
+            )}
+          </button>
           <button
             id="ti-workspaces-tab"
             type="button"
@@ -251,30 +243,39 @@ export function TaskIntelligenceDashboard({
               />
             )}
           </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "individual"}
-            onClick={() => setActiveTab("individual")}
-            className={cn(
-              "relative select-none px-5 py-3.5 text-[14px] font-medium transition-colors duration-150",
-              activeTab === "individual" ? "text-[#1A1A1A]" : "text-[#8A8A6E] hover:text-[#1A1A1A]",
-            )}
-          >
-            Individual &amp; team
-            {activeTab === "individual" && (
-              <motion.div
-                layoutId="ti-tab-indicator"
-                className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-[#D4AF37]"
-                transition={{ type: "spring", stiffness: 400, damping: 32 }}
-              />
-            )}
-          </button>
         </div>
 
-        <div className="pt-8">
+        <div className="pt-6 pb-10">
           <AnimatePresence mode="wait" initial={false}>
-            {activeTab === "workspaces" ? (
+            {activeTab === "agents" ? (
+              <motion.div
+                key="agents"
+                id="panel-agents"
+                role="tabpanel"
+                aria-labelledby="ti-agents-tab"
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -2 }}
+                transition={{ duration: 0.2 }}
+              >
+                {individualLoading && individualAgents.length === 0 ? (
+                  <p className="text-sm text-[#8A8A6E]">Loading agents…</p>
+                ) : individualAgents.length > 0 ? (
+                  <DepartmentIndividualTasksView
+                    agents={individualAgents}
+                    departmentId={(filterDepartmentId as EmployeeDepartment | null) ?? null}
+                    currentUser={currentUser}
+                    returnToPath={
+                      filterDepartmentId ? `/task-insights/${filterDepartmentId}` : null
+                    }
+                  />
+                ) : (
+                  <p className="text-sm text-[#8A8A6E]">
+                    No agents found in your visible departments.
+                  </p>
+                )}
+              </motion.div>
+            ) : (
               <motion.div
                 key="workspaces"
                 id="panel-workspaces"
@@ -289,41 +290,6 @@ export function TaskIntelligenceDashboard({
                   items={filteredWorkspaceTasks}
                   showDepartmentBadge={filterDepartmentId === null}
                 />
-              </motion.div>
-            ) : (
-              <motion.div
-                key="individual"
-                id="panel-individual"
-                role="tabpanel"
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -2 }}
-                transition={{ duration: 0.2 }}
-                className="space-y-6"
-              >
-                <p className="text-[13px] text-[#8A8A6E]">
-                  {filterDepartmentId
-                    ? "Personal-task activity for the selected department."
-                    : "Agents and personal-task activity across your visible departments."}
-                </p>
-                {individualLoading ? (
-                  <p className="text-sm text-[#8A8A6E]">
-                    Loading agents…
-                  </p>
-                ) : individualAgents.length > 0 ? (
-                  <DepartmentIndividualTasksView
-                    agents={individualAgents}
-                    departmentId={(filterDepartmentId as EmployeeDepartment | null) ?? null}
-                    currentUser={currentUser}
-                    returnToPath={
-                      filterDepartmentId ? `/task-insights/${filterDepartmentId}` : null
-                    }
-                  />
-                ) : (
-                  <p className="text-sm text-[#8A8A6E]">
-                    No agents found for individual tasks in your visible departments.
-                  </p>
-                )}
               </motion.div>
             )}
           </AnimatePresence>

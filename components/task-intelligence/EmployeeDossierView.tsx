@@ -14,7 +14,12 @@ export interface EmployeeDossierViewProps {
   agentId: string;
   /** Shown on “Back” (e.g. `/task-insights` or `/task-insights/tech`) */
   backHref: string;
-  currentUser: { id: string; full_name: string; job_title: string | null; role: string };
+  currentUser: {
+    id: string;
+    full_name: string;
+    job_title: string | null;
+    role: string;
+  };
   /** Optional carousel for Prev / Next */
   agentList?: Profile[];
   onNavigateAgent?: (agentId: string) => void;
@@ -66,10 +71,10 @@ export function EmployeeDossierView({
 
   const currentIndex = agentList.findIndex((a) => a.id === agentId);
   const prevAgent =
-    currentIndex > 0 ? agentList[currentIndex - 1] ?? null : null;
+    currentIndex > 0 ? (agentList[currentIndex - 1] ?? null) : null;
   const nextAgent =
     currentIndex >= 0 && currentIndex < agentList.length - 1
-      ? agentList[currentIndex + 1] ?? null
+      ? (agentList[currentIndex + 1] ?? null)
       : null;
 
   const navigate = (id: string) => {
@@ -78,8 +83,8 @@ export function EmployeeDossierView({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-[#F9F9F6]">
-      <div className="shrink-0 border-b border-[#E5E4DF] bg-[#F9F9F6] px-6 py-4 sm:px-8">
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4">
+      <div className="shrink-0 border-b border-[#E5E4DF] bg-[#F9F9F6] px-5 py-4 sm:px-6">
+        <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 px-5 sm:px-6">
           <Link
             href={backHref}
             className="inline-flex items-center gap-2 text-sm font-medium text-stone-600 transition-colors hover:text-stone-900"
@@ -110,7 +115,7 @@ export function EmployeeDossierView({
         </div>
       </div>
 
-      <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col overflow-hidden border-x border-[#E5E4DF] bg-white shadow-sm md:flex-row">
+      <div className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col overflow-hidden border-x border-[#E5E4DF] bg-white shadow-sm md:flex-row">
         <aside className="w-full shrink-0 overflow-y-auto border-b border-[#E5E4DF] bg-[#F9F9F6] md:w-[300px] md:border-b-0 md:border-r">
           {loading && !dossier ? (
             <div className="flex flex-col gap-4 p-6">
@@ -132,7 +137,10 @@ export function EmployeeDossierView({
               </button>
             </div>
           ) : dossier ? (
-            <EmployeeProfilePanel profile={dossier.profile} metrics={dossier.metrics} />
+            <EmployeeProfilePanel
+              profile={dossier.profile}
+              metrics={dossier.metrics}
+            />
           ) : null}
         </aside>
 
@@ -144,7 +152,10 @@ export function EmployeeDossierView({
                 <div className="h-8 flex-1 animate-pulse rounded bg-stone-200" />
               </div>
               {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="h-10 animate-pulse rounded-lg bg-stone-100" />
+                <div
+                  key={i}
+                  className="h-10 animate-pulse rounded-lg bg-stone-100"
+                />
               ))}
             </div>
           ) : dossier ? (

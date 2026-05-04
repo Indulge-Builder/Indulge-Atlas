@@ -1,11 +1,12 @@
 @import "tailwindcss";
 
 @theme inline {
-  /* Brand Colors */
+  /* Brand Colors — primary accent reads as warm umber/stone (not bright gold);
+     pairs with cream surfaces; attentive without high-chrome “pop”. */
   --color-brand-black: #0a0a0a;
-  --color-brand-gold: #d4af37;
-  --color-brand-gold-light: #e8d06a;
-  --color-brand-gold-dark: #a88b25;
+  --color-brand-gold: #5f5348;
+  --color-brand-gold-light: #7a6b5d;
+  --color-brand-gold-dark: #463d35;
 
   /* Surface / Working Area */
   --color-surface: #f9f9f6;
@@ -50,7 +51,7 @@
   --shadow-elevated:
     0 4px 16px 0 rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.06);
   --shadow-gold:
-    0 0 0 1px rgb(212 175 55 / 0.3), 0 4px 16px rgb(212 175 55 / 0.12);
+    0 0 0 1px rgb(95 83 72 / 0.22), 0 4px 16px rgb(95 83 72 / 0.08);
 }
 
 :root {
@@ -118,7 +119,7 @@ body {
     ),
     radial-gradient(
       ellipse 18% 100% at 0% 50%,
-      rgba(212, 175, 55, 0.04) 0%,
+      rgba(95, 83, 72, 0.06) 0%,
       transparent 100%
     );
 }
@@ -148,7 +149,7 @@ body {
     url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n' x='0' y='0'><feTurbulence type='fractalNoise' baseFrequency='0.72' numOctaves='4' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='200' height='200' filter='url(%23n)' opacity='0.042'/></svg>"),
     radial-gradient(
       ellipse 72% 52% at 10% 0%,
-      rgba(212, 175, 55, 0.075) 0%,
+      rgba(95, 83, 72, 0.055) 0%,
       transparent 58%
     ),
     radial-gradient(

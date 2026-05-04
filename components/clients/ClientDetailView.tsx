@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { ClientOverviewTab } from "@/components/clients/overview/ClientOverviewTab";
+import { FreshdeskTab } from "@/components/clients/FreshdeskTab";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { InfoRow } from "@/components/ui/info-row";
 import { IndulgeField } from "@/components/ui/indulge-field";
@@ -37,6 +39,7 @@ import {
   Watch,
   Users,
   Globe,
+  Ticket,
 } from "lucide-react";
 import { parseISO, isAfter } from "date-fns";
 import { toast } from "sonner";
@@ -83,6 +86,7 @@ function membershipBadgeClass(type: string | null): string {
 
 export function ClientDetailView({ initialDetail }: ClientDetailViewProps) {
   const [detail, setDetail] = useState(initialDetail);
+  const [activeTab, setActiveTab] = useState("overview");
   const [notesLocal, setNotesLocal] = useState(initialDetail.notes ?? "");
   const [notesDirty, setNotesDirty] = useState(false);
 
@@ -90,6 +94,7 @@ export function ClientDetailView({ initialDetail }: ClientDetailViewProps) {
     setDetail(initialDetail);
     setNotesLocal(initialDetail.notes ?? "");
     setNotesDirty(false);
+    setActiveTab("overview");
   }, [initialDetail]);
 
   const d = detail;
@@ -200,19 +205,39 @@ export function ClientDetailView({ initialDetail }: ClientDetailViewProps) {
       </div>
 
       <Tabs
-        defaultValue="profile"
+        value={activeTab}
+        onValueChange={setActiveTab}
         className="flex min-h-0 flex-1 flex-col bg-[#F9F9F6]"
       >
         <div className="shrink-0 border-b border-[#E5E4DF]/80 bg-[#F9F9F6] px-8 pt-4">
           <TabsList className="w-auto justify-start bg-[#F2F2EE]">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="profile">Profile</TabsTrigger>
             <TabsTrigger value="notes">Notes</TabsTrigger>
             <TabsTrigger value="membership">Membership</TabsTrigger>
+            <TabsTrigger value="freshdesk">
+              <Ticket className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+              Service History
+            </TabsTrigger>
           </TabsList>
         </div>
 
-        <div className="mx-auto w-full max-w-5xl flex-1 overflow-y-auto px-8 pb-12 pt-4">
-          <TabsContent value="profile" className="mt-4 space-y-8 focus-visible:outline-none">
+        <div className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col px-8 pb-12 pt-4">
+          <TabsContent
+            value="overview"
+            className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden focus-visible:outline-none data-[state=inactive]:hidden"
+          >
+            <ClientOverviewTab
+              clientId={clientId}
+              detail={d}
+              isActive={activeTab === "overview"}
+            />
+          </TabsContent>
+
+          <TabsContent
+            value="profile"
+            className="mt-4 min-h-0 flex-1 space-y-8 overflow-y-auto focus-visible:outline-none data-[state=inactive]:hidden"
+          >
             <section>
               <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-stone-500">
                 Personal
@@ -307,7 +332,10 @@ export function ClientDetailView({ initialDetail }: ClientDetailViewProps) {
             </section>
           </TabsContent>
 
-          <TabsContent value="notes" className="mt-4 focus-visible:outline-none">
+          <TabsContent
+            value="notes"
+            className="mt-4 min-h-0 flex-1 overflow-y-auto focus-visible:outline-none data-[state=inactive]:hidden"
+          >
             <IndulgeField
               label="Agent notes"
               hint="Private scratchpad · saves when you click away"
@@ -330,7 +358,10 @@ export function ClientDetailView({ initialDetail }: ClientDetailViewProps) {
             </p>
           </TabsContent>
 
-          <TabsContent value="membership" className="mt-4 space-y-8 focus-visible:outline-none">
+          <TabsContent
+            value="membership"
+            className="mt-4 min-h-0 flex-1 space-y-8 overflow-y-auto focus-visible:outline-none data-[state=inactive]:hidden"
+          >
             <section className="rounded-2xl border border-[#E5E4DF] bg-white p-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <InfoRow icon={CreditCard} label="Membership type" value={np(d.membership_type)} />
@@ -438,6 +469,18 @@ export function ClientDetailView({ initialDetail }: ClientDetailViewProps) {
                 />
               </div>
             </section>
+          </TabsContent>
+
+          <TabsContent
+            value="freshdesk"
+            className="mt-4 min-h-0 flex-1 overflow-y-auto focus-visible:outline-none data-[state=inactive]:hidden"
+          >
+            <FreshdeskTab
+              clientId={clientId}
+              clientPhone={d.phone_number}
+              clientName={[d.first_name, d.last_name].filter(Boolean).join(" ").trim()}
+              isActive={activeTab === "freshdesk"}
+            />
           </TabsContent>
         </div>
       </Tabs>

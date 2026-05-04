@@ -1,6 +1,6 @@
 # Indulge Atlas — AI Context File
 
-> **Updated**: 2026-04-23  
+> **Updated**: 2026-05-05  
 > **Purpose**: Fast-load context for AI assistants. Read this once and be ready to work.  
 > Supersedes all prior versions. Full reference: `ATLAS_BLUEPRINT.md`.
 
@@ -8,7 +8,7 @@
 
 ## Project Summary
 
-**Indulge Atlas** is a bespoke Company OS for the Indulge Group — a luxury lifestyle brand. It started as a CRM for inbound sales leads and is expanding into a full internal platform (HR, projects, finance, AI assistant). Stack: **Next.js 16.1.6 + React 19** App Router, **Supabase** (PostgreSQL 15 + Auth + Realtime), **TypeScript strict**, **Tailwind CSS v4** (beta), **Radix UI + shadcn/ui**. Current phase: CRM is production-ready, Projects system just shipped, department access control just shipped, Elia AI assistant in preview.
+**Indulge Atlas** is a bespoke Company OS for the Indulge Group — a luxury lifestyle brand. It started as a CRM for inbound sales leads and is expanding into a full internal platform (HR, projects, finance, AI assistant). Stack: **Next.js 16.1.6 + React 19** App Router, **Supabase** (PostgreSQL 15 + Auth + Realtime), **TypeScript strict**, **Tailwind CSS v4** (beta), **Radix UI + shadcn/ui**. Current phase: CRM is production-ready, **Clients** directory with **Overview** (on-demand Elia member summary, metrics, scoped chat), Freshdesk **Service History**, Projects system shipped, department access control shipped, Elia AI assistant in preview (`/elia-preview` + `/api/elia/chat`).
 
 ---
 
@@ -20,24 +20,36 @@ app/(dashboard)/          All authenticated routes — shares DashboardLayout
   layout.tsx              Auth gate + provider tree (TaskReminder→LeadAlert→Chat→Profile→SLA)
   page.tsx                / — Agent Dashboard
   leads/[id]/page.tsx     Lead Dossier RSC (force-dynamic)
+  clients/                Client directory + profile (default **Overview** tab: **Generate summary** → on-demand Elia read; metrics; scoped chat; Profile, Notes, Membership, Service History / Freshdesk)
   manager/                Manager Command Center — campaigns, planner, roster, team
   projects/[id]/          Projects board system
+  task-insights/          Org-wide task view (manager / admin / founder): index, `[departmentId]` detail, `agents/[agentId]` dossier
   concierge/              ⚠️ MOCK DATA — fabricated UHNI profiles served to real users
-  elia-preview/           Elia AI assistant UI preview
+  elia-preview/           Elia AI assistant UI preview (uses POST /api/elia/chat)
+app/api/                  elia/chat — Anthropic Haiku (global or client-scoped via optional clientId)
 app/api/webhooks/         Pabbly (leads/meta, leads/google, leads/website, ads) + WhatsApp
 
 components/ui/            Zero-dependency design system — Button, Card, Input, IndulgeButton, IndulgeField, InfoRow
 components/leads/         All CRM lead components (dossier panels, modals, table)
+components/clients/       Client list, ClientDetailView / ClientProfileSheet, FreshdeskTab, TicketCard; **overview/** (Overview tab UI)
 components/manager/       Manager suite (MorningBriefing, CampaignDossier, AgentCard, etc.)
 components/projects/      Project board, list, task cards, task detail sheet
+components/task-intelligence/  Task Insights dashboard, department detail, employee dossier, workspace bento grid (`taskInsightsBento.ts`), AssignTaskModal
 components/elia/          EliaSidePanel.jsx — AI assistant (JSX not TSX ⚠️)
 components/layout/        Sidebar, TopBar, NotificationBell
 
 lib/actions/              ALL Server Actions — the only component-facing data layer
   leads.ts                Lead mutations, won deal, activity logging
+  clients.ts              Client directory, detail, notes, profile updates
+  freshdesk.ts            Freshdesk tickets + Elia AI ticket summary (auth + read-only)
+  elia.ts                 Elia member DB context (preview chat), getEliaSingleClientProfileText, **getClientSummary** (Haiku); sync helpers MUST NOT be exported here — use `lib/elia/chat-prompt.ts`
   projects.ts             Project + task group + project task CRUD
+  tasks.ts                Atlas unified tasks (masters, subtasks, personal, import)
+  task-intelligence.ts    Task Insights + employee dossier read APIs
   manager-analytics.ts    Manager leaderboard, funnel, wins
   [module].ts             One file per feature domain
+lib/freshdesk/            Freshdesk REST client + types — **server-only**; call via `lib/actions/freshdesk.ts` only
+lib/elia/                 chat-prompt.ts — Elia system prompts + sync helpers (not `"use server"`)
 lib/services/             Internal business services (not component-facing)
   leadIngestion.ts        Webhook ETL + agent assignment waterfall
   fieldMappingEngine.ts   Dynamic field mapping from DB rules
@@ -112,15 +124,17 @@ async function getAuthUser() {
 <div className={surfaceCardVariants({ tone: "luxury", elevation: "sm" })} />
 ```
 
-### Design Tokens
+### Design Tokens (`app/globals.css` — `@theme inline`)
 
-- **Brand gold**: `#D4AF37`
-- **Surface white**: `#F9F9F6` (off-white)
+- **Primary accent** — `--color-brand-gold` / `--color-brand-gold-light` / `--color-brand-gold-dark` → Tailwind `brand-gold` utilities. **Legacy name `gold`:** values are **muted warm umber** (`#5f5348` base), paired with cream surfaces — not bright metallic gold.
+- **Primary CTA** — `IndulgeButton` / `Button` **`variant="gold"`** → `bg-brand-gold`, `text-surface`, `hover:bg-brand-gold-dark` (`components/ui/button.tsx`).
+- **Surface white**: `#F9F9F6` (`--color-surface` / `text-surface` on dark fills)
 - **Border**: `#E5E4DF`
 - **Dark shell**: `#1A1814` (layout-canvas)
 - **Card tones**: `luxury` (white), `subtle`, `glass` (blur), `stone` (#F9F9F6), `dark` (#1A1814)
 - **Layout**: `.layout-canvas` (dark textured shell) + `.paper-shadow` (floating content card, 12px above canvas on 3 sides)
 - **Typography**: Playfair Display (headings), Geist Sans (body)
+- **Migration note:** many files still hardcode `#D4AF37`; prefer **`brand-gold`** for new UI.
 
 ### Data Safety Rules
 
@@ -211,9 +225,13 @@ await supabase.auth.admin.createUser({
 
 ---
 
-## Active Context (as of 2026-04-23)
+## Active Context (as of 2026-05-05)
 
 **Recently shipped:**
+- **Design tokens + primary CTA** — `app/globals.css` `@theme inline`: **`--color-brand-gold*`** values are **muted warm umber** (cream-friendly accent; legacy `gold` naming). `components/ui/button.tsx` **`gold`** variant uses `bg-brand-gold` / `text-surface` / `hover:bg-brand-gold-dark`. Many legacy **`#D4AF37`** literals remain across the repo.
+- **Task Insights (`/task-insights`)** — Main page: `max-w-5xl`; department **chip** filter; tabs **Agents** (first) then **All workspaces**; agent summaries **prefetched** when scope changes (not tab-gated); no department **card grid** on index (department drill-down remains at `/task-insights/[departmentId]`). Workspace tiles: bento-style grid + compact cards (`GroupTasksCommandView`, `taskInsightsBento.ts`). Employee list: signed-in user first, SOP section hides completed rows, hint “Click on a card to open.”
+- **Client dossier Overview tab** — `/clients/[id]` default tab: **on-demand** Haiku **member summary** (`getClientSummary` via **Generate summary** in `ClientOverviewTab` / `ClientSummaryCard`); Freshdesk-backed **metrics** (still on load); **client-scoped Elia chat** (POST `/api/elia/chat` with `clientId`). Components: `components/clients/overview/*`; prompts in `lib/elia/chat-prompt.ts`; logic in `lib/actions/elia.ts`
+- **Clients + Freshdesk Service History** — `/clients`; live tickets (`FRESHDESK_API_KEY`); Elia ticket summary (`lib/actions/freshdesk.ts`, Haiku; same transport as `/api/elia/chat`)
 - Migrations 062–066: Projects system + department access control
 - `components/projects/` — full board and task UI
 - `components/manager/` — full manager suite
@@ -223,13 +241,26 @@ await supabase.auth.admin.createUser({
 - `sendDefaultPii: false` in Sentry configs
 
 **Currently in development:**
-- `components/elia/EliaSidePanel.jsx` — Elia AI assistant side panel (preview mode, no backend)
-- `app/(dashboard)/elia-preview/page.tsx` — preview route for Elia
+- `components/elia/EliaSidePanel.jsx` — sidebar shell (JSX); delegates chat to `/api/elia/chat` + global member context
+- Further Elia features (beyond Overview + preview + ticket summaries)
 
 **Immediate priorities:**
 1. Create `middleware.ts` at root — critical bug, session refresh not working
 2. Replace mock data in `/concierge` page with a real stub or "Coming Soon" gate
-3. Continue expanding Elia backend
+3. Continue expanding Elia (tools, persistence, etc.)
+
+---
+
+## Elia integration (quick reference)
+
+| Surface | Mechanism |
+|--------|-----------|
+| `/elia-preview`, sidebar panel | POST `/api/elia/chat` — body `{ message, conversationHistory? }` — loads **all** serialized members via `getEliaClientContext()` |
+| `/clients/[id]` Overview chat | Same route — add **`clientId`** (UUID) — loads one member via `getEliaSingleClientProfileText`, `eliaClientScopedPrompt` |
+| Overview summary card | Server Action **`getClientSummary(clientId)`** — Haiku, client + profile + Freshdesk snapshot; invoked **only** when the user clicks **Generate summary** (`ClientOverviewTab`) |
+| Service History ticket AI | **`getTicketAISummary`** in `lib/actions/freshdesk.ts` |
+
+**Env:** `ANTHROPIC_API_KEY` (server). **`lib/actions/elia.ts`** must export **async** server actions only — put synchronous helpers in **`lib/elia/chat-prompt.ts`** (or another non–`use server` module).
 
 ---
 
@@ -256,7 +287,7 @@ await supabase.auth.admin.createUser({
 
 1. **`middleware.ts` does not exist** — `proxy.ts` is the implementation but Next.js never loads it. Session refresh and edge auth gate are non-functional. Fix: `export { proxy as middleware, config } from "./proxy"` in a new `middleware.ts`.
 
-2. **Tailwind v4** — uses `@tailwindcss/postcss` plugin, not the v3 `tailwindcss` plugin. Some v3 patterns don't work. Design tokens are in `app/globals.css` `@theme inline {}` block.
+2. **Tailwind v4** — uses `@tailwindcss/postcss` plugin, not the v3 `tailwindcss` plugin. Some v3 patterns don't work. Design tokens live in `app/globals.css` **`@theme inline`** (Section 5.1 in `ATLAS_BLUEPRINT.md`): brand accent as **umber** under legacy `--color-brand-gold*` names; many components still use hardcoded `#D4AF37`.
 
 3. **`indulge_global` has two meanings** — pre-056 it was the old name for `indulge_concierge` domain. Post-066 it was re-added as a NEW real domain for Finance/Tech/Marketing cross-domain read access. The `pick_next_agent_for_domain()` function still normalizes `indulge_global` → `indulge_concierge` for lead assignment (Finance/Tech staff are not in the lead assignment pool).
 
@@ -281,3 +312,7 @@ await supabase.auth.admin.createUser({
 13. **`supabase/20260308000000_initial_schema.sql`** — a migration file outside the numbered `001–066` sequence. Its relationship to the canonical migration history is unclear. Don't reference it in new migration work.
 
 14. **`SCOUT_TASK_TYPES`** in `lib/types/database.ts` — marked `@deprecated`, still present. Use `MANAGER_TASK_TYPES` instead.
+
+15. **Freshdesk is server-only** — never import `lib/freshdesk/client.ts` from client components. Use `getClientFreshdeskTickets` / `getTicketAISummary` from `lib/actions/freshdesk.ts` only. `FRESHDESK_API_KEY` must not appear in client bundles.
+
+16. **`"use server"` action modules** — Next.js requires **async** exports from `lib/actions/*.ts`. Put synchronous helpers (e.g. `parseEliaClientDisplayNameFromProfile`, prompt string builders) in **`lib/elia/chat-prompt.ts`** or a util module without `"use server"`.

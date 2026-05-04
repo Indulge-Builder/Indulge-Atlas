@@ -28,7 +28,7 @@ const BADGE_LABEL = {
   healthy: "On Track",
 } as const;
 
-type TabKey = "group" | "individual";
+type TabKey = "group" | "agents";
 
 function getLucideIcon(name: string) {
   const icons = LucideIcons as unknown as Record<
@@ -74,7 +74,7 @@ export function DepartmentDetailView({ overview, currentUser }: DepartmentDetail
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="shrink-0 border-b border-[#E5E4DF] bg-[#F9F9F6] px-6 py-4 sm:px-8">
+      <div className="shrink-0 border-b border-[#E5E4DF] bg-[#F9F9F6] px-5 py-4 sm:px-6">
         <Link
           href="/task-insights"
           className="inline-flex items-center gap-2 text-sm font-medium text-stone-600 transition-colors hover:text-stone-900"
@@ -84,7 +84,7 @@ export function DepartmentDetailView({ overview, currentUser }: DepartmentDetail
         </Link>
       </div>
 
-      <div className="mx-auto w-full max-w-[1100px] flex-1 px-6 py-6 sm:px-8 sm:py-8">
+      <div className="mx-auto w-full max-w-5xl flex-1 px-5 py-6 sm:px-6 sm:py-8">
         <div
           className={cn(
             "flex min-h-[min(92vh,880px)] flex-col overflow-hidden",
@@ -146,7 +146,7 @@ export function DepartmentDetailView({ overview, currentUser }: DepartmentDetail
               onKeyDown={(e) => {
                 if (e.key === "ArrowRight") {
                   e.preventDefault();
-                  setTab("individual");
+                  setTab("agents");
                 }
                 if (e.key === "ArrowLeft") {
                   e.preventDefault();
@@ -154,7 +154,7 @@ export function DepartmentDetailView({ overview, currentUser }: DepartmentDetail
                 }
               }}
             >
-              {(["group", "individual"] as const).map((key) => (
+              {(["group", "agents"] as const).map((key) => (
                 <button
                   key={key}
                   type="button"
@@ -167,7 +167,7 @@ export function DepartmentDetailView({ overview, currentUser }: DepartmentDetail
                     tab === key ? "text-[#1A1A1A]" : "text-[#8A8A6E] hover:text-[#1A1A1A]",
                   )}
                 >
-                  {key === "group" ? "Group Tasks" : "Individual Tasks"}
+                  {key === "group" ? "Group Tasks" : "Agents"}
                   {tab === key && (
                     <motion.span
                       layoutId="ti-dept-tab-underline"

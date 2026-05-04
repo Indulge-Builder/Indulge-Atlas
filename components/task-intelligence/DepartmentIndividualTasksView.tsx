@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import type {
   EmployeeDepartment,
   IndulgeDomain,
@@ -64,12 +65,19 @@ export function DepartmentIndividualTasksView({
   currentUser,
   returnToPath = null,
 }: DepartmentIndividualTasksViewProps) {
-  void currentUser;
+  const orderedAgents = useMemo(() => {
+    const me = currentUser.id;
+    return [...agents].sort((a, b) => {
+      if (a.id === me) return -1;
+      if (b.id === me) return 1;
+      return a.full_name.localeCompare(b.full_name, undefined, { sensitivity: "base" });
+    });
+  }, [agents, currentUser.id]);
 
   return (
     <div className="flex min-h-0 flex-col gap-4">
       <div className="-mx-1 flex gap-4 overflow-x-auto px-1 pb-2 pt-1 [scrollbar-width:thin]">
-        {agents.map((agent) => (
+        {orderedAgents.map((agent) => (
           <AgentHealthCard
             key={agent.id}
             profile={summaryToProfile(agent, departmentId)}
@@ -81,7 +89,7 @@ export function DepartmentIndividualTasksView({
       </div>
 
       <p className="text-center font-[family-name:var(--font-playfair)] text-sm italic text-stone-500">
-        Select a teammate to open their dossier and tasks.
+        Click on a card to open.
       </p>
     </div>
   );

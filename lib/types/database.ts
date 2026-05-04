@@ -611,7 +611,7 @@ export interface OrganisationTaskContext {
   };
 }
 
-/** Agent row for the Individual Tasks tab (modal). */
+/** Agent row for the Task Insights Agents tab. */
 export interface TaskIntelligenceAgentSummary {
   id: string;
   full_name: string;
@@ -621,7 +621,7 @@ export interface TaskIntelligenceAgentSummary {
   statusCounts: Partial<Record<AtlasTaskStatus, number>>;
   todaySopCompletionPct: number;
   overduePersonalCount: number;
-  /** From `profiles.domain` — used for domain chip filters on the Individual tab. */
+  /** From `profiles.domain` — used for domain chip filters on the Agents tab. */
   domain: IndulgeDomain;
   /** Agent's department (for dossier + profile context). */
   department: EmployeeDepartment | null;
