@@ -2,7 +2,7 @@
 ## Indulge Atlas — Complete System Reference & Architectural Contract
 
 > **Authored**: 2026-04-23 · **Updated**: 2026-05-05  
-> **Based on**: Full codebase audit, numbered migrations through **080**, lib/ and app/, git status  
+> **Based on**: Full codebase audit, numbered migrations through **089** (client profile / completeness stack **087–089**), lib/ and app/, git status  
 > **Task system detail**: See **`task_details.md`** (master reference for `/tasks`, `/task-insights`, schema 067+, actions, realtime).  
 > **Status**: Authoritative specification. Supersedes all prior versions.  
 > **Audience**: Engineers, technical stakeholders.
@@ -30,7 +30,7 @@
 - **Managers** — cross-agent performance, campaign analytics, morning briefings
 - **Admins/Founders** — user management, routing rules, integrations, full visibility
 - **Internal support staff** (Tech, Finance, Marketing, Onboarding) — projects, tasks, cross-domain analytics
-- **Elia AI** — AI assistant (in preview) embedded in the sidebar
+- **Elia AI** — Member intelligence assistant (in preview): **full-page** `/elia-preview` (`EliaChat` + `EliaChatMessage`, TypeScript) and **sidebar** shell (`EliaSidePanel.jsx`); shared POST **`/api/elia/chat`**
 
 ### Core Problems Solved
 
@@ -102,7 +102,7 @@
 
 | Feature | Location | Status |
 |---|---|---|
-| Elia AI Assistant | `app/(dashboard)/elia-preview/page.tsx`, `components/elia/EliaSidePanel.jsx` | Sidebar + preview UI in JSX (not TSX). **Backend:** `app/api/elia/chat/route.ts` (Anthropic Haiku) — global member DB context from `getEliaClientContext` in `lib/actions/elia.ts`, or optional **`clientId`** body field for single-member scoped prompts. Client dossier **Overview** tab uses the same route with `clientId`. |
+| Elia AI Assistant | `app/(dashboard)/elia-preview/page.tsx`, `components/elia/EliaChat.tsx`, `EliaChatMessage.tsx`, `EliaSidePanel.jsx` | **`/elia-preview`:** RSC passes `clientCount` from **`getEliaActiveMemberCount()`**; client chat uses **`atlas-masthead-texture`**, **`surfaceCardVariants`**, theme tokens (`brand-gold`, `#E5E4DF`, secondary text `#6b6b6b`), Framer Motion intro + message transitions; last **10** turns in `conversationHistory`. **`EliaSidePanel.jsx`:** sidebar shell (JSX, not TSX). **Backend:** `app/api/elia/chat/route.ts` (Anthropic Haiku) — global context from **`getEliaClientContext`**, or optional **`clientId`** for **`eliaClientScopedPrompt`** (`lib/elia/chat-prompt.ts`). Client **Overview** tab uses the same route with `clientId`. |
 | Manager Morning Briefing | `components/manager/MorningBriefing.tsx` | Some widgets real, some stubs |
 | Executive Briefing | `lib/briefing/executiveBriefing.ts`, `lib/actions/briefing.ts` | Service exists, no clear UI page consuming it |
 | Performance analytics | `app/(dashboard)/performance/page.tsx` | Page + `lib/actions/performance.ts` exists; mix of real and stubbed data |
@@ -363,7 +363,7 @@ TaskReminderProvider
 │   │   ├── escalations/page.tsx
 │   │   ├── conversions/page.tsx
 │   │   ├── concierge/page.tsx      ⚠️ MOCK DATA — full mock UHNI profiles served
-│   │   ├── elia-preview/page.tsx   Elia AI assistant preview (in development)
+│   │   ├── elia-preview/page.tsx   Elia preview — `EliaChat` + member count (`getEliaActiveMemberCount`)
 │   │   ├── indulge-world/page.tsx  Brand/org chart page
 │   │   ├── projects/               → 301 redirect to /tasks (see next.config.ts)
 │   │   ├── manager/                Manager workspace (fully consolidated)
@@ -416,7 +416,7 @@ TaskReminderProvider
 │   ├── task-intelligence/          Task Insights UI: `TaskIntelligenceDashboard`, `GroupTasksCommandView`, `DepartmentDetailView`, `EmployeeDossierView`, `DepartmentIndividualTasksView`, `taskInsightsBento.ts`, etc.
 │   ├── clients/                    Client list + profile; `overview/` (Overview: on-demand Elia summary, metrics, scoped chat); Freshdesk tab
 │   ├── concierge/                  ConciergeClient.tsx — ⚠️ ALL MOCK DATA
-│   ├── elia/                       EliaSidePanel.jsx, EliaChat.tsx — AI assistant; POST `/api/elia/chat`
+│   ├── elia/                       `EliaChat.tsx`, `EliaChatMessage.tsx` (preview UI); `EliaSidePanel.jsx` (sidebar); POST `/api/elia/chat`
 │   ├── shop/                       Shop War Room components
 │   ├── sla/                        SLAProvider + ProfileProvider
 │   ├── providers/                  TaskAlertProvider, LeadAlertProvider, CommandPaletteProvider
@@ -977,6 +977,7 @@ Build order:
 | 2026-04-22–23 | Migrations 062–066: Projects system, department access control; `/scout/*` redirects live; `sendDefaultPii` fixed; `lib/utils/sla.ts` consolidated; manager suite fully built; `lib/constants/departments.ts` added |
 | 2026-04-23 | `ATLAS_BLUEPRINT.md` v2 |
 | 2026-05-05 | **v3.1** — Task Insights index refresh: `max-w-5xl`, Agents-first tabs + prefetch, department chips only (no index department grid), bento workspace tiles (`taskInsightsBento.ts`), dossier SOP strip + copy tweaks; `CLAUDE.md` / blueprint aligned |
+| 2026-05-05 | **v3.2** — **`/elia-preview`** flagship chat: `components/elia/EliaChat.tsx` + `EliaChatMessage.tsx` (strict TS), Atlas design tokens + `surfaceCardVariants`, `getEliaActiveMemberCount` on page, welcome / side rails / stats / motion; sidebar `EliaSidePanel.jsx` unchanged (still JSX) |
 | 2026-04-30 | **v3** — 71 migrations through **080**; **`task_details.md`** master task reference; Atlas unified tasks + Task Insights; `/projects` → `/tasks`; schema sections for `task_remarks`, `task_notifications`; middleware wiring note |
 
 ---

@@ -8,7 +8,7 @@
 
 ## Project Summary
 
-**Indulge Atlas** is a bespoke Company OS for the Indulge Group — a luxury lifestyle brand. It started as a CRM for inbound sales leads and is expanding into a full internal platform (HR, projects, finance, AI assistant). Stack: **Next.js 16.1.6 + React 19** App Router, **Supabase** (PostgreSQL 15 + Auth + Realtime), **TypeScript strict**, **Tailwind CSS v4** (beta), **Radix UI + shadcn/ui**. Current phase: CRM is production-ready, **Clients** directory with **Overview** (on-demand Elia member summary, metrics, scoped chat), Freshdesk **Service History**, Projects system shipped, department access control shipped, Elia AI assistant in preview (`/elia-preview` + `/api/elia/chat`).
+**Indulge Atlas** is a bespoke Company OS for the Indulge Group — a luxury lifestyle brand. It started as a CRM for inbound sales leads and is expanding into a full internal platform (HR, projects, finance, AI assistant). Stack: **Next.js 16.1.6 + React 19** App Router, **Supabase** (PostgreSQL 15 + Auth + Realtime), **TypeScript strict**, **Tailwind CSS v4** (beta), **Radix UI + shadcn/ui**. Current phase: CRM is production-ready, **Clients** directory with **Overview** (on-demand Elia member summary, metrics, scoped chat), Freshdesk **Service History**, Projects system shipped, department access control shipped, Elia AI: **full-page preview** at **`/elia-preview`** (`EliaChat` / `EliaChatMessage`, theme-aligned) + **`/api/elia/chat`**, sidebar **`EliaSidePanel.jsx`** still in preview.
 
 ---
 
@@ -25,7 +25,7 @@ app/(dashboard)/          All authenticated routes — shares DashboardLayout
   projects/[id]/          Projects board system
   task-insights/          Org-wide task view (manager / admin / founder): index, `[departmentId]` detail, `agents/[agentId]` dossier
   concierge/              ⚠️ MOCK DATA — fabricated UHNI profiles served to real users
-  elia-preview/           Elia AI assistant UI preview (uses POST /api/elia/chat)
+  elia-preview/           Full-page Elia chat — `EliaChat` + `EliaChatMessage`; RSC loads `getEliaActiveMemberCount()` → `clientCount`; POST `/api/elia/chat`
 app/api/                  elia/chat — Anthropic Haiku (global or client-scoped via optional clientId)
 app/api/webhooks/         Pabbly (leads/meta, leads/google, leads/website, ads) + WhatsApp
 
@@ -35,14 +35,14 @@ components/clients/       Client list, ClientDetailView / ClientProfileSheet, Fr
 components/manager/       Manager suite (MorningBriefing, CampaignDossier, AgentCard, etc.)
 components/projects/      Project board, list, task cards, task detail sheet
 components/task-intelligence/  Task Insights dashboard, department detail, employee dossier, workspace bento grid (`taskInsightsBento.ts`), AssignTaskModal
-components/elia/          EliaSidePanel.jsx — AI assistant (JSX not TSX ⚠️)
+components/elia/          `EliaChat.tsx`, `EliaChatMessage.tsx` — `/elia-preview` UI (TSX). `EliaSidePanel.jsx` — sidebar shell (JSX not TSX ⚠️)
 components/layout/        Sidebar, TopBar, NotificationBell
 
 lib/actions/              ALL Server Actions — the only component-facing data layer
   leads.ts                Lead mutations, won deal, activity logging
   clients.ts              Client directory, detail, notes, profile updates
   freshdesk.ts            Freshdesk tickets + Elia AI ticket summary (auth + read-only)
-  elia.ts                 Elia member DB context (preview chat), getEliaSingleClientProfileText, **getClientSummary** (Haiku); sync helpers MUST NOT be exported here — use `lib/elia/chat-prompt.ts`
+  elia.ts                 Elia: `getEliaClientContext`, **`getEliaActiveMemberCount`** (preview header stats), `getEliaSingleClientProfileText`, **getClientSummary** (Haiku); sync helpers MUST NOT be exported here — use `lib/elia/chat-prompt.ts`
   projects.ts             Project + task group + project task CRUD
   tasks.ts                Atlas unified tasks (masters, subtasks, personal, import)
   task-intelligence.ts    Task Insights + employee dossier read APIs
@@ -78,7 +78,7 @@ proxy.ts                  Next.js middleware IMPL — ⚠️ NOT loaded (no midd
 - **Components**: domain-specific in `components/<domain>/`, shared primitives in `components/ui/`
 - **Hard rule**: `components/ui/` never imports from `lib/actions/` or any feature code
 - **Hard rule**: Client components never call Supabase directly for writes — always through Server Actions
-- **TypeScript**: strict mode everywhere. Only exception: `components/elia/EliaSidePanel.jsx` (fix this)
+- **TypeScript**: strict mode everywhere. JSX-only exceptions: **`components/elia/EliaSidePanel.jsx`** (fix to `.tsx` when touched)
 
 ### Every Server Action Pattern
 
@@ -228,6 +228,7 @@ await supabase.auth.admin.createUser({
 ## Active Context (as of 2026-05-05)
 
 **Recently shipped:**
+- **`/elia-preview` Elia chat** — `components/elia/EliaChat.tsx`, `EliaChatMessage.tsx`: Atlas tokens (`atlas-masthead-texture`, `surfaceCardVariants`, `brand-gold`, `#E5E4DF`), secondary copy at **`#6b6b6b`** (matches `:root` `--muted-foreground`); three-column layout (md+); Framer Motion load + message enter; `app/(dashboard)/elia-preview/page.tsx` passes **`clientCount`** from **`getEliaActiveMemberCount()`**; same POST **`/api/elia/chat`** contract (incl. last **10** `conversationHistory` turns)
 - **Design tokens + primary CTA** — `app/globals.css` `@theme inline`: **`--color-brand-gold*`** values are **muted warm umber** (cream-friendly accent; legacy `gold` naming). `components/ui/button.tsx` **`gold`** variant uses `bg-brand-gold` / `text-surface` / `hover:bg-brand-gold-dark`. Many legacy **`#D4AF37`** literals remain across the repo.
 - **Task Insights (`/task-insights`)** — Main page: `max-w-5xl`; department **chip** filter; tabs **Agents** (first) then **All workspaces**; agent summaries **prefetched** when scope changes (not tab-gated); no department **card grid** on index (department drill-down remains at `/task-insights/[departmentId]`). Workspace tiles: bento-style grid + compact cards (`GroupTasksCommandView`, `taskInsightsBento.ts`). Employee list: signed-in user first, SOP section hides completed rows, hint “Click on a card to open.”
 - **Client dossier Overview tab** — `/clients/[id]` default tab: **on-demand** Haiku **member summary** (`getClientSummary` via **Generate summary** in `ClientOverviewTab` / `ClientSummaryCard`); Freshdesk-backed **metrics** (still on load); **client-scoped Elia chat** (POST `/api/elia/chat` with `clientId`). Components: `components/clients/overview/*`; prompts in `lib/elia/chat-prompt.ts`; logic in `lib/actions/elia.ts`
@@ -241,8 +242,8 @@ await supabase.auth.admin.createUser({
 - `sendDefaultPii: false` in Sentry configs
 
 **Currently in development:**
-- `components/elia/EliaSidePanel.jsx` — sidebar shell (JSX); delegates chat to `/api/elia/chat` + global member context
-- Further Elia features (beyond Overview + preview + ticket summaries)
+- **`components/elia/EliaSidePanel.jsx`** — sidebar shell (JSX); same `/api/elia/chat` + global context as preview
+- Further Elia features (tools, persistence, streaming, RAG beyond current context packing)
 
 **Immediate priorities:**
 1. Create `middleware.ts` at root — critical bug, session refresh not working
@@ -255,7 +256,8 @@ await supabase.auth.admin.createUser({
 
 | Surface | Mechanism |
 |--------|-----------|
-| `/elia-preview`, sidebar panel | POST `/api/elia/chat` — body `{ message, conversationHistory? }` — loads **all** serialized members via `getEliaClientContext()` |
+| `/elia-preview` | `EliaChat` — POST `/api/elia/chat` with `{ message, conversationHistory? }`; **all** serialized members via `getEliaClientContext()`; page RSC supplies **`clientCount`** via **`getEliaActiveMemberCount()`** for right-rail stats |
+| Sidebar `EliaSidePanel` | Same route + global context (JSX panel) |
 | `/clients/[id]` Overview chat | Same route — add **`clientId`** (UUID) — loads one member via `getEliaSingleClientProfileText`, `eliaClientScopedPrompt` |
 | Overview summary card | Server Action **`getClientSummary(clientId)`** — Haiku, client + profile + Freshdesk snapshot; invoked **only** when the user clicks **Generate summary** (`ClientOverviewTab`) |
 | Service History ticket AI | **`getTicketAISummary`** in `lib/actions/freshdesk.ts` |
@@ -297,7 +299,7 @@ await supabase.auth.admin.createUser({
 
 6. **`force-dynamic` on lead dossier** — `app/(dashboard)/leads/[id]/page.tsx` exports `dynamic = "force-dynamic"`. Every dossier load is a full SSR — intentional for per-user data.
 
-7. **`EliaSidePanel.jsx` is `.jsx` not `.tsx`** — bypasses TypeScript. All other components are `.tsx`.
+7. **`components/elia/EliaSidePanel.jsx` is `.jsx` not `.tsx`** — bypasses TypeScript. **`EliaChat.tsx` / `EliaChatMessage.tsx`** are strict TSX.
 
 8. **`lib/concierge/mockData.ts` is live** — imported by `ConciergeClient.tsx` which is served via the sidebar to real users. Treat it as a critical debt item.
 

@@ -154,14 +154,12 @@ function ZoneA({
   function handleSave() {
     startTransition(async () => {
       const payload: UpdateSubTaskInput = {
+        title:        title.trim() || "Untitled",
         description:  description || null,
         due_date:     dueAt ? dueAt.toISOString() : null,
         priority:     priority as TaskPriority,
         atlas_status: status,
       };
-      if (isPersonalMode) {
-        payload.title = title.trim() || "Untitled";
-      }
       if (canAssignSubtask) {
         payload.assigned_to_users = assigneeUserId ? [assigneeUserId] : [];
       }
@@ -181,29 +179,27 @@ function ZoneA({
       <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6 min-h-0">
         <SectionLabel>The Brief</SectionLabel>
 
-        {/* Title — personal tasks only (subtask title is edited from workspace board). */}
-        {isPersonalMode && (
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-[#B5A99A] mb-2">
-              Title
-            </p>
-            {editable ? (
-              <IndulgeField htmlFor="personal-task-title">
-                <input
-                  id="personal-task-title"
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  maxLength={255}
-                  className="w-full rounded-lg border border-[#E5E4DF] bg-[#F9F9F6] px-3 py-2.5 text-[13px] text-[#1A1A1A] placeholder:text-[#B5A99A] outline-none focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]/30 transition-colors"
-                  placeholder="What needs to be done?"
-                />
-              </IndulgeField>
-            ) : (
-              <div className="text-[13px] font-medium text-[#1A1A1A]">{task.title}</div>
-            )}
-          </div>
-        )}
+        {/* Title — workspace subtasks and personal tasks */}
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-[#B5A99A] mb-2">
+            Title
+          </p>
+          {editable ? (
+            <IndulgeField htmlFor="subtask-modal-task-title">
+              <input
+                id="subtask-modal-task-title"
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                maxLength={255}
+                className="w-full rounded-lg border border-[#E5E4DF] bg-[#F9F9F6] px-3 py-2.5 text-[13px] text-[#1A1A1A] placeholder:text-[#B5A99A] outline-none focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]/30 transition-colors"
+                placeholder="What needs to be done?"
+              />
+            </IndulgeField>
+          ) : (
+            <div className="text-[13px] font-medium text-[#1A1A1A]">{task.title}</div>
+          )}
+        </div>
 
         {/* Objective / notes */}
         <div>
