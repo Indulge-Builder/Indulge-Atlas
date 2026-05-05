@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ClientOverviewTab } from "@/components/clients/overview/ClientOverviewTab";
+import { ClientProfileFields } from "@/components/clients/profile/ClientProfileFields";
+import { ClientMembershipTab } from "@/components/clients/membership/ClientMembershipTab";
+import { ChettoTab } from "@/components/clients/chetto/ChettoTab";
 import { FreshdeskTab } from "@/components/clients/FreshdeskTab";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { InfoRow } from "@/components/ui/info-row";
 import { IndulgeField } from "@/components/ui/indulge-field";
 import { Textarea } from "@/components/ui/textarea";
-import { IndulgeButton } from "@/components/ui/indulge-button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -16,32 +17,14 @@ import {
   updateClientNotes,
   type ClientDetail,
 } from "@/lib/actions/clients";
-import { formatPhoneForDisplay } from "@/lib/utils/format-phone-display";
 import { formatIST } from "@/lib/utils/time";
 import { cn } from "@/lib/utils";
 import {
   ArrowLeft,
-  Cake,
-  Heart,
-  Plane,
-  UtensilsCrossed,
-  Trophy,
-  Phone,
-  Mail,
-  Copy,
-  Sparkles,
-  CalendarRange,
-  CreditCard,
-  Building2,
-  Hash,
-  Wine,
-  Car,
-  Watch,
-  Users,
-  Globe,
+  MessageCircle,
   Ticket,
 } from "lucide-react";
-import { parseISO, isAfter } from "date-fns";
+import { isAfter, parseISO } from "date-fns";
 import { toast } from "sonner";
 
 interface ClientDetailViewProps {
@@ -51,15 +34,6 @@ interface ClientDetailViewProps {
 function np(value: string | null | undefined): string {
   if (value == null || String(value).trim() === "") return "Not provided";
   return String(value);
-}
-
-function fmtDate(value: string | null | undefined): string {
-  if (value == null || String(value).trim() === "") return "Not provided";
-  try {
-    return formatIST(parseISO(`${value}T12:00:00`), "d MMM yyyy");
-  } catch {
-    return String(value);
-  }
 }
 
 function dash(value: string | null | undefined): string {
@@ -76,11 +50,16 @@ function initials(d: ClientDetail): string {
 
 function membershipBadgeClass(type: string | null): string {
   const t = type ?? "";
-  if (t === "Premium") return "border bg-[#D4AF37]/12 text-[#9A7B2E] border-[#D4AF37]/35";
-  if (t === "Celebrity") return "border bg-[#EBE8E2] text-stone-700 border-[#D4D0C8]";
-  if (t === "Standard") return "border bg-stone-100 text-stone-700 border-stone-200";
-  if (t === "Genie") return "border bg-emerald-50 text-emerald-900 border-emerald-200";
-  if (t === "Monthly Trial") return "border bg-orange-50 text-orange-900 border-orange-200";
+  if (t === "Premium")
+    return "border bg-[#D4AF37]/12 text-[#9A7B2E] border-[#D4AF37]/35";
+  if (t === "Celebrity")
+    return "border bg-[#EBE8E2] text-stone-700 border-[#D4D0C8]";
+  if (t === "Standard")
+    return "border bg-stone-100 text-stone-700 border-stone-200";
+  if (t === "Genie")
+    return "border bg-emerald-50 text-emerald-900 border-emerald-200";
+  if (t === "Monthly Trial")
+    return "border bg-orange-50 text-orange-900 border-orange-200";
   return "border bg-[#F4F1EA] text-stone-600 border-[#E5E4DF]";
 }
 
@@ -119,15 +98,6 @@ export function ClientDetailView({ initialDetail }: ClientDetailViewProps) {
     const label = formatIST(end, "MMMM yyyy");
     return active ? `Active until ${label}` : `Expired ${label}`;
   })();
-
-  const amountLabel =
-    d.membership_amount_paid != null
-      ? new Intl.NumberFormat("en-IN", {
-          style: "currency",
-          currency: "INR",
-          maximumFractionDigits: 0,
-        }).format(Number(d.membership_amount_paid))
-      : "Not provided";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -209,20 +179,26 @@ export function ClientDetailView({ initialDetail }: ClientDetailViewProps) {
         onValueChange={setActiveTab}
         className="flex min-h-0 flex-1 flex-col bg-[#F9F9F6]"
       >
-        <div className="shrink-0 border-b border-[#E5E4DF]/80 bg-[#F9F9F6] px-8 pt-4">
-          <TabsList className="w-auto justify-start bg-[#F2F2EE]">
+        <div className="shrink-0 overflow-x-auto border-b border-[#E5E4DF]/80 bg-[#F9F9F6] px-8 pt-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <TabsList className="w-max min-w-full justify-start bg-[#F2F2EE] sm:min-w-0 sm:w-auto">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="profile">Profile</TabsTrigger>
             <TabsTrigger value="notes">Notes</TabsTrigger>
-            <TabsTrigger value="membership">Membership</TabsTrigger>
             <TabsTrigger value="freshdesk">
               <Ticket className="mr-1.5 h-3.5 w-3.5" aria-hidden />
               Service History
             </TabsTrigger>
+            <TabsTrigger value="whatsapp" className="flex items-center gap-1.5">
+              <MessageCircle
+                className="h-3.5 w-3.5 text-emerald-500"
+                aria-hidden
+              />
+              WhatsApp
+            </TabsTrigger>
           </TabsList>
         </div>
 
-        <div className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col px-8 pb-12 pt-4">
+        <div className="mx-auto flex min-h-0 min-w-0 w-full max-w-5xl flex-1 flex-col px-8 pb-12 pt-4">
           <TabsContent
             value="overview"
             className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden focus-visible:outline-none data-[state=inactive]:hidden"
@@ -238,98 +214,13 @@ export function ClientDetailView({ initialDetail }: ClientDetailViewProps) {
             value="profile"
             className="mt-4 min-h-0 flex-1 space-y-8 overflow-y-auto focus-visible:outline-none data-[state=inactive]:hidden"
           >
-            <section>
-              <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-stone-500">
-                Personal
+            <ClientProfileFields detail={d} />
+            <div className="border-t border-[#E5E4DF] pt-10">
+              <p className="mb-6 text-[10px] font-semibold uppercase tracking-[0.2em] text-stone-500">
+                Membership
               </p>
-              <div className="space-y-4 rounded-2xl border border-[#E5E4DF] bg-white p-4">
-                <InfoRow icon={Cake} label="Date of birth" value={fmtDate(d.date_of_birth)} />
-                <InfoRow icon={Heart} label="Blood group" value={np(d.blood_group)} />
-                <InfoRow
-                  icon={CalendarRange}
-                  label="Wedding anniversary"
-                  value={fmtDate(d.wedding_anniversary)}
-                />
-                <InfoRow icon={Sparkles} label="Social handles" value={np(d.social_handles)} />
-              </div>
-            </section>
-
-            <section>
-              <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-stone-500">
-                Travel
-              </p>
-              <div className="space-y-4 rounded-2xl border border-[#E5E4DF] bg-white p-4">
-                <InfoRow icon={Plane} label="Seat preference" value={np(d.travel?.seat_preference)} />
-                <InfoRow
-                  icon={Building2}
-                  label="Stay preferences"
-                  value={
-                    d.travel?.stay_preferences?.length
-                      ? d.travel.stay_preferences.join(", ")
-                      : "Not provided"
-                  }
-                />
-                <InfoRow icon={Globe} label="Favourite country" value={np(d.travel?.go_to_country)} />
-                <InfoRow icon={Users} label="Assistance needed" value={np(d.travel?.needs_assistance_with)} />
-              </div>
-            </section>
-
-            <section>
-              <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-stone-500">
-                Lifestyle
-              </p>
-              <div className="space-y-4 rounded-2xl border border-[#E5E4DF] bg-white p-4">
-                <InfoRow icon={UtensilsCrossed} label="Diet" value={np(d.lifestyle?.dietary_preference)} />
-                <InfoRow
-                  icon={UtensilsCrossed}
-                  label="Favourite cuisine"
-                  value={
-                    d.lifestyle?.favourite_cuisine?.length
-                      ? d.lifestyle.favourite_cuisine.join(", ")
-                      : "Not provided"
-                  }
-                />
-                <InfoRow icon={UtensilsCrossed} label="Favourite food" value={np(d.lifestyle?.favourite_food)} />
-                <InfoRow icon={Wine} label="Favourite drink" value={np(d.lifestyle?.favourite_drink)} />
-                <InfoRow
-                  icon={Building2}
-                  label="Go-to restaurants"
-                  value={
-                    d.lifestyle?.go_to_restaurant?.length
-                      ? d.lifestyle.go_to_restaurant.join(", ")
-                      : "Not provided"
-                  }
-                />
-                <InfoRow
-                  icon={Sparkles}
-                  label="Favourite brands"
-                  value={
-                    d.lifestyle?.favourite_brands?.length
-                      ? d.lifestyle.favourite_brands.join(", ")
-                      : "Not provided"
-                  }
-                />
-              </div>
-            </section>
-
-            <section>
-              <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-stone-500">
-                Passions
-              </p>
-              <div className="space-y-4 rounded-2xl border border-[#E5E4DF] bg-white p-4">
-                <InfoRow
-                  icon={Trophy}
-                  label="Favourite sports"
-                  value={
-                    d.passions?.favourite_sports?.length
-                      ? d.passions.favourite_sports.join(", ")
-                      : "Not provided"
-                  }
-                />
-                <InfoRow icon={Car} label="Favourite car" value={np(d.passions?.favourite_car)} />
-                <InfoRow icon={Watch} label="Favourite watch" value={np(d.passions?.favourite_watch)} />
-              </div>
-            </section>
+              <ClientMembershipTab detail={d} showContact={false} />
+            </div>
           </TabsContent>
 
           <TabsContent
@@ -354,121 +245,10 @@ export function ClientDetailView({ initialDetail }: ClientDetailViewProps) {
             </IndulgeField>
             <p className="mt-3 text-xs italic text-stone-400">
               Last updated ·{" "}
-              {d.updated_at ? formatIST(d.updated_at, "dd MMM yyyy, HH:mm") : "—"}
+              {d.updated_at
+                ? formatIST(d.updated_at, "dd MMM yyyy, HH:mm")
+                : "—"}
             </p>
-          </TabsContent>
-
-          <TabsContent
-            value="membership"
-            className="mt-4 min-h-0 flex-1 space-y-8 overflow-y-auto focus-visible:outline-none data-[state=inactive]:hidden"
-          >
-            <section className="rounded-2xl border border-[#E5E4DF] bg-white p-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <InfoRow icon={CreditCard} label="Membership type" value={np(d.membership_type)} />
-                <InfoRow icon={CalendarRange} label="Plan interval" value={np(d.membership_interval)} />
-                <InfoRow icon={CreditCard} label="Amount paid" value={amountLabel} />
-                <InfoRow icon={Heart} label="Membership status" value={np(d.membership_status)} />
-              </div>
-
-              <div className="mt-6">
-                <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-stone-500">
-                  Timeline
-                </p>
-                <div className="flex items-center gap-3">
-                  <div className="text-center">
-                    <p className="text-[10px] uppercase text-stone-400">Start</p>
-                    <p className="font-mono text-sm text-stone-800">
-                      {d.membership_start
-                        ? formatIST(parseISO(`${d.membership_start}T12:00:00`), "MMM yyyy")
-                        : "—"}
-                    </p>
-                  </div>
-                  <div className="h-px flex-1 bg-gradient-to-r from-[#D4AF37]/40 via-[#D4AF37] to-[#D4AF37]/40" />
-                  <div className="text-center">
-                    <p className="text-[10px] uppercase text-stone-400">End</p>
-                    <p className="font-mono text-sm text-stone-800">
-                      {d.membership_end
-                        ? formatIST(parseISO(`${d.membership_end}T12:00:00`), "MMM yyyy")
-                        : "—"}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-6 space-y-4">
-                <InfoRow
-                  icon={Hash}
-                  label="External ID"
-                  value={
-                    <span className="font-mono text-xs text-stone-700">
-                      {d.external_id?.trim() ? d.external_id : "Not provided"}
-                    </span>
-                  }
-                />
-              </div>
-
-              <div className="mt-4">
-                <InfoRow icon={Sparkles} label="Former queendom" value={np(d.former_queendom)} />
-              </div>
-            </section>
-
-            <section className="rounded-2xl border border-[#E5E4DF] bg-white p-4">
-              <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-stone-500">
-                Contact
-              </p>
-              <div className="space-y-4">
-                <InfoRow
-                  icon={Phone}
-                  label="Phone"
-                  value={
-                    <span className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-sm">
-                        {formatPhoneForDisplay(d.phone_number)}
-                      </span>
-                      <IndulgeButton
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-2"
-                        leftIcon={<Copy className="h-3.5 w-3.5" />}
-                        onClick={() => {
-                          void navigator.clipboard.writeText(d.phone_number);
-                          toast.success("Copied phone");
-                        }}
-                      >
-                        Copy
-                      </IndulgeButton>
-                    </span>
-                  }
-                />
-                <InfoRow
-                  icon={Mail}
-                  label="Email"
-                  value={
-                    d.email ? (
-                      <span className="flex flex-wrap items-center gap-2">
-                        <span className="text-sm">{d.email}</span>
-                        <IndulgeButton
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 px-2"
-                          leftIcon={<Copy className="h-3.5 w-3.5" />}
-                          onClick={() => {
-                            void navigator.clipboard.writeText(d.email ?? "");
-                            toast.success("Copied email");
-                          }}
-                        >
-                          Copy
-                        </IndulgeButton>
-                      </span>
-                    ) : (
-                      <span className="italic text-stone-400">Not provided</span>
-                    )
-                  }
-                />
-              </div>
-            </section>
           </TabsContent>
 
           <TabsContent
@@ -478,9 +258,25 @@ export function ClientDetailView({ initialDetail }: ClientDetailViewProps) {
             <FreshdeskTab
               clientId={clientId}
               clientPhone={d.phone_number}
-              clientName={[d.first_name, d.last_name].filter(Boolean).join(" ").trim()}
+              clientName={[d.first_name, d.last_name]
+                .filter(Boolean)
+                .join(" ")
+                .trim()}
               isActive={activeTab === "freshdesk"}
             />
+          </TabsContent>
+
+          <TabsContent
+            value="whatsapp"
+            className="mt-4 flex min-h-0 min-w-0 flex-1 flex-col focus-visible:outline-none data-[state=inactive]:hidden"
+          >
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[#E5E4DF] bg-[#F9F9F6] shadow-sm">
+              <ChettoTab
+                clientPhone={d.phone_number}
+                queendom={d.queendom ?? "Unassigned"}
+                isActive={activeTab === "whatsapp"}
+              />
+            </div>
           </TabsContent>
         </div>
       </Tabs>

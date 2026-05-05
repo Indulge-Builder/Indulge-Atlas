@@ -48,7 +48,6 @@ function ClientsListSkeleton() {
             <Skeleton className="h-4 w-[45%] bg-stone-100" />
             <Skeleton className="h-3 w-[65%] bg-stone-100" />
           </div>
-          <Skeleton className="h-8 w-12 shrink-0 rounded-md bg-stone-100" />
         </div>
       ))}
     </div>

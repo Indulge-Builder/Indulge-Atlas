@@ -36,19 +36,8 @@ function membershipBadgeClass(type: string | null): string {
   return "bg-stone-100 text-stone-500 border border-stone-200";
 }
 
-function completenessTone(pct: number): string {
-  if (pct <= 30) return "text-red-600";
-  if (pct <= 70) return "text-amber-600";
-  if (pct < 100) return "text-emerald-600";
-  return "text-[#D4AF37]";
-}
-
 export function ClientListRow({ client }: ClientListRowProps) {
   const name = displayName(client);
-  const pct = Math.min(
-    100,
-    Math.max(0, client.profile_completeness ?? 0),
-  );
   const active = client.client_status === "active";
 
   return (
@@ -97,20 +86,6 @@ export function ClientListRow({ client }: ClientListRowProps) {
           {" · "}
           <span>{client.primary_city ?? "—"}</span>
         </p>
-      </div>
-
-      <div className="flex shrink-0 flex-col items-end gap-0.5 pr-1">
-        <span
-          className={cn(
-            "font-[family-name:var(--font-playfair)] text-lg tabular-nums leading-none",
-            completenessTone(pct),
-          )}
-        >
-          {pct}%
-        </span>
-        <span className="text-[9px] font-medium uppercase tracking-wider text-stone-400">
-          Profile
-        </span>
       </div>
     </Link>
   );
