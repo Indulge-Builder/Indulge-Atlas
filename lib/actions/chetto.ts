@@ -588,18 +588,6 @@ function pickTimelineString(...candidates: unknown[]): string | null {
   return null;
 }
 
-function mapTimelineMessage(raw: unknown): ChettoMessage | null {
-  if (!raw || typeof raw !== "object") return null;
-  const o = raw as Record<string, unknown>;
-
-  const text = pickTimelineString(
-    o.text,
-    o.message,
-    o.body,
-    o.content,
-    o.msg,
-    o.message_text,
-  );
 function pickTimelinePhone(o: Record<string, unknown>): string | null {
   const keys = ["phone_no", "phone", "phone_number", "from", "sender_phone"] as const;
   for (const k of keys) {
@@ -612,6 +600,20 @@ function pickTimelinePhone(o: Record<string, unknown>): string | null {
   }
   return null;
 }
+
+function mapTimelineMessage(raw: unknown): ChettoMessage | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+
+  const text = pickTimelineString(
+    o.text,
+    o.message,
+    o.body,
+    o.content,
+    o.msg,
+    o.message_text,
+  );
+  const phone_no = pickTimelinePhone(o);
 
   let from_me = false;
   if (o.from_me === true || o.from_me === "true" || o.from_me === 1) from_me = true;
