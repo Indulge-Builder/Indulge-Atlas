@@ -107,8 +107,8 @@ const PRIORITY_PILLS: Array<{
   {
     value: "medium",
     label: "Medium",
-    activeClass: "bg-[#D4AF37] text-[#1A1A1A] border-[#D4AF37]",
-    dotClass: "bg-[#D4AF37]",
+    activeClass: "bg-brand-gold text-[#1A1A1A] border-brand-gold",
+    dotClass: "bg-brand-gold",
   },
   {
     value: "low",
@@ -360,7 +360,7 @@ export function AssignTaskModal({ open, onClose }: AssignTaskModalProps) {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ type: "spring", stiffness: 420, damping: 32 }}
         >
-          <div className="h-0.5 w-full bg-gradient-to-r from-[#D4AF37]/80 via-[#E8C84A] to-[#D4AF37]/80" />
+          <div className="h-0.5 w-full bg-gradient-to-r from-brand-gold/80 via-brand-gold-light to-brand-gold/80" />
 
           <div className="px-6 pt-6 pb-2">
             <DialogHeader className="space-y-1.5 text-left">
@@ -397,7 +397,7 @@ export function AssignTaskModal({ open, onClose }: AssignTaskModalProps) {
                       className={cn(
                         "flex flex-col items-start gap-1 rounded-xl border px-3 py-2.5 text-left transition-all duration-150",
                         active
-                          ? "border-[#D4AF37]/70 bg-[#D4AF37]/12 text-white shadow-sm"
+                          ? "border-brand-gold/70 bg-brand-gold/12 text-white shadow-sm"
                           : "border-white/10 bg-white/[0.04] text-white/70 hover:border-white/20 hover:text-white",
                       )}
                     >
@@ -429,7 +429,7 @@ export function AssignTaskModal({ open, onClose }: AssignTaskModalProps) {
                     <SelectTrigger
                       className={cn(
                         "h-10 border-white/10 bg-white/5 text-sm text-white",
-                        "focus:ring-[#D4AF37]/25 focus:ring-2",
+                        "focus:ring-brand-gold/25 focus:ring-2",
                       )}
                     >
                       <SelectValue placeholder={workspacesLoading ? "Loading…" : "Select workspace"} />
@@ -473,7 +473,7 @@ export function AssignTaskModal({ open, onClose }: AssignTaskModalProps) {
                     <SelectTrigger
                       className={cn(
                         "h-10 border-white/10 bg-white/5 text-sm text-white",
-                        "focus:ring-[#D4AF37]/25 focus:ring-2",
+                        "focus:ring-brand-gold/25 focus:ring-2",
                       )}
                     >
                       <SelectValue
@@ -550,14 +550,14 @@ export function AssignTaskModal({ open, onClose }: AssignTaskModalProps) {
                       autoComplete="off"
                       className={cn(
                         "h-10 border-white/10 bg-white/5 pl-9 text-sm text-white placeholder:text-white/35",
-                        "focus-visible:border-[#D4AF37]/50 focus-visible:ring-[#D4AF37]/25",
+                        "focus-visible:border-brand-gold/50 focus-visible:ring-brand-gold/25",
                       )}
                       aria-expanded={assigneeOpen}
                       aria-controls="assign-profile-results"
                       aria-autocomplete="list"
                     />
                     {assigneeSearching && (
-                      <div className="absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin rounded-full border border-white/20 border-t-[#D4AF37]" />
+                      <div className="absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin rounded-full border border-white/20 border-t-brand-gold" />
                     )}
                   </div>
                 )}
@@ -611,7 +611,7 @@ export function AssignTaskModal({ open, onClose }: AssignTaskModalProps) {
                 placeholder="What should they do?"
                 className={cn(
                   "h-10 border-white/10 bg-white/5 text-sm text-white placeholder:text-white/35",
-                  "focus-visible:border-[#D4AF37]/50 focus-visible:ring-[#D4AF37]/25",
+                  "focus-visible:border-brand-gold/50 focus-visible:ring-brand-gold/25",
                 )}
                 error={!!form.formState.errors.title}
               />
@@ -630,7 +630,7 @@ export function AssignTaskModal({ open, onClose }: AssignTaskModalProps) {
                 placeholder="Add details…"
                 rows={3}
                 maxLength={2000}
-                className="min-h-[88px] resize-none border-white/10 bg-white/5 text-sm text-white placeholder:text-white/35 focus-visible:border-[#D4AF37]/50 focus-visible:ring-[#D4AF37]/25"
+                className="min-h-[88px] resize-none border-white/10 bg-white/5 text-sm text-white placeholder:text-white/35 focus-visible:border-brand-gold/50 focus-visible:ring-brand-gold/25"
               />
             </IndulgeField>
 
@@ -671,7 +671,7 @@ export function AssignTaskModal({ open, onClose }: AssignTaskModalProps) {
                 value={dueDate}
                 onChange={setDueDate}
                 placeholder="Pick date & time (preview in IST)"
-                className="h-10 w-full rounded-lg border border-white/10 bg-white/5 text-left text-[13px] text-white/90 hover:border-[#D4AF37]/40"
+                className="h-10 w-full rounded-lg border border-white/10 bg-white/5 text-left text-[13px] text-white/90 hover:border-brand-gold/40"
               />
               {dueDate && (
                 <p className="mt-1.5 text-[11px] text-white/40">

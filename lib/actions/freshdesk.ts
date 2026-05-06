@@ -23,8 +23,10 @@ async function getAuthUser() {
   return { supabase, user };
 }
 
-function computeTicketStats(tickets: FreshdeskTicket[]): ClientFreshdeskTicketStats {
-  const open = tickets.filter((t) => [2, 3, 6].includes(t.status)).length;
+function computeTicketStats(
+  tickets: FreshdeskTicket[],
+): ClientFreshdeskTicketStats {
+  const open = tickets.filter((t) => ![4, 5].includes(t.status)).length;
   const resolved = tickets.filter((t) => [4, 5].includes(t.status)).length;
   const last = tickets.length ? tickets[0].created_at : null;
   return {
@@ -53,7 +55,9 @@ function ticketRecordForPrompt(r: Record<string, unknown>): {
   cf_note: string | null;
 } {
   const cf =
-    r.custom_fields && typeof r.custom_fields === "object" && r.custom_fields !== null
+    r.custom_fields &&
+    typeof r.custom_fields === "object" &&
+    r.custom_fields !== null
       ? (r.custom_fields as Record<string, unknown>)
       : {};
   const str = (k: string) => {
@@ -113,9 +117,7 @@ function buildTicketSummaryUserPrompt(
   return lines.join("\n");
 }
 
-export async function getClientFreshdeskTickets(
-  clientId: string,
-): Promise<{
+export async function getClientFreshdeskTickets(clientId: string): Promise<{
   success: boolean;
   data?: ClientFreshdeskTicketsData;
   error?: string;
@@ -162,7 +164,8 @@ export async function getClientFreshdeskTickets(
       if (msg.includes("FRESHDESK_API_KEY")) {
         return {
           success: false,
-          error: "Freshdesk is not configured. Add FRESHDESK_API_KEY on the server.",
+          error:
+            "Freshdesk is not configured. Add FRESHDESK_API_KEY on the server.",
         };
       }
       return {
@@ -199,7 +202,10 @@ export async function getClientFreshdeskTickets(
       },
     };
   } catch {
-    return { success: false, error: "Something went wrong loading Freshdesk data." };
+    return {
+      success: false,
+      error: "Something went wrong loading Freshdesk data.",
+    };
   }
 }
 

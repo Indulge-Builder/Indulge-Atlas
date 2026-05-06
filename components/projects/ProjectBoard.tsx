@@ -75,11 +75,11 @@ export function ProjectBoard({
         <div className="px-6 py-4">
           <div className="flex items-center gap-2 mb-3">
             <Link
-              href="/projects"
+              href="/tasks"
               className="flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-600 transition-colors"
             >
               <ChevronLeft className="w-3.5 h-3.5" />
-              Projects
+              Tasks
             </Link>
           </div>
 

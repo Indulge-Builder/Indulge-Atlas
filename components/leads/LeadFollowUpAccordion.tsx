@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { LuxuryDatePicker } from "@/components/ui/LuxuryDatePicker";
-import { createTask } from "@/lib/actions/tasks";
+import { createLeadTask } from "@/lib/actions/tasks";
 import { saveLeadFollowUpDrafts } from "@/lib/actions/leads";
 import { AGENT_TASK_TYPES } from "@/lib/types/database";
 import type { TaskType, UserRole } from "@/lib/types/database";
@@ -326,7 +326,7 @@ export function LeadFollowUpAccordion({
 
     setSubmitting(true);
     try {
-      const result = await createTask({
+      const result = await createLeadTask({
         leadId,
         title: trimmedTitle,
         dueAt,

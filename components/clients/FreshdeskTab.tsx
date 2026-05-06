@@ -104,7 +104,10 @@ export function FreshdeskTab({
       <div className="mt-2 space-y-4">
         <div className="flex flex-wrap gap-2">
           {[1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="h-14 flex-1 min-w-[100px] rounded-full" />
+            <Skeleton
+              key={i}
+              className="h-14 flex-1 min-w-[100px] rounded-full"
+            />
           ))}
         </div>
         <Skeleton className="h-10 w-48 rounded-lg" />

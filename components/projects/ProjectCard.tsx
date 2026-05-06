@@ -97,7 +97,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
   const completedCount = project.completed_task_count ?? 0;
 
   return (
-    <Link href={`/projects/${project.id}`} className="block group">
+    <Link href={`/tasks/${project.id}`} className="block group">
       <div
         className={cn(
           "rounded-2xl border border-[#E5E4DF] bg-white p-5",

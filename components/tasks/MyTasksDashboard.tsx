@@ -108,7 +108,7 @@ function DateChip({ isoDate, status }: { isoDate: string; status: AtlasTaskStatu
       className={cn(
         "inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2 py-0.5",
         overdue ? "bg-[#C0392B]/10 text-[#C0392B]"
-          : today ? "bg-[#D4AF37]/10 text-[#A88B25]"
+          : today ? "bg-brand-gold/10 text-[#A88B25]"
           : "bg-[#F2F2EE] text-[#6B6B6B]",
       )}
     >
@@ -182,13 +182,13 @@ function TaskRow({
           disabled={isCompleting}
           className={cn(
             "flex h-5 w-5 shrink-0 items-center justify-center rounded-full transition-opacity",
-            "text-[#D4AF37]/80 hover:text-[#D4AF37] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]/40",
+            "text-brand-gold/80 hover:text-brand-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-gold/40",
             isCompleting && "opacity-60",
           )}
           aria-label="Mark task as not complete"
         >
           {isCompleting ? (
-            <span className="h-2 w-2 animate-pulse rounded-full bg-[#D4AF37]" />
+            <span className="h-2 w-2 animate-pulse rounded-full bg-brand-gold" />
           ) : (
             <CheckCircle2 className="h-5 w-5 -m-0.5" />
           )}
@@ -198,7 +198,7 @@ function TaskRow({
           className="flex h-5 w-5 shrink-0 items-center justify-center"
           aria-hidden
         >
-          <CheckCircle2 className="h-5 w-5 text-[#D4AF37]/80 -m-0.5" />
+          <CheckCircle2 className="h-5 w-5 text-brand-gold/80 -m-0.5" />
         </div>
       ) : isPersonal && canMarkComplete ? (
         <button
@@ -207,12 +207,12 @@ function TaskRow({
           disabled={isCompleting}
           className={cn(
             "w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all duration-200",
-            "border-[#D0C8BE] hover:border-[#D4AF37]",
+            "border-[#D0C8BE] hover:border-brand-gold",
           )}
           aria-label="Complete task"
         >
           {isCompleting ? (
-            <span className="h-2 w-2 animate-pulse rounded-full bg-[#D4AF37]" />
+            <span className="h-2 w-2 animate-pulse rounded-full bg-brand-gold" />
           ) : null}
         </button>
       ) : isPersonal ? (
@@ -243,7 +243,7 @@ function TaskRow({
             {listTags.map((tag) => (
               <span
                 key={tag}
-                className="max-w-[140px] truncate rounded-full bg-[#FBF6E8] px-2 py-0.5 text-[10px] font-medium text-[#1A1A1A] ring-1 ring-[#D4AF37]/30"
+                className="max-w-[140px] truncate rounded-full bg-[#FBF6E8] px-2 py-0.5 text-[10px] font-medium text-[#1A1A1A] ring-1 ring-brand-gold/30"
               >
                 {tag}
               </span>
@@ -331,7 +331,7 @@ function SectionGroup({
     <div>
       <div className="flex items-center gap-2 mb-2">
         {bucket === "overdue" && <AlertCircle className="w-3.5 h-3.5 text-[#C0392B]" />}
-        {bucket === "completed" && <CheckCircle2 className="w-3.5 h-3.5 text-[#D4AF37]" aria-hidden />}
+        {bucket === "completed" && <CheckCircle2 className="w-3.5 h-3.5 text-brand-gold" aria-hidden />}
         <span className="text-[10px] font-semibold uppercase tracking-widest text-[#8A8A6E]">
           {BUCKET_LABELS[bucket]}
         </span>
@@ -367,7 +367,7 @@ const PRIORITY_PILLS: Array<{
 }> = [
   { value: "urgent", label: "Critical", activeClass: "bg-[#C0392B] text-white border-[#C0392B]",       dotClass: "bg-[#C0392B]" },
   { value: "high",   label: "High",     activeClass: "bg-[#E8824A] text-white border-[#E8824A]",       dotClass: "bg-[#E8824A]" },
-  { value: "medium", label: "Medium",   activeClass: "bg-[#D4AF37] text-[#1A1A1A] border-[#D4AF37]",  dotClass: "bg-[#D4AF37]" },
+  { value: "medium", label: "Medium",   activeClass: "bg-brand-gold text-[#1A1A1A] border-brand-gold",  dotClass: "bg-brand-gold" },
   { value: "low",    label: "Low",      activeClass: "bg-[#B5A99A] text-white border-[#B5A99A]",       dotClass: "bg-[#B5A99A]" },
 ];
 
@@ -484,10 +484,10 @@ function QuickAddForm({ onAdded, currentUserId }: QuickAddFormProps) {
             exit={{ opacity: 0 }}
             type="button"
             onClick={handleOpen}
-            className="group flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl border border-dashed border-[#D9D4CC] hover:border-[#D4AF37] hover:bg-[#FDFCF8] transition-all duration-200"
+            className="group flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl border border-dashed border-[#D9D4CC] hover:border-brand-gold hover:bg-[#FDFCF8] transition-all duration-200"
           >
-            <div className="w-5 h-5 rounded-full border-2 border-[#D0C8BE] group-hover:border-[#D4AF37] flex items-center justify-center transition-colors shrink-0">
-              <Plus className="w-3 h-3 text-[#B5A99A] group-hover:text-[#D4AF37] transition-colors" />
+            <div className="w-5 h-5 rounded-full border-2 border-[#D0C8BE] group-hover:border-brand-gold flex items-center justify-center transition-colors shrink-0">
+              <Plus className="w-3 h-3 text-[#B5A99A] group-hover:text-brand-gold transition-colors" />
             </div>
             <span className="text-[13px] text-[#B5A99A] group-hover:text-[#8A8A6E] transition-colors">
               Add a task for today…
@@ -506,7 +506,7 @@ function QuickAddForm({ onAdded, currentUserId }: QuickAddFormProps) {
               onKeyDown={(e) => { if (e.key === "Escape") handleClose(); }}
               className="rounded-xl border border-[#E0DBCF] bg-white shadow-sm overflow-hidden"
             >
-              <div className="h-0.5 w-full bg-gradient-to-r from-[#D4AF37] via-[#E8C84A] to-[#D4AF37]" />
+              <div className="h-0.5 w-full bg-gradient-to-r from-brand-gold via-brand-gold-light to-brand-gold" />
 
               <div className="p-4 space-y-4">
                 <div>
@@ -540,8 +540,8 @@ function QuickAddForm({ onAdded, currentUserId }: QuickAddFormProps) {
                         className={cn(
                           "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
                           peer
-                            ? "border-[#D4AF37]/50 bg-[#FDF9EE] text-[#1A1A1A]"
-                            : "border-[#E0DBCF] bg-[#FAFAF8] text-[#6B6B6B] hover:border-[#D4AF37]/50",
+                            ? "border-brand-gold/50 bg-[#FDF9EE] text-[#1A1A1A]"
+                            : "border-[#E0DBCF] bg-[#FAFAF8] text-[#6B6B6B] hover:border-brand-gold/50",
                         )}
                       >
                         <AtSign className="h-3 w-3 shrink-0 text-[#A88B25]" aria-hidden />
@@ -556,7 +556,7 @@ function QuickAddForm({ onAdded, currentUserId }: QuickAddFormProps) {
                     value={peerQuery}
                     onChange={(e) => setPeerQuery(e.target.value)}
                     placeholder="Search by name…"
-                    className="mb-2 h-8 w-full rounded-lg border border-[#E5E4DF] bg-white px-2 text-[12px] text-[#1A1A1A] placeholder:text-[#8A8A6E] outline-none focus:border-[#D4AF37]"
+                    className="mb-2 h-8 w-full rounded-lg border border-[#E5E4DF] bg-white px-2 text-[12px] text-[#1A1A1A] placeholder:text-[#8A8A6E] outline-none focus:border-brand-gold"
                   />
                       <div className="max-h-40 overflow-y-auto space-y-0.5">
                         <button
@@ -606,7 +606,7 @@ function QuickAddForm({ onAdded, currentUserId }: QuickAddFormProps) {
                       value={dueDate}
                       onChange={setDueDate}
                       placeholder="Pick a date & time…"
-                      className="h-9 text-[13px] rounded-lg border-[#E0DBCF] bg-[#FAFAF8] hover:border-[#D4AF37]/60"
+                      className="h-9 text-[13px] rounded-lg border-[#E0DBCF] bg-[#FAFAF8] hover:border-brand-gold/60"
                     />
                   </div>
 
@@ -833,7 +833,7 @@ export function MyTasksDashboard({
           <motion.div
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex items-center justify-between px-3 py-2 rounded-lg bg-[#D4AF37]/10 border border-[#D4AF37]/30"
+            className="flex items-center justify-between px-3 py-2 rounded-lg bg-brand-gold/10 border border-brand-gold/30"
           >
             <span className="text-[11px] font-medium text-[#A88B25]">
               {format(selectedDate, "d MMM yyyy")}
@@ -855,7 +855,7 @@ export function MyTasksDashboard({
         {selectedDate && (
           <div className="px-6 pt-4 pb-0">
             <div className="flex items-center gap-2">
-              <Calendar className="w-3.5 h-3.5 text-[#D4AF37]" />
+              <Calendar className="w-3.5 h-3.5 text-brand-gold" />
               <span className="text-[12px] font-medium text-[#8A8A6E]">
                 Showing tasks for{" "}
                 <span className="text-[#1A1A1A]">{format(selectedDate, "EEEE, d MMMM")}</span>
@@ -878,8 +878,8 @@ export function MyTasksDashboard({
 
           {!hasAnyTasks ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="w-16 h-16 rounded-full bg-[#D4AF37]/10 flex items-center justify-center mb-4">
-                <CheckCircle2 className="w-8 h-8 text-[#D4AF37]" />
+              <div className="w-16 h-16 rounded-full bg-brand-gold/10 flex items-center justify-center mb-4">
+                <CheckCircle2 className="w-8 h-8 text-brand-gold" />
               </div>
               <h3 className="font-serif text-[18px] font-semibold text-[#1A1A1A] mb-2">
                 {selectedDate ? "No tasks on this day" : "All clear"}
@@ -893,7 +893,7 @@ export function MyTasksDashboard({
                 <button
                   type="button"
                   onClick={() => setSelectedDate(null)}
-                  className="mt-3 text-[13px] text-[#D4AF37] hover:underline font-medium"
+                  className="mt-3 text-[13px] text-brand-gold hover:underline font-medium"
                 >
                   Show all tasks
                 </button>
@@ -904,7 +904,7 @@ export function MyTasksDashboard({
               {showTodayClearBanner && (
                 <div className="rounded-xl border border-[#E5E4DF] bg-white px-5 py-6 text-center shadow-[0_1px_2px_rgba(26,24,20,0.04)]">
                   <Sparkles
-                    className="mx-auto mb-3 h-7 w-7 text-[#D4AF37]"
+                    className="mx-auto mb-3 h-7 w-7 text-brand-gold"
                     aria-hidden
                   />
                   <p className="font-serif text-[17px] font-semibold leading-snug text-[#1A1A1A]">

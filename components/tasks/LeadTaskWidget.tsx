@@ -41,7 +41,7 @@ import {
 import { format } from "date-fns";
 import { LuxuryDatePicker } from "@/components/ui/LuxuryDatePicker";
 import { cn } from "@/lib/utils";
-import { createTask, completeTask } from "@/lib/actions/tasks";
+import { createLeadTask, completeLeadTask } from "@/lib/actions/tasks";
 import { dispatchTaskAlertAfterCompleteOrDelete } from "@/lib/task-alert-refresh";
 import { AGENT_TASK_TYPES } from "@/lib/types/database";
 import type { TaskType, TaskWithLead, TaskStatus, UserRole } from "@/lib/types/database";
@@ -163,7 +163,7 @@ function QuickAddModal({
   async function onSubmit(values: TaskFormValues) {
     setSubmitting(true);
     setServerError(null);
-    const result = await createTask({
+    const result = await createLeadTask({
       leadId,
       title:  values.title,
       dueAt:  values.due_date,
@@ -437,7 +437,7 @@ function TaskRow({
     }
     setCompleting(true);
     onComplete?.(task.id);
-    const result = await completeTask(task.id);
+    const result = await completeLeadTask(task.id);
     setCompleting(false);
     if (!result.success) {
       toast.error(result.error ?? "Could not complete task.");

@@ -19,6 +19,7 @@ import { format } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 import { cn, getInitials } from "@/lib/utils";
 import { surfaceCardVariants } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
 import { MemberAvatarStack } from "./MemberAvatarStack";
 import { SubTaskStatusBadge } from "./SubTaskStatusBadge";
 import { TaskPriorityBadge } from "./TaskPriorityBadge";
@@ -88,6 +89,8 @@ interface Filters {
   priorities:   TaskPriority[];
   assignee:     string;
   showArchived: boolean;
+  /** When true, each group task only lists subtasks assigned to the signed-in user. */
+  subtasksMineOnly: boolean;
 }
 
 interface TeamMemberOption { id: string; full_name: string; }
@@ -144,7 +147,7 @@ function MultiSelectDropdown({ label, options, selected, onChange }: MultiSelect
         className={cn(
           "h-9 flex items-center gap-2 px-3 rounded-lg border text-[13px] font-medium transition-all select-none",
           selected.length > 0
-            ? "border-[#D4AF37] bg-[#D4AF37]/08 text-[#A88B25]"
+            ? "border-brand-gold bg-brand-gold/8 text-[#A88B25]"
             : "border-[#E5E4DF] bg-[#F9F9F6] text-[#6B6B6B] hover:border-[#D0C8BE]",
         )}
       >
@@ -176,14 +179,14 @@ function MultiSelectDropdown({ label, options, selected, onChange }: MultiSelect
                 className={cn(
                   "w-4 h-4 rounded flex items-center justify-center border-2 shrink-0 transition-all",
                   allSelected
-                    ? "bg-[#D4AF37] border-[#D4AF37]"
+                    ? "bg-brand-gold border-brand-gold"
                     : someSelected
-                      ? "bg-[#D4AF37]/20 border-[#D4AF37]"
+                      ? "bg-brand-gold/20 border-brand-gold"
                       : "border-[#D0C8BE]",
                 )}
               >
                 {allSelected && <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
-                {someSelected && <span className="w-1.5 h-0.5 bg-[#D4AF37] rounded-full" />}
+                {someSelected && <span className="w-1.5 h-0.5 bg-brand-gold rounded-full" />}
               </span>
               <span className="text-[12px] font-semibold text-[#1A1A1A]">Select all</span>
             </button>
@@ -203,8 +206,8 @@ function MultiSelectDropdown({ label, options, selected, onChange }: MultiSelect
                       className={cn(
                         "w-4 h-4 rounded flex items-center justify-center border-2 shrink-0 transition-all duration-100",
                         checked
-                          ? "bg-[#D4AF37] border-[#D4AF37]"
-                          : "border-[#D0C8BE] hover:border-[#D4AF37]",
+                          ? "bg-brand-gold border-brand-gold"
+                          : "border-[#D0C8BE] hover:border-brand-gold",
                       )}
                     >
                       {checked && <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
@@ -251,7 +254,7 @@ function SingleSelectDropdown({ label, options, value, onChange }: SingleSelectD
         className={cn(
           "h-9 flex items-center gap-2 px-3 rounded-lg border text-[13px] font-medium transition-all select-none",
           value
-            ? "border-[#D4AF37] bg-[#D4AF37]/08 text-[#A88B25]"
+            ? "border-brand-gold bg-brand-gold/8 text-[#A88B25]"
             : "border-[#E5E4DF] bg-[#F9F9F6] text-[#6B6B6B] hover:border-[#D0C8BE]",
         )}
       >
@@ -296,7 +299,7 @@ function SingleSelectDropdown({ label, options, value, onChange }: SingleSelectD
                   <span
                     className={cn(
                       "w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-all",
-                      isActive ? "border-[#D4AF37] bg-[#D4AF37]" : "border-[#D0C8BE]",
+                      isActive ? "border-brand-gold bg-brand-gold" : "border-[#D0C8BE]",
                     )}
                   >
                     {isActive && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
@@ -326,7 +329,8 @@ function FilterBar({ filters, onChange, teamMembers }: FilterBarProps) {
     filters.statuses.length > 0 ||
     filters.priorities.length > 0 ||
     filters.assignee ||
-    filters.showArchived;
+    filters.showArchived ||
+    filters.subtasksMineOnly;
 
   const statusOptions: MultiSelectOption[] = ATLAS_TASK_STATUS_VALUES.map((s) => ({
     value: s,
@@ -353,7 +357,7 @@ function FilterBar({ filters, onChange, teamMembers }: FilterBarProps) {
           value={filters.search}
           onChange={(e) => onChange({ ...filters, search: e.target.value })}
           placeholder="Search tasks…"
-          className="w-full h-9 pl-9 pr-3 rounded-lg border border-[#E5E4DF] bg-[#F9F9F6] text-[13px] text-[#1A1A1A] placeholder:text-[#B5A99A] outline-none focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]/30 transition-colors"
+          className="w-full h-9 pl-9 pr-3 rounded-lg border border-[#E5E4DF] bg-[#F9F9F6] text-[13px] text-[#1A1A1A] placeholder:text-[#B5A99A] outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold/30 transition-colors"
         />
       </div>
 
@@ -383,13 +387,27 @@ function FilterBar({ filters, onChange, teamMembers }: FilterBarProps) {
         />
       )}
 
+      <div className="flex items-center gap-2 shrink-0">
+        <Switch
+          id="atlas-tasks-subtasks-mine-only"
+          checked={filters.subtasksMineOnly}
+          onCheckedChange={(checked) => onChange({ ...filters, subtasksMineOnly: checked })}
+        />
+        <label
+          htmlFor="atlas-tasks-subtasks-mine-only"
+          className="text-[12px] text-[#6B6B6B] cursor-pointer select-none whitespace-nowrap"
+        >
+          Only my subtasks
+        </label>
+      </div>
+
       {/* Archived toggle */}
       <label className="flex items-center gap-1.5 text-[12px] text-[#6B6B6B] cursor-pointer select-none">
         <span
           className={cn(
             "w-4 h-4 rounded border-2 flex items-center justify-center transition-all",
             filters.showArchived
-              ? "bg-[#D4AF37] border-[#D4AF37]"
+              ? "bg-brand-gold border-brand-gold"
               : "border-[#D0C8BE]",
           )}
           onClick={() => onChange({ ...filters, showArchived: !filters.showArchived })}
@@ -403,7 +421,15 @@ function FilterBar({ filters, onChange, teamMembers }: FilterBarProps) {
       {isActive && (
         <button
           type="button"
-          onClick={() => onChange({ search: "", statuses: [], priorities: [], assignee: "", showArchived: false })}
+          onClick={() =>
+            onChange({
+              search: "",
+              statuses: [],
+              priorities: [],
+              assignee: "",
+              showArchived: false,
+              subtasksMineOnly: false,
+            })}
           className="flex items-center gap-1 text-[12px] text-[#8A8A6E] hover:text-[#C0392B] transition-colors ml-auto"
         >
           <X className="w-3.5 h-3.5" />
@@ -425,7 +451,7 @@ function DateChip({ isoDate, status }: { isoDate: string | null; status: AtlasTa
       className={cn(
         "inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2 py-0.5",
         overdue ? "bg-[#C0392B]/10 text-[#C0392B]"
-          : today ? "bg-[#D4AF37]/10 text-[#A88B25]"
+          : today ? "bg-brand-gold/10 text-[#A88B25]"
           : "bg-[#F2F2EE] text-[#6B6B6B]",
       )}
     >
@@ -466,7 +492,7 @@ function SubtaskRow({ task, onOpenModal }: SubtaskRowProps) {
       </span>
 
       {/* Assignee avatar */}
-      <div className="w-6 h-6 rounded-full bg-[#D4AF37]/20 flex items-center justify-center text-[9px] font-bold text-[#A88B25] shrink-0">
+      <div className="w-6 h-6 rounded-full bg-brand-gold/20 flex items-center justify-center text-[9px] font-bold text-[#A88B25] shrink-0">
         {assigneeInitials}
       </div>
 
@@ -480,7 +506,7 @@ function SubtaskRow({ task, onOpenModal }: SubtaskRowProps) {
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); onOpenModal(task.id); }}
-        className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg bg-[#D4AF37]/10 text-[#A88B25] hover:bg-[#D4AF37]/20 transition-all ml-1"
+        className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg bg-brand-gold/10 text-[#A88B25] hover:bg-brand-gold/20 transition-all ml-1"
         aria-label={`View ${task.title}`}
       >
         <Eye className="w-3.5 h-3.5" />
@@ -494,7 +520,6 @@ function SubtaskRow({ task, onOpenModal }: SubtaskRowProps) {
 interface MasterTaskRowProps {
   masterTask: MasterTask;
   taskGroups: Array<TaskGroup & { tasks: SubTask[] }>;
-  currentUserId: string;
   onOpenModal: (id: string) => void;
   canSelectMaster?: boolean;
   isSelected?: boolean;
@@ -505,7 +530,6 @@ interface MasterTaskRowProps {
 function MasterTaskRow({
   masterTask,
   taskGroups,
-  currentUserId: _currentUserId,
   onOpenModal,
   canSelectMaster = false,
   isSelected = false,
@@ -513,7 +537,7 @@ function MasterTaskRow({
   onSubtasksChanged,
 }: MasterTaskRowProps) {
   const [open, setOpen] = useState(false);
-  const accentColor = masterTask.cover_color ?? "#D4AF37";
+  const accentColor = masterTask.cover_color ?? "#5f5348";
   const Icon = getIcon(masterTask.icon_key);
 
   const allSubtasks: SubTask[] = taskGroups.flatMap((g) => g.tasks);
@@ -559,7 +583,7 @@ function MasterTaskRow({
               className={cn(
                 "w-4 h-4 rounded border-2 flex items-center justify-center transition-all",
                 isSelected
-                  ? "bg-[#D4AF37] border-[#D4AF37]"
+                  ? "bg-brand-gold border-brand-gold"
                   : "border-[#D0C8BE]",
               )}
             >
@@ -583,7 +607,7 @@ function MasterTaskRow({
               setOpen((p) => !p);
             }
           }}
-          className="flex flex-1 min-w-0 cursor-pointer items-center gap-3 px-5 py-4 text-left outline-none transition-colors hover:bg-[#FAFAF8] focus-visible:bg-[#FAFAF8] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#D4AF37]/35"
+          className="flex flex-1 min-w-0 cursor-pointer items-center gap-3 px-5 py-4 text-left outline-none transition-colors hover:bg-[#FAFAF8] focus-visible:bg-[#FAFAF8] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-gold/35"
         >
         {/* Chevron */}
         <motion.div animate={{ rotate: open ? 90 : 0 }} transition={{ duration: 0.2 }}>
@@ -614,12 +638,12 @@ function MasterTaskRow({
             aria-label={`Open workspace: ${masterTask.title}`}
             className={cn(
               "inline-flex shrink-0 items-center gap-1.5 rounded-xl border px-2.5 py-1.5 sm:px-3",
-              "border-[#D4AF37]/45 bg-gradient-to-b from-[#FCFAF4] to-[#F3ECD8]",
+              "border-brand-gold/45 bg-gradient-to-b from-[#FCFAF4] to-[#F3ECD8]",
               "text-[11px] font-semibold uppercase tracking-[0.06em] text-[#8B7320]",
               "shadow-[0_1px_2px_rgb(0_0_0/0.05)]",
               "transition-all duration-200",
-              "hover:border-[#D4AF37] hover:shadow-[0_4px_14px_-4px_rgb(212_175_55/0.45)] hover:text-[#6B5A18]",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]/45",
+              "hover:border-brand-gold hover:shadow-[0_4px_14px_-4px_rgb(95_83_72/0.45)] hover:text-[#6B5A18]",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-gold/45",
             )}
           >
             <LayoutGrid className="h-3.5 w-3.5 opacity-90" aria-hidden />
@@ -636,7 +660,7 @@ function MasterTaskRow({
         <div className="flex items-center gap-2 w-32 shrink-0">
           <div className="flex-1 h-1.5 rounded-full bg-[#E5E4DF] overflow-hidden">
             <div
-              className="h-full rounded-full bg-[#D4AF37] transition-all duration-300"
+              className="h-full rounded-full bg-brand-gold transition-all duration-300"
               style={{ width: `${pct}%` }}
             />
           </div>
@@ -759,6 +783,7 @@ export function AtlasTasksListView({
     priorities:   [],
     assignee:     "",
     showArchived: false,
+    subtasksMineOnly: false,
   });
   const [activeModalId, setActiveModalId] = useState<string | null>(null);
   const [selectedMasterIds, setSelectedMasterIds] = useState<string[]>([]);
@@ -844,18 +869,24 @@ export function AtlasTasksListView({
             if (filters.statuses.length > 0 && !filters.statuses.includes(stAtlas)) return false;
             if (filters.priorities.length > 0 && !filters.priorities.includes(st.priority as TaskPriority)) return false;
             if (filters.assignee && !(st.assigned_to_users as string[])?.includes(filters.assignee)) return false;
+            if (filters.subtasksMineOnly) {
+              const assignees = (st.assigned_to_users as string[] | undefined) ?? [];
+              if (!assignees.includes(currentUser.id)) return false;
+            }
             return true;
           }) as SubTask[],
         }));
         return { masterTask, taskGroups: filteredGroups };
       })
       .filter(({ masterTask, taskGroups }) => {
+        const hasVisibleSubtasks = taskGroups.some((g) => g.tasks.length > 0);
+        if (filters.subtasksMineOnly && !hasVisibleSubtasks) return false;
         if (q && !masterTask.title.toLowerCase().includes(q)) {
-          return taskGroups.some((g) => g.tasks.length > 0);
+          return hasVisibleSubtasks;
         }
         return true;
       });
-  }, [tasks, filters]);
+  }, [tasks, filters, currentUser.id]);
 
   // Group by department if privileged
   const isPrivileged = ["admin", "founder", "manager"].includes(currentUser.role);
@@ -877,7 +908,6 @@ export function AtlasTasksListView({
         key={masterTask.id}
         masterTask={masterTask}
         taskGroups={taskGroups}
-        currentUserId={currentUser.id}
         onOpenModal={setActiveModalId}
         canSelectMaster={canDeleteMaster}
         isSelected={selectedMasterIds.includes(masterTask.id)}
@@ -936,8 +966,16 @@ export function AtlasTasksListView({
             <p className="text-[14px] text-[#8A8A6E]">No tasks match your filters.</p>
             <button
               type="button"
-              onClick={() => setFilters({ search: "", statuses: [], priorities: [], assignee: "", showArchived: false })}
-              className="mt-2 text-[13px] text-[#D4AF37] underline"
+              onClick={() =>
+                setFilters({
+                  search: "",
+                  statuses: [],
+                  priorities: [],
+                  assignee: "",
+                  showArchived: false,
+                  subtasksMineOnly: false,
+                })}
+              className="mt-2 text-[13px] text-brand-gold underline"
             >
               Clear filters
             </button>

@@ -60,7 +60,7 @@ function parseMarkdownBold(text: string): React.ReactNode[] {
   const parts = text.split(/\*\*(.*?)\*\*/g);
   return parts.map((part, i) =>
     i % 2 === 1 ? (
-      <span key={i} className="font-semibold text-[#D4AF37]">
+      <span key={i} className="font-semibold text-brand-gold">
         {part}
       </span>
     ) : (
@@ -147,7 +147,7 @@ function ClientCard({
       )}
     >
       {isSelected && (
-        <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-full bg-[#D4AF37]" />
+        <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-full bg-brand-gold" />
       )}
       <div className="flex items-center gap-3">
         {/* Avatar */}
@@ -176,7 +176,7 @@ function ClientCard({
           className={cn(
             "w-3.5 h-3.5 shrink-0 transition-all duration-200",
             isSelected
-              ? "text-[#D4AF37] opacity-100"
+              ? "text-brand-gold opacity-100"
               : "text-[#C8C0B5] opacity-0 group-hover:opacity-100",
           )}
         />
@@ -298,7 +298,7 @@ function ClientProfilePane({
       {/* Indexed stats strip */}
       <div className="grid grid-cols-2 divide-x divide-[#E5E4DF] border-b border-[#E5E4DF]">
         <div className="px-5 py-3 text-center">
-          <p className="text-xl font-semibold text-[#D4AF37] tabular-nums">
+          <p className="text-xl font-semibold text-brand-gold tabular-nums">
             {profile.indexedInteractions}
           </p>
           <p className="mt-0.5 text-[10px] uppercase tracking-wider text-[#B5A99A]">
@@ -306,7 +306,7 @@ function ClientProfilePane({
           </p>
         </div>
         <div className="px-5 py-3 text-center">
-          <p className="text-xl font-semibold text-[#D4AF37] tabular-nums">
+          <p className="text-xl font-semibold text-brand-gold tabular-nums">
             {profile.indexedItineraries}
           </p>
           <p className="mt-0.5 text-[10px] uppercase tracking-wider text-[#B5A99A]">
@@ -326,7 +326,7 @@ function ClientProfilePane({
               label="Age · DOB"
               value={`${profile.age} years — Born ${profile.dob}`}
               iconBg="rgba(212,175,55,0.10)"
-              iconColor="#D4AF37"
+              iconColor="var(--color-brand-gold)"
             />
             <InfoRow
               icon={MapPin}
@@ -338,7 +338,7 @@ function ClientProfilePane({
               label="Member Since"
               value={profile.memberSince}
               iconBg="rgba(212,175,55,0.10)"
-              iconColor="#D4AF37"
+              iconColor="var(--color-brand-gold)"
             />
             <InfoRow
               icon={Phone}
@@ -375,7 +375,7 @@ function ClientProfilePane({
           >
             {Object.entries(profile.communicationStyle).map(([key, val]) => (
               <div key={key} className="flex gap-2">
-                <span className="mt-0.5 text-[#D4AF37] text-xs">›</span>
+                <span className="mt-0.5 text-brand-gold text-xs">›</span>
                 <p className="text-[12.5px] text-[#6B6B6B] leading-snug">
                   {val}
                 </p>
@@ -526,7 +526,7 @@ function EliaThinkingIndicator() {
           border: "1px solid rgba(212,175,55,0.20)",
         }}
       >
-        <Brain className="w-3.5 h-3.5 text-[#D4AF37]" />
+        <Brain className="w-3.5 h-3.5 text-brand-gold" />
       </div>
       <div
         className="flex gap-1.5 rounded-2xl rounded-bl-sm px-4 py-3"
@@ -538,7 +538,7 @@ function EliaThinkingIndicator() {
         {[0, 1, 2].map((i) => (
           <motion.span
             key={i}
-            className="block h-1.5 w-1.5 rounded-full bg-[#D4AF37]/60"
+            className="block h-1.5 w-1.5 rounded-full bg-brand-gold/60"
             animate={{ opacity: [0.3, 1, 0.3], y: [0, -3, 0] }}
             transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2 }}
           />
@@ -568,7 +568,7 @@ function EliaBubble({ message }: { message: EliaMessage }) {
             border: "1px solid rgba(212,175,55,0.20)",
           }}
         >
-          <Brain className="w-3.5 h-3.5 text-[#D4AF37]" />
+          <Brain className="w-3.5 h-3.5 text-brand-gold" />
         </div>
       ) : (
         <div
@@ -623,8 +623,8 @@ function EliaBubble({ message }: { message: EliaMessage }) {
         <div className="flex items-center gap-1.5 px-1">
           {isElia && (
             <>
-              <Shield className="w-2.5 h-2.5 text-[#D4AF37]/50" />
-              <span className="text-[10px] text-[#D4AF37]/50 font-medium tracking-wide">
+              <Shield className="w-2.5 h-2.5 text-brand-gold/50" />
+              <span className="text-[10px] text-brand-gold/50 font-medium tracking-wide">
                 ELIA
               </span>
               <span className="text-[10px] text-white/20">·</span>
@@ -744,7 +744,7 @@ function EliaChatPane({
             border: "1px solid rgba(212,175,55,0.18)",
           }}
         >
-          <Brain className="w-4 h-4 text-[#D4AF37]" />
+          <Brain className="w-4 h-4 text-brand-gold" />
         </div>
         <div>
           <div className="flex items-center gap-2">
@@ -794,7 +794,7 @@ function EliaChatPane({
                 border: "1px solid rgba(212,175,55,0.15)",
               }}
             >
-              <Brain className="w-7 h-7 text-[#D4AF37]/60" />
+              <Brain className="w-7 h-7 text-brand-gold/60" />
             </div>
             <p className="text-[15px] font-medium text-white/60 leading-relaxed max-w-[280px]">
               Welcome to the Intelligence Layer. Select a client to begin
@@ -913,7 +913,7 @@ export function ConciergeClient() {
           style={{ borderColor: "#E5E4DF" }}
         >
           <div className="flex items-center gap-2 mb-0.5">
-            <MessageSquare className="w-3.5 h-3.5 text-[#D4AF37]" />
+            <MessageSquare className="w-3.5 h-3.5 text-brand-gold" />
             <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[#B5A99A]">
               Clients
             </p>

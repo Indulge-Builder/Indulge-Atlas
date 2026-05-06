@@ -261,7 +261,7 @@ export function CreateProjectModal({ open, onOpenChange }: CreateProjectModalPro
       if (result.success) {
         toast.success("Project created!");
         handleClose();
-        if (result.data?.id) router.push(`/projects/${result.data.id}`);
+        if (result.data?.id) router.push(`/tasks/${result.data.id}`);
       } else {
         toast.error(result.error ?? "Failed to create project");
       }

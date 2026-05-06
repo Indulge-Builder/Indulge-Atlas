@@ -61,7 +61,9 @@ import type {
   ProjectProgressUpdate,
   TaskStatus,
   TaskAttachment,
+  TaskType,
 } from "@/lib/types/database";
+import { ALL_TASK_TYPES } from "@/lib/types/database";
 import { ATLAS_SYSTEM_AUTHOR_ID, isPrivilegedRole } from "@/lib/types/database";
 import type { EmployeeDepartment, IndulgeDomain } from "@/lib/types/database";
 import { departmentsVisibleForDomain } from "@/lib/constants/departments";
@@ -2544,6 +2546,158 @@ export async function searchProfilesForTasks(
     return (data ?? []) as { id: string; full_name: string; role: string; job_title: string | null }[];
   } catch {
     return [];
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CRM LEAD TASKS (`lead_id` set — not Atlas personal tasks)
+// Used by LeadTaskWidget and LeadFollowUpAccordion. Discriminated by lead_id.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function createLeadTask(input: {
+  leadId: string;
+  title: string;
+  dueAt?: string | Date | null;
+  type?: TaskType;
+  notes?: string | null;
+}): Promise<{ success: boolean; taskId?: string; error?: string }> {
+  try {
+    const { supabase, user, role } = await getAuthUser();
+
+    const idParse = uuidSchema.safeParse(input.leadId);
+    if (!idParse.success) return { success: false, error: "Invalid lead" };
+
+    const { data: lead, error: leadError } = await supabase
+      .from("leads")
+      .select("id, assigned_to")
+      .eq("id", input.leadId)
+      .single();
+
+    if (leadError || !lead) {
+      return { success: false, error: "Lead not found" };
+    }
+
+    if (!isPrivilegedRole(role) && lead.assigned_to !== user.id) {
+      return { success: false, error: "Not authorized to add tasks to this lead" };
+    }
+
+    const sanitizedTitle = sanitizeText(input.title);
+    if (!sanitizedTitle) {
+      return { success: false, error: "Title is required" };
+    }
+
+    const taskType: TaskType =
+      input.type && ALL_TASK_TYPES.includes(input.type) ? input.type : "call";
+
+    let dueIso: string | null = null;
+    if (input.dueAt != null && input.dueAt !== "") {
+      const d = input.dueAt instanceof Date ? input.dueAt : new Date(input.dueAt);
+      if (Number.isNaN(d.getTime())) {
+        return { success: false, error: "Invalid due date" };
+      }
+      dueIso = d.toISOString();
+    }
+
+    const sanitizedNotes =
+      input.notes != null && String(input.notes).trim() !== ""
+        ? sanitizeText(String(input.notes))
+        : null;
+
+    const { data: task, error } = await supabase
+      .from("tasks")
+      .insert({
+        lead_id:           input.leadId,
+        title:             sanitizedTitle,
+        notes:             sanitizedNotes,
+        due_date:          dueIso,
+        task_type:         taskType,
+        status:            "pending",
+        created_by:        user.id,
+        assigned_to_users: [user.id],
+        progress_updates:  [],
+      })
+      .select("id")
+      .single();
+
+    if (error || !task) {
+      console.error("[createLeadTask] insert error:", error);
+      return { success: false, error: error?.message ?? "Failed to create task" };
+    }
+
+    await supabase.from("lead_activities").insert({
+      lead_id:       input.leadId,
+      performed_by:  user.id,
+      actor_id:      user.id,
+      action_type:   "task_created",
+      details:       { task_id: task.id, title: sanitizedTitle, task_type: taskType },
+      type:          "task_created",
+      payload:       { task_id: task.id, title: sanitizedTitle, task_type: taskType },
+    });
+
+    revalidatePath(`/leads/${input.leadId}`);
+    revalidatePath("/", "page");
+    return { success: true, taskId: task.id as string };
+  } catch (err) {
+    console.error("[createLeadTask]", err);
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+export async function completeLeadTask(
+  taskId: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { supabase, user, role } = await getAuthUser();
+
+    const parsed = uuidSchema.safeParse(taskId);
+    if (!parsed.success) return { success: false, error: "Invalid task ID" };
+
+    const { data: task, error: fetchError } = await supabase
+      .from("tasks")
+      .select("id, lead_id, assigned_to_users, created_by, status")
+      .eq("id", parsed.data)
+      .not("lead_id", "is", null)
+      .single();
+
+    if (fetchError || !task) {
+      return { success: false, error: "Lead task not found" };
+    }
+
+    const assignees = (task.assigned_to_users as string[] | null) ?? [];
+    const isAssigned = assignees.includes(user.id);
+    const isCreator = task.created_by === user.id;
+
+    if (!isPrivilegedRole(role) && !isAssigned && !isCreator) {
+      return { success: false, error: "Not authorized" };
+    }
+
+    const { error } = await supabase
+      .from("tasks")
+      .update({ status: "completed", updated_at: new Date().toISOString() })
+      .eq("id", parsed.data)
+      .not("lead_id", "is", null);
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    const leadId = task.lead_id as string;
+    await supabase.from("lead_activities").insert({
+      lead_id:       leadId,
+      performed_by:  user.id,
+      actor_id:      user.id,
+      action_type:   "task_completed",
+      details:       { task_id: parsed.data },
+      type:          "task_completed",
+      payload:       { task_id: parsed.data },
+    });
+
+    revalidatePath(`/leads/${leadId}`);
+    revalidatePath("/", "page");
+    return { success: true };
+  } catch (err) {
+    console.error("[completeLeadTask]", err);
+    return { success: false, error: "An unexpected error occurred" };
   }
 }
 

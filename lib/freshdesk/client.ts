@@ -67,9 +67,7 @@ function parseContact(raw: Record<string, unknown>): FreshdeskContact | null {
   };
 }
 
-function parseTicketStats(
-  raw: unknown,
-): FreshdeskTicket["stats"] {
+function parseTicketStats(raw: unknown): FreshdeskTicket["stats"] {
   if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
   return {
@@ -123,8 +121,7 @@ function parseTicket(raw: Record<string, unknown>): FreshdeskTicket | null {
     due_by: typeof raw.due_by === "string" ? raw.due_by : null,
     fr_due_by: typeof raw.fr_due_by === "string" ? raw.fr_due_by : null,
     is_escalated: Boolean(raw.is_escalated),
-    requester_id:
-      typeof raw.requester_id === "number" ? raw.requester_id : 0,
+    requester_id: typeof raw.requester_id === "number" ? raw.requester_id : 0,
     responder_id:
       typeof raw.responder_id === "number" ? raw.responder_id : null,
     group_id: typeof raw.group_id === "number" ? raw.group_id : null,
@@ -223,15 +220,38 @@ export async function searchContactsByName(
 export async function listTicketsForRequester(
   requesterId: number,
 ): Promise<FreshdeskTicket[]> {
-  const { ok, json } = await freshdeskGet("/tickets", {
-    requester_id: String(requesterId),
-    per_page: "50",
-    include: "requester,stats",
-    order_by: "created_at",
-    order_type: "desc",
-  });
-  if (!ok) return [];
-  return parseTicketList(json);
+  const allTickets: FreshdeskTicket[] = [];
+  const perPage = 100;
+  let page = 1;
+
+  while (true) {
+    const { ok, json, status } = await freshdeskGet("/tickets", {
+      requester_id: String(requesterId),
+      per_page: String(perPage),
+      page: String(page),
+      include: "requester,stats",
+      order_by: "created_at",
+      order_type: "desc",
+    });
+
+    if (!ok) {
+      throw new Error(`Freshdesk tickets fetch failed (status ${status})`);
+    }
+
+    const pageTickets = parseTicketList(json);
+    if (!pageTickets.length) {
+      break;
+    }
+
+    allTickets.push(...pageTickets);
+    if (pageTickets.length < perPage) {
+      break;
+    }
+
+    page += 1;
+  }
+
+  return allTickets;
 }
 
 export async function findFreshdeskContactForClient(params: {

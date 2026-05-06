@@ -1,9 +1,9 @@
 # ATLAS BLUEPRINT
 ## Indulge Atlas — Complete System Reference & Architectural Contract
 
-> **Authored**: 2026-04-23 · **Updated**: 2026-05-05  
+> **Authored**: 2026-04-23 · **Updated**: 2026-05-06  
 > **Based on**: Full codebase audit, numbered migrations through **089** (client profile / completeness stack **087–089**), lib/ and app/, git status  
-> **Task system detail**: See **`task_details.md`** (master reference for `/tasks`, `/task-insights`, schema 067+, actions, realtime).  
+> **Task system detail**: Summarized in **§2.1** (Atlas Unified Task System) and **§7** (migrations); test matrix in **`TESTING_MASTER_PLAN.md`**.  
 > **Status**: Authoritative specification. Supersedes all prior versions.  
 > **Audience**: Engineers, technical stakeholders.
 
@@ -52,7 +52,7 @@
 - `agentRoutingConfig` is now wired into `leadIngestion.ts` — hardcoded email pool is supplemented by the DB-driven config
 - Lead dossier (`/leads/[id]`) — full 8-stage pipeline, WhatsApp two-way sync, activity timeline, tasks, disposition modals, scratchpad, follow-up drafts, executive dossier, tags
 - Leads table (`/leads`) — paginated, filterable by status/domain/source
-- **Clients** (`/clients`, `/clients/[id]`) — member directory + full client profile tabs (**Overview** default tab, Profile, Notes, Membership, **Service History**). **Overview** (`components/clients/overview/`): Elia **3-sentence member summary** is **on demand only** — `ClientOverviewTab` + `ClientSummaryCard` expose **Generate summary** (`IndulgeButton` variant `gold`); `getClientSummary` in `lib/actions/elia.ts` (Haiku, client + `client_profiles` + Freshdesk snapshot; `ANTHROPIC_API_KEY` server-only) runs **after** the user clicks, not on every tab visit (saves tokens). **Metric pills** (membership, Freshdesk ticket counts via `getClientFreshdeskTickets`, profile completeness) still load on visit. **Client-scoped Elia chat** (POST `app/api/elia/chat` with optional `clientId` — single-member context + `eliaClientScopedPrompt` in `lib/elia/chat-prompt.ts`; session not persisted; chat UI resets when leaving the tab). Service History reads **Freshdesk** tickets live (server-only `FRESHDESK_API_KEY`); contact match order: E.164 `phone` / `mobile` on Freshdesk contacts, then name query. AI **ticket** summary via **Anthropic** (`getTicketAISummary` in `lib/actions/freshdesk.ts` — same non-streaming pattern as `app/api/elia/chat`). Implementation: `lib/freshdesk/client.ts`, `lib/freshdesk/types.ts`, `lib/actions/freshdesk.ts`, `lib/actions/elia.ts`, `components/clients/FreshdeskTab.tsx`, `TicketCard.tsx`, `TicketSummaryModal.tsx`, `components/clients/overview/*`; `ClientProfileSheet.tsx` re-exports `ClientDetailView`.
+- **Clients** (`/clients`, `/clients/[id]`) — member directory + dossier tabs (**Overview** default, **Profile**, **Notes**, **Service History**, **WhatsApp**). **There is no separate Membership tab** — membership (**`ClientMembershipTab`**) renders **inside Profile** below **`ClientProfileFields`**, with **`showContact={false}`**, under a **Membership** heading. **Overview** (`components/clients/overview/`): Elia **3-sentence member summary** is **on demand only** — `ClientOverviewTab` + `ClientSummaryCard` expose **Generate summary** (`IndulgeButton` variant `gold`); `getClientSummary` in `lib/actions/elia.ts` (Haiku, client + `client_profiles` + Freshdesk snapshot; `ANTHROPIC_API_KEY` server-only) runs **after** the user clicks, not on every tab visit (saves tokens). **Metric pills** (membership, Freshdesk ticket counts via `getClientFreshdeskTickets`, **profile completeness %** on Overview only via `ClientMetricPills`) still load on visit — completeness is **not** duplicated as a top bar on the **Profile** tab or as a column in **directory list view**. **Profile** tab (`components/clients/profile/` — `ClientProfileFields`, `ProfileSection`, `ProfileFieldRow`): grouped fields with **light stone section headers** (`#F5F3EE`), **no** per-section field-count chips; field labels are **high-contrast** (`text-stone-800`). **Membership** section (same tab): **Timeline** shows start/end cards, term length, status pill, and **term progress** bar; **Queendom** appears on plan rows as implemented in `ClientMembershipTab`. **Client-scoped Elia chat** (POST `app/api/elia/chat` with optional `clientId` — single-member context + `eliaClientScopedPrompt` in `lib/elia/chat-prompt.ts`; session not persisted; chat UI resets when leaving the tab). Service History reads **Freshdesk** tickets live (server-only `FRESHDESK_API_KEY`); contact match order: E.164 `phone` / `mobile` on Freshdesk contacts, then name query. AI **ticket** summary via **Anthropic** (`getTicketAISummary` in `lib/actions/freshdesk.ts` — same non-streaming pattern as `app/api/elia/chat`). **WhatsApp (Chetto)** — `components/clients/chetto/ChettoTab.tsx`: concierge WhatsApp **group lookup** by normalized phone plus India dial variants (`91` + 10-digit); `lib/actions/chetto.ts` integrates Chetto **Joule** (`https://apiv2.chetto.ai/joule`) with queendom→sub-org maps and maintained per-queendom WhatsApp group id lists. **API proxies** (authenticated user, **never** expose `CHETTO_API_KEY` to the browser): `GET /api/chetto/find-group`, `GET /api/chetto/timeline`, `POST /api/chetto/insights`. Timeline may be empty when Joule returns **404** / “No groups found” for timeline while group metadata exists — UI **`timelineNotAvailable`** (API/indexing gap). **`lib/constants/chetto-jokers.ts`** — client-safe “joker” sender labels. Tab shell: bordered **`rounded-2xl`** card + **`min-w-0`** / wrap-safe copy so dashboard **`main`** rounding does not clip content. Implementation: `lib/freshdesk/client.ts`, `lib/freshdesk/types.ts`, `lib/actions/freshdesk.ts`, `lib/actions/elia.ts`, `lib/actions/chetto.ts`, `components/clients/FreshdeskTab.tsx`, `TicketCard.tsx`, `TicketSummaryModal.tsx`, `components/clients/chetto/ChettoTab.tsx`, `components/clients/overview/*`, `components/clients/profile/*`, `components/clients/membership/*`, `app/api/chetto/*`; `ClientProfileSheet.tsx` re-exports `ClientDetailView`.
 - Global WhatsApp Hub (`/whatsapp`) — master-detail, `DISTINCT ON` view for latest threads
 - SLA monitor (`useSLA_Monitor`) — 60s polling, Level 1/2/3 breach detection, IST-aware off-duty anchors via consolidated `lib/utils/sla.ts`
 - Shop War Room (`/shop/workspace`) — task-based WhatsApp sales, atomic `target_sold` RPC, order registration, master targets
@@ -80,7 +80,7 @@
 - **`task_remarks`** append-only agent + system timeline; **`import_batches`** for CSV; **`task_notifications`** (077) for in-app notifications
 - Realtime publications extended by **073** (`task_remarks`), **074** (`task_groups`); legacy duplicate **`tasks` RLS** from 063 removed by **075**
 - Routes: `/tasks` (My Tasks + Atlas Tasks), `/tasks/[id]` workspace, `/tasks/import`; **`/task-insights`** (manager / admin / founder) — index, **`/task-insights/[departmentId]`** (department modal-style detail), **`/task-insights/agents/[agentId]`** (employee dossier)
-- **`lib/actions/tasks.ts`**, **`lib/actions/task-intelligence.ts`**, **`components/tasks/`**, **`components/task-intelligence/`** — full workflow in **`task_details.md`**. **Index UX (2026-05):** `TaskIntelligenceDashboard` — `max-w-5xl`; department **chip** filter (departments with active masters or overdue subtasks only); **Agents** tab first, **All workspaces** second; agent rows **prefetched** on scope change; **no** department health **card grid** on the index (cards removed; deep links unchanged). Workspaces: bento column spans via `components/task-intelligence/taskInsightsBento.ts` + denser `GroupTasksCommandView` cards. Dossier personal list: SOP strip omits completed rows; hint copy updated.
+- **`lib/actions/tasks.ts`**, **`lib/actions/task-intelligence.ts`**, **`components/tasks/`**, **`components/task-intelligence/`** — see **§2.1** / **§8** for narrative. **Index UX (2026-05):** `TaskIntelligenceDashboard` — `max-w-5xl`; department **chip** filter (departments with active masters or overdue subtasks only); **Agents** tab first, **All workspaces** second; agent rows **prefetched** on scope change; **no** department health **card grid** on the index (cards removed; deep links unchanged). Workspaces: bento column spans via `components/task-intelligence/taskInsightsBento.ts` + denser `GroupTasksCommandView` cards. Dossier personal list: SOP strip omits completed rows; hint copy updated.
 
 **Department Access Control (Migration 066, fully live):**
 - `employee_department` enum: `concierge`, `finance`, `tech`, `shop`, `house`, `legacy`, `marketing`, `onboarding`
@@ -219,6 +219,7 @@
 | Supabase | Managed Postgres + Auth + Realtime + Storage | Database, auth, real-time subscriptions |
 | Freshdesk | REST (`indulge.freshdesk.com/api/v2`) | Client Service History: contacts + tickets (Basic auth, server-only key) |
 | Anthropic | REST (`api.anthropic.com`) | `app/api/elia/chat` (global or `clientId`-scoped), `getClientSummary` (Overview), `getTicketAISummary` (Freshdesk); Haiku; server-only `ANTHROPIC_API_KEY` |
+| Chetto (Joule) | REST (`apiv2.chetto.ai/joule`) | Client **WhatsApp** tab: find concierge WhatsApp group by phone, optional timeline + AI insight prompts; **`CHETTO_API_KEY`** server-only via `/api/chetto/*` proxies |
 
 ---
 
@@ -352,7 +353,7 @@ TaskReminderProvider
 │   │   │   └── [id]/page.tsx       Lead Dossier (force-dynamic RSC)
 │   │   ├── clients/                Client directory + profile (`ClientDetailView` / `ClientProfileSheet`)
 │   │   │   ├── page.tsx
-│   │   │   └── [id]/page.tsx       Default Overview: on-demand Elia summary + metrics + scoped chat; Freshdesk Service History, etc.
+│   │   │   └── [id]/page.tsx       Default Overview: on-demand Elia summary + metrics + scoped chat; Freshdesk; WhatsApp/Chetto tab
 │   │   ├── tasks/                  Atlas Tasks — index, [id] workspace, import
 │   │   ├── task-insights/         Task Insights index + `[departmentId]` + `agents/[agentId]` (manager / admin / founder)
 │   │   ├── workspace/page.tsx
@@ -376,6 +377,10 @@ TaskReminderProvider
 │   │   └── shop/workspace/         Shop War Room
 │   │
 │   ├── api/
+│   │   ├── chetto/
+│   │   │   ├── find-group/route.ts GET — proxy group lookup (auth + CHETTO_API_KEY)
+│   │   │   ├── timeline/route.ts   GET — proxy message timeline
+│   │   │   └── insights/route.ts   POST — proxy Chetto intelligence prompts
 │   │   ├── elia/chat/route.ts      POST — Anthropic Haiku; optional `clientId` for single-member scoped chat
 │   │   ├── bootstrap/              One-time DB bootstrap helper
 │   │   ├── campaigns/sync/         Campaign metrics sync
@@ -414,7 +419,7 @@ TaskReminderProvider
 │   ├── projects/                   Shared board/list/sheet primitives (also used by Atlas `/tasks`)
 │   ├── tasks/                      Atlas Tasks UI (master list, subtask modal, import, My Tasks)
 │   ├── task-intelligence/          Task Insights UI: `TaskIntelligenceDashboard`, `GroupTasksCommandView`, `DepartmentDetailView`, `EmployeeDossierView`, `DepartmentIndividualTasksView`, `taskInsightsBento.ts`, etc.
-│   ├── clients/                    Client list + profile; `overview/` (Overview: on-demand Elia summary, metrics, scoped chat); Freshdesk tab
+│   ├── clients/                    Client list + profile; `overview/`; **`profile/`**; **`membership/`** (embedded in Profile); Freshdesk; **`chetto/ChettoTab.tsx`** (WhatsApp tab); `ClientDetailView`
 │   ├── concierge/                  ConciergeClient.tsx — ⚠️ ALL MOCK DATA
 │   ├── elia/                       `EliaChat.tsx`, `EliaChatMessage.tsx` (preview UI); `EliaSidePanel.jsx` (sidebar); POST `/api/elia/chat`
 │   ├── shop/                       Shop War Room components
@@ -424,7 +429,7 @@ TaskReminderProvider
 │   └── indulge-world/              Brand/org chart views
 │
 ├── lib/
-│   ├── actions/                    Next.js Server Actions ("use server") — the only component-facing data layer
+│   ├── actions/                    Mostly Server Actions (`"use server"`) — component-facing data layer; **`chetto.ts`** is **exception** (route-handler-only imports)
 │   │   ├── leads.ts                Lead status transitions, activity logging, won deal
 │   │   ├── tasks.ts                Atlas unified tasks + CRM/legacy exports
 │   │   ├── task-intelligence.ts   Task Insights read model
@@ -444,6 +449,7 @@ TaskReminderProvider
 │   │   ├── team-stats.ts           Team statistics
 │   │   ├── clients.ts              Client directory + profile + notes
 │   │   ├── freshdesk.ts            Freshdesk ticket fetch + Elia ticket summary (server-only)
+│   │   ├── chetto.ts               Chetto Joule — async helpers for `/api/chetto/*` (**no** `"use server"` — not a Server Actions module; routes import these functions)
 │   │   ├── elia.ts                 Elia: global member context, active count, single-client profile text, **getClientSummary** (Haiku)
 │   │   └── ...                     briefing, calendar, messages, profile, workspace, etc.
 │   │
@@ -476,7 +482,8 @@ TaskReminderProvider
 │   │   └── ...                     useDebounce, useClientOnly, useUserDomain
 │   │
 │   ├── constants/
-│   │   └── departments.ts          DEPARTMENT_CONFIG, DOMAIN_CONFIG, DEPARTMENT_ROUTE_ACCESS
+│   │   ├── departments.ts          DEPARTMENT_CONFIG, DOMAIN_CONFIG, DEPARTMENT_ROUTE_ACCESS
+│   │   └── chetto-jokers.ts        Client-safe joker phone labels for Chetto sender UI
 │   │
 │   ├── supabase/
 │   │   ├── client.ts               Browser client (singleton)
@@ -497,9 +504,7 @@ TaskReminderProvider
 ├── supabase/
 │   ├── config.toml                 Supabase CLI project config
 │   ├── 20260308000000_initial_schema.sql  ⚠️ Outside numbered sequence — relationship unclear
-│   └── migrations/                 71 numbered SQL files (001–080+); see **task_details.md** §3 for task milestones
-│
-├── task_details.md                 Master reference — Atlas unified tasks + Task Insights
+│   └── migrations/                 71 numbered SQL files (001–080+); task milestones in **§7**
 │
 ├── proxy.ts                        Next.js middleware IMPLEMENTATION — load via **middleware.ts** (see §2.4)
 ├── next.config.ts                  Next.js config + Sentry + /scout/* redirects
@@ -596,7 +601,7 @@ TaskReminderProvider
 | 064 | `task_comments`, `task_progress_updates` tables |
 | 065 | `tasks.due_date` nullable |
 | 066 | `employee_department` enum, `profiles.department/job_title/reports_to`, `get_user_department()`, `indulge_global` re-added, updated RLS |
-| **067** | **Unified task schema** — `unified_task_type`, `atlas_status`, `task_remarks`, `import_batches` (see `task_details.md`) |
+| **067** | **Unified task schema** — `unified_task_type`, `atlas_status`, `task_remarks`, `import_batches` (see **§2.1** / **`tasks`** in **§7**) |
 | **068–072** | Backfill, RLS v2, indexes, `task_remarks` metadata, **priority `critical`** |
 | **073–075** | Realtime for `task_remarks` + `task_groups`; **drop legacy `tasks_*` RLS** from 063 |
 | **076–078** | Group-task experiment, notifications, backfill to **master** workspaces |
@@ -632,7 +637,7 @@ Multi-purpose: CRM lead tasks, shop tasks, personal tasks, project tasks, and **
 - `project_id IS NOT NULL` (with `unified_task_type` subtask) → board subtask
 - Personal rows: `unified_task_type = 'personal'`
 
-Extended in 062/063 with: `project_id`, `group_id`, `parent_task_id`, `priority`, `progress`, `estimated_minutes`, `actual_minutes`, `position`, `tags`, `attachments`. **067+** adds `unified_task_type`, `atlas_status`, domain/department, archive and import fields, `master_task_id`, etc. — full list in **`task_details.md`**.
+Extended in 062/063 with: `project_id`, `group_id`, `parent_task_id`, `priority`, `progress`, `estimated_minutes`, `actual_minutes`, `position`, `tags`, `attachments`. **067+** adds `unified_task_type`, `atlas_status`, domain/department, archive and import fields, `master_task_id`, etc. — summarized under **`tasks`** in **§7**.
 
 #### `lead_activities`
 Immutable audit log. No UPDATE or DELETE policies. Dual-write (legacy + new columns) for backward compat.
@@ -641,7 +646,7 @@ Immutable audit log. No UPDATE or DELETE policies. Dual-write (legacy + new colu
 Project system (migration 062). RLS uses `is_project_member()` and `get_project_member_role()` helper functions. Four project roles: `owner`, `manager`, `member`, `viewer`.
 
 #### `task_remarks` / `import_batches` / `task_notifications`
-**067+** — Append-only **remarks** timeline for Atlas subtasks (distinct from `task_comments`). **import_batches** audit for CSV. **077** adds **`task_notifications`** for in-app task events. Policies and Realtime publication requirements are documented in **`task_details.md`**.
+**067+** — Append-only **remarks** timeline for Atlas subtasks (distinct from `task_comments`). **import_batches** audit for CSV. **077** adds **`task_notifications`** for in-app task events. Policies and Realtime publication requirements are covered in **§2.1** (task bullets) and migration rows in **§7**.
 
 #### `task_comments` / `task_progress_updates`
 Added in migration 064. `task_progress_updates` is append-only (no UPDATE/DELETE policies). Both published to Supabase Realtime via `useTaskRealtime` hook.
@@ -759,7 +764,7 @@ Ad Platform → Pabbly Connect
 4. Real-time updates via `useTaskRealtime` subscription on `task_comments` and `task_progress_updates`
 5. Progress logged as append-only entries in `task_progress_updates`
 
-**Routing note:** `app/(dashboard)/projects/*` is **301-redirected** to **`/tasks/*`**. New feature work should follow **`task_details.md`**, not a separate projects route.
+**Routing note:** `app/(dashboard)/projects/*` is **301-redirected** to **`/tasks/*`**. New feature work should follow **§8** (Atlas Unified Task Workflow), not a separate projects route.
 
 ### Atlas Unified Task Workflow (summary)
 
@@ -767,7 +772,7 @@ Ad Platform → Pabbly Connect
 2. **Subtasks** — Live in `task_groups` columns; agent narrative in `task_remarks`, structured % progress in `task_progress_updates`; cache invalidation via `revalidateAtlasTaskSurfaces`.
 3. **Task Insights** — `lib/actions/task-intelligence.ts`; role gate (manager or privileged); Realtime via `useTaskIntelligenceRealtime`. **Main index** (`components/task-intelligence/TaskIntelligenceDashboard.tsx`): department filter chips, Agents + Workspaces tabs, prefetched agent summaries, no department card grid. **Department detail** tab key `agents` (label **Agents**); workspace list bento + card density in `GroupTasksCommandView`.
 
-Authoritative detail: **`task_details.md`**.
+Authoritative detail: **§8** (workflows), **§2.1** (live task surface), and **`TESTING_MASTER_PLAN.md`** (planned tests).
 
 ---
 
@@ -785,6 +790,9 @@ Authoritative detail: **`task_details.md`**.
 | `/api/webhooks/whatsapp` | GET/POST | HMAC-SHA256 `WHATSAPP_APP_SECRET` | WhatsApp two-way sync |
 | `/api/webhooks/onboarding-conversion` | POST | — | Onboarding conversion event |
 | `/api/finance-notify` | POST | Bearer `INTERNAL_API_SECRET` | Won deal notification |
+| `/api/chetto/find-group` | GET | Cookie session + server `CHETTO_API_KEY` | Client WhatsApp tab — resolve concierge group by phone |
+| `/api/chetto/timeline` | GET | Same | Proxy Joule message timeline (may be empty / API limitation) |
+| `/api/chetto/insights` | POST | Same | Chetto Intelligence prompt chips |
 | `/api/campaigns/sync` | POST | — | ⚠️ No auth visible — audit needed |
 | `/api/bootstrap` | POST | — | ⚠️ No auth visible — audit needed |
 | `/api/tv/onboarding-feed` | GET | TV token | TV display data |
@@ -798,8 +806,7 @@ Authoritative detail: **`task_details.md`**.
 | Upstash Redis | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | REST |
 | Sentry | `SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_AUTH_TOKEN` | SDK |
 | Supabase | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | REST + WS |
-
----
+| Chetto (Joule) | `CHETTO_API_KEY` | REST — client WhatsApp tab proxies only |
 
 ## Section 10 — Environment Variables
 
@@ -817,6 +824,7 @@ Authoritative detail: **`task_details.md`**.
 | `WHATSAPP_VERIFY_TOKEN` | ✅ | Meta webhook challenge |
 | `WHATSAPP_APP_SECRET` | ✅ Mandatory | HMAC-SHA256 signature key |
 | `INTERNAL_API_SECRET` | ✅ | Internal API auth (finance-notify) |
+| `CHETTO_API_KEY` | Optional | Chetto Joule API — enables `/api/chetto/*` for client **WhatsApp** tab |
 | `NEXT_PUBLIC_APP_URL` | ✅ | Base URL for internal calls |
 | `UPSTASH_REDIS_REST_URL` | ✅ Fail-closed | Upstash Redis endpoint |
 | `UPSTASH_REDIS_REST_TOKEN` | ✅ Fail-closed | Upstash Redis token |
@@ -976,13 +984,14 @@ Build order:
 | 2026-04-22 | `ATLAS_BLUEPRINT.md` v1 + `audit.md` v1 authored; migration 061 (`agent_routing_config`) |
 | 2026-04-22–23 | Migrations 062–066: Projects system, department access control; `/scout/*` redirects live; `sendDefaultPii` fixed; `lib/utils/sla.ts` consolidated; manager suite fully built; `lib/constants/departments.ts` added |
 | 2026-04-23 | `ATLAS_BLUEPRINT.md` v2 |
-| 2026-05-05 | **v3.1** — Task Insights index refresh: `max-w-5xl`, Agents-first tabs + prefetch, department chips only (no index department grid), bento workspace tiles (`taskInsightsBento.ts`), dossier SOP strip + copy tweaks; `CLAUDE.md` / blueprint aligned |
-| 2026-05-05 | **v3.2** — **`/elia-preview`** flagship chat: `components/elia/EliaChat.tsx` + `EliaChatMessage.tsx` (strict TS), Atlas design tokens + `surfaceCardVariants`, `getEliaActiveMemberCount` on page, welcome / side rails / stats / motion; sidebar `EliaSidePanel.jsx` unchanged (still JSX) |
-| 2026-04-30 | **v3** — 71 migrations through **080**; **`task_details.md`** master task reference; Atlas unified tasks + Task Insights; `/projects` → `/tasks`; schema sections for `task_remarks`, `task_notifications`; middleware wiring note |
+| 2026-05-06 | **v3.3** — Client dossier: **WhatsApp** (**Chetto / Joule**) — `components/clients/chetto/ChettoTab.tsx`, **`GET`/`POST` `/api/chetto/{find-group,timeline,insights}`**, `lib/actions/chetto.ts` (**no** `"use server"` — route-handler-only), `lib/constants/chetto-jokers.ts`, **`timelineNotAvailable`**, bordered card + `min-w-0` layout. **Membership** lives under **Profile** (no separate tab). Docs: **`task_details.md`** refs removed → **§2.1** / **§7** / **§8** / **`TESTING_MASTER_PLAN.md`**; **`claude.md`** / §5 tree aligned |
+| 2026-05-05 | **v3.2** — **`/elia-preview`** flagship chat: `EliaChat.tsx` + `EliaChatMessage.tsx` (strict TS), Atlas tokens + `surfaceCardVariants`, `getEliaActiveMemberCount`, motion; sidebar `EliaSidePanel.jsx` unchanged (JSX) |
+| 2026-05-05 | **v3.1** — Task Insights index refresh: `max-w-5xl`, Agents-first tabs + prefetch, department chips only (no index department grid), bento workspace tiles (`taskInsightsBento.ts`), dossier SOP strip + copy tweaks; `claude.md` / blueprint aligned |
+| 2026-04-30 | **v3** — 71 migrations through **080**; Atlas unified tasks + Task Insights documented in **§2.1** / **§7** / **§8**; `/projects` → `/tasks`; schema sections for `task_remarks`, `task_notifications`; middleware wiring note |
 
 ---
 
 *End of ATLAS_BLUEPRINT.md*  
 *Supersedes all prior versions and the deleted `audit.md`.*  
-*For Atlas Tasks / Task Insights / `task_remarks` / related migrations, see **`task_details.md`***  
+*For Atlas Tasks / Task Insights / `task_remarks` / related migrations, see **§2.1**, **§7**, **§8**, and **`TESTING_MASTER_PLAN.md`***  
 *Review Section 13 (Roadmap) at the end of each Phase. Review Section 12 (Architectural Decisions) only when a revisit trigger is met.*

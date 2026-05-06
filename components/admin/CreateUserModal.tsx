@@ -164,9 +164,9 @@ function StepIndicator({ currentStep }: { currentStep: WizardStep }) {
                 className={cn(
                   "w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold border-2 transition-all",
                   done
-                    ? "bg-[#D4AF37] border-[#D4AF37] text-white"
+                    ? "bg-brand-gold border-brand-gold text-white"
                     : active
-                      ? "bg-white border-[#D4AF37] text-[#D4AF37]"
+                      ? "bg-white border-brand-gold text-brand-gold"
                       : "bg-white border-[#E5E4DF] text-[#B5A99A]",
                 )}
               >
@@ -176,7 +176,7 @@ function StepIndicator({ currentStep }: { currentStep: WizardStep }) {
                 className={cn(
                   "text-[9px] font-medium uppercase tracking-wider whitespace-nowrap",
                   active
-                    ? "text-[#D4AF37]"
+                    ? "text-brand-gold"
                     : done
                       ? "text-[#8A8A6E]"
                       : "text-[#C0B8B0]",
@@ -189,7 +189,7 @@ function StepIndicator({ currentStep }: { currentStep: WizardStep }) {
               <div
                 className={cn(
                   "h-px flex-1 mx-1 mb-5 transition-colors",
-                  done ? "bg-[#D4AF37]/40" : "bg-[#E5E4DF]",
+                  done ? "bg-brand-gold/40" : "bg-[#E5E4DF]",
                 )}
               />
             )}
@@ -380,8 +380,8 @@ export function CreateUserModal({
       <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
         <DialogHeader className="pb-2">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-9 h-9 rounded-xl bg-[#D4AF37]/15 border border-[#D4AF37]/25 flex items-center justify-center shrink-0">
-              <UserPlus className="w-4 h-4 text-[#D4AF37]" />
+            <div className="w-9 h-9 rounded-xl bg-brand-gold/15 border border-brand-gold/25 flex items-center justify-center shrink-0">
+              <UserPlus className="w-4 h-4 text-brand-gold" />
             </div>
             <div>
               <DialogTitle className="text-[15px] font-semibold text-[#1A1A1A]">
@@ -526,7 +526,7 @@ export function CreateUserModal({
                               className={cn(
                                 "flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all text-center",
                                 isSelected
-                                  ? "border-[#D4AF37] bg-[#D4AF37]/6"
+                                  ? "border-brand-gold bg-brand-gold/6"
                                   : "border-[#E5E4DF] hover:border-[#D0C8BE] bg-white",
                               )}
                             >
@@ -607,7 +607,7 @@ export function CreateUserModal({
                                     className={cn(
                                       "w-full flex items-start gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all",
                                       isSelected
-                                        ? "border-[#D4AF37] bg-[#D4AF37]/5"
+                                        ? "border-brand-gold bg-brand-gold/5"
                                         : "border-[#E5E4DF] hover:border-[#D0C8BE] bg-white",
                                     )}
                                   >
@@ -621,7 +621,7 @@ export function CreateUserModal({
                                           {cfg.label}
                                         </p>
                                         {isPrimary && (
-                                          <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-[#D4AF37]/15 text-[#A88B25] uppercase tracking-wide">
+                                          <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-brand-gold/15 text-[#A88B25] uppercase tracking-wide">
                                             Recommended
                                           </span>
                                         )}
@@ -636,7 +636,7 @@ export function CreateUserModal({
                                       </p>
                                     </div>
                                     {isSelected && (
-                                      <Check className="w-4 h-4 text-[#D4AF37] shrink-0 mt-0.5" />
+                                      <Check className="w-4 h-4 text-brand-gold shrink-0 mt-0.5" />
                                     )}
                                   </button>
                                 );
@@ -712,7 +712,7 @@ export function CreateUserModal({
                                 isLocked
                                   ? "border-[#EAEAEA] bg-[#F9F9F9] opacity-60 cursor-not-allowed"
                                   : isSelected
-                                    ? "border-[#D4AF37] bg-[#D4AF37]/5"
+                                    ? "border-brand-gold bg-brand-gold/5"
                                     : "border-[#E5E4DF] hover:border-[#D0C8BE] bg-white cursor-pointer",
                               )}
                             >
@@ -757,7 +757,7 @@ export function CreateUserModal({
                                 </p>
                               </div>
                               {isSelected && !isLocked && (
-                                <Check className="w-4 h-4 text-[#D4AF37] shrink-0" />
+                                <Check className="w-4 h-4 text-brand-gold shrink-0" />
                               )}
                             </button>
                           );
@@ -793,7 +793,7 @@ export function CreateUserModal({
                           className={cn(
                             "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left transition-all text-sm",
                             field.value === null
-                              ? "border-[#D4AF37]/40 bg-[#D4AF37]/6 text-[#A88B25]"
+                              ? "border-brand-gold/40 bg-brand-gold/6 text-[#A88B25]"
                               : "border-[#E5E4DF] hover:border-[#D0C8BE] bg-white text-[#8A8A6E]",
                           )}
                         >
@@ -802,7 +802,7 @@ export function CreateUserModal({
                           </div>
                           <span className="text-[12px]">No direct manager</span>
                           {field.value === null && (
-                            <Check className="w-3.5 h-3.5 ml-auto text-[#D4AF37]" />
+                            <Check className="w-3.5 h-3.5 ml-auto text-brand-gold" />
                           )}
                         </button>
 
@@ -819,11 +819,11 @@ export function CreateUserModal({
                               className={cn(
                                 "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left transition-all",
                                 isSelected
-                                  ? "border-[#D4AF37]/40 bg-[#D4AF37]/6"
+                                  ? "border-brand-gold/40 bg-brand-gold/6"
                                   : "border-[#E5E4DF] hover:border-[#D0C8BE] bg-white",
                               )}
                             >
-                              <div className="w-7 h-7 rounded-full bg-[#D4AF37]/15 flex items-center justify-center shrink-0 text-[10px] font-bold text-[#A88B25]">
+                              <div className="w-7 h-7 rounded-full bg-brand-gold/15 flex items-center justify-center shrink-0 text-[10px] font-bold text-[#A88B25]">
                                 {candidate.full_name.slice(0, 2).toUpperCase()}
                               </div>
                               <div className="flex-1 min-w-0">
@@ -836,7 +836,7 @@ export function CreateUserModal({
                                 </p>
                               </div>
                               {isSelected && (
-                                <Check className="w-3.5 h-3.5 text-[#D4AF37] shrink-0" />
+                                <Check className="w-3.5 h-3.5 text-brand-gold shrink-0" />
                               )}
                             </button>
                           );
@@ -878,7 +878,7 @@ export function CreateUserModal({
                   </div>
                   <div className="p-4 space-y-4">
                     <div className="flex gap-4 items-start sm:items-center">
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#D4AF37]/10 border border-[#D4AF37]/20">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-gold/10 border border-brand-gold/20">
                         <Mail className="h-5 w-5 text-[#A88B25]" aria-hidden />
                       </div>
                       <div className="min-w-0 flex-1 space-y-1">
@@ -969,7 +969,7 @@ export function CreateUserModal({
                       Identity
                     </p>
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-[#D4AF37]/15 flex items-center justify-center text-[13px] font-bold text-[#A88B25] shrink-0">
+                      <div className="w-10 h-10 rounded-xl bg-brand-gold/15 flex items-center justify-center text-[13px] font-bold text-[#A88B25] shrink-0">
                         {watch("full_name")?.slice(0, 2).toUpperCase() || "??"}
                       </div>
                       <div>

@@ -33,7 +33,7 @@ function getInitials(name: string) {
 }
 
 const ROLE_COLOR: Record<string, string> = {
-  manager: "#D4AF37",
+  manager: "var(--color-brand-gold)",
   admin: "#9B59B6",
   agent: "#4A7C59",
   finance: "#2C6FAC",
@@ -83,7 +83,7 @@ function ConversationList({
         </p>
         <button
           onClick={onNewChat}
-          className="w-7 h-7 rounded-lg bg-white/5 hover:bg-[#D4AF37]/15 text-white/50 hover:text-[#D4AF37] flex items-center justify-center transition-colors"
+          className="w-7 h-7 rounded-lg bg-white/5 hover:bg-brand-gold/15 text-white/50 hover:text-brand-gold flex items-center justify-center transition-colors"
           aria-label="New conversation"
         >
           <Plus className="w-3.5 h-3.5" />
@@ -113,7 +113,7 @@ function ConversationList({
             </p>
             <button
               onClick={onNewChat}
-              className="text-[12px] text-[#D4AF37]/70 hover:text-[#D4AF37] transition-colors underline underline-offset-2"
+              className="text-[12px] text-brand-gold/70 hover:text-brand-gold transition-colors underline underline-offset-2"
             >
               New message
             </button>
@@ -145,7 +145,7 @@ function ConversationList({
                     </p>
                   </div>
                   {row.unreadCount > 0 && (
-                    <span className="w-4 h-4 rounded-full bg-[#D4AF37] text-[#121212] text-[9px] font-bold flex items-center justify-center shrink-0">
+                    <span className="w-4 h-4 rounded-full bg-brand-gold text-[#121212] text-[9px] font-bold flex items-center justify-center shrink-0">
                       {row.unreadCount > 9 ? "9+" : row.unreadCount}
                     </span>
                   )}
@@ -205,7 +205,7 @@ function NewChatPicker({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search team members…"
-            className="w-full bg-white/5 border border-white/8 rounded-lg pl-9 pr-3 py-2 text-[13px] text-white/80 placeholder:text-white/25 focus:outline-none focus:border-[#D4AF37]/30 transition-colors"
+            className="w-full bg-white/5 border border-white/8 rounded-lg pl-9 pr-3 py-2 text-[13px] text-white/80 placeholder:text-white/25 focus:outline-none focus:border-brand-gold/30 transition-colors"
           />
         </div>
       </div>
@@ -406,13 +406,13 @@ function ChatThread({
                   <div
                     className={`max-w-[75%] rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed ${
                       isMine
-                        ? "rounded-br-sm bg-[#D4AF37]/20 text-[#D4AF37]"
+                        ? "rounded-br-sm bg-brand-gold/20 text-brand-gold"
                         : "rounded-bl-sm bg-white/5 text-white/90"
                     }`}
                   >
                     {msg.lead && <LeadCardDark lead={msg.lead} isMine={isMine} />}
                     {msg.content}
-                    <p className={`text-[10px] mt-1 ${isMine ? "text-[#D4AF37]/40 text-right" : "text-white/20"}`}>
+                    <p className={`text-[10px] mt-1 ${isMine ? "text-brand-gold/40 text-right" : "text-white/20"}`}>
                       {new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                     </p>
                   </div>
@@ -445,7 +445,7 @@ function ChatThread({
                     value={leadQuery}
                     onChange={(e) => setLeadQuery(e.target.value)}
                     placeholder="Search leads…"
-                    className="w-full bg-white/5 border border-white/8 rounded-lg pl-9 pr-3 py-2 text-[12px] text-white/80 placeholder:text-white/25 focus:outline-none focus:border-[#D4AF37]/30 transition-colors"
+                    className="w-full bg-white/5 border border-white/8 rounded-lg pl-9 pr-3 py-2 text-[12px] text-white/80 placeholder:text-white/25 focus:outline-none focus:border-brand-gold/30 transition-colors"
                   />
                 </div>
               </div>
@@ -492,17 +492,17 @@ function ChatThread({
             >
               <div className="flex items-center gap-1.5">
                 <span className="text-[9px] text-white/30 uppercase tracking-wider">Lead</span>
-                <div className="flex items-center gap-1.5 rounded-full pl-2 pr-1 py-0.5 border border-[#D4AF37]/20 bg-[#D4AF37]/10">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37] shrink-0" />
-                  <span className="text-[11px] font-medium text-[#D4AF37]/90 max-w-[120px] truncate leading-none">{attachedLead.full_name}</span>
-                  <button onClick={() => setAttachedLead(null)} className="w-4 h-4 flex items-center justify-center rounded-full text-[#D4AF37]/50 hover:text-[#D4AF37] ml-0.5 transition-colors">✕</button>
+                <div className="flex items-center gap-1.5 rounded-full pl-2 pr-1 py-0.5 border border-brand-gold/20 bg-brand-gold/10">
+                  <span className="w-1.5 h-1.5 rounded-full bg-brand-gold shrink-0" />
+                  <span className="text-[11px] font-medium text-brand-gold/90 max-w-[120px] truncate leading-none">{attachedLead.full_name}</span>
+                  <button onClick={() => setAttachedLead(null)} className="w-4 h-4 flex items-center justify-center rounded-full text-brand-gold/50 hover:text-brand-gold ml-0.5 transition-colors">✕</button>
                 </div>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        <div className="flex items-center gap-2 bg-white/5 border border-white/8 rounded-xl px-3 py-2 focus-within:border-[#D4AF37]/25 transition-colors duration-400">
+        <div className="flex items-center gap-2 bg-white/5 border border-white/8 rounded-xl px-3 py-2 focus-within:border-brand-gold/25 transition-colors duration-400">
           <textarea
             ref={textareaRef}
             rows={1}
@@ -519,7 +519,7 @@ function ChatThread({
             onClick={() => { setShowLeadPicker((v) => !v); setLeadQuery(""); }}
             title="Attach a lead"
             className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors shrink-0 ${
-              attachedLead || showLeadPicker ? "bg-[#D4AF37]/20 text-[#D4AF37]" : "text-white/25 hover:text-[#D4AF37]/70 hover:bg-white/5"
+              attachedLead || showLeadPicker ? "bg-brand-gold/20 text-brand-gold" : "text-white/25 hover:text-brand-gold/70 hover:bg-white/5"
             }`}
           >
             <Paperclip className="w-3.5 h-3.5" />
@@ -527,7 +527,7 @@ function ChatThread({
           <button
             onClick={handleSend}
             disabled={!draft.trim() || sending}
-            className="w-7 h-7 rounded-lg bg-[#D4AF37]/20 hover:bg-[#D4AF37]/35 text-[#D4AF37] flex items-center justify-center transition-colors disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+            className="w-7 h-7 rounded-lg bg-brand-gold/20 hover:bg-brand-gold/35 text-brand-gold flex items-center justify-center transition-colors disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
           >
             {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
           </button>
@@ -667,7 +667,7 @@ export function GlobalChatDrawer({
               {/* Drawer header */}
               <div className="flex items-center justify-between px-5 py-4 border-b border-white/5 shrink-0">
                 <div className="flex items-center gap-2.5">
-                  <MessageSquare className="w-4 h-4 text-[#D4AF37]/70" strokeWidth={1.75} />
+                  <MessageSquare className="w-4 h-4 text-brand-gold/70" strokeWidth={1.75} />
                   <span
                     className="text-[15px] font-semibold text-white/85"
                     style={{ fontFamily: "var(--font-playfair)" }}
