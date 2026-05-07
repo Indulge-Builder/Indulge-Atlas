@@ -43,7 +43,7 @@ export function TaskIntelligenceDashboard({
   const [rows, setRows] = useState<DepartmentTaskOverview[]>(initialOverview);
   const [workspaceTasks, setWorkspaceTasks] =
     useState<TaskInsightsWorkspaceCard[]>(initialWorkspaces);
-  const [activeTab, setActiveTab] = useState<TabKey>("workspaces");
+  const [activeTab, setActiveTab] = useState<TabKey>("agents");
   const [individualAgents, setIndividualAgents] = useState<TaskIntelligenceAgentSummary[]>([]);
   const [individualLoading, setIndividualLoading] = useState(false);
   const [, startTransition] = useTransition();
@@ -143,14 +143,14 @@ export function TaskIntelligenceDashboard({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="mx-auto w-full max-w-5xl flex-1 px-5 pt-6 pb-14 sm:px-6">
-        <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
+      <div className="mx-auto w-full max-w-5xl flex-1 px-5 pt-6 pb-10 sm:px-6 sm:pb-12">
+        <header className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+          <div className="min-w-0">
             <h1 className="font-serif text-[30px] font-bold leading-[1.1] text-[#1A1A1A] sm:text-[32px]">
               Task Insights
             </h1>
             <p className="mt-1.5 text-[13px] text-[#8A8A6E]">
-              {formatInTimeZone(new Date(), "Asia/Kolkata", "EEEE, d MMMM yyyy · IST")}
+              {formatInTimeZone(new Date(), "Asia/Kolkata", "EEEE, d MMMM yyyy · 'IST'")}
             </p>
           </div>
           <IndulgeButton
@@ -199,7 +199,7 @@ export function TaskIntelligenceDashboard({
         )}
 
         <div
-          className="relative flex items-stretch gap-0 border-b border-[#E5E4DF]"
+          className="relative -mx-px flex items-stretch justify-center gap-0 border-t border-b border-[#E5E4DF]/80 bg-[#FAFAF8]/60 pt-4 pb-px sm:pt-[18px]"
           role="tablist"
           aria-label="Organization task views"
         >
@@ -210,15 +210,17 @@ export function TaskIntelligenceDashboard({
             aria-selected={activeTab === "agents"}
             onClick={() => setActiveTab("agents")}
             className={cn(
-              "relative select-none px-5 py-3.5 text-[14px] font-medium transition-colors duration-150",
-              activeTab === "agents" ? "text-[#1A1A1A]" : "text-[#8A8A6E] hover:text-[#1A1A1A]",
+              "relative min-w-[7rem] select-none px-5 py-3 text-[13px] font-medium tracking-wide transition-colors duration-200 sm:min-w-[7.5rem] sm:px-7 sm:text-[14px]",
+              activeTab === "agents"
+                ? "text-[#1A1A1A]"
+                : "text-[#9A9A82] hover:text-[#4A4844]",
             )}
           >
             Agents
             {activeTab === "agents" && (
               <motion.div
                 layoutId="ti-tab-indicator"
-                className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-[#D4AF37]"
+                className="absolute bottom-0 left-3 right-3 h-[2px] rounded-full bg-[#C5A572]"
                 transition={{ type: "spring", stiffness: 400, damping: 32 }}
               />
             )}
@@ -230,22 +232,24 @@ export function TaskIntelligenceDashboard({
             aria-selected={activeTab === "workspaces"}
             onClick={() => setActiveTab("workspaces")}
             className={cn(
-              "relative select-none px-5 py-3.5 text-[14px] font-medium transition-colors duration-150",
-              activeTab === "workspaces" ? "text-[#1A1A1A]" : "text-[#8A8A6E] hover:text-[#1A1A1A]",
+              "relative min-w-[7rem] select-none px-5 py-3 text-[13px] font-medium tracking-wide transition-colors duration-200 sm:min-w-[7.5rem] sm:px-7 sm:text-[14px]",
+              activeTab === "workspaces"
+                ? "text-[#1A1A1A]"
+                : "text-[#9A9A82] hover:text-[#4A4844]",
             )}
           >
             All workspaces
             {activeTab === "workspaces" && (
               <motion.div
                 layoutId="ti-tab-indicator"
-                className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-[#D4AF37]"
+                className="absolute bottom-0 left-3 right-3 h-[2px] rounded-full bg-[#C5A572]"
                 transition={{ type: "spring", stiffness: 400, damping: 32 }}
               />
             )}
           </button>
         </div>
 
-        <div className="pt-6 pb-10">
+        <div className="pt-6 pb-6 sm:pt-7 sm:pb-8">
           <AnimatePresence mode="wait" initial={false}>
             {activeTab === "agents" ? (
               <motion.div

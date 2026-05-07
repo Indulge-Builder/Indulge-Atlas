@@ -84,7 +84,7 @@ export function EmployeeDossierView({
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-[#F9F9F6]">
       <div className="shrink-0 border-b border-[#E5E4DF] bg-[#F9F9F6] px-5 py-4 sm:px-6">
-        <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 px-5 sm:px-6">
+        <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4">
           <Link
             href={backHref}
             className="inline-flex items-center gap-2 text-sm font-medium text-stone-600 transition-colors hover:text-stone-900"

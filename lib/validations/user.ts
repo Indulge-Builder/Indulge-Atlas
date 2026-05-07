@@ -1,5 +1,9 @@
 import { z } from "zod";
-import type { IndulgeDomain, UserRole, EmployeeDepartment } from "@/lib/types/database";
+import type {
+  IndulgeDomain,
+  UserRole,
+  EmployeeDepartment,
+} from "@/lib/types/database";
 
 const INDULGE_DOMAINS: IndulgeDomain[] = [
   "indulge_concierge",
@@ -21,11 +25,11 @@ const EMPLOYEE_DEPARTMENTS: EmployeeDepartment[] = [
 ];
 
 export const indulgeDomainSchema = z.enum(
-  INDULGE_DOMAINS as [IndulgeDomain, ...IndulgeDomain[]]
+  INDULGE_DOMAINS as [IndulgeDomain, ...IndulgeDomain[]],
 );
 
 export const employeeDepartmentSchema = z.enum(
-  EMPLOYEE_DEPARTMENTS as [EmployeeDepartment, ...EmployeeDepartment[]]
+  EMPLOYEE_DEPARTMENTS as [EmployeeDepartment, ...EmployeeDepartment[]],
 );
 
 // ── createUserSchema ─────────────────────────────────────────
@@ -64,18 +68,23 @@ export const createUserSchema = z
     send_invite: z.boolean().optional(),
     /** Empty string must normalize to undefined — invite flow often leaves "" registered when field unmounts. */
     password: z.preprocess(
-      (val) => (val === "" || val === null || val === undefined ? undefined : val),
-      z.string().min(12, "Password must be at least 12 characters").optional()
+      (val) =>
+        val === "" || val === null || val === undefined ? undefined : val,
+      z.string().min(12, "Password must be at least 12 characters").optional(),
     ),
   })
   .superRefine((data, ctx) => {
     // send_invite undefined/true → invite flow (no password required)
     // send_invite false → direct create (password required)
-    if (data.send_invite === false && (!data.password || data.password.length < 12)) {
+    if (
+      data.send_invite === false &&
+      (!data.password || data.password.length < 12)
+    ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["password"],
-        message: "Password must be at least 12 characters when not sending an invite",
+        message:
+          "Password must be at least 12 characters when not sending an invite",
       });
     }
   });

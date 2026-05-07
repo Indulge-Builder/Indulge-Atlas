@@ -75,8 +75,8 @@ export function DepartmentIndividualTasksView({
   }, [agents, currentUser.id]);
 
   return (
-    <div className="flex min-h-0 flex-col gap-4">
-      <div className="-mx-1 flex gap-4 overflow-x-auto px-1 pb-2 pt-1 [scrollbar-width:thin]">
+    <div className="flex min-h-0 flex-col gap-3 sm:gap-4">
+      <div className="flex gap-3 overflow-x-auto pb-2 pt-0.5 [-webkit-overflow-scrolling:touch] [scrollbar-width:thin] sm:gap-4">
         {orderedAgents.map((agent) => (
           <AgentHealthCard
             key={agent.id}
@@ -88,7 +88,7 @@ export function DepartmentIndividualTasksView({
         ))}
       </div>
 
-      <p className="text-center font-[family-name:var(--font-playfair)] text-sm italic text-stone-500">
+      <p className="mt-1 text-center font-[family-name:var(--font-playfair)] text-sm italic text-stone-500">
         Click on a card to open.
       </p>
     </div>

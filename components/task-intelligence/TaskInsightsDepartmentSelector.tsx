@@ -27,12 +27,12 @@ export function TaskInsightsDepartmentSelector({
   if (departments.length === 0) return null;
 
   return (
-    <div className="mb-6 border-b border-[#E5E4DF] pb-5">
-      <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-[#8A8A6E]">
+    <div className="pb-5 sm:pb-6">
+      <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8A8A6E]">
         Department
       </p>
       <div
-        className="-mx-1 flex flex-wrap gap-2 px-1 sm:flex-nowrap sm:overflow-x-auto sm:pb-0.5 sm:[scrollbar-width:thin]"
+        className="flex flex-wrap gap-2 sm:flex-nowrap sm:overflow-x-auto sm:pb-0.5 sm:[scrollbar-width:thin]"
         role="tablist"
         aria-label="Filter by department"
       >

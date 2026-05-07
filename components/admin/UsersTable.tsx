@@ -374,7 +374,6 @@ export function UsersTable({
                               variant="ghost"
                               size="icon-sm"
                               className="text-[#B5A99A]"
-                              disabled={isSelf}
                             >
                               <MoreHorizontal className="w-4 h-4" />
                             </Button>
@@ -410,6 +409,12 @@ export function UsersTable({
                                   ? "text-[#C5830A] focus:bg-[#FEF3D0]"
                                   : "text-[#4A7C59] focus:bg-[#EBF4EF]",
                               )}
+                              disabled={isSelf && profile.is_active}
+                              title={
+                                isSelf && profile.is_active
+                                  ? "You cannot deactivate your own account from here."
+                                  : undefined
+                              }
                               onClick={() => handleToggleActive(profile)}
                             >
                               <Power className="w-3.5 h-3.5" />
@@ -420,6 +425,12 @@ export function UsersTable({
 
                             <DropdownMenuItem
                               className="gap-2 text-[#C0392B] focus:bg-[#FAEAE8]"
+                              disabled={isSelf}
+                              title={
+                                isSelf
+                                  ? "You cannot delete your own account from here."
+                                  : undefined
+                              }
                               onClick={() => handleDelete(profile)}
                             >
                               <Trash2 className="w-3.5 h-3.5" />

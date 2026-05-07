@@ -8,7 +8,10 @@ import type {
   IndulgeDomain,
   EmployeeDepartment,
 } from "@/lib/types/database";
-import { createUserSchema, updateUserProfileSchema } from "@/lib/validations/user";
+import {
+  createUserSchema,
+  updateUserProfileSchema,
+} from "@/lib/validations/user";
 import { z } from "zod";
 import { sanitizeText as sanitizePlainText } from "@/lib/utils/sanitize";
 import { getPublicSiteUrl } from "@/lib/utils/site-url";
@@ -49,7 +52,12 @@ async function requireAdminOrManager() {
     throw new Error("Unauthorized: admin, founder, or manager required");
   }
 
-  return { supabase, serviceClient: await createServiceClient(), user, role: role! };
+  return {
+    supabase,
+    serviceClient: await createServiceClient(),
+    user,
+    role: role!,
+  };
 }
 
 async function requireAdminOnly() {
@@ -88,7 +96,7 @@ export async function getAllProfiles(): Promise<Profile[]> {
   const { data, error } = await supabase
     .from("profiles")
     .select(
-      "id, full_name, email, role, domain, department, job_title, reports_to, is_active, phone, dob, created_at, updated_at"
+      "id, full_name, email, role, domain, department, job_title, reports_to, is_active, phone, dob, created_at, updated_at",
     )
     .order("created_at", { ascending: false });
 
@@ -99,7 +107,7 @@ export async function getAllProfiles(): Promise<Profile[]> {
 // ── Get profiles by department ──────────────────────────────────────────────
 
 export async function getUsersByDepartment(
-  department: EmployeeDepartment
+  department: EmployeeDepartment,
 ): Promise<ActionResult<Profile[]>> {
   try {
     const { supabase } = await requireAdminOrManager();
@@ -107,7 +115,7 @@ export async function getUsersByDepartment(
     const { data, error } = await supabase
       .from("profiles")
       .select(
-        "id, full_name, email, role, domain, department, job_title, reports_to, is_active, created_at, updated_at"
+        "id, full_name, email, role, domain, department, job_title, reports_to, is_active, created_at, updated_at",
       )
       .eq("department", department)
       .eq("is_active", true)
@@ -117,13 +125,18 @@ export async function getUsersByDepartment(
 
     return { success: true, data: (data ?? []) as Profile[] };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Unexpected error" };
+    return {
+      success: false,
+      error: e instanceof Error ? e.message : "Unexpected error",
+    };
   }
 }
 
 // ── Check whether an email already exists in auth.users ────────────────────
 
-export async function checkEmailExists(email: string): Promise<ActionResult<{ exists: boolean }>> {
+export async function checkEmailExists(
+  email: string,
+): Promise<ActionResult<{ exists: boolean }>> {
   try {
     // Any authenticated user can call this — used for real-time duplicate check in the wizard.
     const supabase = await createClient();
@@ -143,7 +156,10 @@ export async function checkEmailExists(email: string): Promise<ActionResult<{ ex
 
     return { success: true, data: { exists: !!data } };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Unexpected error" };
+    return {
+      success: false,
+      error: e instanceof Error ? e.message : "Unexpected error",
+    };
   }
 }
 
@@ -153,9 +169,11 @@ export async function checkEmailExists(email: string): Promise<ActionResult<{ ex
 
 export async function getProfilesForReportsTo(
   /** Exclude this profile id (e.g. user being edited cannot report to themselves). */
-  excludeUserId?: string | null
+  excludeUserId?: string | null,
 ): Promise<
-  ActionResult<Pick<Profile, "id" | "full_name" | "job_title" | "role" | "department">[]>
+  ActionResult<
+    Pick<Profile, "id" | "full_name" | "job_title" | "role" | "department">[]
+  >
 > {
   try {
     const supabase = await createClient();
@@ -187,7 +205,10 @@ export async function getProfilesForReportsTo(
       >[],
     };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Unexpected error" };
+    return {
+      success: false,
+      error: e instanceof Error ? e.message : "Unexpected error",
+    };
   }
 }
 
@@ -232,7 +253,8 @@ export async function createUser(params: {
     if (parsed.data.role === "founder") {
       return {
         success: false,
-        error: "Founder role cannot be assigned via user creation. Contact the platform administrator.",
+        error:
+          "Founder role cannot be assigned via user creation. Contact the platform administrator.",
       };
     }
 
@@ -273,15 +295,18 @@ export async function createUser(params: {
           redirectTo,
         });
 
-      if (inviteError) return { success: false, error: mapAuthError(inviteError.message) };
-      if (!inviteData.user) return { success: false, error: "Invite failed — no user returned." };
+      if (inviteError)
+        return { success: false, error: mapAuthError(inviteError.message) };
+      if (!inviteData.user)
+        return { success: false, error: "Invite failed — no user returned." };
 
       newUserId = inviteData.user.id;
 
       // Set app_metadata (role/domain/department) — inviteUserByEmail only allows user_metadata.
-      const { error: metaError } = await serviceClient.auth.admin.updateUserById(newUserId, {
-        app_metadata: appMeta,
-      });
+      const { error: metaError } =
+        await serviceClient.auth.admin.updateUserById(newUserId, {
+          app_metadata: appMeta,
+        });
       if (metaError) {
         await serviceClient.auth.admin.deleteUser(newUserId);
         return { success: false, error: mapAuthError(metaError.message) };
@@ -297,8 +322,10 @@ export async function createUser(params: {
           app_metadata: appMeta,
         });
 
-      if (authError) return { success: false, error: mapAuthError(authError.message) };
-      if (!authData.user) return { success: false, error: "User creation failed." };
+      if (authError)
+        return { success: false, error: mapAuthError(authError.message) };
+      if (!authData.user)
+        return { success: false, error: "User creation failed." };
 
       newUserId = authData.user.id;
     }
@@ -355,7 +382,7 @@ export async function updateUserProfile(
     department?: EmployeeDepartment | null;
     reports_to?: string | null;
     is_active?: boolean;
-  }
+  },
 ): Promise<ActionResult> {
   try {
     const parsed = uuidSchema.safeParse(userId);
@@ -369,13 +396,26 @@ export async function updateUserProfile(
       };
     }
 
-    const { serviceClient } = await requireAdminOnly();
+    const { serviceClient, user } = await requireAdminOnly();
+
+    if (
+      user.id === userId &&
+      validated.data.is_active === false
+    ) {
+      return {
+        success: false,
+        error: "You cannot deactivate your own account.",
+      };
+    }
 
     if (validated.data.reports_to && validated.data.reports_to === userId) {
       return { success: false, error: "A user cannot report to themselves." };
     }
 
-    if (typeof validated.data.role === "string" && validated.data.role === "founder") {
+    if (
+      typeof validated.data.role === "string" &&
+      validated.data.role === "founder"
+    ) {
       const { data: targetProfile, error: targetErr } = await serviceClient
         .from("profiles")
         .select("role")
@@ -397,7 +437,8 @@ export async function updateUserProfile(
       updatePayload.full_name = sanitizeText(updatePayload.full_name as string);
     }
     if (typeof updatePayload.job_title === "string") {
-      updatePayload.job_title = sanitizeText(updatePayload.job_title as string) || null;
+      updatePayload.job_title =
+        sanitizeText(updatePayload.job_title as string) || null;
     }
 
     const { error } = await serviceClient
@@ -432,7 +473,9 @@ export async function updateUserProfile(
       if (needsUserMetaSync) {
         payload.user_metadata = { ...(u?.user_metadata ?? {}) };
         if (typeof validated.data.full_name === "string") {
-          payload.user_metadata.full_name = sanitizeText(validated.data.full_name);
+          payload.user_metadata.full_name = sanitizeText(
+            validated.data.full_name,
+          );
         }
         if ("job_title" in validated.data) {
           if (validated.data.job_title === null) {
@@ -454,7 +497,8 @@ export async function updateUserProfile(
           payload.app_metadata.department = validated.data.department ?? null;
       }
 
-      const { error: authUpdErr } = await serviceClient.auth.admin.updateUserById(userId, payload);
+      const { error: authUpdErr } =
+        await serviceClient.auth.admin.updateUserById(userId, payload);
       if (authUpdErr) return { success: false, error: authUpdErr.message };
     }
 
@@ -500,7 +544,11 @@ export async function sendPasswordReset(email: string): Promise<ActionResult> {
 
     if (error) {
       const low = error.message.toLowerCase();
-      if (low.includes("rate") || low.includes("too many") || error.status === 429) {
+      if (
+        low.includes("rate") ||
+        low.includes("too many") ||
+        error.status === 429
+      ) {
         return { success: false, error: mapAuthError(error.message) };
       }
     }
@@ -519,7 +567,11 @@ export async function deleteUser(userId: string): Promise<ActionResult> {
     const parsed = uuidSchema.safeParse(userId);
     if (!parsed.success) return { success: false, error: "Invalid user ID" };
 
-    const { serviceClient } = await requireAdminOnly();
+    const { serviceClient, user } = await requireAdminOnly();
+
+    if (user.id === userId) {
+      return { success: false, error: "You cannot delete your own account." };
+    }
 
     const { error } = await serviceClient.auth.admin.deleteUser(userId);
 
