@@ -1,11 +1,34 @@
 import { Suspense } from "react";
-import { endOfDay, isValid, parseISO, startOfDay, subDays } from "date-fns";
+import { isValid, parseISO, subDays } from "date-fns";
+import { unstable_cache } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { getServiceSupabaseClient } from "@/lib/supabase/service";
 import { TopBar } from "@/components/layout/TopBar";
 import { LeadsTable, LeadsTableSkeleton } from "@/components/leads/LeadsTable";
 import { AddLeadModal } from "@/components/leads/AddLeadModal";
 import type { Lead, LeadStatus, UserRole } from "@/lib/types/database";
 import { LEADS_TABLE_SELECT } from "@/lib/leads/leadsTableSelect";
+import {
+  formatIST,
+  getEndOfTodayIST,
+  getIstDayUtcBoundsIso,
+  getStartOfTodayIST,
+} from "@/lib/utils/time";
+
+// Campaigns change infrequently — cache for 1 hour to avoid 500-row fetch on every page load
+const getCachedCampaigns = unstable_cache(
+  async () => {
+    const sb = getServiceSupabaseClient();
+    const { data } = await sb
+      .from("leads")
+      .select("utm_campaign")
+      .not("utm_campaign", "is", null)
+      .limit(500);
+    return [...new Set((data ?? []).map((r) => r.utm_campaign).filter(Boolean) as string[])].sort();
+  },
+  ["leads-campaigns"],
+  { revalidate: 3600 },
+);
 
 export interface NextTask {
   id:        string;
@@ -39,18 +62,19 @@ interface PageProps {
 async function LeadsContent({ params }: { params: LeadsSearchParams }) {
   const supabase = await createClient();
 
+  // Auth + profile in one query — avoids two sequential round-trips
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { data: rawProfile } = await supabase
-    .from("profiles")
-    .select("role, domain")
-    .eq("id", user.id)
-    .single();
+  // Fetch profile + campaigns in parallel (campaigns are cached, profile is user-specific)
+  const [profileResult, campaigns] = await Promise.all([
+    supabase.from("profiles").select("role, domain").eq("id", user.id).single(),
+    getCachedCampaigns(),
+  ]);
 
-  const profile = rawProfile as { role: UserRole; domain?: string } | null;
+  const profile = profileResult.data as { role: UserRole; domain?: string } | null;
   const userRole: UserRole = profile?.role ?? "agent";
   const isAdmin =
     userRole === "admin" ||
@@ -65,6 +89,18 @@ async function LeadsContent({ params }: { params: LeadsSearchParams }) {
   const currentPage = Math.max(1, parseInt(params.page ?? "1", 10));
   const offset = (currentPage - 1) * PAGE_SIZE;
 
+  // For agents: fetch collaborator lead IDs in parallel with profile (already done above).
+  // We need collabs before we can build the leads query filter.
+  let collabIds: string[] = [];
+  if (!isAdmin) {
+    const { data: myCollabs } = await supabase
+      .from("lead_collaborators")
+      .select("lead_id")
+      .eq("user_id", user.id);
+    collabIds = [...new Set((myCollabs ?? []).map((r) => r.lead_id).filter(Boolean))];
+  }
+
+  // Build leads query with all filters applied
   let query = supabase
     .from("leads")
     .select(LEADS_TABLE_SELECT, { count: "exact" });
@@ -72,11 +108,6 @@ async function LeadsContent({ params }: { params: LeadsSearchParams }) {
   // Agents: primary pipeline (assigned + domain) OR any lead where they are an explicit collaborator.
   if (!isAdmin) {
     const myDomain = profile?.domain ?? "indulge_global";
-    const { data: myCollabs } = await supabase
-      .from("lead_collaborators")
-      .select("lead_id")
-      .eq("user_id", user.id);
-    const collabIds = [...new Set((myCollabs ?? []).map((r) => r.lead_id).filter(Boolean))];
     if (collabIds.length > 0) {
       query = query.or(
         `and(assigned_to.eq.${user.id},domain.eq.${myDomain}),id.in.(${collabIds.join(",")})`,
@@ -114,87 +145,65 @@ async function LeadsContent({ params }: { params: LeadsSearchParams }) {
     query = query.eq("platform", params.source);
   }
 
-  const today = new Date();
   if (params.dateFilter === "today") {
     query = query
-      .gte("created_at", startOfDay(today).toISOString())
-      .lte("created_at", endOfDay(today).toISOString());
+      .gte("created_at", getStartOfTodayIST().toISOString())
+      .lte("created_at", getEndOfTodayIST().toISOString());
   } else if (params.dateFilter === "yesterday") {
-    const yesterday = subDays(today, 1);
-    query = query
-      .gte("created_at", startOfDay(yesterday).toISOString())
-      .lte("created_at", endOfDay(yesterday).toISOString());
+    const yesterdayYmd = formatIST(subDays(new Date(), 1), "yyyy-MM-dd");
+    const { startIso, endIso } = getIstDayUtcBoundsIso(yesterdayYmd);
+    query = query.gte("created_at", startIso).lte("created_at", endIso);
   } else if (params.dateFilter) {
     const customDate = parseISO(params.dateFilter);
     if (isValid(customDate)) {
-      query = query
-        .gte("created_at", startOfDay(customDate).toISOString())
-        .lte("created_at", endOfDay(customDate).toISOString());
+      const ymd = formatIST(customDate, "yyyy-MM-dd");
+      const { startIso, endIso } = getIstDayUtcBoundsIso(ymd);
+      query = query.gte("created_at", startIso).lte("created_at", endIso);
     }
   }
 
-  const { data: rawLeads, count } = await query
-    .order("created_at", { ascending: false })
-    .range(offset, offset + PAGE_SIZE - 1);
+  // Fetch leads + agents in parallel (agents don't depend on lead results)
+  const agentQueryPromise = isAdmin
+    ? (() => {
+        let agentQuery = supabase
+          .from("profiles")
+          .select("id, full_name")
+          .eq("role", "agent")
+          .eq("is_active", true);
+        if (domainFilter) agentQuery = agentQuery.eq("domain", domainFilter);
+        return agentQuery;
+      })()
+    : Promise.resolve({ data: [] as { id: string; full_name: string }[] });
+
+  const [{ data: rawLeads, count }, agentRowsResult] = await Promise.all([
+    query.order("created_at", { ascending: false }).range(offset, offset + PAGE_SIZE - 1),
+    agentQueryPromise,
+  ]);
 
   const leads = (rawLeads ?? []) as unknown as Lead[];
+  const agents = (agentRowsResult.data ?? []) as { id: string; full_name: string }[];
 
-  // Run independent follow-up reads concurrently to avoid waterfalls.
+  // Tasks need leadIds — fetch after leads resolve (unavoidable dependency)
   const leadIds = leads.map((l) => l.id);
-  const taskQueryPromise =
+  const taskRows =
     leadIds.length > 0
-      ? supabase
-          .from("tasks")
-          .select("id, lead_id, title, due_date, task_type")
-          .in("lead_id", leadIds)
-          .neq("status", "completed")
-          .order("due_date", { ascending: true })
-      : Promise.resolve({ data: [] as NextTask[] });
+      ? (
+          await supabase
+            .from("tasks")
+            .select("id, lead_id, title, due_date, task_type")
+            .in("lead_id", leadIds)
+            .neq("status", "completed")
+            .order("due_date", { ascending: true })
+        ).data ?? []
+      : [];
 
-  const agentQueryPromise = (() => {
-    if (!isAdmin) return Promise.resolve({ data: [] as { id: string; full_name: string }[] });
-
-    let agentQuery = supabase
-      .from("profiles")
-      .select("id, full_name")
-      .eq("role", "agent")
-      .eq("is_active", true);
-    if (domainFilter) {
-      agentQuery = agentQuery.eq("domain", domainFilter);
-    }
-    return agentQuery;
-  })();
-
-  const campaignQueryPromise = supabase
-    .from("leads")
-    .select("utm_campaign")
-    .not("utm_campaign", "is", null)
-    .limit(500);
-
-  const [taskRowsResult, agentRowsResult, campaignRowsResult] = await Promise.all([
-    taskQueryPromise,
-    agentQueryPromise,
-    campaignQueryPromise,
-  ]);
-  const taskRows = taskRowsResult.data ?? [];
-  const agentRows = agentRowsResult.data ?? [];
-  const campaignRows = campaignRowsResult.data ?? [];
-
-  let nextTaskMap: Record<string, NextTask> = {};
+  const nextTaskMap: Record<string, NextTask> = {};
   (taskRows ?? []).forEach((t) => {
     const row = t as { lead_id?: string };
     if (row.lead_id && !nextTaskMap[row.lead_id]) {
       nextTaskMap[row.lead_id] = t as NextTask;
     }
   });
-
-  const agents = (agentRows ?? []) as { id: string; full_name: string }[];
-
-  const campaigns = [
-    ...new Set(
-      (campaignRows ?? []).map((r) => r.utm_campaign).filter(Boolean) as string[]
-    ),
-  ].sort();
 
   return (
     <LeadsTable

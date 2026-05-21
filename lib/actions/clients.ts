@@ -4,18 +4,20 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { sanitizeText } from "@/lib/utils/sanitize";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
-import { isPrivilegedRole } from "@/lib/types/database";
+import { canManageAnyClient } from "@/lib/types/database";
 import { SYSTEM_TIMEZONE } from "@/lib/utils/time";
 import { z } from "zod";
 
 const IST = SYSTEM_TIMEZONE;
 
-/** Privileged for client row ownership bypass — matches leads.ts behaviour (includes manager). */
-function canManageAnyClient(role: string): boolean {
-  return isPrivilegedRole(role) || role === "manager";
-}
+type AuthContext = {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  user: { id: string };
+  role: string;
+  domain: string;
+};
 
-async function getAuthUser() {
+async function getAuthUser(): Promise<AuthContext> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -71,6 +73,8 @@ export interface ClientWithProfile {
   first_name: string;
   last_name: string | null;
   phone_number: string;
+  /** Chetto / Joule `group_id` when explicitly linked (see `/clients/chetto-mapping`). */
+  chetto_group_id: string | null;
   email: string | null;
   queendom: string | null;
   client_status: string;
@@ -106,6 +110,10 @@ export interface ClientDetail extends ClientWithProfile {
   wedding_anniversary: string | null;
   social_handles: string | null;
   elia_notes: ClientEliaNotesJson | null;
+  elia_profile: import("@/lib/types/database").EliaProfile | null;
+  elia_version: number;
+  elia_analyzed_at: string | null;
+  elia_messages_through: string | null;
   profile_id: string | null;
   profile_last_enriched_at: string | null;
   profile_updated_at: string | null;
@@ -137,6 +145,11 @@ const listFiltersSchema = z.object({
   sort: z.enum(["default", "profile_data"]).optional(),
   page: z.number().int().positive().optional(),
   pageSize: z.number().int().positive().max(100).optional(),
+  /**
+   * `chetto` = no `chetto_group_id`.
+   * `freshdesk` = no `phone_number` (phone is the Freshdesk lookup key).
+   */
+  unmapped: z.enum(["chetto", "freshdesk"]).optional(),
 });
 
 function hasText(v: unknown): boolean {
@@ -204,12 +217,14 @@ function mapJoinedRow(row: Record<string, unknown>): ClientWithProfile {
     | null
     | undefined;
   const p = Array.isArray(prof) ? prof[0] : prof;
+  const cachedCompleteness = row.profile_completeness_cache;
 
   return {
     id: String(row.id),
     first_name: String(row.first_name ?? ""),
     last_name: (row.last_name as string | null) ?? null,
     phone_number: String(row.phone_number ?? ""),
+    chetto_group_id: (row.chetto_group_id as string | null) ?? null,
     email: (row.email as string | null) ?? null,
     queendom: (row.queendom as string | null) ?? null,
     client_status: String(row.client_status ?? "unknown"),
@@ -224,9 +239,11 @@ function mapJoinedRow(row: Record<string, unknown>): ClientWithProfile {
     notes: (row.notes as string | null) ?? null,
     created_at: String(row.created_at ?? ""),
     profile_completeness:
-      p && (p.profile_completeness as number | undefined) != null
-        ? Number(p.profile_completeness)
-        : null,
+      cachedCompleteness != null
+        ? Number(cachedCompleteness)
+        : p && (p.profile_completeness as number | undefined) != null
+          ? Number(p.profile_completeness)
+          : null,
     personality_type: (p?.personality_type as string | null) ?? null,
     primary_city: (p?.primary_city as string | null) ?? null,
     company_designation: (p?.company_designation as string | null) ?? null,
@@ -244,22 +261,25 @@ export interface ClientListFilters {
   sort?: z.infer<typeof listFiltersSchema>["sort"];
   page?: number;
   pageSize?: number;
+  unmapped?: z.infer<typeof listFiltersSchema>["unmapped"];
 }
 
-export async function getClients(filters: ClientListFilters = {}) {
-  try {
-    const parsed = listFiltersSchema.safeParse(filters);
-    const f = parsed.success ? parsed.data : {};
-    const page = f.page ?? 1;
-    const pageSize = f.pageSize ?? 24;
-    const { supabase } = await getAuthUser();
+async function fetchClientsList(
+  supabase: AuthContext["supabase"],
+  filters: ClientListFilters = {},
+) {
+  const parsed = listFiltersSchema.safeParse(filters);
+  const f = parsed.success ? parsed.data : {};
+  const page = f.page ?? 1;
+  const pageSize = f.pageSize ?? 24;
 
-    let query = supabase.from("clients").select(
-      `
+  let query = supabase.from("clients").select(
+    `
         id,
         first_name,
         last_name,
         phone_number,
+        chetto_group_id,
         email,
         queendom,
         client_status,
@@ -270,18 +290,17 @@ export async function getClients(filters: ClientListFilters = {}) {
         avatar_url,
         notes,
         created_at,
+        profile_completeness_cache,
         client_profiles (
-          profile_completeness,
           personality_type,
           primary_city,
           company_designation,
           lifestyle,
-          travel,
-          passions
+          travel
         )
       `,
-      { count: "exact" },
-    );
+    { count: "exact" },
+  );
 
     if (f.queendom && f.queendom !== "all") {
       if (f.queendom === "Unassigned") {
@@ -297,6 +316,12 @@ export async function getClients(filters: ClientListFilters = {}) {
 
     if (f.membership_type && f.membership_type !== "" && f.membership_type !== "all") {
       query = query.eq("membership_type", f.membership_type);
+    }
+
+    if (f.unmapped === "chetto") {
+      query = query.is("chetto_group_id", null);
+    } else if (f.unmapped === "freshdesk") {
+      query = query.or("phone_number.is.null,phone_number.eq.");
     }
 
     if (f.search && f.search.trim() !== "") {
@@ -326,20 +351,60 @@ export async function getClients(filters: ClientListFilters = {}) {
         .order("first_name", { ascending: true });
     }
 
-    const { data, error, count } = await query.range(from, to);
+  const { data, error, count } = await query.range(from, to);
 
-    if (error) {
-      console.error("getClients", error);
-      return { clients: [] as ClientWithProfile[], total: 0, page };
-    }
+  if (error) {
+    console.error("getClients", error);
+    return { clients: [] as ClientWithProfile[], total: 0, page };
+  }
 
-    const clients = (data ?? []).map((row) =>
-      mapJoinedRow(row as Record<string, unknown>),
-    );
-    return { clients, total: count ?? 0, page };
+  const clients = (data ?? []).map((row) =>
+    mapJoinedRow(row as Record<string, unknown>),
+  );
+  return { clients, total: count ?? 0, page };
+}
+
+export async function getClients(filters: ClientListFilters = {}) {
+  try {
+    const { supabase } = await getAuthUser();
+    return await fetchClientsList(supabase, filters);
   } catch (e) {
     console.error(e);
     return { clients: [] as ClientWithProfile[], total: 0, page: 1 };
+  }
+}
+
+/** Single auth round-trip for the clients directory RSC (list + stats + role). */
+export async function getClientsDirectoryPageData(
+  filters: ClientListFilters = {},
+): Promise<{
+  clients: ClientWithProfile[];
+  total: number;
+  page: number;
+  stats: ClientDirectoryStats;
+  role: string;
+}> {
+  try {
+    const { supabase, role } = await getAuthUser();
+    const [list, stats] = await Promise.all([
+      fetchClientsList(supabase, filters),
+      fetchClientDirectoryStats(supabase),
+    ]);
+    return { ...list, stats, role };
+  } catch (e) {
+    console.error(e);
+    return {
+      clients: [],
+      total: 0,
+      page: 1,
+      stats: {
+        totalMembers: 0,
+        activeCount: 0,
+        expiredCount: 0,
+        newThisMonthCount: 0,
+      },
+      role: "agent",
+    };
   }
 }
 
@@ -356,33 +421,39 @@ function startOfMonthISTUtc(): string {
   return fromZonedTime(`${y}-${m}-01T00:00:00.000`, IST).toISOString();
 }
 
+async function fetchClientDirectoryStats(
+  supabase: AuthContext["supabase"],
+): Promise<ClientDirectoryStats> {
+  const monthStart = startOfMonthISTUtc();
+
+  const [totalRes, activeRes, expiredRes, monthRes] = await Promise.all([
+    supabase.from("clients").select("id", { count: "exact", head: true }),
+    supabase
+      .from("clients")
+      .select("id", { count: "exact", head: true })
+      .eq("client_status", "active"),
+    supabase
+      .from("clients")
+      .select("id", { count: "exact", head: true })
+      .eq("client_status", "expired"),
+    supabase
+      .from("clients")
+      .select("id", { count: "exact", head: true })
+      .gte("created_at", monthStart),
+  ]);
+
+  return {
+    totalMembers: totalRes.count ?? 0,
+    activeCount: activeRes.count ?? 0,
+    expiredCount: expiredRes.count ?? 0,
+    newThisMonthCount: monthRes.count ?? 0,
+  };
+}
+
 export async function getClientDirectoryStats(): Promise<ClientDirectoryStats> {
   try {
     const { supabase } = await getAuthUser();
-    const monthStart = startOfMonthISTUtc();
-
-    const [totalRes, activeRes, expiredRes, monthRes] = await Promise.all([
-      supabase.from("clients").select("id", { count: "exact", head: true }),
-      supabase
-        .from("clients")
-        .select("id", { count: "exact", head: true })
-        .eq("client_status", "active"),
-      supabase
-        .from("clients")
-        .select("id", { count: "exact", head: true })
-        .eq("client_status", "expired"),
-      supabase
-        .from("clients")
-        .select("id", { count: "exact", head: true })
-        .gte("created_at", monthStart),
-    ]);
-
-    return {
-      totalMembers: totalRes.count ?? 0,
-      activeCount: activeRes.count ?? 0,
-      expiredCount: expiredRes.count ?? 0,
-      newThisMonthCount: monthRes.count ?? 0,
-    };
+    return await fetchClientDirectoryStats(supabase);
   } catch {
     return {
       totalMembers: 0,
@@ -393,61 +464,123 @@ export async function getClientDirectoryStats(): Promise<ClientDirectoryStats> {
   }
 }
 
+export type GetClientByIdOptions = {
+  /** Omit large Elia JSON until Profile tab (faster dossier first paint). */
+  includeEliaProfile?: boolean;
+};
+
+const CLIENT_DETAIL_SELECT = `
+  id,
+  first_name,
+  last_name,
+  phone_number,
+  chetto_group_id,
+  email,
+  queendom,
+  former_queendom,
+  client_status,
+  membership_type,
+  membership_start,
+  membership_end,
+  membership_amount_paid,
+  membership_interval,
+  membership_status,
+  external_id,
+  assigned_agent_id,
+  closed_by,
+  lead_origin_id,
+  avatar_url,
+  notes,
+  created_at,
+  updated_at,
+  client_profiles (
+    id,
+    personality_type,
+    date_of_birth,
+    blood_group,
+    marital_status,
+    wedding_anniversary,
+    primary_city,
+    company_designation,
+    social_handles,
+    travel,
+    lifestyle,
+    passions,
+    elia_notes,
+    elia_version,
+    elia_analyzed_at,
+    elia_messages_through,
+    profile_completeness,
+    last_enriched_at,
+    updated_at
+  )
+`;
+
+const CLIENT_DETAIL_SELECT_WITH_ELIA = `
+  id,
+  first_name,
+  last_name,
+  phone_number,
+  chetto_group_id,
+  email,
+  queendom,
+  former_queendom,
+  client_status,
+  membership_type,
+  membership_start,
+  membership_end,
+  membership_amount_paid,
+  membership_interval,
+  membership_status,
+  external_id,
+  assigned_agent_id,
+  closed_by,
+  lead_origin_id,
+  avatar_url,
+  notes,
+  created_at,
+  updated_at,
+  client_profiles (
+    id,
+    personality_type,
+    date_of_birth,
+    blood_group,
+    marital_status,
+    wedding_anniversary,
+    primary_city,
+    company_designation,
+    social_handles,
+    travel,
+    lifestyle,
+    passions,
+    elia_notes,
+    elia_profile,
+    elia_version,
+    elia_analyzed_at,
+    elia_messages_through,
+    profile_completeness,
+    last_enriched_at,
+    updated_at
+  )
+`;
+
 export async function getClientById(
   id: string,
+  options: GetClientByIdOptions = {},
 ): Promise<{ success: boolean; data?: ClientDetail; error?: string }> {
   try {
     const uuid = z.string().uuid().safeParse(id);
     if (!uuid.success) return { success: false, error: "Invalid id" };
 
     const { supabase } = await getAuthUser();
+    const selectQuery =
+      options.includeEliaProfile === true
+        ? CLIENT_DETAIL_SELECT_WITH_ELIA
+        : CLIENT_DETAIL_SELECT;
 
     const { data, error } = await supabase
       .from("clients")
-      .select(
-        `
-        id,
-        first_name,
-        last_name,
-        phone_number,
-        email,
-        queendom,
-        former_queendom,
-        client_status,
-        membership_type,
-        membership_start,
-        membership_end,
-        membership_amount_paid,
-        membership_interval,
-        membership_status,
-        external_id,
-        assigned_agent_id,
-        closed_by,
-        lead_origin_id,
-        avatar_url,
-        notes,
-        created_at,
-        updated_at,
-        client_profiles (
-          id,
-          personality_type,
-          date_of_birth,
-          blood_group,
-          marital_status,
-          wedding_anniversary,
-          primary_city,
-          company_designation,
-          social_handles,
-          travel,
-          lifestyle,
-          passions,
-          elia_notes,
-          profile_completeness,
-          last_enriched_at,
-          updated_at
-        )
-      `,
-      )
+      .select(selectQuery)
       .eq("id", id)
       .maybeSingle();
 
@@ -476,6 +609,10 @@ export async function getClientById(
       company_designation: (p?.company_designation as string | null) ?? null,
       social_handles: (p?.social_handles as string | null) ?? null,
       elia_notes: (p?.elia_notes as ClientEliaNotesJson | null) ?? null,
+      elia_profile: (p?.elia_profile as import("@/lib/types/database").EliaProfile | null) ?? null,
+      elia_version: typeof p?.elia_version === "number" ? p.elia_version : 0,
+      elia_analyzed_at: (p?.elia_analyzed_at as string | null) ?? null,
+      elia_messages_through: (p?.elia_messages_through as string | null) ?? null,
       profile_id: p ? String(p.id) : null,
       profile_last_enriched_at:
         (p?.last_enriched_at as string | null) ?? null,
@@ -675,6 +812,321 @@ export async function updateClientProfile(
     }
 
     revalidatePath("/clients");
+    return { success: true };
+  } catch {
+    return { success: false, error: "Unexpected error" };
+  }
+}
+
+const chettoMappingListSchema = z.object({
+  page: z.number().int().positive().optional(),
+  pageSize: z.number().int().positive().max(200).optional(),
+  search: z.string().optional(),
+  onlyUnmapped: z.boolean().optional(),
+});
+
+export type ChettoMappingRow = Pick<
+  ClientWithProfile,
+  "id" | "first_name" | "last_name" | "phone_number" | "queendom" | "chetto_group_id"
+>;
+
+/**
+ * Paginated client list for the Chetto group mapping tool.
+ * Restricted to admin / founder / super_admin / manager.
+ */
+export async function getClientsChettoMappingPage(
+  raw: z.infer<typeof chettoMappingListSchema>,
+): Promise<{
+  success: boolean;
+  clients: ChettoMappingRow[];
+  total: number;
+  page: number;
+  error?: string;
+}> {
+  try {
+    const parsed = chettoMappingListSchema.safeParse(raw);
+    const f = parsed.success ? parsed.data : {};
+    const page = f.page ?? 1;
+    const pageSize = f.pageSize ?? 50;
+
+    const { supabase, role } = await getAuthUser();
+    if (!canManageAnyClient(role)) {
+      return {
+        success: false,
+        error: "Unauthorised",
+        clients: [],
+        total: 0,
+        page: 1,
+      };
+    }
+
+    let query = supabase
+      .from("clients")
+      .select(
+        "id, first_name, last_name, phone_number, queendom, chetto_group_id",
+        { count: "exact" },
+      );
+
+    if (f.onlyUnmapped) {
+      query = query.is("chetto_group_id", null);
+    }
+
+    if (f.search && f.search.trim() !== "") {
+      const q = f.search.replace(/[(),'"%_]/g, "").trim();
+      if (q) {
+        const like = `%${q}%`;
+        query = query.or(
+          `first_name.ilike.${like},last_name.ilike.${like},phone_number.ilike.${like},chetto_group_id.ilike.${like}`,
+        );
+      }
+    }
+
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    const { data, error, count } = await query
+      .order("first_name", { ascending: true })
+      .range(from, to);
+
+    if (error) {
+      console.error("getClientsChettoMappingPage", error);
+      return {
+        success: false,
+        error: "Failed to load clients",
+        clients: [],
+        total: 0,
+        page,
+      };
+    }
+
+    const clients = (data ?? []) as ChettoMappingRow[];
+    return { success: true, clients, total: count ?? 0, page };
+  } catch (e) {
+    console.error(e);
+    return {
+      success: false,
+      error: "Unexpected error",
+      clients: [],
+      total: 0,
+      page: 1,
+    };
+  }
+}
+
+const chettoGroupIdValueSchema = z
+  .string()
+  .max(120)
+  .regex(/^[0-9A-Za-z_-]+$/, "Use letters, digits, hyphen, underscore only");
+
+/**
+ * Update `clients.phone_number` — used to fix Freshdesk-unmapped clients.
+ * Phone is validated as a non-empty string; caller should pass normalised E.164 when possible.
+ */
+export async function updateClientPhone(
+  clientId: string,
+  rawPhone: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const uuid = z.string().uuid().safeParse(clientId);
+    if (!uuid.success) return { success: false, error: "Invalid client id" };
+
+    const phone = sanitizeText(rawPhone.trim());
+    if (!phone) return { success: false, error: "Phone number is required" };
+    if (phone.length > 20) return { success: false, error: "Phone number too long" };
+
+    const { supabase, user, role } = await getAuthUser();
+    const gate = await assertCanEditClient(supabase, user.id, role, clientId);
+    if (!gate.ok) return { success: false, error: gate.error ?? "Unauthorised" };
+
+    const { error } = await supabase
+      .from("clients")
+      .update({ phone_number: phone })
+      .eq("id", clientId);
+
+    if (error) return { success: false, error: "Failed to save phone number" };
+
+    revalidatePath("/clients");
+    revalidatePath(`/clients/${clientId}`);
+    return { success: true };
+  } catch {
+    return { success: false, error: "Unexpected error" };
+  }
+}
+
+// ── Unmapped clients tool ──────────────────────────────────────────────────
+
+const unmappedListSchema = z.object({
+  page: z.number().int().positive().optional(),
+  pageSize: z.number().int().positive().max(200).optional(),
+  search: z.string().optional(),
+  /** `"all"` = any missing mapping, `"chetto"` = no group id, `"freshdesk"` = no phone */
+  filter: z.enum(["all", "chetto", "freshdesk"]).optional(),
+});
+
+export type UnmappedRow = {
+  id: string;
+  first_name: string;
+  last_name: string | null;
+  phone_number: string | null;
+  queendom: string | null;
+  chetto_group_id: string | null;
+  membership_type: string | null;
+  client_status: string;
+  /** Which mappings are incomplete */
+  missing: ("phone" | "chetto")[];
+};
+
+/**
+ * Paginated list of clients that are missing at least one integration mapping.
+ * `"all"` (default) = no phone OR no chetto_group_id.
+ * Restricted to admin / founder / super_admin / manager.
+ */
+export async function getClientsUnmappedPage(
+  raw: z.infer<typeof unmappedListSchema> = {},
+): Promise<{
+  success: boolean;
+  clients: UnmappedRow[];
+  total: number;
+  page: number;
+  counts: { phone: number; chetto: number };
+  error?: string;
+}> {
+  const EMPTY = { success: false, clients: [], total: 0, page: 1, counts: { phone: 0, chetto: 0 } };
+  try {
+    const parsed = unmappedListSchema.safeParse(raw);
+    const f = parsed.success ? parsed.data : {};
+    const page = f.page ?? 1;
+    const pageSize = f.pageSize ?? 50;
+    const filterMode = f.filter ?? "all";
+
+    const { supabase, role } = await getAuthUser();
+    if (!canManageAnyClient(role)) {
+      return { ...EMPTY, error: "Unauthorised" };
+    }
+
+    let query = supabase
+      .from("clients")
+      .select(
+        "id, first_name, last_name, phone_number, queendom, chetto_group_id, membership_type, client_status",
+        { count: "exact" },
+      );
+
+    if (filterMode === "all") {
+      query = query.or("phone_number.is.null,phone_number.eq.,chetto_group_id.is.null");
+    } else if (filterMode === "chetto") {
+      query = query.is("chetto_group_id", null);
+    } else {
+      query = query.or("phone_number.is.null,phone_number.eq.");
+    }
+
+    if (f.search && f.search.trim() !== "") {
+      const q = f.search.replace(/[(),'"%_]/g, "").trim();
+      if (q) {
+        const like = `%${q}%`;
+        query = query.or(
+          `first_name.ilike.${like},last_name.ilike.${like},phone_number.ilike.${like}`,
+        );
+      }
+    }
+
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    const { data, error, count } = await query
+      .order("first_name", { ascending: true })
+      .range(from, to);
+
+    if (error) {
+      console.error("getClientsUnmappedPage", error);
+      return { ...EMPTY, error: "Failed to load clients" };
+    }
+
+    // Parallel count queries for stat tiles
+    const [phoneCountRes, chettoCountRes] = await Promise.all([
+      supabase
+        .from("clients")
+        .select("id", { count: "exact", head: true })
+        .or("phone_number.is.null,phone_number.eq."),
+      supabase
+        .from("clients")
+        .select("id", { count: "exact", head: true })
+        .is("chetto_group_id", null),
+    ]);
+
+    const clients: UnmappedRow[] = ((data ?? []) as Record<string, unknown>[]).map((row) => {
+      const phone = (row.phone_number as string | null) ?? null;
+      const chetto = (row.chetto_group_id as string | null) ?? null;
+      const missing: ("phone" | "chetto")[] = [];
+      if (!phone || phone.trim() === "") missing.push("phone");
+      if (!chetto) missing.push("chetto");
+      return {
+        id: String(row.id),
+        first_name: String(row.first_name ?? ""),
+        last_name: (row.last_name as string | null) ?? null,
+        phone_number: phone,
+        queendom: (row.queendom as string | null) ?? null,
+        chetto_group_id: chetto,
+        membership_type: (row.membership_type as string | null) ?? null,
+        client_status: String(row.client_status ?? "unknown"),
+        missing,
+      };
+    });
+
+    return {
+      success: true,
+      clients,
+      total: count ?? 0,
+      page,
+      counts: {
+        phone: phoneCountRes.count ?? 0,
+        chetto: chettoCountRes.count ?? 0,
+      },
+    };
+  } catch (e) {
+    console.error(e);
+    return { ...EMPTY, error: "Unexpected error" };
+  }
+}
+
+/**
+ * Set or clear `clients.chetto_group_id` for a client (authorisation: same as profile / notes).
+ * Pass `null` to clear the link.
+ */
+export async function updateClientChettoGroupId(
+  clientId: string,
+  rawGroupId: string | null,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const uuid = z.string().uuid().safeParse(clientId);
+    if (!uuid.success) return { success: false, error: "Invalid client id" };
+
+    let chetto_group_id: string | null = null;
+    if (rawGroupId !== null) {
+      const t = rawGroupId.trim();
+      if (t !== "") {
+        const g = chettoGroupIdValueSchema.safeParse(t);
+        if (!g.success)
+          return {
+            success: false,
+            error: g.error.flatten().formErrors[0] ?? "Invalid group id",
+          };
+        chetto_group_id = g.data;
+      }
+    }
+
+    const { supabase, user, role } = await getAuthUser();
+    const gate = await assertCanEditClient(supabase, user.id, role, clientId);
+    if (!gate.ok) return { success: false, error: gate.error ?? "Unauthorised" };
+
+    const { error } = await supabase
+      .from("clients")
+      .update({ chetto_group_id })
+      .eq("id", clientId);
+
+    if (error) return { success: false, error: "Failed to save Chetto group id" };
+
+    revalidatePath("/clients");
+    revalidatePath(`/clients/${clientId}`);
     return { success: true };
   } catch {
     return { success: false, error: "Unexpected error" };

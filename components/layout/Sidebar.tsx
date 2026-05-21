@@ -31,6 +31,7 @@ import {
   ClipboardList,
   Table2,
   Library,
+  Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -93,12 +94,13 @@ const ADMIN_NAV_GROUP_LABEL: Record<NavGroup, string> = {
 /** Founders see only these destinations (department route map is not applied). */
 const FOUNDER_SIDEBAR_PREFIXES = [
   "/workspace",
-  "/clients",
-  "/tasks",
-  "/task-insights",
-  "/calendar",
-  "/elia-preview",
   "/indulge-world",
+  "/leads",
+  "/clients",
+  "/task-insights",
+  "/budget",
+  "/elia-preview",
+  "/admin/onboarding",
 ] as const;
 
 function hrefMatchesFounderNav(href: string): boolean {
@@ -119,19 +121,23 @@ type NavItemDef = {
   departmentAllowlist?: readonly EmployeeDepartment[];
 };
 
-/** Founder-only sidebar: three groups, fixed link order within each. */
+/** Founder-only sidebar: curated groups, fixed link order within each. */
 const FOUNDER_NAV_SECTIONS: { label: string; hrefs: readonly string[] }[] = [
   {
     label: "Home & ecosystem",
     hrefs: ["/workspace", "/indulge-world"],
   },
   {
-    label: "Work & schedule",
-    hrefs: ["/tasks", "/calendar"],
+    label: "Sales & relationships",
+    hrefs: ["/leads", "/clients"],
   },
   {
-    label: "Intelligence",
-    hrefs: ["/elia-preview", "/clients", "/task-insights"],
+    label: "Insights & AI",
+    hrefs: ["/task-insights", "/budget", "/elia-preview"],
+  },
+  {
+    label: "Onboarding",
+    hrefs: ["/admin/onboarding"],
   },
 ];
 
@@ -283,6 +289,14 @@ const navItems: NavItemDef[] = [
     icon: Activity,
     roles: ["manager", "founder", "admin", "super_admin"],
     section: "manager",
+    navGroup: "command",
+  },
+  {
+    href: "/budget",
+    label: "Budget",
+    icon: Wallet,
+    roles: ["founder", "admin", "super_admin"],
+    section: "admin",
     navGroup: "command",
   },
   {
@@ -552,7 +566,7 @@ export function Sidebar({ profile }: SidebarProps) {
       {/* ── Logo mark ──────────────────────────────────── */}
       <div className="px-5 pt-7 pb-5 flex flex-col items-center">
         <Link
-          href="/"
+          href={isFounder ? "/workspace" : "/"}
           className="block cursor-pointer hover:opacity-90 transition-opacity"
         >
           <div

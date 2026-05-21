@@ -85,15 +85,7 @@ export async function getOnboardingPulse(): Promise<OnboardingPulseData> {
 
   const pipelineStatusKeys = PIPELINE_STATUS_ORDER.map((s) => s.key);
 
-  const { data: amitProfile } = await supabase
-    .from("profiles")
-    .select("id, full_name")
-    .in("role", ["agent", "manager", "founder"])
-    .eq("is_active", true)
-    .ilike("full_name", "%Amit%")
-    .limit(1)
-    .maybeSingle();
-
+  // All queries in one parallel batch — Amit lookup merged into the profiles fetch
   const [{ data: agentWonRows }, { data: profiles }, ...statusCountResults] =
     await Promise.all([
       supabase
@@ -115,6 +107,11 @@ export async function getOnboardingPulse(): Promise<OnboardingPulseData> {
           .eq("status", status),
       ),
     ]);
+
+  // Derive Amit from the profiles result instead of a separate query
+  const amitProfile = (profiles ?? []).find((p) =>
+    p.full_name?.toLowerCase().includes("amit"),
+  ) ?? null;
 
   const agentTotals = new Map<string, number>();
   for (const row of agentWonRows ?? []) {

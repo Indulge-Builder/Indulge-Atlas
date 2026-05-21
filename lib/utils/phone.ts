@@ -53,3 +53,33 @@ export function e164LookupVariants(e164: string): string[] {
 
   return Array.from(set).filter(Boolean);
 }
+
+/**
+ * Format a stored Atlas phone for Freshdesk contact lookup.
+ * Freshdesk stores Indian mobiles without country code; Atlas uses E.164 (+91…).
+ * Numbers with +91 are parsed and sent as national digits; all others pass through trimmed.
+ */
+export function formatPhoneForFreshdeskLookup(phone: string): string {
+  const trimmed = (phone ?? "").trim();
+  if (!trimmed) return "";
+
+  if (!trimmed.startsWith("+91")) {
+    return trimmed;
+  }
+
+  try {
+    const parsed = parsePhoneNumberFromString(trimmed, "IN");
+    if (parsed?.isValid()) {
+      return parsed.nationalNumber;
+    }
+  } catch {
+    /* fall through */
+  }
+
+  const digits = trimmed.replace(/\D/g, "");
+  if (digits.startsWith("91") && digits.length > 10) {
+    return digits.slice(2);
+  }
+
+  return trimmed;
+}

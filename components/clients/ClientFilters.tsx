@@ -19,6 +19,7 @@ export type QueendomFilter =
   | "Anishqa Queendom"
   | "Unassigned";
 export type StatusFilter = "all" | "active" | "expired";
+export type UnmappedFilter = "none" | "chetto" | "freshdesk";
 
 const QUEENDOM_OPTIONS: { value: QueendomFilter; label: string }[] = [
   { value: "all", label: "All" },
@@ -42,6 +43,23 @@ const MEMBERSHIP_OPTIONS = [
   { value: "Monthly Trial", label: "Monthly Trial" },
 ];
 
+const UNMAPPED_PILLS: {
+  id: UnmappedFilter;
+  label: string;
+  description: string;
+}[] = [
+  {
+    id: "chetto",
+    label: "No Chetto group",
+    description: "Missing chetto_group_id — edit inline to fix",
+  },
+  {
+    id: "freshdesk",
+    label: "No Freshdesk phone",
+    description: "Missing phone number — edit inline to fix",
+  },
+];
+
 interface ClientFiltersProps {
   search: string;
   onSearchChange: (v: string) => void;
@@ -53,6 +71,8 @@ interface ClientFiltersProps {
   onMembershipChange: (v: string) => void;
   viewMode: ClientViewMode;
   onViewModeChange: (v: ClientViewMode) => void;
+  unmapped: UnmappedFilter;
+  onUnmappedChange: (v: UnmappedFilter) => void;
 }
 
 export function ClientFilters({
@@ -66,6 +86,8 @@ export function ClientFilters({
   onMembershipChange,
   viewMode,
   onViewModeChange,
+  unmapped,
+  onUnmappedChange,
 }: ClientFiltersProps) {
   return (
     <div className="space-y-4">
@@ -186,6 +208,48 @@ export function ClientFilters({
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Unmapped integrations filter */}
+      <div className="flex flex-wrap items-center gap-3 border-t border-[#E5E4DF]/60 pt-3">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-stone-400">
+          Unmapped
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {UNMAPPED_PILLS.map((pill) => {
+            const active = unmapped === pill.id;
+            return (
+              <button
+                key={pill.id}
+                type="button"
+                title={pill.description}
+                onClick={() => onUnmappedChange(active ? "none" : pill.id)}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+                  active
+                    ? "bg-amber-600 text-white"
+                    : "border border-[#E5E4DF] bg-white text-stone-600 hover:border-amber-300 hover:text-amber-800",
+                )}
+              >
+                <span
+                  className={cn(
+                    "h-1.5 w-1.5 shrink-0 rounded-full",
+                    active ? "bg-amber-200" : "bg-amber-500",
+                  )}
+                  aria-hidden
+                />
+                {pill.label}
+              </button>
+            );
+          })}
+        </div>
+        {unmapped !== "none" && (
+          <span className="text-[11px] italic text-amber-700">
+            {unmapped === "chetto"
+              ? "Showing clients without a Chetto group — edit inline below"
+              : "Showing clients without a phone number — edit inline below"}
+          </span>
+        )}
       </div>
     </div>
   );

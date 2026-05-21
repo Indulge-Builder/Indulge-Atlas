@@ -7,6 +7,7 @@ import {
   type ClientViewMode,
   type QueendomFilter,
   type StatusFilter,
+  type UnmappedFilter,
 } from "@/components/clients/ClientFilters";
 import { ClientListRow } from "@/components/clients/ClientListRow";
 import { IndulgeButton } from "@/components/ui/indulge-button";
@@ -15,10 +16,14 @@ import { surfaceCardVariants } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import {
   getClients,
+  updateClientChettoGroupId,
+  updateClientPhone,
   type ClientDirectoryStats,
   type ClientWithProfile,
 } from "@/lib/actions/clients";
 import { useDebounce } from "@/lib/hooks/useDebounce";
+import Link from "next/link";
+import { toast } from "sonner";
 
 const PAGE_SIZE = 24;
 
@@ -31,6 +36,8 @@ interface ClientsIndexProps {
   initialClients: ClientWithProfile[];
   initialTotal: number;
   stats: ClientDirectoryStats;
+  /** Manager / admin — link to bulk Chetto group id mapping. */
+  showChettoMappingLink?: boolean;
 }
 
 function ClientsListSkeleton() {
@@ -85,12 +92,14 @@ export default function ClientsIndex({
   initialClients,
   initialTotal,
   stats,
+  showChettoMappingLink = false,
 }: ClientsIndexProps) {
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 300);
   const [queendomFilter, setQueendomFilter] = useState<QueendomFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
   const [membershipFilter, setMembershipFilter] = useState<string>("all");
+  const [unmappedFilter, setUnmappedFilter] = useState<UnmappedFilter>("none");
   const [viewMode, setViewMode] = useState<ClientViewMode>("cards");
 
   const [clients, setClients] = useState<ClientWithProfile[]>(initialClients);
@@ -135,8 +144,9 @@ export default function ClientsIndex({
       search: debouncedSearch.trim() === "" ? undefined : debouncedSearch,
       sort: "profile_data" as const,
       pageSize: PAGE_SIZE,
+      unmapped: unmappedFilter === "none" ? undefined : unmappedFilter,
     };
-  }, [queendomFilter, statusFilter, membershipFilter, debouncedSearch]);
+  }, [queendomFilter, statusFilter, membershipFilter, debouncedSearch, unmappedFilter]);
 
   useEffect(() => {
     if (!skipFirstFilterEffect.current) {
@@ -184,13 +194,57 @@ export default function ClientsIndex({
 
   const hasMore = clients.length < total;
 
+  async function handleUnmappedSave(clientId: string, value: string) {
+    if (unmappedFilter === "chetto") {
+      const res = await updateClientChettoGroupId(clientId, value.trim() || null);
+      if (!res.success) {
+        toast.error(res.error ?? "Failed to save Chetto group id");
+        return;
+      }
+      toast.success("Chetto group id saved");
+    } else if (unmappedFilter === "freshdesk") {
+      const res = await updateClientPhone(clientId, value.trim());
+      if (!res.success) {
+        toast.error(res.error ?? "Failed to save phone number");
+        return;
+      }
+      toast.success("Phone number saved");
+    }
+    // Refresh the list so the saved client disappears from the unmapped view
+    startTransition(() => {
+      void (async () => {
+        const res = await getClients({ ...buildFilters(), page: 1 });
+        setClients(res.clients);
+        setTotal(res.total);
+        setPage(res.page);
+      })();
+    });
+  }
+
   return (
     <div className="min-h-0 flex-1 px-8 py-6">
       <header className="mb-8 space-y-6">
-        <div>
+        <div className="flex flex-wrap items-end justify-between gap-3">
           <h1 className="font-[family-name:var(--font-playfair)] text-3xl font-semibold tracking-tight text-stone-900">
             Clients
           </h1>
+          {showChettoMappingLink ? (
+            <div className="flex flex-wrap items-center gap-4">
+              <Link
+                href="/clients/unmapped"
+                className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 transition-colors hover:bg-amber-100"
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden />
+                Unmapped profiles
+              </Link>
+              <Link
+                href="/clients/chetto-mapping"
+                className="text-sm font-medium text-[#9A7B2E] underline-offset-2 hover:underline"
+              >
+                Chetto group mapping
+              </Link>
+            </div>
+          ) : null}
         </div>
 
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -265,6 +319,8 @@ export default function ClientsIndex({
             onMembershipChange={setMembershipFilter}
             viewMode={viewMode}
             onViewModeChange={setViewMode}
+            unmapped={unmappedFilter}
+            onUnmappedChange={setUnmappedFilter}
           />
         </div>
       </header>
@@ -285,13 +341,23 @@ export default function ClientsIndex({
               )}
             >
               {clients.map((c) => (
-                <ClientListRow key={c.id} client={c} />
+                <ClientListRow
+                  key={c.id}
+                  client={c}
+                  unmappedMode={unmappedFilter}
+                  onSave={handleUnmappedSave}
+                />
               ))}
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {clients.map((c) => (
-                <ClientCard key={c.id} client={c} />
+                <ClientCard
+                  key={c.id}
+                  client={c}
+                  unmappedMode={unmappedFilter}
+                  onSave={handleUnmappedSave}
+                />
               ))}
             </div>
           )}

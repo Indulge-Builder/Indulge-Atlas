@@ -1,28 +1,42 @@
 /**
  * Centralized timezone-safe date formatting for Indulge Atlas.
  *
- * Supabase stores timestamptz in UTC. When displaying or computing with these
- * values on the frontend, always parse via `new Date(utcString)` first — JavaScript
- * automatically converts to the browser's local timezone.
- *
- * Example: "2026-03-09T06:30:00+00:00" (UTC) → "12:00 PM" for a user in IST.
+ * Supabase stores `timestamptz` as UTC instants. Use helpers from `lib/utils/time.ts`:
+ * - `formatIST` — business wall clock (Asia/Kolkata) for tasks, SLA, activity
+ * - `formatSupabaseTimestamptz` — literal `yyyy-MM-dd HH:mm:ss` as in Supabase (+00)
  */
 
 import { format } from "date-fns";
+import {
+  formatIST,
+  formatSupabaseTimestamptz,
+  parseTimestamptz,
+} from "@/lib/utils/time";
+
+/** Lead Added column — same clock as Supabase (`2026-05-20 23:55:10`), no IST shift. */
+export function formatLeadCreatedAt(utcString: string): string {
+  return formatSupabaseTimestamptz(utcString);
+}
+
+/** Atlas business timezone (Asia/Kolkata) for operational timestamps. */
+export function formatAtlasDateTime(utcString: string): string {
+  if (!utcString?.trim()) return "—";
+  return formatIST(utcString, "MMM d, yyyy, h:mm a");
+}
 
 /**
  * Formats a UTC ISO string as local time (e.g. "12:00 PM").
  * Use for task due_date, reminder times, etc.
  */
 export function formatLocalTime(utcString: string): string {
-  return format(new Date(utcString), "h:mm a");
+  return format(parseTimestamptz(utcString), "h:mm a");
 }
 
 /**
- * Formats a UTC ISO string as local date + time (e.g. "Mar 9, 2026, 12:00 PM").
+ * Formats a UTC ISO string in the browser's local timezone.
  */
 export function formatLocalDateTime(utcString: string): string {
-  return format(new Date(utcString), "MMM d, yyyy, h:mm a");
+  return format(parseTimestamptz(utcString), "MMM d, yyyy, h:mm a");
 }
 
 /**

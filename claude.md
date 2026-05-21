@@ -1,6 +1,6 @@
 # Indulge Atlas — AI Context File
 
-> **Updated**: 2026-05-06  
+> **Updated**: 2026-05-16  
 > **Purpose**: Fast-load context for AI assistants. Read this once and be ready to work.  
 > Supersedes all prior versions. Full reference: `ATLAS_BLUEPRINT.md`.
 
@@ -8,7 +8,7 @@
 
 ## Project Summary
 
-**Indulge Atlas** is a bespoke Company OS for the Indulge Group — a luxury lifestyle brand. It started as a CRM for inbound sales leads and is expanding into a full internal platform (HR, projects, finance, AI assistant). Stack: **Next.js 16.1.6 + React 19** App Router, **Supabase** (PostgreSQL 15 + Auth + Realtime), **TypeScript strict**, **Tailwind CSS v4** (beta), **Radix UI + shadcn/ui**. Current phase: CRM is production-ready, **Clients** directory with **Overview** (on-demand Elia member summary, metrics, scoped chat), dossier **Profile** tab (**`ClientProfileFields`** + stacked **Membership** via **`ClientMembershipTab`**, `showContact={false}`), Freshdesk **Service History**, **WhatsApp** tab with **Chetto** group intel (**`lib/actions/chetto.ts`**, **`/api/chetto/*`**, **`CHETTO_API_KEY`**), Projects system shipped, department access control shipped, Elia AI: **full-page preview** at **`/elia-preview`** (`EliaChat` / `EliaChatMessage`, theme-aligned) + **`/api/elia/chat`**, sidebar **`EliaSidePanel.jsx`** still in preview.
+**Indulge Atlas** is a bespoke Company OS for the Indulge Group — a luxury lifestyle brand. It started as a CRM for inbound sales leads and is expanding into a full internal platform (HR, projects, finance, AI assistant). Stack: **Next.js 16.1.6 + React 19** App Router, **Supabase** (PostgreSQL 15 + Auth + Realtime), **TypeScript strict**, **Tailwind CSS v4** (beta), **Radix UI + shadcn/ui**. Current phase: CRM is production-ready, **Clients** directory with **Overview** (on-demand Elia member summary, metrics, scoped chat), dossier **Profile** tab (**`ClientProfileFields`** + **Elia Intelligence** WhatsApp profile analysis + stacked **Membership** via **`ClientMembershipTab`**, `showContact={false}`), Freshdesk **Service History**, **WhatsApp** tab with **Chetto** group intel (**`lib/actions/chetto.ts`**, **`/api/chetto/*`**, **`CHETTO_API_KEY`**), Projects system shipped, department access control shipped, Elia AI: **full-page preview** at **`/elia-preview`** (`EliaChat` / `EliaChatMessage`, theme-aligned) + **`/api/elia/chat`**, **WhatsApp → structured `elia_profile`** via **`lib/services/eliaProfileAnalysis.ts`** (migration **091**), sidebar **`EliaSidePanel.jsx`** still in preview.
 
 ---
 
@@ -27,12 +27,13 @@ app/(dashboard)/          All authenticated routes — shares DashboardLayout
   concierge/              ⚠️ MOCK DATA — fabricated UHNI profiles served to real users
   elia-preview/           Full-page Elia chat — `EliaChat` + `EliaChatMessage`; RSC loads `getEliaActiveMemberCount()` → `clientCount`; POST `/api/elia/chat`
 app/api/                  elia/chat — Anthropic Haiku (global or client-scoped via optional clientId)
-app/api/chetto/           Chetto proxy routes — find-group, insights, timeline (`CHETTO_API_KEY` server-only)
+                          elia/analyse-client — POST Bearer `ELIA_ANALYSIS_SECRET`; cron/automation → `runEliaWhatsAppAnalysis`
+app/api/chetto/           Chetto proxy routes — find-group, group, insights, timeline (`CHETTO_API_KEY` server-only)
 app/api/webhooks/         Pabbly (leads/meta, leads/google, leads/website, ads) + WhatsApp
 
 components/ui/            Zero-dependency design system — Button, Card, Input, IndulgeButton, IndulgeField, InfoRow
 components/leads/         All CRM lead components (dossier panels, modals, table)
-components/clients/       Client list (`ClientsIndex`, …), `ClientDetailView` / `ClientProfileSheet`; **overview/**, **profile/**, **membership/**, **chetto/ChettoTab**; FreshdeskTab
+components/clients/       Client list (`ClientsIndex`, …), `ClientDetailView` / `ClientProfileSheet`; **overview/**, **profile/** (`EliaProfileAnalyseButton`, Elia Intelligence section), **membership/**, **chetto/ChettoTab**; FreshdeskTab
 components/manager/       Manager suite (MorningBriefing, CampaignDossier, AgentCard, etc.)
 components/projects/      Project board, list, task cards, task detail sheet
 components/task-intelligence/  Task Insights dashboard, department detail, employee dossier, workspace bento grid (`taskInsightsBento.ts`), AssignTaskModal
@@ -43,7 +44,7 @@ lib/actions/              Primary `"use server"` modules — component-facing da
   leads.ts                Lead mutations, won deal, activity logging
   clients.ts              Client directory, detail, notes, profile updates
   freshdesk.ts            Freshdesk tickets + Elia AI ticket summary (auth + read-only)
-  elia.ts                 Elia: `getEliaClientContext`, **`getEliaActiveMemberCount`** (preview header stats), `getEliaSingleClientProfileText`, **getClientSummary** (Haiku); sync helpers MUST NOT be exported here — use `lib/elia/chat-prompt.ts`
+  elia.ts                 Elia: `getEliaClientContext`, **`getEliaActiveMemberCount`**, `getEliaSingleClientProfileText`, **getClientSummary** (Haiku), **`triggerEliaWhatsAppAnalysis`** (manager+); sync helpers in **`lib/elia/chat-prompt.ts`**
   chetto.ts               Chetto Joule helpers — **no** `"use server"` (Next.js forbids exporting constants/sync helpers from `use server` modules); used **only** by `app/api/chetto/*`; **`CHETTO_API_KEY`** server-side
   projects.ts             Project + task group + project task CRUD
   tasks.ts                Atlas unified tasks (masters, subtasks, personal, import)
@@ -51,8 +52,9 @@ lib/actions/              Primary `"use server"` modules — component-facing da
   manager-analytics.ts    Manager leaderboard, funnel, wins
   [module].ts             One file per feature domain
 lib/freshdesk/            Freshdesk REST client + types — **server-only**; call via `lib/actions/freshdesk.ts` only
-lib/elia/                 chat-prompt.ts — Elia system prompts + sync helpers (not `"use server"`)
+lib/elia/                 chat-prompt.ts — `eliaSystemPrompt`, `eliaClientScopedPrompt`, `buildWhatsAppProfilePrompt` (not `"use server"`)
 lib/services/             Internal business services (not component-facing)
+  eliaProfileAnalysis.ts  WhatsApp → Chetto Joule → Haiku → `client_profiles.elia_profile` (service role; NOT `"use server"`)
   leadIngestion.ts        Webhook ETL + agent assignment waterfall
   fieldMappingEngine.ts   Dynamic field mapping from DB rules
   agentRoutingConfig.ts   DB-driven routing config (wired into ingestion)
@@ -228,16 +230,17 @@ await supabase.auth.admin.createUser({
 
 ---
 
-## Active Context (as of 2026-05-06)
+## Active Context (as of 2026-05-16)
 
 **Recently shipped:**
+- **Elia WhatsApp profile intelligence (2026-05)** — Migration **091**: `client_profiles.elia_profile` (JSONB `EliaProfile`), `elia_version`, `elia_analyzed_at`, `elia_messages_through`. Pipeline: **`lib/services/eliaProfileAnalysis.ts`** fetches Chetto timeline via **`lib/actions/chetto.ts`** (Joule direct, `CHETTO_API_KEY`), classifies client vs staff (`e164LookupVariants`), Haiku **`claude-haiku-4-5-20251001`**, persists via **`getServiceSupabaseClient()`** (UPDATE then INSERT if no row). Manual trigger: **`triggerEliaWhatsAppAnalysis`** in `lib/actions/elia.ts` (admin/founder/super_admin/manager). Cron: **`POST /api/elia/analyse-client`** + **`ELIA_ANALYSIS_SECRET`**. UI: Profile tab **Elia Intelligence** — `EliaProfileAnalyseButton` + inline summary/sentiment/travel/requests (`ClientProfileFields`). Prompt: **`buildWhatsAppProfilePrompt`** in `lib/elia/chat-prompt.ts`. Chetto group link: `clients.chetto_group_id` (migration **090**).
 - **Clients / Profile UX (2026-05)** — **Profile** tab: dossier-style **`profile/`** layout (no top completeness bar); **`ProfileSection`** / **`ProfileFieldRow`** styling tweaks. **Membership** content lives **under Profile** (border + label), **`ClientMembershipTab`** with **`showContact={false}`** — Plan + Timeline (queendom on plan rows); **no standalone Membership tab**. **Client directory** list: no trailing completeness % column (Overview pills unchanged).
 - **Chetto on client dossier** — **`components/clients/chetto/ChettoTab.tsx`** (`/clients/[id]` → **WhatsApp** tab): **`fetch`** to **`/api/chetto/find-group`**, **`/api/chetto/timeline`**, **`/api/chetto/insights`** (credentials); **`lib/actions/chetto.ts`** implements Joule calls + queendom/group-id maps (**no** `"use server"`); **`CHETTO_API_KEY`** env; **`timelineNotAvailable`** when Joule timeline 404s while group exists; **`lib/constants/chetto-jokers.ts`**; UI in bordered **`rounded-2xl`** card + **`min-w-0`** / wrap-safe text (avoids **`main`** overflow clip)
 - **`/elia-preview` Elia chat** — `components/elia/EliaChat.tsx`, `EliaChatMessage.tsx`: Atlas tokens (`atlas-masthead-texture`, `surfaceCardVariants`, `brand-gold`, `#E5E4DF`), secondary copy at **`#6b6b6b`** (matches `:root` `--muted-foreground`); three-column layout (md+); Framer Motion load + message enter; `app/(dashboard)/elia-preview/page.tsx` passes **`clientCount`** from **`getEliaActiveMemberCount()`**; same POST **`/api/elia/chat`** contract (incl. last **10** `conversationHistory` turns)
 - **Design tokens + primary CTA** — `app/globals.css` `@theme inline`: **`--color-brand-gold*`** values are **muted warm umber** (cream-friendly accent; legacy `gold` naming). `components/ui/button.tsx` **`gold`** variant uses `bg-brand-gold` / `text-surface` / `hover:bg-brand-gold-dark`. Many legacy **`#D4AF37`** literals remain across the repo.
 - **Task Insights (`/task-insights`)** — Main page: `max-w-5xl`; department **chip** filter; tabs **Agents** (first) then **All workspaces**; agent summaries **prefetched** when scope changes (not tab-gated); no department **card grid** on index (department drill-down remains at `/task-insights/[departmentId]`). Workspace tiles: bento-style grid + compact cards (`GroupTasksCommandView`, `taskInsightsBento.ts`). Employee list: signed-in user first, SOP section hides completed rows, hint “Click on a card to open.”
 - **Client dossier Overview tab** — `/clients/[id]` default tab: **on-demand** Haiku **member summary** (`getClientSummary` via **Generate summary** in `ClientOverviewTab` / `ClientSummaryCard`); Freshdesk-backed **metrics** (still on load); **client-scoped Elia chat** (POST `/api/elia/chat` with `clientId`). Components: `components/clients/overview/*`; prompts in `lib/elia/chat-prompt.ts`; logic in `lib/actions/elia.ts`
-- **Clients + Freshdesk Service History** — `/clients`; live tickets (`FRESHDESK_API_KEY`); Elia ticket summary (`lib/actions/freshdesk.ts`, Haiku; same transport as `/api/elia/chat`)
+- **Clients + Freshdesk Service History** — `/clients`; live tickets (`FRESHDESK_API_KEY`); ticket fetch paginates across Freshdesk pages (not capped to 50). Top stats in `getClientFreshdeskTickets` use: **open = every status except Resolved/Closed** (`status !== 4 && status !== 5`), resolved = `4 | 5`; supports custom Freshdesk statuses. Elia ticket summary (`lib/actions/freshdesk.ts`, Haiku; same transport as `/api/elia/chat`)
 - Migrations 062–066: Projects system + department access control
 - `components/projects/` — full board and task UI
 - `components/manager/` — full manager suite
@@ -261,13 +264,28 @@ await supabase.auth.admin.createUser({
 
 | Surface | Mechanism |
 |--------|-----------|
-| `/elia-preview` | `EliaChat` — POST `/api/elia/chat` with `{ message, conversationHistory? }`; **all** serialized members via `getEliaClientContext()`; page RSC supplies **`clientCount`** via **`getEliaActiveMemberCount()`** for right-rail stats |
+| `/elia-preview` | `EliaChat` — POST `/api/elia/chat` with `{ message, conversationHistory? }`; **all** serialized members via `getEliaClientContext()`; page RSC supplies **`clientCount`** via **`getEliaActiveMemberCount()`** |
 | Sidebar `EliaSidePanel` | Same route + global context (JSX panel) |
-| `/clients/[id]` Overview chat | Same route — add **`clientId`** (UUID) — loads one member via `getEliaSingleClientProfileText`, `eliaClientScopedPrompt` |
-| Overview summary card | Server Action **`getClientSummary(clientId)`** — Haiku, client + profile + Freshdesk snapshot; invoked **only** when the user clicks **Generate summary** (`ClientOverviewTab`) |
+| `/clients/[id]` Overview chat | POST `/api/elia/chat` with **`clientId`** — `getEliaSingleClientProfileText` + `eliaClientScopedPrompt` |
+| Overview summary card | **`getClientSummary(clientId)`** — Haiku; **on-demand** via **Generate summary** only |
+| Profile → **Elia Intelligence** | **`triggerEliaWhatsAppAnalysis(clientId)`** → **`runEliaWhatsAppAnalysis`**; reads Chetto timeline, writes **`client_profiles.elia_profile`**; inline display in **`ClientProfileFields`** |
 | Service History ticket AI | **`getTicketAISummary`** in `lib/actions/freshdesk.ts` |
+| Cron / automation | POST **`/api/elia/analyse-client`** — body `{ clientId }`, Bearer **`ELIA_ANALYSIS_SECRET`** |
 
-**Env:** `ANTHROPIC_API_KEY` (server). **`lib/actions/elia.ts`** must export **async** server actions only — put synchronous helpers in **`lib/elia/chat-prompt.ts`** (or another non–`use server` module).
+**Models (Atlas today):** All production Elia calls use **`claude-haiku-4-5-20251001`** via REST (`api.anthropic.com/v1/messages`). No streaming. Chat: `max_tokens` 1024; summary: 300; WhatsApp profile analysis: 2000.
+
+**Env:** `ANTHROPIC_API_KEY`, `ELIA_ANALYSIS_SECRET`, `SUPABASE_SERVICE_ROLE_KEY` (profile analysis writes only), `CHETTO_API_KEY`, `CHETTO_ORG_ID` (optional).
+
+**Module boundaries:**
+
+| Module | `"use server"`? | Role |
+|--------|-----------------|------|
+| `lib/actions/elia.ts` | Yes | Auth-gated server actions only (async exports) |
+| `lib/elia/chat-prompt.ts` | No | Pure prompt builders |
+| `lib/services/eliaProfileAnalysis.ts` | No | Chetto fetch + Haiku + service-role DB write |
+| `lib/actions/chetto.ts` | No | Joule HTTP helpers — imported by API routes **and** `eliaProfileAnalysis` |
+
+**`client_profiles` Elia columns (migration 091):** `elia_profile` (JSONB), `elia_version`, `elia_analyzed_at`, `elia_messages_through`. Type: **`EliaProfile`** in `lib/types/database.ts`. Incremental runs use `elia_messages_through` as `sinceTimestamp`; require ≥5 new **client** messages before calling Haiku.
 
 ## Chetto (WhatsApp groups — quick reference)
 
@@ -334,4 +352,8 @@ Chetto is **not** Elia: separate vendor API and env key from **`ANTHROPIC_API_KE
 
 16. **`"use server"` action modules** — Next.js requires **async** exports from `lib/actions/*.ts`. Put synchronous helpers (e.g. `parseEliaClientDisplayNameFromProfile`, prompt string builders) in **`lib/elia/chat-prompt.ts`** or a util module without `"use server"`. **`lib/actions/chetto.ts`** intentionally omits `"use server"` so route handlers can import maps/constants — do not add the directive without splitting exports.
 
-17. **Chetto / Joule** — **`CHETTO_API_KEY`** only on server; **`ChettoTab`** uses **`fetch`** to **`/api/chetto/*`** only. **`lib/actions/chetto.ts`** is **not** a Server Actions module. Expect **`timelineNotAvailable`** when the timeline endpoint returns **404** / “No groups found” while group metadata still resolves.
+17. **Chetto / Joule** — **`CHETTO_API_KEY`** only on server. **`ChettoTab`** uses **`fetch`** to **`/api/chetto/*`** (session cookie). **`lib/services/eliaProfileAnalysis.ts`** calls **`lib/actions/chetto.ts`** directly (Joule `https://apiv2.chetto.ai/joule`) — never `/api/chetto/*`. Expect **`timelineNotAvailable`** when timeline returns **404** while group metadata exists.
+
+18. **Elia profile persistence** — Writes use **`getServiceSupabaseClient()`** (`SUPABASE_SERVICE_ROLE_KEY` required). Pattern: UPDATE `client_profiles` by `client_id`, INSERT only if no row. Do not use upsert-with-select chains that return null on success. After manual analysis, **`ClientDetailView`** refetches via **`getClientById`** — tab stays on Profile (does not reset to Overview).
+
+19. **Chetto vs Elia profile analysis** — Chetto tab = read/browse WhatsApp + Chetto insights API. Elia Intelligence = Claude-built **`elia_profile`** stored on **`client_profiles`**. Separate env keys: **`CHETTO_API_KEY`** vs **`ANTHROPIC_API_KEY`**.

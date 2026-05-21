@@ -6,7 +6,6 @@ import { surfaceCardVariants } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { sendWhatsAppMessage } from "@/lib/actions/whatsapp";
 import type { WhatsAppMessage } from "@/lib/types/database";
 
@@ -25,14 +24,18 @@ export function WhatsAppChatModule({
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const bottomRef = useRef<HTMLDivElement | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setMessages(initialMessages);
   }, [initialMessages]);
 
+  // Scroll the message pane only — scrollIntoView would scroll the whole dossier page.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (messages.length === 0) return;
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    container.scrollTop = container.scrollHeight;
   }, [messages]);
 
   function handleSubmit(e: React.FormEvent) {
@@ -85,7 +88,10 @@ export function WhatsAppChatModule({
         <p className="text-xs text-stone-500">Cloud · outbound from this dossier</p>
       </div>
 
-      <ScrollArea className="min-h-0 flex-1 px-4 py-3">
+      <div
+        ref={scrollContainerRef}
+        className="min-h-0 flex-1 overflow-y-auto px-4 py-3 [scrollbar-width:thin]"
+      >
         <div className="flex flex-col gap-3 pr-2">
           {messages.length === 0 && (
             <p className="text-center text-sm text-stone-400 py-8">
@@ -113,9 +119,8 @@ export function WhatsAppChatModule({
               </span>
             </div>
           ))}
-          <div ref={bottomRef} />
         </div>
-      </ScrollArea>
+      </div>
 
       {error && (
         <p className="shrink-0 border-t border-red-100 bg-red-50/90 px-4 py-2 text-xs text-red-800">

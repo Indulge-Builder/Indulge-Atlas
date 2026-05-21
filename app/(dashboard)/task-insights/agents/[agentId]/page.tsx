@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { EmployeeDossierView } from "@/components/task-intelligence/EmployeeDossierView";
+import { getEmployeeDossier } from "@/lib/actions/task-intelligence";
 
 export const dynamic = "force-dynamic";
 
@@ -57,9 +58,18 @@ export default async function TaskInsightsAgentDossierPage({
     role,
   };
 
+  // SSR the dossier so the client component renders immediately with data
+  const dossierResult = await getEmployeeDossier(id);
+  if (!dossierResult.success) notFound();
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <EmployeeDossierView agentId={id} backHref={backHref} currentUser={currentUser} />
+      <EmployeeDossierView
+        agentId={id}
+        backHref={backHref}
+        currentUser={currentUser}
+        initialDossier={dossierResult.data}
+      />
     </div>
   );
 }

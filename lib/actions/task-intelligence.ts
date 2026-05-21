@@ -7,6 +7,7 @@
 
 import { addDays, endOfDay, startOfDay } from "date-fns";
 import { fromZonedTime, toZonedTime } from "date-fns-tz";
+import { unstable_cache } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import {
   DEPARTMENT_CONFIG,
@@ -155,229 +156,222 @@ function extractChecklist(attachments: unknown): ChecklistItem[] {
 
 // ── Public actions ───────────────────────────────────────────────────────────
 
-export async function getDepartmentTaskOverview(): Promise<
-  ActionResult<DepartmentTaskOverview[]>
-> {
-  try {
-    const { supabase, role, domain, profile } = await getAuthUser();
-    if (!assertTaskIntelligenceRole(role))
-      return { success: false, error: "Not authorized" };
+/**
+ * Pure data fetch for department overview — extracted so it can be wrapped with
+ * unstable_cache per-user. The server action below calls this and handles auth.
+ */
+async function fetchDepartmentTaskOverviewData(
+  userId: string,
+  role: string,
+  domain: IndulgeDomain,
+  profile: { department?: string | null } | null,
+): Promise<DepartmentTaskOverview[] | null> {
+  const supabase = await createClient();
 
-    let visibleDepts = resolveVisibleDepartments(role, domain, profile);
-    if (visibleDepts.length === 0) {
-      return { success: false, error: "Not authorized" };
-    }
+  let visibleDepts = resolveVisibleDepartments(role, domain, profile);
+  if (visibleDepts.length === 0) return null;
 
-    const nowMs = Date.now();
-    const { startIso, endIso } = istTodayBounds();
+  const nowMs = Date.now();
+  const { startIso, endIso } = istTodayBounds();
 
-    const { data: masters, error: mErr } = await supabase
+  const { data: masters, error: mErr } = await supabase
+    .from("tasks")
+    .select("id, department")
+    .eq("unified_task_type", "master")
+    .is("archived_at", null);
+
+  if (mErr) return null;
+
+  const masterRows = (masters ?? []).filter((r) => {
+    const raw = r.department as string | null;
+    const d = (typeof raw === "string" ? raw.trim() : "") as EmployeeDepartment | "";
+    if (!d) return isPrivilegedRole(role);
+    return visibleDepts.includes(d as EmployeeDepartment);
+  });
+  const masterIds = masterRows.map((r) => r.id as string);
+  const masterDept = new Map<string, EmployeeDepartment>();
+  for (const r of masterRows) {
+    const raw = r.department as string | null;
+    const t = typeof raw === "string" ? raw.trim() : "";
+    if (t) masterDept.set(r.id as string, t as EmployeeDepartment);
+  }
+
+  let subtaskRows: Array<{
+    id: string;
+    project_id: string | null;
+    atlas_status: AtlasTaskStatus;
+    due_date: string | null;
+    archived_at: string | null;
+  }> = [];
+
+  if (masterIds.length > 0) {
+    const { data: subs, error: sErr } = await supabase
       .from("tasks")
-      .select("id, department")
-      .eq("unified_task_type", "master")
-      .is("archived_at", null);
+      .select("id, project_id, atlas_status, due_date, archived_at")
+      .eq("unified_task_type", "subtask")
+      .in("project_id", masterIds);
+    if (sErr) return null;
+    subtaskRows = (subs ?? []) as typeof subtaskRows;
+  }
 
-    if (mErr) return { success: false, error: "Failed to load master tasks" };
+  const subtasksByDept = new Map<
+    EmployeeDepartment,
+    { total: number; done: number; overdue: number }
+  >();
+  for (const d of visibleDepts) subtasksByDept.set(d, { total: 0, done: 0, overdue: 0 });
 
-    const masterRows = (masters ?? []).filter((r) => {
-      const raw = r.department as string | null;
-      const d = (typeof raw === "string" ? raw.trim() : "") as EmployeeDepartment | "";
-      if (!d) {
-        return isPrivilegedRole(role);
-      }
-      return visibleDepts.includes(d as EmployeeDepartment);
-    });
-    const masterIds = masterRows.map((r) => r.id as string);
-    const masterDept = new Map<string, EmployeeDepartment>();
-    for (const r of masterRows) {
-      const raw = r.department as string | null;
-      const t = typeof raw === "string" ? raw.trim() : "";
-      if (t) masterDept.set(r.id as string, t as EmployeeDepartment);
-    }
+  for (const st of subtaskRows) {
+    if (st.archived_at) continue;
+    const pid = st.project_id;
+    if (!pid) continue;
+    const dept = masterDept.get(pid);
+    if (!dept) continue;
+    const bucket = subtasksByDept.get(dept)!;
+    bucket.total++;
+    if (st.atlas_status === "done") bucket.done++;
+    if (isSubtaskActiveOverdue(st.due_date, st.atlas_status, nowMs)) bucket.overdue++;
+  }
 
-    let subtaskRows: Array<{
-      id: string;
-      project_id: string | null;
-      atlas_status: AtlasTaskStatus;
-      due_date: string | null;
-      archived_at: string | null;
-    }> = [];
+  /** Only enum values Postgres accepts on `profiles.department` (avoids bad .in() filters). */
+  const departmentScope = [...new Set(visibleDepts)].filter((d): d is EmployeeDepartment =>
+    ALL_DEPARTMENTS.includes(d),
+  );
+  if (departmentScope.length === 0) return null;
 
-    if (masterIds.length > 0) {
-      const { data: subs, error: sErr } = await supabase
-        .from("tasks")
-        .select("id, project_id, atlas_status, due_date, archived_at")
-        .eq("unified_task_type", "subtask")
-        .in("project_id", masterIds);
-      if (sErr) return { success: false, error: "Failed to load subtasks" };
-      subtaskRows = (subs ?? []) as typeof subtaskRows;
-    }
+  let profiles: Array<{ id: string; department: string | null; role: string }> = [];
 
-    const subtasksByDept = new Map<
-      EmployeeDepartment,
-      { total: number; done: number; overdue: number }
-    >();
-    for (const d of visibleDepts) {
-      subtasksByDept.set(d, { total: 0, done: 0, overdue: 0 });
-    }
+  const profIn = await supabase
+    .from("profiles")
+    .select("id, department, role")
+    .in("department", departmentScope);
 
-    for (const st of subtaskRows) {
-      if (st.archived_at) continue;
-      const pid = st.project_id;
-      if (!pid) continue;
-      const dept = masterDept.get(pid);
-      if (!dept) continue;
-      const bucket = subtasksByDept.get(dept)!;
-      bucket.total++;
-      if (st.atlas_status === "done") bucket.done++;
-      if (isSubtaskActiveOverdue(st.due_date, st.atlas_status, nowMs)) bucket.overdue++;
-    }
-
-    /** Only enum values Postgres accepts on `profiles.department` (avoids bad .in() filters). */
-    const departmentScope = [...new Set(visibleDepts)].filter((d): d is EmployeeDepartment =>
-      ALL_DEPARTMENTS.includes(d),
+  if (profIn.error) {
+    console.error(
+      "[getDepartmentTaskOverview] profiles .in(department) failed:",
+      profIn.error.message,
+      profIn.error,
     );
-    if (departmentScope.length === 0) {
-      return { success: false, error: "Not authorized" };
-    }
-
-    let profiles: Array<{
-      id: string;
-      department: string | null;
-      role: string;
-    }> = [];
-
-    const profIn = await supabase
-      .from("profiles")
-      .select("id, department, role")
-      .in("department", departmentScope);
-
-    if (profIn.error) {
+    const profAll = await supabase.from("profiles").select("id, department, role");
+    if (profAll.error) {
       console.error(
-        "[getDepartmentTaskOverview] profiles .in(department) failed:",
-        profIn.error.message,
-        profIn.error,
+        "[getDepartmentTaskOverview] profiles fallback select failed:",
+        profAll.error.message,
+        profAll.error,
       );
-      const profAll = await supabase
-        .from("profiles")
-        .select("id, department, role");
-      if (profAll.error) {
-        console.error(
-          "[getDepartmentTaskOverview] profiles fallback select failed:",
-          profAll.error.message,
-          profAll.error,
-        );
-        return {
-          success: false,
-          error: `Failed to load profiles: ${profAll.error.message}`,
-        };
-      }
-      profiles = (profAll.data ?? []).filter(
-        (p) =>
-          p.department != null &&
-          departmentScope.includes(p.department as EmployeeDepartment),
-      );
-    } else {
-      profiles = profIn.data ?? [];
+      return null;
     }
+    profiles = (profAll.data ?? []).filter(
+      (p) =>
+        p.department != null &&
+        departmentScope.includes(p.department as EmployeeDepartment),
+    );
+  } else {
+    profiles = profIn.data ?? [];
+  }
 
-    const activeAgentsByDept = new Map<EmployeeDepartment, number>();
-    for (const d of visibleDepts) activeAgentsByDept.set(d, 0);
-    for (const p of profiles) {
-      const dept = p.department as EmployeeDepartment | null;
-      if (!dept || !visibleDepts.includes(dept)) continue;
-      const r = p.role as string;
-      if (r === "admin" || r === "founder") continue;
-      activeAgentsByDept.set(dept, (activeAgentsByDept.get(dept) ?? 0) + 1);
-    }
+  const activeAgentsByDept = new Map<EmployeeDepartment, number>();
+  for (const d of visibleDepts) activeAgentsByDept.set(d, 0);
+  for (const p of profiles) {
+    const dept = p.department as EmployeeDepartment | null;
+    if (!dept || !visibleDepts.includes(dept)) continue;
+    const r = p.role as string;
+    if (r === "admin" || r === "founder") continue;
+    activeAgentsByDept.set(dept, (activeAgentsByDept.get(dept) ?? 0) + 1);
+  }
 
-    const { data: personalA } = await supabase
+  // Fetch both personal task windows in parallel
+  const [{ data: personalA }, { data: personalB }] = await Promise.all([
+    supabase
       .from("tasks")
       .select("id, department, atlas_status, created_at, due_date")
       .eq("unified_task_type", "personal")
       .in("department", departmentScope)
       .gte("created_at", startIso)
-      .lt("created_at", endIso);
-
-    const { data: personalB } = await supabase
+      .lt("created_at", endIso),
+    supabase
       .from("tasks")
       .select("id, department, atlas_status, created_at, due_date")
       .eq("unified_task_type", "personal")
       .in("department", departmentScope)
       .not("due_date", "is", null)
       .gte("due_date", startIso)
-      .lte("due_date", endIso);
+      .lte("due_date", endIso),
+  ]);
 
-    const seenPersonal = new Set<string>();
-    const personalTodayByDept = new Map<
-      EmployeeDepartment,
-      { total: number; done: number }
-    >();
-    for (const d of visibleDepts) personalTodayByDept.set(d, { total: 0, done: 0 });
+  const seenPersonal = new Set<string>();
+  const personalTodayByDept = new Map<EmployeeDepartment, { total: number; done: number }>();
+  for (const d of visibleDepts) personalTodayByDept.set(d, { total: 0, done: 0 });
 
-    function bucketPersonal(row: {
-      id: string;
-      department: string | null;
-      atlas_status: AtlasTaskStatus;
-    }) {
-      if (seenPersonal.has(row.id)) return;
-      seenPersonal.add(row.id);
-      const dept = row.department as EmployeeDepartment | null;
-      if (!dept || !visibleDepts.includes(dept)) return;
-      const b = personalTodayByDept.get(dept)!;
-      b.total++;
-      if (row.atlas_status === "done") b.done++;
-    }
+  function bucketPersonal(row: { id: string; department: string | null; atlas_status: AtlasTaskStatus }) {
+    if (seenPersonal.has(row.id)) return;
+    seenPersonal.add(row.id);
+    const dept = row.department as EmployeeDepartment | null;
+    if (!dept || !visibleDepts.includes(dept)) return;
+    const b = personalTodayByDept.get(dept)!;
+    b.total++;
+    if (row.atlas_status === "done") b.done++;
+  }
 
-    for (const row of personalA ?? []) bucketPersonal(row as typeof row & { id: string });
-    for (const row of personalB ?? []) bucketPersonal(row as typeof row & { id: string });
+  for (const row of personalA ?? []) bucketPersonal(row as typeof row & { id: string });
+  for (const row of personalB ?? []) bucketPersonal(row as typeof row & { id: string });
 
-    const activeMasterCount = new Map<EmployeeDepartment, number>();
-    for (const d of visibleDepts) activeMasterCount.set(d, 0);
-    for (const r of masterRows) {
-      const raw = r.department as string | null;
-      const t = typeof raw === "string" ? raw.trim() : "";
-      if (!t || !visibleDepts.includes(t as EmployeeDepartment)) continue;
-      activeMasterCount.set(
-        t as EmployeeDepartment,
-        (activeMasterCount.get(t as EmployeeDepartment) ?? 0) + 1,
-      );
-    }
+  const activeMasterCount = new Map<EmployeeDepartment, number>();
+  for (const d of visibleDepts) activeMasterCount.set(d, 0);
+  for (const r of masterRows) {
+    const raw = r.department as string | null;
+    const t = typeof raw === "string" ? raw.trim() : "";
+    if (!t || !visibleDepts.includes(t as EmployeeDepartment)) continue;
+    activeMasterCount.set(t as EmployeeDepartment, (activeMasterCount.get(t as EmployeeDepartment) ?? 0) + 1);
+  }
 
-    const rows: DepartmentTaskOverview[] = visibleDepts.map((departmentId) => {
-      const cfg = DEPARTMENT_CONFIG[departmentId];
-      const st = subtasksByDept.get(departmentId)!;
-      const groupSubtaskCompletionPct =
-        st.total > 0 ? Math.round((st.done / st.total) * 100) : 0;
-      const sop = personalTodayByDept.get(departmentId)!;
-      const todaySopCompletionPct =
-        sop.total > 0 ? Math.round((sop.done / sop.total) * 100) : 0;
-      const healthSignal = computeHealthSignal(
-        st.overdue,
-        groupSubtaskCompletionPct,
-        st.total,
-      );
-      return {
-        departmentId,
-        label: cfg.label,
-        icon: cfg.icon,
-        accentColor: cfg.accentColor,
-        activeMasterTaskCount: activeMasterCount.get(departmentId) ?? 0,
-        groupSubtaskCompletionPct,
-        overdueSubtaskCount: st.overdue,
-        todaySopCompletionPct,
-        activeAgentCount: activeAgentsByDept.get(departmentId) ?? 0,
-        healthSignal,
-      };
-    });
+  const result: DepartmentTaskOverview[] = visibleDepts.map((departmentId) => {
+    const cfg = DEPARTMENT_CONFIG[departmentId];
+    const st = subtasksByDept.get(departmentId)!;
+    const groupSubtaskCompletionPct = st.total > 0 ? Math.round((st.done / st.total) * 100) : 0;
+    const sop = personalTodayByDept.get(departmentId)!;
+    const todaySopCompletionPct = sop.total > 0 ? Math.round((sop.done / sop.total) * 100) : 0;
+    const healthSignal = computeHealthSignal(st.overdue, groupSubtaskCompletionPct, st.total);
+    return {
+      departmentId,
+      label: cfg.label,
+      icon: cfg.icon,
+      accentColor: cfg.accentColor,
+      activeMasterTaskCount: activeMasterCount.get(departmentId) ?? 0,
+      groupSubtaskCompletionPct,
+      overdueSubtaskCount: st.overdue,
+      todaySopCompletionPct,
+      activeAgentCount: activeAgentsByDept.get(departmentId) ?? 0,
+      healthSignal,
+    };
+  });
 
-    rows.sort((a, b) => {
-      const h = healthSortOrder(a.healthSignal) - healthSortOrder(b.healthSignal);
-      if (h !== 0) return h;
-      return a.label.localeCompare(b.label);
-    });
+  result.sort((a, b) => {
+    const h = healthSortOrder(a.healthSignal) - healthSortOrder(b.healthSignal);
+    if (h !== 0) return h;
+    return a.label.localeCompare(b.label);
+  });
 
-    return { success: true, data: rows };
+  return result;
+}
+
+export async function getDepartmentTaskOverview(): Promise<
+  ActionResult<DepartmentTaskOverview[]>
+> {
+  try {
+    const { user, role, domain, profile } = await getAuthUser();
+    if (!assertTaskIntelligenceRole(role))
+      return { success: false, error: "Not authorized" };
+
+    // Cache per user+role with a 60s TTL — the department detail page hits the same cache
+    const cached = unstable_cache(
+      () => fetchDepartmentTaskOverviewData(user.id, role, domain, profile),
+      ["task-overview", user.id, role],
+      { revalidate: 60 },
+    );
+
+    const data = await cached();
+    if (!data) return { success: false, error: "Not authorized or failed to load" };
+    return { success: true, data };
   } catch (err) {
     console.error("[getDepartmentTaskOverview]", err);
     return { success: false, error: "An unexpected error occurred" };
@@ -777,8 +771,8 @@ export async function getMasterWorkspacesForDashboard(filters?: {
   domain?: string;
 }): Promise<ActionResult<TaskInsightsWorkspaceCard[]>> {
   try {
-    const { supabase, user } = await getAuthUser();
-    if (!(await assertTaskIntelligenceRoleForUser(user.id)))
+    const { supabase, role } = await getAuthUser();
+    if (!assertTaskIntelligenceRole(role))
       return { success: false, error: "Not authorized" };
 
     let query = supabase
@@ -895,8 +889,8 @@ export async function getEmployeeDossier(
     return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
 
   try {
-    const { supabase, user, domain, profile } = await getAuthUser();
-    if (!(await assertTaskIntelligenceRoleForUser(user.id)))
+    const { supabase, role, domain, profile } = await getAuthUser();
+    if (!assertTaskIntelligenceRole(role))
       return { success: false, error: "Not authorized" };
 
     const targetId = parsed.data.agentId;
@@ -914,17 +908,9 @@ export async function getEmployeeDossier(
 
     if (agentErr || !agentProfile) return { success: false, error: "Employee not found" };
 
-    const visible = resolveVisibleDepartments(
-      (profile?.role ?? "agent") as string,
-      domain,
-      profile,
-    );
+    const visible = resolveVisibleDepartments(role, domain, profile);
     const agentDept = agentProfile.department as EmployeeDepartment | null;
-    if (
-      agentDept &&
-      !visible.includes(agentDept) &&
-      !isPrivilegedRole((profile?.role ?? "agent") as string)
-    ) {
+    if (agentDept && !visible.includes(agentDept) && !isPrivilegedRole(role)) {
       return { success: false, error: "Not authorized" };
     }
 
@@ -1131,9 +1117,6 @@ export async function getEmployeeDossier(
       completedLastWeek,
     };
 
-    if (!(await assertTaskIntelligenceRoleForUser(user.id)))
-      return { success: false, error: "Not authorized" };
-
     return {
       success: true,
       data: {
@@ -1161,11 +1144,9 @@ export async function getEmployeeDossier(
 
 export async function getOrgTaskSummary(): Promise<ActionResult<OrgTaskSummary>> {
   try {
-    const { user } = await getAuthUser();
-    if (!(await assertTaskIntelligenceRoleForUser(user.id)))
+    const { supabase, role } = await getAuthUser();
+    if (!assertTaskIntelligenceRole(role))
       return { success: false, error: "Not authorized" };
-
-    const supabase = await createClient();
     const now = new Date();
 
     const tasksResult = await supabase

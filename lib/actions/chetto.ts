@@ -440,6 +440,12 @@ function getChettoApiKey(): string {
   return key.trim();
 }
 
+/** When set, sent as `org_id` on Joule routes (timeline / group / list) per OpenAPI — required for org-scoped access on many Chetto workspaces. */
+function getChettoOrgId(): string | undefined {
+  const v = process.env.CHETTO_ORG_ID?.trim();
+  return v && v.length > 0 ? v : undefined;
+}
+
 async function chettoFetch(
   path: string,
   init: RequestInit = {},
@@ -450,7 +456,33 @@ async function chettoFetch(
   if (!headers.has("Content-Type") && init.method && init.method !== "GET" && init.body) {
     headers.set("Content-Type", "application/json");
   }
-  return fetch(`${CHETTO_BASE}${path}`, { ...init, headers });
+  return fetch(`${CHETTO_BASE}${path}`, {
+    ...init,
+    headers,
+    cache: init.cache ?? "no-store",
+  });
+}
+
+/** `GET /v1/groups?org_id=` — group ids visible to this API key within the org (preferred over static queendom lists when `CHETTO_ORG_ID` is set). */
+async function listGroupIdsForOrg(orgId: string): Promise<string[] | null> {
+  try {
+    const res = await chettoFetch(
+      `/v1/groups?${new URLSearchParams({ org_id: orgId }).toString()}`,
+    );
+    if (!res.ok) return null;
+    const json = (await res.json().catch(() => null)) as unknown;
+    if (!Array.isArray(json)) return null;
+    const ids: string[] = [];
+    for (const item of json) {
+      if (item && typeof item === "object" && "group_id" in item) {
+        const gid = (item as { group_id: unknown }).group_id;
+        if (typeof gid === "string" && gid.length > 0) ids.push(gid);
+      }
+    }
+    return ids.length > 0 ? ids : null;
+  } catch {
+    return null;
+  }
 }
 
 function mapGroupJson(raw: unknown): ChettoGroup | null {
@@ -474,7 +506,13 @@ function mapGroupJson(raw: unknown): ChettoGroup | null {
 }
 
 export async function fetchGroupMetadata(groupId: string): Promise<ChettoGroup | null> {
-  const res = await chettoFetch(`/v1/groups/${encodeURIComponent(groupId)}`);
+  const orgId = getChettoOrgId();
+  const q = new URLSearchParams();
+  if (orgId) q.set("org_id", orgId);
+  const qs = q.toString();
+  const res = await chettoFetch(
+    `/v1/groups/${encodeURIComponent(groupId)}${qs ? `?${qs}` : ""}`,
+  );
   if (!res.ok) return null;
   const json = (await res.json().catch(() => null)) as unknown;
   return mapGroupJson(json);
@@ -531,7 +569,13 @@ async function findClientGroupByScan(
 ): Promise<ChettoGroup | null> {
   const normalized = normalizePhoneKey(clientPhone);
   if (!normalized) return null;
-  const ids = QUEENDOM_GROUP_IDS[queendom];
+  const orgId = getChettoOrgId();
+  let ids: string[] | undefined;
+  if (orgId) {
+    const fromApi = await listGroupIdsForOrg(orgId);
+    if (fromApi?.length) ids = fromApi;
+  }
+  if (!ids?.length) ids = QUEENDOM_GROUP_IDS[queendom];
   if (!ids?.length) return null;
 
   const variantSet = new Set(chettoLookupKeyVariants(normalized));
@@ -560,7 +604,7 @@ export async function findClientGroup(
   try {
     return await unstable_cache(
       async () => findClientGroupByScan(clientPhone, queendom),
-      ["chetto-find-client-group", normalized, queendom],
+      ["chetto-find-client-group", normalized, queendom, getChettoOrgId() ?? "no-org"],
       { revalidate: 600 },
     )();
   } catch {
@@ -589,7 +633,16 @@ function pickTimelineString(...candidates: unknown[]): string | null {
 }
 
 function pickTimelinePhone(o: Record<string, unknown>): string | null {
-  const keys = ["phone_no", "phone", "phone_number", "from", "sender_phone"] as const;
+  const keys = [
+    "phone_no",
+    "phone",
+    "phone_number",
+    "from",
+    "sender_phone",
+    "senderPhone",
+    "from_phone",
+    "fromPhone",
+  ] as const;
   for (const k of keys) {
     const v = o[k];
     if (typeof v === "string" && /\d/.test(v)) return v;
@@ -612,6 +665,7 @@ function mapTimelineMessage(raw: unknown): ChettoMessage | null {
     o.content,
     o.msg,
     o.message_text,
+    o.caption,
   );
   const phone_no = pickTimelinePhone(o);
 
@@ -650,6 +704,12 @@ function mapTimelineMessage(raw: unknown): ChettoMessage | null {
 
 /** Normalize varied Chetto timeline JSON into a message array. */
 function extractTimelinePayload(json: Record<string, unknown>): unknown[] {
+  const result = json.result;
+  if (result && typeof result === "object" && !Array.isArray(result)) {
+    const r = result as Record<string, unknown>;
+    if (Array.isArray(r.data)) return r.data;
+    if (Array.isArray(r.messages)) return r.messages;
+  }
   const d = json.data;
   if (Array.isArray(d)) return d;
   if (d && typeof d === "object") {
@@ -684,6 +744,18 @@ function extractTimelineCursor(json: Record<string, unknown>): string | null {
   return null;
 }
 
+function extractHttpDetail(detail: unknown): string | null {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail) && detail.length > 0) {
+    const first = detail[0];
+    if (first && typeof first === "object" && "msg" in first) {
+      const m = (first as { msg: unknown }).msg;
+      if (typeof m === "string") return m;
+    }
+  }
+  return null;
+}
+
 export async function getGroupTimeline(
   groupId: string,
   limit = 50,
@@ -693,26 +765,42 @@ export async function getGroupTimeline(
   const q = new URLSearchParams();
   q.set("limit", String(limit));
   if (offsetId) q.set("offset_id", offsetId);
+  const orgId = getChettoOrgId();
+  if (orgId) q.set("org_id", orgId);
   const res = await chettoFetch(
     `/v1/groups/${encodeURIComponent(groupId)}/timeline?${q.toString()}`,
   );
-  const json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+  const rawJson: unknown = await res.json().catch(() => null);
 
   if (!res.ok) {
-    const detail = json && typeof json.detail === "string" ? json.detail : null;
+    const rec =
+      rawJson && typeof rawJson === "object"
+        ? (rawJson as Record<string, unknown>)
+        : null;
+    const detailStr = rec ? extractHttpDetail(rec.detail) : null;
     const timelineNotAvailable =
-      res.status === 404 || detail === "No groups found";
+      res.status === 404 || detailStr === "No groups found";
     return {
       messages: [],
       nextCursor: null,
       timelineNotAvailable,
-      chettoDetail: detail,
+      chettoDetail: detailStr,
     };
   }
 
-  if (!json || typeof json !== "object") {
+  if (Array.isArray(rawJson)) {
+    const messages: ChettoMessage[] = [];
+    for (const row of rawJson) {
+      const m = mapTimelineMessage(row);
+      if (m) messages.push(m);
+    }
+    return { messages, nextCursor: null };
+  }
+
+  if (!rawJson || typeof rawJson !== "object") {
     return { messages: [], nextCursor: null };
   }
+  const json = rawJson as Record<string, unknown>;
   if ("detail" in json && json.detail === "No groups found") {
     return {
       messages: [],
@@ -765,7 +853,9 @@ export async function askChettoInsights(
     chat_id: groupId,
     group_ids: [groupId],
   };
-  const res = await chettoFetch("/v1/insights/chat", {
+  const orgId = getChettoOrgId();
+  const orgQs = orgId ? `?${new URLSearchParams({ org_id: orgId }).toString()}` : "";
+  const res = await chettoFetch(`/v1/insights/chat${orgQs}`, {
     method: "POST",
     body: JSON.stringify(body),
   });

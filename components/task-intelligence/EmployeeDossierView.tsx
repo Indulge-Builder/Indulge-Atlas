@@ -20,6 +20,8 @@ export interface EmployeeDossierViewProps {
     job_title: string | null;
     role: string;
   };
+  /** SSR-prefetched dossier — skips client-side load on first render */
+  initialDossier?: EmployeeDossierPayload;
   /** Optional carousel for Prev / Next */
   agentList?: Profile[];
   onNavigateAgent?: (agentId: string) => void;
@@ -29,10 +31,11 @@ export function EmployeeDossierView({
   agentId,
   backHref,
   currentUser,
+  initialDossier,
   agentList = [],
   onNavigateAgent,
 }: EmployeeDossierViewProps) {
-  const [dossier, setDossier] = useState<EmployeeDossierPayload | null>(null);
+  const [dossier, setDossier] = useState<EmployeeDossierPayload | null>(initialDossier ?? null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
@@ -55,9 +58,13 @@ export function EmployeeDossierView({
     if (result.data) setDossier(result.data);
   }, []);
 
+  // Skip initial client fetch when SSR data is already available.
+  // Re-fetch only when navigating to a different agent.
+  const initialAgentId = useRef(agentId);
   useEffect(() => {
+    if (agentId === initialAgentId.current && initialDossier) return;
     void load(agentId);
-  }, [agentId, load]);
+  }, [agentId, load, initialDossier]);
 
   useEffect(() => {
     setDetailTaskId(null);

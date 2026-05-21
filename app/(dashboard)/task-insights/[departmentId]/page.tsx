@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getDepartmentTaskOverview } from "@/lib/actions/task-intelligence";
 import { DepartmentDetailView } from "@/components/task-intelligence/DepartmentDetailView";
+import { DEPARTMENT_CONFIG } from "@/lib/constants/departments";
 
 export const dynamic = "force-dynamic";
 
@@ -13,18 +14,26 @@ export default async function TaskInsightsDepartmentPage({ params }: PageProps) 
   const { departmentId } = await params;
   const slug = departmentId.trim().toLowerCase();
 
+  // Fast slug check against static config — no DB call needed for 404s
+  if (!(slug in DEPARTMENT_CONFIG)) notFound();
+
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("id, full_name, role, domain, department, job_title")
-    .eq("id", user.id)
-    .single();
+  // Fetch profile + overview in parallel — overview hits the 60s cache populated by main page
+  const [profileResult, overview] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("id, full_name, role, domain, department, job_title")
+      .eq("id", user.id)
+      .single(),
+    getDepartmentTaskOverview(),
+  ]);
 
+  const profile = profileResult.data;
   if (!profile) redirect("/login");
 
   const role = (profile.role as string) ?? "agent";
@@ -37,7 +46,6 @@ export default async function TaskInsightsDepartmentPage({ params }: PageProps) 
     role,
   };
 
-  const overview = await getDepartmentTaskOverview();
   if (!overview.success || !overview.data) notFound();
 
   const row = overview.data.find((r) => r.departmentId === slug);

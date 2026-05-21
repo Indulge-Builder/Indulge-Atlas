@@ -34,6 +34,7 @@ import { LeadStatusBadge } from "@/components/leads/LeadStatusBadge";
 import { LeadSourceBadge } from "@/components/ui/LeadSourceBadge";
 import { LeadsTableDateFilterPopover } from "@/components/leads/LeadsTableDateFilterPopover";
 import { cn, getInitials } from "@/lib/utils";
+import { formatLeadCreatedAt } from "@/lib/utils/date-format";
 import { addCalendarDaysIST, formatIST } from "@/lib/utils/time";
 import {
   LEAD_STATUS_CONFIG,
@@ -559,7 +560,7 @@ function LeadRow({
 
       {/* ── Added (date + time, hours & minutes) ───────────────────── */}
       <td className="px-6 py-4 text-xs text-[#B5A99A] text-right whitespace-nowrap">
-        {formatIST(lead.created_at, "MMM d, yyyy, h:mm a")}
+        {formatLeadCreatedAt(lead.created_at)}
       </td>
     </tr>
   );

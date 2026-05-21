@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getClientSummary } from "@/lib/actions/elia";
-import { getClientFreshdeskTickets } from "@/lib/actions/freshdesk";
+import {
+  getClientFreshdeskMetrics,
+  type ClientFreshdeskMetricsData,
+} from "@/lib/actions/freshdesk";
 import type { ClientDetail } from "@/lib/actions/clients";
 import { ClientEliaChat } from "@/components/clients/overview/ClientEliaChat";
 import {
@@ -14,28 +17,69 @@ import {
   type ClientSummaryPhase,
 } from "@/components/clients/overview/ClientSummaryCard";
 
+function metricsToPillState(
+  data: ClientFreshdeskMetricsData | undefined,
+  loading: boolean,
+  error: boolean,
+): ClientFreshdeskMetricState {
+  if (loading) {
+    return {
+      loading: true,
+      error: false,
+      found: false,
+      total: 0,
+      open: 0,
+    };
+  }
+  if (error || !data) {
+    return {
+      loading: false,
+      error: true,
+      found: false,
+      total: 0,
+      open: 0,
+    };
+  }
+  if (!data.found) {
+    return {
+      loading: false,
+      error: false,
+      found: false,
+      total: 0,
+      open: 0,
+    };
+  }
+  return {
+    loading: false,
+    error: false,
+    found: true,
+    total: data.stats.total,
+    open: data.stats.open,
+  };
+}
+
 export interface ClientOverviewTabProps {
   clientId: string;
   detail: ClientDetail;
   isActive: boolean;
+  /** SSR metrics — avoids Freshdesk round-trip on first paint. */
+  initialFreshdeskMetrics?: ClientFreshdeskMetricsData;
 }
 
 export function ClientOverviewTab({
   clientId,
   detail,
   isActive,
+  initialFreshdeskMetrics,
 }: ClientOverviewTabProps) {
   const [summary, setSummary] = useState("");
   const [summaryPhase, setSummaryPhase] =
     useState<ClientSummaryPhase>("idle");
   const summaryGenRef = useRef(0);
-  const [freshdesk, setFreshdesk] = useState<ClientFreshdeskMetricState>({
-    loading: true,
-    error: false,
-    found: false,
-    total: 0,
-    open: 0,
-  });
+  const [freshdesk, setFreshdesk] = useState<ClientFreshdeskMetricState>(() =>
+    metricsToPillState(initialFreshdeskMetrics, !initialFreshdeskMetrics, false),
+  );
+  const freshdeskHydratedRef = useRef(!!initialFreshdeskMetrics);
 
   useEffect(() => {
     summaryGenRef.current += 1;
@@ -59,50 +103,29 @@ export function ClientOverviewTab({
   }, [clientId]);
 
   useEffect(() => {
+    freshdeskHydratedRef.current = false;
+    setFreshdesk(
+      metricsToPillState(initialFreshdeskMetrics, !initialFreshdeskMetrics, false),
+    );
+  }, [clientId, initialFreshdeskMetrics]);
+
+  useEffect(() => {
+    if (!isActive || freshdeskHydratedRef.current) return;
     let cancelled = false;
-    setFreshdesk({
-      loading: true,
-      error: false,
-      found: false,
-      total: 0,
-      open: 0,
-    });
     void (async () => {
-      const res = await getClientFreshdeskTickets(clientId);
+      const res = await getClientFreshdeskMetrics(clientId);
       if (cancelled) return;
+      freshdeskHydratedRef.current = true;
       if (!res.success) {
-        setFreshdesk({
-          loading: false,
-          error: true,
-          found: false,
-          total: 0,
-          open: 0,
-        });
+        setFreshdesk(metricsToPillState(undefined, false, true));
         return;
       }
-      const data = res.data;
-      if (!data || !data.found) {
-        setFreshdesk({
-          loading: false,
-          error: false,
-          found: false,
-          total: 0,
-          open: 0,
-        });
-        return;
-      }
-      setFreshdesk({
-        loading: false,
-        error: false,
-        found: true,
-        total: data.stats.total,
-        open: data.stats.open,
-      });
+      setFreshdesk(metricsToPillState(res.data, false, false));
     })();
     return () => {
       cancelled = true;
     };
-  }, [clientId]);
+  }, [clientId, isActive]);
 
   const firstName = detail.first_name?.trim() || "Member";
 

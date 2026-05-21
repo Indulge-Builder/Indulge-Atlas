@@ -1,4 +1,10 @@
-import type { FreshdeskContact, FreshdeskTicket } from "@/lib/freshdesk/types";
+import type {
+  FreshdeskAttachment,
+  FreshdeskContact,
+  FreshdeskConversation,
+  FreshdeskTicket,
+} from "@/lib/freshdesk/types";
+import { formatPhoneForFreshdeskLookup } from "@/lib/utils/phone";
 
 const FRESHDESK_BASE = "https://indulge.freshdesk.com/api/v2";
 
@@ -219,7 +225,9 @@ export async function searchContactsByName(
 
 export async function listTicketsForRequester(
   requesterId: number,
+  options?: { includeRequester?: boolean },
 ): Promise<FreshdeskTicket[]> {
+  const includeRequester = options?.includeRequester !== false;
   const allTickets: FreshdeskTicket[] = [];
   const perPage = 100;
   let page = 1;
@@ -229,7 +237,7 @@ export async function listTicketsForRequester(
       requester_id: String(requesterId),
       per_page: String(perPage),
       page: String(page),
-      include: "requester,stats",
+      include: includeRequester ? "requester,stats" : "stats",
       order_by: "created_at",
       order_type: "desc",
     });
@@ -259,7 +267,8 @@ export async function findFreshdeskContactForClient(params: {
   firstName: string | null;
   lastName: string | null;
 }): Promise<FreshdeskContact | null> {
-  const phone = params.phone?.trim() ?? "";
+  const rawPhone = params.phone?.trim() ?? "";
+  const phone = rawPhone ? formatPhoneForFreshdeskLookup(rawPhone) : "";
   if (phone) {
     const byPhone = await searchContactsByPhone(phone);
     if (byPhone.length) return byPhone[0];
@@ -275,4 +284,98 @@ export async function findFreshdeskContactForClient(params: {
     if (byName.length) return byName[0];
   }
   return null;
+}
+
+function parseAttachment(raw: Record<string, unknown>): FreshdeskAttachment {
+  return {
+    id: typeof raw.id === "number" ? raw.id : 0,
+    name: typeof raw.name === "string" ? raw.name : "",
+    content_type:
+      typeof raw.content_type === "string" ? raw.content_type : "",
+    size: typeof raw.size === "number" ? raw.size : 0,
+    created_at: typeof raw.created_at === "string" ? raw.created_at : "",
+    updated_at: typeof raw.updated_at === "string" ? raw.updated_at : "",
+    attachment_url:
+      typeof raw.attachment_url === "string" ? raw.attachment_url : "",
+    thumb_url:
+      typeof raw.thumb_url === "string" ? raw.thumb_url : null,
+  };
+}
+
+function parseConversation(
+  raw: Record<string, unknown>,
+): FreshdeskConversation | null {
+  const id = raw.id;
+  if (typeof id !== "number" || !Number.isFinite(id)) return null;
+
+  const attachments: FreshdeskAttachment[] = [];
+  if (Array.isArray(raw.attachments)) {
+    for (const a of raw.attachments) {
+      if (a && typeof a === "object")
+        attachments.push(parseAttachment(a as Record<string, unknown>));
+    }
+  }
+
+  const toEmails: string[] = [];
+  if (Array.isArray(raw.to_emails)) {
+    for (const e of raw.to_emails) {
+      if (typeof e === "string") toEmails.push(e);
+    }
+  }
+
+  return {
+    id,
+    ticket_id:
+      typeof raw.ticket_id === "number" ? raw.ticket_id : 0,
+    body: typeof raw.body === "string" ? raw.body : "",
+    body_text: typeof raw.body_text === "string" ? raw.body_text : "",
+    incoming: Boolean(raw.incoming),
+    private: Boolean(raw.private),
+    source: typeof raw.source === "number" ? raw.source : 0,
+    created_at: typeof raw.created_at === "string" ? raw.created_at : "",
+    updated_at: typeof raw.updated_at === "string" ? raw.updated_at : "",
+    from_email:
+      typeof raw.from_email === "string" ? raw.from_email : null,
+    support_email:
+      typeof raw.support_email === "string" ? raw.support_email : null,
+    to_emails: toEmails,
+    attachments,
+    user_id: typeof raw.user_id === "number" ? raw.user_id : null,
+    auto_response: Boolean(raw.auto_response),
+  };
+}
+
+/** Fetch all conversations (replies + notes) for a ticket, oldest-first. */
+export async function getTicketConversations(
+  ticketId: number,
+): Promise<FreshdeskConversation[]> {
+  const allConversations: FreshdeskConversation[] = [];
+  const perPage = 100;
+  let page = 1;
+
+  while (true) {
+    const { ok, json, status } = await freshdeskGet(
+      `/tickets/${ticketId}/conversations`,
+      { per_page: String(perPage), page: String(page) },
+    );
+
+    if (!ok) {
+      throw new Error(
+        `Freshdesk conversations fetch failed (status ${status})`,
+      );
+    }
+
+    if (!Array.isArray(json)) break;
+
+    for (const item of json) {
+      if (!item || typeof item !== "object") continue;
+      const c = parseConversation(item as Record<string, unknown>);
+      if (c) allConversations.push(c);
+    }
+
+    if (json.length < perPage) break;
+    page += 1;
+  }
+
+  return allConversations;
 }

@@ -1,0 +1,1275 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "joule",
+    "description": "Public API for the Chetto conversational intelligence platform.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "/joule"
+    }
+  ],
+  "paths": {
+    "/v1/groups/{group_id}/timeline": {
+      "get": {
+        "tags": [
+          "joule",
+          "Groups"
+        ],
+        "summary": "Get group timeline",
+        "description": "Returns a chronological message timeline for a specific group. Supports cursor-based pagination via offset_id.",
+        "operationId": "get_group_timeline_v1_groups__group_id__timeline_get",
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Group Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Max messages to return",
+              "default": 20,
+              "title": "Limit"
+            },
+            "description": "Max messages to return"
+          },
+          {
+            "name": "offset_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Cursor for pagination",
+              "title": "Offset Id"
+            },
+            "description": "Cursor for pagination"
+          },
+          {
+            "name": "org_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Org Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimelineResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/groups": {
+      "get": {
+        "tags": [
+          "joule",
+          "Groups"
+        ],
+        "summary": "List groups",
+        "description": "List all messaging groups accessible to the caller. Optionally scope to an organization with the org_id query parameter.",
+        "operationId": "get_all_groups_v1_groups_get",
+        "parameters": [
+          {
+            "name": "org_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Optional organization ID for access control",
+              "title": "Org Id"
+            },
+            "description": "Optional organization ID for access control"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GroupSummary"
+                  },
+                  "title": "Response Get All Groups V1 Groups Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/groups/{group_id}": {
+      "get": {
+        "tags": [
+          "joule",
+          "Groups"
+        ],
+        "summary": "Get group",
+        "description": "Get metadata for a specific messaging group.",
+        "operationId": "get_group_v1_groups__group_id__get",
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Group Id"
+            }
+          },
+          {
+            "name": "org_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Org Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/client": {
+      "get": {
+        "tags": [
+          "joule",
+          "Client"
+        ],
+        "summary": "Get client profile",
+        "description": "Retrieve the authenticated client's profile information.",
+        "operationId": "get_client_v2_client_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/insights/chat": {
+      "get": {
+        "tags": [
+          "joule",
+          "Chat"
+        ],
+        "summary": "List recent chats",
+        "description": "Retrieve recent chat sessions for the authenticated client, with cursor-based pagination.",
+        "operationId": "get_recent_chats_v1_insights_chat_get",
+        "parameters": [
+          {
+            "name": "last_chat_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Last chat ID for pagination",
+              "title": "Last Chat Id"
+            },
+            "description": "Last chat ID for pagination"
+          },
+          {
+            "name": "org_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Organization ID for access control",
+              "title": "Org Id"
+            },
+            "description": "Organization ID for access control"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ChatSummaryResponse"
+                  },
+                  "title": "Response Get Recent Chats V1 Insights Chat Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "joule",
+          "Chat"
+        ],
+        "summary": "Ask Chetto",
+        "description": "Send a message and receive streaming AI-generated insights based on your group conversations. The response is an NDJSON stream (`application/x-ndjson`) where each line is a JSON object.",
+        "operationId": "chat_endpoint_v1_insights_chat_post",
+        "parameters": [
+          {
+            "name": "org_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Optional organization ID for access control",
+              "title": "Org Id"
+            },
+            "description": "Optional organization ID for access control"
+          },
+          {
+            "name": "sub_org_ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Optional list of sub-organization IDs for access control",
+              "title": "Sub Org Ids"
+            },
+            "description": "Optional list of sub-organization IDs for access control"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "NDJSON stream. Each line is a JSON object with a `type` discriminator: `message` (progress), `done` (final result), or `error`.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "application/x-ndjson": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "additionalProperties": true,
+                      "properties": {
+                        "type": {
+                          "const": "message",
+                          "default": "message",
+                          "title": "Type",
+                          "type": "string"
+                        },
+                        "data": {
+                          "additionalProperties": true,
+                          "title": "Data",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "data"
+                      ],
+                      "title": "ChatStreamMessageLine",
+                      "type": "object"
+                    },
+                    {
+                      "$defs": {
+                        "ChatDoneData": {
+                          "additionalProperties": true,
+                          "properties": {
+                            "chat_id": {
+                              "title": "Chat Id",
+                              "type": "string"
+                            },
+                            "message_id": {
+                              "title": "Message Id",
+                              "type": "string"
+                            },
+                            "reply": {
+                              "title": "Reply",
+                              "type": "string"
+                            },
+                            "media": {
+                              "default": [],
+                              "items": {
+                                "additionalProperties": true,
+                                "type": "object"
+                              },
+                              "title": "Media",
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "chat_id",
+                            "message_id",
+                            "reply"
+                          ],
+                          "title": "ChatDoneData",
+                          "type": "object"
+                        }
+                      },
+                      "additionalProperties": true,
+                      "properties": {
+                        "type": {
+                          "const": "done",
+                          "default": "done",
+                          "title": "Type",
+                          "type": "string"
+                        },
+                        "data": {
+                          "$ref": "#/$defs/ChatDoneData"
+                        }
+                      },
+                      "required": [
+                        "data"
+                      ],
+                      "title": "ChatStreamDoneLine",
+                      "type": "object"
+                    },
+                    {
+                      "$defs": {
+                        "ChatErrorData": {
+                          "additionalProperties": true,
+                          "properties": {
+                            "status_code": {
+                              "title": "Status Code",
+                              "type": "integer"
+                            },
+                            "detail": {
+                              "title": "Detail",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "status_code",
+                            "detail"
+                          ],
+                          "title": "ChatErrorData",
+                          "type": "object"
+                        }
+                      },
+                      "additionalProperties": true,
+                      "properties": {
+                        "type": {
+                          "const": "error",
+                          "default": "error",
+                          "title": "Type",
+                          "type": "string"
+                        },
+                        "data": {
+                          "$ref": "#/$defs/ChatErrorData"
+                        }
+                      },
+                      "required": [
+                        "data"
+                      ],
+                      "title": "ChatStreamErrorLine",
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/insights/chat/{chat_id}": {
+      "get": {
+        "tags": [
+          "joule",
+          "Chat"
+        ],
+        "summary": "Get chat by ID",
+        "description": "Retrieve a single chat session by its ID, including the full message history.",
+        "operationId": "get_chat_by_id_v1_insights_chat__chat_id__get",
+        "parameters": [
+          {
+            "name": "chat_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Chat Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatDetailResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/organizations/": {
+      "get": {
+        "tags": [
+          "joule",
+          "Organizations"
+        ],
+        "summary": "List organizations",
+        "description": "List all organizations the authenticated user is a member of.",
+        "operationId": "get_organizations_v1_organizations__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/OrganizationResponse"
+                  },
+                  "type": "array",
+                  "title": "Response Get Organizations V1 Organizations  Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/organizations/{org_id}": {
+      "get": {
+        "tags": [
+          "joule",
+          "Organizations"
+        ],
+        "summary": "Get organization",
+        "description": "Get organization details by ID. Requires membership.",
+        "operationId": "get_organization_v1_organizations__org_id__get",
+        "parameters": [
+          {
+            "name": "org_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Org Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ChatDetailResponse": {
+        "properties": {
+          "chat_id": {
+            "type": "string",
+            "title": "Chat Id"
+          },
+          "phone_number": {
+            "type": "string",
+            "title": "Phone Number"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id"
+          },
+          "chat": {
+            "items": {
+              "$ref": "#/components/schemas/MessageResponse"
+            },
+            "type": "array",
+            "title": "Chat"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "g_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "G Ids",
+            "default": []
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "default": "web"
+          },
+          "organization_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organization Id"
+          },
+          "sub_org_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sub Org Ids"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "chat_id",
+          "phone_number",
+          "chat"
+        ],
+        "title": "ChatDetailResponse"
+      },
+      "ChatRequest": {
+        "properties": {
+          "new_message": {
+            "type": "string",
+            "title": "New Message"
+          },
+          "chat_id": {
+            "type": "string",
+            "title": "Chat Id"
+          },
+          "group_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Group Ids",
+            "default": []
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Id"
+          },
+          "initial_context": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Initial Context",
+            "default": []
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "new_message"
+        ],
+        "title": "ChatRequest"
+      },
+      "ChatSummaryResponse": {
+        "properties": {
+          "chat_id": {
+            "type": "string",
+            "title": "Chat Id"
+          },
+          "organization_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organization Id"
+          },
+          "sub_org_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sub Org Ids"
+          },
+          "g_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "G Ids",
+            "default": []
+          },
+          "first_user_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First User Message"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "chat_id"
+        ],
+        "title": "ChatSummaryResponse"
+      },
+      "ClientResponse": {
+        "properties": {
+          "client_id": {
+            "type": "string",
+            "title": "Client Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "phone_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone Number"
+          },
+          "active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "client_id"
+        ],
+        "title": "ClientResponse"
+      },
+      "GroupSummary": {
+        "properties": {
+          "group_id": {
+            "type": "string",
+            "title": "Group Id",
+            "description": "Unique identifier of the group"
+          },
+          "group_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Name",
+            "description": "Display name of the group"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "Description of the group"
+          },
+          "company_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company Name",
+            "description": "Company name associated with the group"
+          },
+          "valid": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid",
+            "description": "Whether the group is active"
+          },
+          "created_at_utc": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At Utc",
+            "description": "UTC timestamp of creation"
+          },
+          "updated_at_utc": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At Utc",
+            "description": "UTC timestamp of last update"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "group_id"
+        ],
+        "title": "GroupSummary",
+        "description": "Public API response shape for a messaging group."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "MessageResponse": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "message_id": {
+            "type": "string",
+            "title": "Message Id"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "role",
+          "content",
+          "message_id"
+        ],
+        "title": "MessageResponse"
+      },
+      "OrganizationMemberResponse": {
+        "properties": {
+          "phone_number": {
+            "type": "string",
+            "title": "Phone Number",
+            "description": "Phone number of the member"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role",
+            "description": "Role of the member in the organization"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "phone_number",
+          "role"
+        ],
+        "title": "OrganizationMemberResponse",
+        "description": "Public API response shape for an organization member."
+      },
+      "OrganizationResponse": {
+        "properties": {
+          "org_id": {
+            "type": "string",
+            "title": "Org Id",
+            "description": "Unique identifier of the organization"
+          },
+          "org_name": {
+            "type": "string",
+            "title": "Org Name",
+            "description": "Name of the organization"
+          },
+          "valid": {
+            "type": "boolean",
+            "title": "Valid",
+            "description": "Whether the organization is active",
+            "default": true
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By",
+            "description": "Phone number of the creator"
+          },
+          "access_members": {
+            "items": {
+              "$ref": "#/components/schemas/OrganizationMemberResponse"
+            },
+            "type": "array",
+            "title": "Access Members"
+          },
+          "group_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Group Ids",
+            "description": "Group IDs in this organization"
+          },
+          "org_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Org Type",
+            "description": "Organization type (public or private)"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id",
+            "description": "Parent organization ID"
+          },
+          "created_at": {
+            "type": "number",
+            "title": "Created At",
+            "description": "UTC timestamp when the organization was created"
+          },
+          "updated_at": {
+            "type": "number",
+            "title": "Updated At",
+            "description": "UTC timestamp when the organization was last updated"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "org_id",
+          "org_name",
+          "created_by",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "OrganizationResponse",
+        "description": "Public API response shape for an organization."
+      },
+      "TimelineMessage": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id",
+            "description": "Message ID"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text",
+            "description": "Message text content"
+          },
+          "phone_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone No",
+            "description": "Sender phone number"
+          },
+          "from_me": {
+            "type": "boolean",
+            "title": "From Me",
+            "description": "Whether the message was sent by the authenticated user",
+            "default": false
+          },
+          "timestamp": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timestamp",
+            "description": "Message timestamp"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "TimelineMessage"
+      },
+      "TimelineResponse": {
+        "properties": {
+          "offset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offset Id",
+            "description": "Cursor ID for fetching the next page"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/TimelineMessage"
+            },
+            "type": "array",
+            "title": "Data",
+            "description": "List of timeline messages"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "TimelineResponse"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-api-key",
+        "description": "API key for client authentication. Pass your key in the `x-api-key` header."
+      }
+    }
+  },
+  "security": [
+    {
+      "ApiKeyAuth": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Client",
+      "description": "Client account information."
+    },
+    {
+      "name": "Organizations",
+      "description": "Manage organizations and memberships."
+    },
+    {
+      "name": "Groups",
+      "description": "Messaging groups and timelines."
+    },
+    {
+      "name": "Chat",
+      "description": "Conversational AI insights over your messaging groups."
+    }
+  ]
+}

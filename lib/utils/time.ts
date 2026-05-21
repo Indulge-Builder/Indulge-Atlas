@@ -3,9 +3,62 @@ import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 
 export const SYSTEM_TIMEZONE = "Asia/Kolkata" as const;
 
+const TIMESTAMPTZ_OFFSET_RE = /(?:Z|[+-]\d{2}(?::?\d{2})?)$/;
+
+/** Normalize Postgres short offsets (`+00`) to ISO (`+00:00`) for JS Date parsing. */
+function normalizeTimestamptzOffset(iso: string): string {
+  return iso.replace(/([+-]\d{2})$/, "$1:00");
+}
+
+/**
+ * Parse a Postgres `timestamptz` value from Supabase/PostgREST.
+ * Strings without an offset are treated as UTC (Postgres always stores UTC instants).
+ */
+export function parseTimestamptz(value: string): Date {
+  const trimmed = value.trim();
+  const normalized = trimmed.includes("T")
+    ? trimmed
+    : trimmed.replace(" ", "T");
+  const withOffset = TIMESTAMPTZ_OFFSET_RE.test(normalized)
+    ? normalizeTimestamptzOffset(normalized)
+    : `${normalized}Z`;
+  const d = new Date(withOffset);
+  if (Number.isNaN(d.getTime())) {
+    throw new RangeError(`Invalid timestamptz: ${value}`);
+  }
+  return d;
+}
+
 export function formatIST(date: string | Date, formatStr: string): string {
-  const d = typeof date === "string" ? new Date(date) : date;
+  const d = typeof date === "string" ? parseTimestamptz(date) : date;
   return formatInTimeZone(d, SYSTEM_TIMEZONE, formatStr);
+}
+
+const SUPABASE_TIMESTAMPTZ_RE =
+  /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})/;
+
+/**
+ * Display a `timestamptz` exactly as Supabase table editor shows it:
+ * `yyyy-MM-dd HH:mm:ss` from the stored +00 value — no IST (+5:30) shift.
+ */
+export function formatSupabaseTimestamptz(value: string): string {
+  if (!value?.trim()) return "—";
+  const trimmed = value.trim();
+  const match = trimmed.match(SUPABASE_TIMESTAMPTZ_RE);
+  if (match) return `${match[1]} ${match[2]}`;
+  const d = parseTimestamptz(trimmed);
+  return formatInTimeZone(d, "UTC", "yyyy-MM-dd HH:mm:ss");
+}
+
+/**
+ * @deprecated Use `formatSupabaseTimestamptz` for lead created_at — same behavior.
+ */
+export function formatTimestamptzColumn(
+  date: string | Date,
+  formatStr = "MMM d, yyyy, h:mm a",
+): string {
+  if (typeof date === "string") return formatSupabaseTimestamptz(date);
+  return formatInTimeZone(date, "UTC", formatStr);
 }
 
 /** Start of the current IST calendar day as a UTC `Date` (for `timestamptz` queries). */

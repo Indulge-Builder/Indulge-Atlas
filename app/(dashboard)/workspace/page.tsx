@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getTodos } from "@/lib/actions/todos";
+import type { PersonalTodo } from "@/lib/actions/todos";
 import { TopBar } from "@/components/layout/TopBar";
 import { WorkspaceBoard } from "@/components/workspace/WorkspaceBoard";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -41,14 +41,18 @@ function WorkspaceSkeleton() {
 async function WorkspaceContent({ userId }: { userId: string }) {
   const supabase = await createClient();
 
-  const [{ data: profile }, todos] = await Promise.all([
+  // Profile + todos in parallel, reusing the same authenticated client —
+  // avoids the extra supabase.auth.getUser() that getTodos() would trigger internally.
+  const [{ data: profile }, { data: todosData }] = await Promise.all([
+    supabase.from("profiles").select("full_name, role").eq("id", userId).single(),
     supabase
-      .from("profiles")
-      .select("full_name, role")
-      .eq("id", userId)
-      .single(),
-    getTodos(),
+      .from("personal_todos")
+      .select("id, user_id, content, is_completed, created_at")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: true }),
   ]);
+
+  const todos = (todosData ?? []) as PersonalTodo[];
 
   const firstName = profile?.full_name?.split(" ")[0] ?? "there";
   const hour      = new Date().getHours();

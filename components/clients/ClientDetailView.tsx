@@ -1,12 +1,42 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ClientOverviewTab } from "@/components/clients/overview/ClientOverviewTab";
 import { ClientProfileFields } from "@/components/clients/profile/ClientProfileFields";
 import { ClientMembershipTab } from "@/components/clients/membership/ClientMembershipTab";
-import { ChettoTab } from "@/components/clients/chetto/ChettoTab";
-import { FreshdeskTab } from "@/components/clients/FreshdeskTab";
+import type { ClientFreshdeskMetricsData } from "@/lib/actions/freshdesk";
+import { Skeleton } from "@/components/ui/skeleton";
+
+const FreshdeskTab = dynamic(
+  () =>
+    import("@/components/clients/FreshdeskTab").then((m) => ({
+      default: m.FreshdeskTab,
+    })),
+  {
+    loading: () => (
+      <div className="mt-2 space-y-3">
+        <Skeleton className="h-14 w-full rounded-full" />
+        <Skeleton className="h-28 w-full rounded-2xl" />
+      </div>
+    ),
+  },
+);
+
+const ChettoTab = dynamic(
+  () =>
+    import("@/components/clients/chetto/ChettoTab").then((m) => ({
+      default: m.ChettoTab,
+    })),
+  {
+    loading: () => (
+      <div className="flex flex-1 items-center justify-center p-8">
+        <Skeleton className="h-8 w-48" />
+      </div>
+    ),
+  },
+);
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { IndulgeField } from "@/components/ui/indulge-field";
 import { Textarea } from "@/components/ui/textarea";
@@ -29,6 +59,7 @@ import { toast } from "sonner";
 
 interface ClientDetailViewProps {
   initialDetail: ClientDetail;
+  initialFreshdeskMetrics?: ClientFreshdeskMetricsData;
 }
 
 function np(value: string | null | undefined): string {
@@ -63,18 +94,62 @@ function membershipBadgeClass(type: string | null): string {
   return "border bg-[#F4F1EA] text-stone-600 border-[#E5E4DF]";
 }
 
-export function ClientDetailView({ initialDetail }: ClientDetailViewProps) {
+export function ClientDetailView({
+  initialDetail,
+  initialFreshdeskMetrics,
+}: ClientDetailViewProps) {
   const [detail, setDetail] = useState(initialDetail);
   const [activeTab, setActiveTab] = useState("overview");
   const [notesLocal, setNotesLocal] = useState(initialDetail.notes ?? "");
   const [notesDirty, setNotesDirty] = useState(false);
+  const [eliaProfileLoading, setEliaProfileLoading] = useState(false);
+  const eliaProfileLoadedRef = useRef(
+    initialDetail.elia_profile != null || initialDetail.elia_analyzed_at != null,
+  );
+  const clientIdRef = useRef(initialDetail.id);
 
+  // Sync server data after router.refresh() — do NOT reset the active tab (keeps user on Profile after Elia analysis).
   useEffect(() => {
     setDetail(initialDetail);
     setNotesLocal(initialDetail.notes ?? "");
     setNotesDirty(false);
-    setActiveTab("overview");
   }, [initialDetail]);
+
+  // Default to Overview only when navigating to a different client.
+  useEffect(() => {
+    if (clientIdRef.current !== initialDetail.id) {
+      clientIdRef.current = initialDetail.id;
+      setActiveTab("overview");
+      eliaProfileLoadedRef.current =
+        initialDetail.elia_profile != null ||
+        initialDetail.elia_analyzed_at != null;
+    }
+  }, [initialDetail.id, initialDetail.elia_profile, initialDetail.elia_analyzed_at]);
+
+  useEffect(() => {
+    if (activeTab !== "profile" || eliaProfileLoadedRef.current) return;
+    const id = initialDetail.id;
+    let cancelled = false;
+    setEliaProfileLoading(true);
+    void (async () => {
+      const res = await getClientById(id, { includeEliaProfile: true });
+      if (cancelled) return;
+      setEliaProfileLoading(false);
+      if (res.success && res.data) {
+        eliaProfileLoadedRef.current = true;
+        setDetail((prev) => ({
+          ...prev,
+          elia_profile: res.data!.elia_profile,
+          elia_version: res.data!.elia_version,
+          elia_analyzed_at: res.data!.elia_analyzed_at,
+          elia_messages_through: res.data!.elia_messages_through,
+        }));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, initialDetail.id]);
 
   const d = detail;
   const clientId = d.id;
@@ -188,12 +263,12 @@ export function ClientDetailView({ initialDetail }: ClientDetailViewProps) {
               <Ticket className="mr-1.5 h-3.5 w-3.5" aria-hidden />
               Service History
             </TabsTrigger>
-            <TabsTrigger value="whatsapp" className="flex items-center gap-1.5">
+            <TabsTrigger value="chetto" className="flex items-center gap-1.5">
               <MessageCircle
                 className="h-3.5 w-3.5 text-emerald-500"
                 aria-hidden
               />
-              WhatsApp
+              Chetto
             </TabsTrigger>
           </TabsList>
         </div>
@@ -207,6 +282,7 @@ export function ClientDetailView({ initialDetail }: ClientDetailViewProps) {
               clientId={clientId}
               detail={d}
               isActive={activeTab === "overview"}
+              initialFreshdeskMetrics={initialFreshdeskMetrics}
             />
           </TabsContent>
 
@@ -214,7 +290,26 @@ export function ClientDetailView({ initialDetail }: ClientDetailViewProps) {
             value="profile"
             className="mt-4 min-h-0 flex-1 space-y-8 overflow-y-auto focus-visible:outline-none data-[state=inactive]:hidden"
           >
-            <ClientProfileFields detail={d} />
+            <ClientProfileFields
+              detail={d}
+              eliaProfile={d.elia_profile ?? null}
+              eliaAnalyzedAt={d.elia_analyzed_at ?? null}
+              eliaVersion={d.elia_version ?? 0}
+              eliaProfileLoading={eliaProfileLoading}
+              onEliaAnalysisSuccess={async () => {
+                const refresh = await getClientById(clientId, {
+                  includeEliaProfile: true,
+                });
+                if (refresh.success && refresh.data) {
+                  eliaProfileLoadedRef.current = true;
+                  setDetail(refresh.data);
+                }
+              }}
+              onProfileUpdated={async () => {
+                const refresh = await getClientById(clientId);
+                if (refresh.success && refresh.data) setDetail(refresh.data);
+              }}
+            />
             <div className="border-t border-[#E5E4DF] pt-10">
               <p className="mb-6 text-[10px] font-semibold uppercase tracking-[0.2em] text-stone-500">
                 Membership
@@ -267,14 +362,15 @@ export function ClientDetailView({ initialDetail }: ClientDetailViewProps) {
           </TabsContent>
 
           <TabsContent
-            value="whatsapp"
+            value="chetto"
             className="mt-4 flex min-h-0 min-w-0 flex-1 flex-col focus-visible:outline-none data-[state=inactive]:hidden"
           >
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[#E5E4DF] bg-[#F9F9F6] shadow-sm">
+            <div className="flex h-[clamp(400px,min(68dvh,calc(100dvh-14rem)),820px)] min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-[#E5E4DF] bg-[#F9F9F6] shadow-sm">
               <ChettoTab
                 clientPhone={d.phone_number}
                 queendom={d.queendom ?? "Unassigned"}
-                isActive={activeTab === "whatsapp"}
+                chettoGroupId={d.chetto_group_id ?? null}
+                isActive={activeTab === "chetto"}
               />
             </div>
           </TabsContent>

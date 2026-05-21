@@ -1,17 +1,41 @@
 "use server";
 
+import { unstable_cache } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import {
   findFreshdeskContactForClient,
+  getTicketConversations,
   listTicketsForRequester,
 } from "@/lib/freshdesk/client";
 import type {
   ClientFreshdeskTicketsData,
   ClientFreshdeskTicketStats,
+  FreshdeskContact,
+  FreshdeskConversation,
   FreshdeskTicket,
 } from "@/lib/freshdesk/types";
 import { mapPriority, mapStatus } from "@/lib/freshdesk/types";
+
+export type ClientFreshdeskMetricsData = {
+  found: boolean;
+  stats: ClientFreshdeskTicketStats;
+};
+
+type FreshdeskClientRow = {
+  phone_number: string | null;
+  first_name: string | null;
+  last_name: string | null;
+};
+
+type FreshdeskLoadResult =
+  | { found: false; tickets: [] }
+  | {
+      found: true;
+      contact: FreshdeskContact;
+      tickets: FreshdeskTicket[];
+      stats: ClientFreshdeskTicketStats;
+    };
 
 async function getAuthUser() {
   const supabase = await createClient();
@@ -117,6 +141,145 @@ function buildTicketSummaryUserPrompt(
   return lines.join("\n");
 }
 
+async function loadFreshdeskFromRow(
+  row: FreshdeskClientRow,
+): Promise<
+  | { ok: true; data: FreshdeskLoadResult }
+  | { ok: false; error: string }
+> {
+  const phone =
+    typeof row.phone_number === "string" ? row.phone_number : null;
+  const firstName =
+    typeof row.first_name === "string" ? row.first_name : null;
+  const lastName = typeof row.last_name === "string" ? row.last_name : null;
+
+  let contact;
+  try {
+    contact = await findFreshdeskContactForClient({
+      phone,
+      firstName,
+      lastName,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Freshdesk error";
+    if (msg.includes("FRESHDESK_API_KEY")) {
+      return {
+        ok: false,
+        error:
+          "Freshdesk is not configured. Add FRESHDESK_API_KEY on the server.",
+      };
+    }
+    return {
+      ok: false,
+      error: "Could not reach Freshdesk. Try again later.",
+    };
+  }
+
+  if (!contact) {
+    return { ok: true, data: { found: false, tickets: [] } };
+  }
+
+  let tickets: FreshdeskTicket[] = [];
+  try {
+    tickets = await listTicketsForRequester(contact.id, {
+      includeRequester: true,
+    });
+  } catch {
+    return {
+      ok: false,
+      error: "Could not load tickets from Freshdesk. Try again later.",
+    };
+  }
+
+  const stats = computeTicketStats(tickets);
+  return {
+    ok: true,
+    data: { found: true, contact, tickets, stats },
+  };
+}
+
+function getCachedFreshdeskLoad(clientId: string, row: FreshdeskClientRow) {
+  return unstable_cache(
+    async () => loadFreshdeskFromRow(row),
+    ["freshdesk-client-v1", clientId],
+    { revalidate: 120, tags: [`freshdesk-${clientId}`] },
+  );
+}
+
+async function getClientRowForFreshdesk(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  clientId: string,
+): Promise<
+  | { ok: true; row: FreshdeskClientRow }
+  | { ok: false; error: string }
+> {
+  const { data: row, error } = await supabase
+    .from("clients")
+    .select("phone_number, first_name, last_name")
+    .eq("id", clientId)
+    .maybeSingle();
+
+  if (error || !row) {
+    return { ok: false, error: "Client not found" };
+  }
+  return { ok: true, row: row as FreshdeskClientRow };
+}
+
+/** Lightweight metrics for Overview — cached 2 min per client. */
+export async function getClientFreshdeskMetrics(clientId: string): Promise<{
+  success: boolean;
+  data?: ClientFreshdeskMetricsData;
+  error?: string;
+}> {
+  const parsedId = clientIdSchema.safeParse(clientId);
+  if (!parsedId.success) {
+    return { success: false, error: "Invalid client" };
+  }
+
+  let supabase: Awaited<ReturnType<typeof createClient>>;
+  try {
+    const auth = await getAuthUser();
+    supabase = auth.supabase;
+  } catch {
+    return { success: false, error: "Unauthenticated" };
+  }
+
+  try {
+    const rowRes = await getClientRowForFreshdesk(supabase, clientId);
+    if (!rowRes.ok) {
+      return { success: false, error: rowRes.error };
+    }
+
+    const loaded = await getCachedFreshdeskLoad(clientId, rowRes.row)();
+    if (!loaded.ok) {
+      return { success: false, error: loaded.error };
+    }
+    if (!loaded.data.found) {
+      return {
+        success: true,
+        data: {
+          found: false,
+          stats: {
+            total: 0,
+            open: 0,
+            resolved: 0,
+            last_ticket_date: null,
+          },
+        },
+      };
+    }
+    return {
+      success: true,
+      data: { found: true, stats: loaded.data.stats },
+    };
+  } catch {
+    return {
+      success: false,
+      error: "Something went wrong loading Freshdesk metrics.",
+    };
+  }
+}
+
 export async function getClientFreshdeskTickets(clientId: string): Promise<{
   success: boolean;
   data?: ClientFreshdeskTicketsData;
@@ -136,62 +299,23 @@ export async function getClientFreshdeskTickets(clientId: string): Promise<{
   }
 
   try {
-    const { data: row, error } = await supabase
-      .from("clients")
-      .select("phone_number, first_name, last_name")
-      .eq("id", clientId)
-      .maybeSingle();
-
-    if (error || !row) {
-      return { success: false, error: "Client not found" };
+    const rowRes = await getClientRowForFreshdesk(supabase, clientId);
+    if (!rowRes.ok) {
+      return { success: false, error: rowRes.error };
     }
 
-    const phone =
-      typeof row.phone_number === "string" ? row.phone_number : null;
-    const firstName =
-      typeof row.first_name === "string" ? row.first_name : null;
-    const lastName = typeof row.last_name === "string" ? row.last_name : null;
-
-    let contact;
-    try {
-      contact = await findFreshdeskContactForClient({
-        phone,
-        firstName,
-        lastName,
-      });
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Freshdesk error";
-      if (msg.includes("FRESHDESK_API_KEY")) {
-        return {
-          success: false,
-          error:
-            "Freshdesk is not configured. Add FRESHDESK_API_KEY on the server.",
-        };
-      }
-      return {
-        success: false,
-        error: "Could not reach Freshdesk. Try again later.",
-      };
+    const loaded = await getCachedFreshdeskLoad(clientId, rowRes.row)();
+    if (!loaded.ok) {
+      return { success: false, error: loaded.error };
     }
-
-    if (!contact) {
+    if (!loaded.data.found) {
       return {
         success: true,
         data: { found: false, tickets: [] },
       };
     }
 
-    let tickets: FreshdeskTicket[] = [];
-    try {
-      tickets = await listTicketsForRequester(contact.id);
-    } catch {
-      return {
-        success: false,
-        error: "Could not load tickets from Freshdesk. Try again later.",
-      };
-    }
-
-    const stats = computeTicketStats(tickets);
+    const { contact, tickets, stats } = loaded.data;
     return {
       success: true,
       data: {
@@ -298,6 +422,45 @@ export async function getTicketAISummary(
     return {
       success: false,
       error: "Elia couldn't analyse these tickets right now.",
+    };
+  }
+}
+
+const ticketIdSchema = z.number().int().positive();
+
+export async function getTicketConversationsAction(
+  clientId: string,
+  ticketId: number,
+): Promise<{ success: boolean; data?: FreshdeskConversation[]; error?: string }> {
+  const parsedClientId = clientIdSchema.safeParse(clientId);
+  if (!parsedClientId.success) {
+    return { success: false, error: "Invalid client" };
+  }
+  const parsedTicketId = ticketIdSchema.safeParse(ticketId);
+  if (!parsedTicketId.success) {
+    return { success: false, error: "Invalid ticket ID" };
+  }
+
+  try {
+    await getAuthUser();
+  } catch {
+    return { success: false, error: "Unauthenticated" };
+  }
+
+  try {
+    const conversations = await getTicketConversations(ticketId);
+    return { success: true, data: conversations };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Freshdesk error";
+    if (msg.includes("FRESHDESK_API_KEY")) {
+      return {
+        success: false,
+        error: "Freshdesk is not configured.",
+      };
+    }
+    return {
+      success: false,
+      error: "Could not load conversations. Try again later.",
     };
   }
 }

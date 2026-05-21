@@ -226,7 +226,7 @@ export function FreshdeskTab({
 
       <div className="space-y-3">
         {shown.map((t) => (
-          <TicketCard key={t.id} ticket={t} />
+          <TicketCard key={t.id} ticket={t} clientId={clientId} />
         ))}
       </div>
 

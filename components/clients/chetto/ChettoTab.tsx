@@ -4,10 +4,9 @@ import type { ChettoGroup, ChettoMessage } from "@/lib/actions/chetto";
 import { JOKER_PHONE_NUMBERS } from "@/lib/constants/chetto-jokers";
 import { formatIST, isSameCalendarDayIST } from "@/lib/utils/time";
 import { cn } from "@/lib/utils";
-import { formatDistanceToNow } from "date-fns";
 import { parseISO } from "date-fns";
-import { Loader2, MessageCircle, Sparkles } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Loader2, MessageCircle } from "lucide-react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 function stripEmojiAndConciergeTitle(raw: string | null): string {
   if (!raw) return "Member";
@@ -94,9 +93,16 @@ type ChettoTabProps = {
   clientPhone: string;
   queendom: string;
   isActive: boolean;
+  /** When set, skips phone scan and loads this Joule group directly. */
+  chettoGroupId: string | null;
 };
 
-export function ChettoTab({ clientPhone, queendom, isActive }: ChettoTabProps) {
+export function ChettoTab({
+  clientPhone,
+  queendom,
+  isActive,
+  chettoGroupId,
+}: ChettoTabProps) {
   const [group, setGroup] = useState<ChettoGroup | null | undefined>(undefined);
   const [messages, setMessages] = useState<ChettoMessage[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -104,12 +110,15 @@ export function ChettoTab({ clientPhone, queendom, isActive }: ChettoTabProps) {
   const [timelineNotAvailable, setTimelineNotAvailable] = useState(false);
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [loadMoreLoading, setLoadMoreLoading] = useState(false);
-  const [insightLoading, setInsightLoading] = useState(false);
-  const [insightText, setInsightText] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const topSentinelRef = useRef<HTMLDivElement>(null);
   const didInitialScroll = useRef(false);
+  /** After prepending older messages, restore viewport so content under finger stays put. */
+  const pendingScrollRestoreRef = useRef<{ scrollHeight: number; scrollTop: number } | null>(null);
+  const loadMoreLoadingRef = useRef(false);
 
-  const phoneOk = clientPhone.trim().length > 0;
+  const mappedId = chettoGroupId?.trim() ?? "";
+  const phoneOk = clientPhone.trim().length > 0 || Boolean(mappedId);
 
   useEffect(() => {
     if (!isActive || !phoneOk) {
@@ -128,68 +137,100 @@ export function ChettoTab({ clientPhone, queendom, isActive }: ChettoTabProps) {
       setMessages([]);
       setNextCursor(null);
       setTimelineNotAvailable(false);
-      setInsightText(null);
 
-      const fg = new URLSearchParams({
-        clientPhone: clientPhone.trim(),
-        queendom: queendom.trim() || "Unassigned",
-      });
+      const mappedId = chettoGroupId?.trim() ?? "";
 
       const ctrl = new AbortController();
       const timeoutMs = 120_000;
       const timer = window.setTimeout(() => ctrl.abort(), timeoutMs);
 
       try {
-        const fr = await fetch(`/api/chetto/find-group?${fg.toString()}`, {
-          signal: ctrl.signal,
-        });
-        if (cancelled) return;
-        if (!fr.ok) {
-          setGroup(null);
-          return;
+        let g: ChettoGroup | null = null;
+
+        if (mappedId) {
+          const gr = await fetch(
+            `/api/chetto/group?groupId=${encodeURIComponent(mappedId)}`,
+            { signal: ctrl.signal },
+          );
+          if (cancelled) return;
+          if (!gr.ok) {
+            setGroup(null);
+            return;
+          }
+          try {
+            const gj = (await gr.json()) as { group: ChettoGroup | null };
+            g = gj.group ?? null;
+          } catch {
+            setGroup(null);
+            return;
+          }
+        } else {
+          const fg = new URLSearchParams({
+            clientPhone: clientPhone.trim(),
+            queendom: queendom.trim() || "Unassigned",
+          });
+          const fr = await fetch(`/api/chetto/find-group?${fg.toString()}`, {
+            signal: ctrl.signal,
+          });
+          if (cancelled) return;
+          if (!fr.ok) {
+            setGroup(null);
+            return;
+          }
+          let fj: { group: ChettoGroup | null };
+          try {
+            fj = (await fr.json()) as { group: ChettoGroup | null };
+          } catch {
+            setGroup(null);
+            return;
+          }
+          g = fj.group ?? null;
         }
-        let fj: { group: ChettoGroup | null };
-        try {
-          fj = (await fr.json()) as { group: ChettoGroup | null };
-        } catch {
-          setGroup(null);
-          return;
-        }
+
         if (cancelled) return;
-        const g = fj.group ?? null;
+
+        if (mappedId && !g) {
+          g = {
+            group_id: mappedId,
+            group_name: null,
+            valid: null,
+            created_at_utc: null,
+            updated_at_utc: null,
+            created_at: null,
+            access_members: [],
+          };
+        }
+
         setGroup(g);
-        if (!g?.group_id) return;
+
+        const timelineGroupId = (g?.group_id ?? "").trim();
+        if (!timelineGroupId) return;
 
         setTimelineLoading(true);
         try {
           const tr = await fetch(
-            `/api/chetto/timeline?groupId=${encodeURIComponent(g.group_id)}&limit=50`,
+            `/api/chetto/timeline?groupId=${encodeURIComponent(timelineGroupId)}&limit=50`,
           );
-          if (cancelled) return;
-          if (!tr.ok) {
-            setMessages([]);
-            setNextCursor(null);
-            setTimelineNotAvailable(false);
-            return;
-          }
+          const raw = await tr.text();
           let tj: {
             messages?: ChettoMessage[];
             nextCursor?: string | null;
             timelineNotAvailable?: boolean;
-          };
+          } = {};
           try {
-            tj = (await tr.json()) as {
-              messages?: ChettoMessage[];
-              nextCursor?: string | null;
-              timelineNotAvailable?: boolean;
-            };
+            if (raw) tj = JSON.parse(raw) as typeof tj;
           } catch {
-            setMessages([]);
-            setNextCursor(null);
-            setTimelineNotAvailable(false);
-            return;
+            /* non-JSON body */
           }
           if (cancelled) return;
+          if (!tr.ok) {
+            setMessages([]);
+            setNextCursor(null);
+            setTimelineNotAvailable(
+              tr.status === 404 || Boolean(tj.timelineNotAvailable),
+            );
+            return;
+          }
           setTimelineNotAvailable(Boolean(tj.timelineNotAvailable));
           setMessages(sortMessages(tj.messages ?? []));
           setNextCursor(
@@ -209,7 +250,7 @@ export function ChettoTab({ clientPhone, queendom, isActive }: ChettoTabProps) {
     return () => {
       cancelled = true;
     };
-  }, [isActive, clientPhone, queendom, phoneOk]);
+  }, [isActive, clientPhone, queendom, phoneOk, chettoGroupId]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -217,6 +258,19 @@ export function ChettoTab({ clientPhone, queendom, isActive }: ChettoTabProps) {
     el.scrollTop = el.scrollHeight;
     didInitialScroll.current = true;
   }, [group?.group_id, messages.length, timelineLoading]);
+
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    const pending = pendingScrollRestoreRef.current;
+    if (!el || !pending) return;
+    pendingScrollRestoreRef.current = null;
+    const delta = el.scrollHeight - pending.scrollHeight;
+    el.scrollTop = pending.scrollTop + delta;
+  }, [messages]);
+
+  useEffect(() => {
+    loadMoreLoadingRef.current = loadMoreLoading;
+  }, [loadMoreLoading]);
 
   const datedRows = useMemo(() => {
     type Row =
@@ -236,66 +290,82 @@ export function ChettoTab({ clientPhone, queendom, isActive }: ChettoTabProps) {
     return rows;
   }, [messages]);
 
-  async function handleLoadMore() {
-    if (!group?.group_id || !nextCursor || loadMoreLoading) return;
+  const handleLoadMore = useCallback(async () => {
+    const gid = (mappedId || group?.group_id)?.trim();
+    if (!gid || !nextCursor || loadMoreLoadingRef.current) return;
+    loadMoreLoadingRef.current = true;
     setLoadMoreLoading(true);
+    const el = scrollRef.current;
+    if (el) {
+      pendingScrollRestoreRef.current = {
+        scrollHeight: el.scrollHeight,
+        scrollTop: el.scrollTop,
+      };
+    }
     try {
       const tr = await fetch(
-        `/api/chetto/timeline?groupId=${encodeURIComponent(group.group_id)}&limit=50&offsetId=${encodeURIComponent(nextCursor)}`,
+        `/api/chetto/timeline?groupId=${encodeURIComponent(gid)}&limit=50&offsetId=${encodeURIComponent(nextCursor)}`,
       );
-      const tj = (await tr.json()) as {
-        messages?: ChettoMessage[];
-        nextCursor?: string | null;
-      };
+      const raw = await tr.text();
+      let tj: { messages?: ChettoMessage[]; nextCursor?: string | null } = {};
+      try {
+        if (raw) tj = JSON.parse(raw) as typeof tj;
+      } catch {
+        /* ignore */
+      }
+      if (!tr.ok) {
+        pendingScrollRestoreRef.current = null;
+        return;
+      }
       const older = tj.messages ?? [];
       setMessages((prev) => mergeMessages(prev, older));
       setNextCursor(
         typeof tj.nextCursor === "string" && tj.nextCursor.length > 0 ? tj.nextCursor : null,
       );
+    } catch {
+      pendingScrollRestoreRef.current = null;
     } finally {
       setLoadMoreLoading(false);
+      loadMoreLoadingRef.current = false;
     }
-  }
+  }, [mappedId, group?.group_id, nextCursor]);
 
-  async function askInsight(question: string) {
-    if (!group?.group_id) return;
-    setInsightLoading(true);
-    setInsightText(null);
-    try {
-      const res = await fetch("/api/chetto/insights", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ groupId: group.group_id, question }),
-      });
-      const data = (await res.json()) as { text?: string; error?: string };
-      if (data.text) setInsightText(data.text);
-      else setInsightText(data.error ?? "No response");
-    } finally {
-      setInsightLoading(false);
-    }
-  }
+  useEffect(() => {
+    const root = scrollRef.current;
+    const sentinel = topSentinelRef.current;
+    if (!root || !sentinel || !nextCursor || timelineLoading) return;
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        const e = entries[0];
+        if (!e?.isIntersecting) return;
+        if (loadMoreLoadingRef.current) return;
+        void handleLoadMore();
+      },
+      { root, rootMargin: "100px 0px 0px 0px", threshold: 0 },
+    );
+    io.observe(sentinel);
+    return () => io.disconnect();
+  }, [nextCursor, timelineLoading, handleLoadMore]);
 
   if (!phoneOk) {
     return (
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-2 overflow-hidden px-4 py-8 text-center sm:px-6 sm:py-12">
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-2 overflow-hidden px-4 py-8 text-center sm:px-6 sm:py-12">
         <MessageCircle className="h-8 w-8 text-stone-300" aria-hidden />
-        <p className="text-sm text-stone-500">Add a phone number on this client to load WhatsApp history.</p>
+        <p className="text-sm text-stone-500">
+          Add a phone number on this client, or link a Chetto group id on the mapping page.
+        </p>
       </div>
     );
   }
 
   if (group === undefined) {
     return (
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden px-3 py-4 sm:px-4">
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden px-3 py-4 sm:px-4">
         <div className="flex flex-col items-center gap-2 pb-2 text-center">
           <Loader2 className="h-5 w-5 animate-spin text-emerald-600" aria-hidden />
           <p className="text-xs text-stone-600">
-            Loading WhatsApp group from Chetto…
-          </p>
-          <p className="max-w-sm text-[11px] leading-snug text-stone-400">
-            First lookup scans your queendom until your number matches a group (usually a few
-            seconds). If this hangs, check <span className="font-mono">CHETTO_API_KEY</span> on the
-            server.
+            Loading Chetto group…
           </p>
         </div>
         {[40, 65, 30, 55, 70, 45].map((w, i) => (
@@ -313,28 +383,38 @@ export function ChettoTab({ clientPhone, queendom, isActive }: ChettoTabProps) {
   }
 
   if (group === null) {
+    const mapped = Boolean(chettoGroupId?.trim());
     return (
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-2 overflow-hidden px-4 py-10 text-center sm:px-6 sm:py-12">
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-2 overflow-hidden px-4 py-10 text-center sm:px-6 sm:py-12">
         <MessageCircle className="h-8 w-8 text-stone-300" aria-hidden />
-        <p className="text-sm font-medium text-stone-600">No WhatsApp group found</p>
+        <p className="text-sm font-medium text-stone-600">
+          {mapped ? "Linked Chetto group not found" : "No Chetto group found"}
+        </p>
         <p className="text-xs text-stone-400">
-          Chetto did not index a concierge group for this number in {queendom || "Unassigned"}.
+          {mapped ? (
+            <>
+              Check the saved group id on{" "}
+              <span className="font-mono text-[11px]">/clients/chetto-mapping</span> or in
+              Chetto — the API returned no metadata for this id.
+            </>
+          ) : (
+            <>
+              Chetto did not match a concierge group for this number in {queendom || "Unassigned"}.
+              Set an explicit group id on the mapping page for a reliable link.
+            </>
+          )}
         </p>
       </div>
     );
   }
 
   const title = stripEmojiAndConciergeTitle(group.group_name);
-  const updated =
-    group.updated_at_utc != null
-      ? new Date(group.updated_at_utc < 1e12 ? group.updated_at_utc * 1000 : group.updated_at_utc)
-      : null;
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       {/* Section 1 — header */}
       <div
-        className="flex flex-col gap-3 border-b border-[#dcfce7] px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4"
+        className="flex shrink-0 flex-col gap-3 border-b border-[#dcfce7] px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4"
         style={{
           background: "linear-gradient(to bottom, #f0fdf4, #ffffff)",
         }}
@@ -348,8 +428,13 @@ export function ChettoTab({ clientPhone, queendom, isActive }: ChettoTabProps) {
           </div>
           <div className="min-w-0 flex-1">
             <p className="wrap-break-word text-sm font-semibold leading-snug text-stone-800">{title}</p>
+            {mappedId ? (
+              <p className="mt-0.5 wrap-break-word font-mono text-[10px] text-stone-500">
+                Linked · {mappedId}
+              </p>
+            ) : null}
             <p className="mt-0.5 text-[11px] leading-snug text-stone-400">
-              WhatsApp Concierge Group
+              WhatsApp group (Chetto)
             </p>
           </div>
         </div>
@@ -364,25 +449,18 @@ export function ChettoTab({ clientPhone, queendom, isActive }: ChettoTabProps) {
           >
             {group.valid === true ? "Active" : "Inactive"}
           </span>
-          {updated && (
-            <span className="wrap-break-word text-right text-[10px] leading-snug text-stone-400">
-              Last activity{" "}
-              {formatDistanceToNow(updated, {
-                addSuffix: true,
-              })}
-            </span>
-          )}
         </div>
       </div>
 
-      {/* Section 2 — timeline */}
-      <div
-        ref={scrollRef}
-        className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-3"
-        style={{ backgroundColor: "#E5DDD5" }}
-      >
+      {/* Section 2 — timeline (single scroll surface; height bounded by parent card) */}
+      <div className="relative min-h-0 flex-1 overflow-hidden">
+        <div
+          ref={scrollRef}
+          className="h-full min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain px-4 py-3 [scrollbar-width:thin] [scrollbar-color:rgb(120_113_108/0.35)_transparent]"
+          style={{ backgroundColor: "#E5DDD5" }}
+        >
         {timelineLoading ? (
-          <div className="flex flex-col gap-2 py-2">
+          <div className="flex min-h-[min(320px,50dvh)] flex-col gap-2 py-2">
             {[40, 65, 30, 55, 70, 45].map((w, i) => (
               <div
                 key={i}
@@ -397,18 +475,22 @@ export function ChettoTab({ clientPhone, queendom, isActive }: ChettoTabProps) {
         ) : (
           <>
             {nextCursor ? (
-              <div className="flex justify-center py-2">
-                <button
-                  type="button"
-                  onClick={() => void handleLoadMore()}
-                  disabled={loadMoreLoading}
-                  className="flex items-center gap-1.5 text-xs text-stone-500 hover:text-stone-700 disabled:opacity-50"
-                >
-                  {loadMoreLoading ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-                  ) : null}
-                  Load older messages
-                </button>
+              <div className="flex flex-col items-center gap-1 pb-1">
+                <div
+                  ref={topSentinelRef}
+                  className="pointer-events-none h-1 w-full shrink-0"
+                  aria-hidden
+                />
+                {loadMoreLoading ? (
+                  <div
+                    className="flex items-center gap-2 rounded-full bg-white/90 px-3 py-1.5 text-[11px] text-stone-500 shadow-sm backdrop-blur-sm"
+                    role="status"
+                    aria-live="polite"
+                  >
+                    <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-stone-500" aria-hidden />
+                    Loading older…
+                  </div>
+                ) : null}
               </div>
             ) : null}
 
@@ -434,7 +516,8 @@ export function ChettoTab({ clientPhone, queendom, isActive }: ChettoTabProps) {
                       No messages returned for this group yet
                     </p>
                     <p className="w-full max-w-lg wrap-break-word text-xs leading-relaxed text-stone-400">
-                      If WhatsApp history exists, Chetto may still be indexing — try again later.
+                      If chat history exists, confirm <span className="font-mono">CHETTO_ORG_ID</span>{" "}
+                      matches your workspace. Chetto may still be indexing — try again later.
                     </p>
                   </>
                 )}
@@ -512,43 +595,9 @@ export function ChettoTab({ clientPhone, queendom, isActive }: ChettoTabProps) {
             )}
           </>
         )}
+        </div>
       </div>
 
-      {/* Section 3 — insights */}
-      <div className="min-w-0 shrink-0 border-t border-[#dcfce7] bg-white px-4 pb-4 pt-3">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-          <Sparkles className="h-3.5 w-3.5 shrink-0" style={{ color: "#00B4D8" }} aria-hidden />
-          <span className="min-w-0 wrap-break-word text-xs font-medium uppercase tracking-wider text-stone-600">
-            Chetto Intelligence
-          </span>
-        </div>
-        <div className="mt-3 flex min-w-0 gap-2 overflow-x-auto overflow-y-visible py-0.5 pl-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {[
-            "Recent requests?",
-            "Any unresolved items?",
-            "Key decisions made?",
-            "Any complaints?",
-          ].map((q) => (
-            <button
-              key={q}
-              type="button"
-              onClick={() => void askInsight(q)}
-              disabled={insightLoading}
-              className="shrink-0 cursor-pointer whitespace-nowrap rounded-full border border-stone-200 px-3 py-1.5 text-xs text-stone-500 transition-colors hover:border-[#00B4D8] hover:text-[#00B4D8] disabled:opacity-50"
-            >
-              {q}
-            </button>
-          ))}
-        </div>
-        {insightLoading ? (
-          <p className="mt-2 animate-pulse text-xs italic text-stone-400">Chetto is thinking...</p>
-        ) : null}
-        {insightText && !insightLoading ? (
-          <div className="mt-2 max-h-16 overflow-y-auto rounded-lg bg-stone-50 p-2.5 text-xs leading-relaxed text-stone-700">
-            {insightText}
-          </div>
-        ) : null}
-      </div>
     </div>
   );
 }

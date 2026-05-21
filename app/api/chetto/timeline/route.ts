@@ -2,6 +2,7 @@ import { getGroupTimeline } from "@/lib/actions/chetto";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   const supabase = await createClient();

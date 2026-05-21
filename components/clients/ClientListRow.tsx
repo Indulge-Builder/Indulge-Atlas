@@ -1,12 +1,19 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Input } from "@/components/ui/input";
+import { IndulgeButton } from "@/components/ui/indulge-button";
 import { cn } from "@/lib/utils";
 import type { ClientWithProfile } from "@/lib/actions/clients";
+import type { UnmappedFilter } from "@/components/clients/ClientFilters";
+import { Check, ExternalLink } from "lucide-react";
 
 interface ClientListRowProps {
   client: ClientWithProfile;
+  unmappedMode?: UnmappedFilter;
+  onSave?: (clientId: string, value: string) => Promise<void>;
 }
 
 function displayName(c: ClientWithProfile): string {
@@ -36,18 +43,42 @@ function membershipBadgeClass(type: string | null): string {
   return "bg-stone-100 text-stone-500 border border-stone-200";
 }
 
-export function ClientListRow({ client }: ClientListRowProps) {
+export function ClientListRow({
+  client,
+  unmappedMode = "none",
+  onSave,
+}: ClientListRowProps) {
   const name = displayName(client);
   const active = client.client_status === "active";
+  const isEditMode = unmappedMode === "chetto" || unmappedMode === "freshdesk";
 
-  return (
-    <Link
-      href={`/clients/${client.id}`}
-      className={cn(
-        "flex w-full items-center gap-3 border-b border-[#E5E4DF]/90 px-4 py-3 text-left transition-colors",
-        "hover:bg-[#F9F9F6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]/35 focus-visible:ring-offset-2 focus-visible:ring-offset-[#F9F9F6]",
-      )}
-    >
+  const initialValue =
+    unmappedMode === "chetto"
+      ? (client.chetto_group_id ?? "")
+      : (client.phone_number ?? "");
+  const [draft, setDraft] = useState(initialValue);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  async function handleSave() {
+    if (!onSave) return;
+    setIsSaving(true);
+    try {
+      await onSave(client.id, draft);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  const placeholder =
+    unmappedMode === "chetto" ? "e.g. 120363…" : "e.g. +91 98…";
+  const label =
+    unmappedMode === "chetto" ? "Chetto group id" : "Phone number";
+
+  const identityBlock = (
+    <div className="flex min-w-0 flex-1 items-center gap-3">
       <Avatar
         className={cn(
           "h-11 w-11 shrink-0 border-2 border-[#D4AF37]/70",
@@ -87,6 +118,64 @@ export function ClientListRow({ client }: ClientListRowProps) {
           <span>{client.primary_city ?? "—"}</span>
         </p>
       </div>
-    </Link>
+    </div>
+  );
+
+  if (!isEditMode) {
+    return (
+      <Link
+        href={`/clients/${client.id}`}
+        className={cn(
+          "flex w-full items-center gap-3 border-b border-[#E5E4DF]/90 px-4 py-3 text-left transition-colors",
+          "hover:bg-[#F9F9F6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]/35 focus-visible:ring-offset-2 focus-visible:ring-offset-[#F9F9F6]",
+        )}
+      >
+        {identityBlock}
+      </Link>
+    );
+  }
+
+  return (
+    <div className="flex w-full flex-wrap items-center gap-3 border-b border-amber-100/80 bg-amber-50/30 px-4 py-3">
+      {identityBlock}
+
+      <div className="flex min-w-[280px] flex-1 items-center gap-2">
+        <div className="flex-1">
+          <label className="mb-1 block text-[9px] font-semibold uppercase tracking-wider text-amber-700">
+            {label}
+          </label>
+          <Input
+            value={draft}
+            onChange={(e) => {
+              setDraft(e.target.value);
+              setSaved(false);
+            }}
+            placeholder={placeholder}
+            className="h-8 border-amber-200 bg-white font-mono text-xs focus-visible:ring-amber-400/40"
+            spellCheck={false}
+          />
+        </div>
+        <div className="mt-5 flex items-center gap-1.5">
+          <IndulgeButton
+            type="button"
+            variant="gold"
+            size="sm"
+            loading={isSaving}
+            disabled={draft === initialValue}
+            onClick={() => void handleSave()}
+            className="h-8 text-xs"
+          >
+            {saved ? <Check className="h-3.5 w-3.5" /> : "Save"}
+          </IndulgeButton>
+          <Link
+            href={`/clients/${client.id}`}
+            className="inline-flex h-8 items-center gap-1 rounded-lg border border-[#E5E4DF] bg-white px-2 text-[11px] text-stone-500 transition-colors hover:text-stone-800"
+            title="Open profile"
+          >
+            <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
+          </Link>
+        </div>
+      </div>
+    </div>
   );
 }

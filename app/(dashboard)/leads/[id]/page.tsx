@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Card, surfaceCardVariants } from "@/components/ui/card";
 import { InfoRow } from "@/components/ui/info-row";
 import { Separator } from "@/components/ui/separator";
+import { formatLeadCreatedAt } from "@/lib/utils/date-format";
 import { formatDateTime, getInitials } from "@/lib/utils";
 import {
   isPrivilegedRole,
@@ -156,71 +157,64 @@ export default async function LeadDetailPage({ params }: PageProps) {
   const userDomain =
     (rawProfile as { domain?: string } | null)?.domain ?? "indulge_concierge";
 
-  // Fetch lead with agent — exclude private_scratchpad until we verify viewer is assigned agent
+  // Fetch lead (with scratchpad included) + collaborators + agents all in parallel.
+  // Scratchpad is always fetched in the same select — no second round-trip needed.
+  const canReassign =
+    userRole === "manager" ||
+    userRole === "founder" ||
+    userRole === "admin";
+
   const LEAD_COLS =
-    "id, first_name, last_name, phone_number, secondary_phone, email, city, address, campaign_id, campaign_name, ad_name, platform, form_data, utm_source, utm_medium, utm_campaign, deal_value, deal_duration, domain, status, assigned_to, assigned_at, is_off_duty, agent_alert_sent, manager_alert_sent, notes, lost_reason_tag, lost_reason_notes, lost_reason, trash_reason, nurture_reason, attempt_count, personal_details, company, tags, follow_up_drafts, created_at, updated_at";
-  const { data: rawLead, error } = await supabase
-    .from("leads")
-    .select(
-      `${LEAD_COLS}, assigned_agent:profiles!assigned_to(id, full_name, email, role)`,
-    )
-    .eq("id", id)
-    .single();
+    "id, first_name, last_name, phone_number, secondary_phone, email, city, address, campaign_id, campaign_name, ad_name, platform, form_data, utm_source, utm_medium, utm_campaign, deal_value, deal_duration, domain, status, assigned_to, assigned_at, is_off_duty, agent_alert_sent, manager_alert_sent, notes, lost_reason_tag, lost_reason_notes, lost_reason, trash_reason, nurture_reason, attempt_count, personal_details, company, tags, follow_up_drafts, private_scratchpad, created_at, updated_at";
 
-  if (error || !rawLead) notFound();
+  const [leadResult, collabResult, agentResult] = await Promise.all([
+    supabase
+      .from("leads")
+      .select(`${LEAD_COLS}, assigned_agent:profiles!assigned_to(id, full_name, email, role)`)
+      .eq("id", id)
+      .single(),
+    supabase
+      .from("lead_collaborators")
+      .select(
+        "id, lead_id, user_id, added_by, created_at, profile:profiles!lead_collaborators_user_id_fkey(id, full_name, email, department, domain, job_title)",
+      )
+      .eq("lead_id", id),
+    canReassign
+      ? supabase
+          .from("profiles")
+          .select("id, full_name")
+          .eq("role", "agent")
+          .eq("is_active", true)
+          .order("full_name", { ascending: true })
+      : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
+  ]);
 
-  const { data: collaboratorRows } = await supabase
-    .from("lead_collaborators")
-    .select(
-      "id, lead_id, user_id, added_by, created_at, profile:profiles!lead_collaborators_user_id_fkey(id, full_name, email, department, domain, job_title)",
-    )
-    .eq("lead_id", id);
-
-  const leadCollaborators = (collaboratorRows ?? []) as unknown as LeadCollaborator[];
+  if (leadResult.error || !leadResult.data) notFound();
+  const rawLead = leadResult.data;
 
   const leadDomain = (rawLead as { domain: Lead["domain"] }).domain;
   const leadAssignedTo = (rawLead as { assigned_to: string | null }).assigned_to;
 
-  const canManageCollaborators =
-    userRole === "admin" ||
-    userRole === "founder" ||
-    (userRole === "manager" && leadDomain === userDomain) ||
-    (userRole === "agent" && leadAssignedTo === user.id && leadDomain === userDomain);
-
-  // Same visibility as saveAgentScratchpad: assigned agent, or admin/founder oversight.
-  const assignedTo = leadAssignedTo;
+  // Gate scratchpad visibility — field is fetched but only exposed if authorized
   const canViewScratchpad =
-    user.id === assignedTo || isPrivilegedRole(userRole);
-  let scratchpadValue: string | null = null;
-  if (canViewScratchpad) {
-    const { data: scratch } = await supabase
-      .from("leads")
-      .select("private_scratchpad")
-      .eq("id", id)
-      .single();
-    scratchpadValue = scratch?.private_scratchpad ?? null;
-  }
+    user.id === leadAssignedTo || isPrivilegedRole(userRole);
+  const scratchpadValue = canViewScratchpad
+    ? ((rawLead as { private_scratchpad?: string | null }).private_scratchpad ?? null)
+    : null;
 
   const lead = {
     ...rawLead,
     private_scratchpad: scratchpadValue,
   } as unknown as Lead & { assigned_agent?: Profile };
 
-  // Managers / founders / admins can reassign — pre-fetch active agents
-  const canReassign =
-    userRole === "manager" ||
+  const leadCollaborators = (collabResult.data ?? []) as unknown as LeadCollaborator[];
+  const agents = (agentResult.data ?? []) as { id: string; full_name: string }[];
+
+  const canManageCollaborators =
+    userRole === "admin" ||
     userRole === "founder" ||
-    userRole === "admin";
-  let agents: Array<{ id: string; full_name: string }> = [];
-  if (canReassign) {
-    const { data: agentRows } = await supabase
-      .from("profiles")
-      .select("id, full_name")
-      .eq("role", "agent")
-      .eq("is_active", true)
-      .order("full_name", { ascending: true });
-    agents = agentRows ?? [];
-  }
+    (userRole === "manager" && leadDomain === userDomain) ||
+    (userRole === "agent" && leadAssignedTo === user.id && leadDomain === userDomain);
 
   const statusConfig = LEAD_STATUS_CONFIG[lead.status];
 
@@ -305,7 +299,7 @@ export default async function LeadDetailPage({ params }: PageProps) {
                         utmCampaign={lead.utm_campaign}
                       />
                       <span className="text-xs text-[#B5A99A]">
-                        Added {formatDateTime(lead.created_at)}
+                        Added {formatLeadCreatedAt(lead.created_at)}
                       </span>
                     </div>
                   </div>

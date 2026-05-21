@@ -140,6 +140,11 @@ export function isPrivilegedRole(role: string): boolean {
   return role === "admin" || role === "founder" || role === "super_admin";
 }
 
+/** Admin / founder / super_admin / manager — bypass client row ownership for ops (matches `clients` / `leads` patterns). */
+export function canManageAnyClient(role: string): boolean {
+  return isPrivilegedRole(role) || role === "manager";
+}
+
 export type AdPlatform = "meta" | "google" | "website" | "events" | "referral";
 
 export type DraftStatus = "draft" | "approved" | "deployed";
@@ -1313,6 +1318,53 @@ export type ClientEliaProfile = {
   last_enriched_at?: string;
 };
 
+/** Structured intelligence profile derived from WhatsApp chat analysis (migration 091). */
+export interface EliaProfile {
+  summary: string;
+  identity: {
+    sentiment: "positive" | "neutral" | "needs_attention";
+    relationship_strength: "strong" | "developing" | "new" | "at_risk";
+    communication_style: string;
+    key_traits: string[];
+  };
+  travel: {
+    preferred_operators: string[];
+    preferred_cabin: string | null;
+    usual_group_size: string | null;
+    typical_destinations: string[];
+    upcoming_trips: Array<{ destination: string; approximate_date: string | null }>;
+    travel_notes: string | null;
+  };
+  dining: {
+    preferred_cuisines: string[];
+    dietary_restrictions: string[];
+    go_to_restaurants: string[];
+    dining_notes: string | null;
+  };
+  accommodation: {
+    preferred_hotel_chains: string[];
+    preferred_room_type: string | null;
+    accommodation_notes: string | null;
+  };
+  requests: {
+    recent: Array<{ date: string; description: string; status: string }>;
+    recurring_themes: string[];
+  };
+  milestones: {
+    birthdays: string[];
+    anniversaries: string[];
+    other: string[];
+  };
+  sources: {
+    analysis_runs: number;
+    message_count_analyzed: number;
+    whatsapp_analyzed_through: string | null;
+  };
+  last_updated_at: string;
+  last_updated_by: string;
+  version: number;
+}
+
 export interface Client {
   id: string;
   first_name: string;
@@ -1353,6 +1405,10 @@ export interface ClientProfile {
   lifestyle: ClientLifestyleProfile;
   passions: ClientPassionsProfile;
   elia_notes: ClientEliaProfile;
+  elia_profile: EliaProfile | null;
+  elia_version: number;
+  elia_analyzed_at: string | null;
+  elia_messages_through: string | null;
   profile_completeness: number;
   last_enriched_at: string | null;
   created_at: string;
@@ -1373,4 +1429,32 @@ export interface ProfileSource {
 
 export interface ClientWithProfile extends Client {
   client_profiles: ClientProfile | null;
+}
+
+// ── Budget ────────────────────────────────────────────────────────────────────
+
+export type BudgetDomain = "meta" | "elia" | "zoho";
+export type BudgetCurrency = "INR" | "USD";
+
+export interface BudgetTransaction {
+  id: string;
+  domain: BudgetDomain;
+  date: string;
+  item: string;
+  amount: number;
+  currency: BudgetCurrency;
+  paid_by: string | null;
+  created_by: string;
+  created_at: string;
+}
+
+export interface BudgetDeliverable {
+  id: string;
+  domain: BudgetDomain;
+  text: string;
+  done: boolean;
+  sort_order: number;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
 }

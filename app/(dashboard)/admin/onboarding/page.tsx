@@ -32,11 +32,14 @@ export default async function OnboardingOversightPage(props: PageProps) {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
+  const searchParams = await props.searchParams;
+
+  // Profile + agents + campaigns all in parallel after the single auth above
+  const [{ data: profile }, agents, campaigns] = await Promise.all([
+    supabase.from("profiles").select("role").eq("id", user.id).single(),
+    getOnboardingAgentsWithStats(),
+    getCampaignsWithAttribution(),
+  ]);
 
   if (
     !profile?.role ||
@@ -44,12 +47,6 @@ export default async function OnboardingOversightPage(props: PageProps) {
   ) {
     redirect("/");
   }
-
-  const searchParams = await props.searchParams;
-  const [agents, campaigns] = await Promise.all([
-    getOnboardingAgentsWithStats(),
-    getCampaignsWithAttribution(),
-  ]);
 
   return (
     <OnboardingOversightClient

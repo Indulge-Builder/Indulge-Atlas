@@ -1,12 +1,15 @@
 "use server";
 
 import { format } from "date-fns";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import {
   findFreshdeskContactForClient,
   listTicketsForRequester,
 } from "@/lib/freshdesk/client";
 import { createClient } from "@/lib/supabase/server";
+import { isPrivilegedRole } from "@/lib/types/database";
+import { runEliaWhatsAppAnalysis } from "@/lib/services/eliaProfileAnalysis";
 import type {
   ClientLifestyleProfile,
   ClientPassionsProfile,
@@ -440,4 +443,53 @@ export async function getEliaActiveMemberCount(): Promise<number> {
     throw new Error(qErr.message);
   }
   return count ?? 0;
+}
+
+// ── Auth helper (module-private) ─────────────────────────────────────────────
+
+async function getAuthUser() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+  if (error || !user) throw new Error("Unauthenticated");
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role, domain")
+    .eq("id", user.id)
+    .single();
+
+  const role = (profile as { role: string } | null)?.role ?? "agent";
+  const domain =
+    (profile as { domain?: string } | null)?.domain ?? "indulge_concierge";
+  return { supabase, user, role, domain };
+}
+
+// ── Server Action: manual WhatsApp profile analysis trigger ──────────────────
+
+export async function triggerEliaWhatsAppAnalysis(clientId: string): Promise<{
+  success: boolean;
+  messagesAnalyzed: number;
+  error?: string;
+}> {
+  const { role } = await getAuthUser();
+
+  if (!isPrivilegedRole(role) && role !== "manager") {
+    return { success: false, messagesAnalyzed: 0, error: "Unauthorized" };
+  }
+
+  const idParsed = z.string().uuid().safeParse(clientId);
+  if (!idParsed.success) {
+    return { success: false, messagesAnalyzed: 0, error: "Invalid client id" };
+  }
+
+  const result = await runEliaWhatsAppAnalysis(idParsed.data);
+
+  if (result.success) {
+    revalidatePath(`/clients/${idParsed.data}`);
+  }
+
+  return result;
 }

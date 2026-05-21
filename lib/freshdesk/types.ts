@@ -129,6 +129,72 @@ export interface ClientFreshdeskTicketStats {
   last_ticket_date: string | null;
 }
 
+export interface FreshdeskAttachment {
+  id: number;
+  name: string;
+  content_type: string;
+  size: number;
+  created_at: string;
+  updated_at: string;
+  attachment_url: string;
+  thumb_url: string | null;
+}
+
+export type ConversationSource =
+  | "reply"
+  | "note"
+  | "email"
+  | "twitter"
+  | "survey"
+  | "facebook"
+  | "forward_email"
+  | "phone"
+  | "mobihelp"
+  | "feedback_widget"
+  | "outbound_email"
+  | "ecommerce"
+  | "bot"
+  | "whatsapp"
+  | "unknown";
+
+export function mapConversationSource(source: number): ConversationSource {
+  const map: Record<number, ConversationSource> = {
+    0: "reply",
+    1: "email",
+    2: "twitter",
+    3: "survey",
+    4: "facebook",
+    5: "forward_email",
+    6: "phone",
+    7: "mobihelp",
+    8: "feedback_widget",
+    9: "outbound_email",
+    10: "ecommerce",
+    11: "bot",
+    12: "reply",
+    13: "whatsapp",
+  };
+  return map[source] ?? "unknown";
+}
+
+export interface FreshdeskConversation {
+  id: number;
+  ticket_id: number;
+  body: string;
+  body_text: string;
+  incoming: boolean;
+  private: boolean;
+  source: number;
+  created_at: string;
+  updated_at: string;
+  from_email: string | null;
+  support_email: string | null;
+  to_emails: string[];
+  attachments: FreshdeskAttachment[];
+  user_id: number | null;
+  auto_response: boolean;
+}
+
 export type ClientFreshdeskTicketsData =
   | {
       found: false;
