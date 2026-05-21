@@ -107,7 +107,7 @@ export async function addBudgetTransaction(
   if (!isPrivileged(role)) return { success: false, error: "Insufficient permissions." };
 
   const parsed = AddTransactionSchema.safeParse(input);
-  if (!parsed.success) return { success: false, error: parsed.error.errors[0]?.message };
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
 
   const { data, error } = await supabase
     .from("budget_transactions")
@@ -151,7 +151,7 @@ export async function addBudgetDeliverable(
   if (!isPrivileged(role)) return { success: false, error: "Insufficient permissions." };
 
   const parsed = AddDeliverableSchema.safeParse(input);
-  if (!parsed.success) return { success: false, error: parsed.error.errors[0]?.message };
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
 
   const { data, error } = await supabase
     .from("budget_deliverables")

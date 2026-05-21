@@ -529,7 +529,7 @@ function MetaTab({ initial }: { initial: { transactions: BudgetTransaction[]; de
               <CartesianGrid strokeDasharray="3 3" stroke="#E5E4DF" vertical={false} />
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#9e9e8e" }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 10, fill: "#9e9e8e" }} axisLine={false} tickLine={false} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
-              <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E5E4DF", fontSize: 12 }} formatter={(v: number) => [fmtINR(v), "Cumulative"]} />
+              <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E5E4DF", fontSize: 12 }} formatter={(v) => [fmtINR(Number(v ?? 0)), "Cumulative"]} />
               <Area type="monotone" dataKey="cumulative" stroke={CHART_GOLD} strokeWidth={2} fill="url(#cumGrad)" dot={false} />
             </AreaChart>
           </ResponsiveContainer>
@@ -541,7 +541,7 @@ function MetaTab({ initial }: { initial: { transactions: BudgetTransaction[]; de
               <Pie data={accountPieData} cx="50%" cy="50%" innerRadius={50} outerRadius={75} paddingAngle={3} dataKey="value">
                 {accountPieData.map((_, i) => <Cell key={i} fill={ACCENT_COLORS[i % ACCENT_COLORS.length]} />)}
               </Pie>
-              <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E5E4DF", fontSize: 12 }} formatter={(v: number) => [fmtINR(v)]} />
+              <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E5E4DF", fontSize: 12 }} formatter={(v) => [fmtINR(Number(v ?? 0))]} />
               <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, color: "#6b6b6b" }} />
             </PieChart>
           </ResponsiveContainer>
@@ -555,7 +555,7 @@ function MetaTab({ initial }: { initial: { transactions: BudgetTransaction[]; de
             <CartesianGrid strokeDasharray="3 3" stroke="#E5E4DF" vertical={false} />
             <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#9e9e8e" }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fontSize: 10, fill: "#9e9e8e" }} axisLine={false} tickLine={false} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
-            <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E5E4DF", fontSize: 12 }} formatter={(v: number) => [fmtINR(v), "Spend"]} />
+            <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E5E4DF", fontSize: 12 }} formatter={(v) => [fmtINR(Number(v ?? 0)), "Spend"]} />
             <Bar dataKey="amount" fill={CHART_GOLD} radius={[3, 3, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
@@ -643,7 +643,7 @@ function EliaTab({ initial }: { initial: { transactions: BudgetTransaction[]; de
               <CartesianGrid strokeDasharray="3 3" stroke="#E5E4DF" horizontal={false} />
               <XAxis type="number" tick={{ fontSize: 10, fill: "#9e9e8e" }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${v}`} />
               <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "#6b6b6b" }} axisLine={false} tickLine={false} width={80} />
-              <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E5E4DF", fontSize: 12 }} formatter={(v: number) => [fmtUSD(v)]} />
+              <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E5E4DF", fontSize: 12 }} formatter={(v) => [fmtUSD(Number(v ?? 0))]} />
               <Bar dataKey="value" fill={CHART_GOLD} radius={[0, 3, 3, 0]} />
             </BarChart>
           </ResponsiveContainer>
@@ -655,7 +655,7 @@ function EliaTab({ initial }: { initial: { transactions: BudgetTransaction[]; de
               <Pie data={itemData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={3} dataKey="value">
                 {itemData.map((_, i) => <Cell key={i} fill={ACCENT_COLORS[i % ACCENT_COLORS.length]} />)}
               </Pie>
-              <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E5E4DF", fontSize: 12 }} formatter={(v: number) => [fmtUSD(v)]} />
+              <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E5E4DF", fontSize: 12 }} formatter={(v) => [fmtUSD(Number(v ?? 0))]} />
               <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, color: "#6b6b6b" }} />
             </PieChart>
           </ResponsiveContainer>
@@ -744,7 +744,7 @@ function ZohoTab({ initial }: { initial: { transactions: BudgetTransaction[]; de
               <CartesianGrid strokeDasharray="3 3" stroke="#E5E4DF" horizontal={false} />
               <XAxis type="number" tick={{ fontSize: 10, fill: "#9e9e8e" }} axisLine={false} tickLine={false} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
               <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "#6b6b6b" }} axisLine={false} tickLine={false} width={100} />
-              <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E5E4DF", fontSize: 12 }} formatter={(v: number) => [fmtINR(v)]} />
+              <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E5E4DF", fontSize: 12 }} formatter={(v) => [fmtINR(Number(v ?? 0))]} />
               <Bar dataKey="value" fill={CHART_GOLD} radius={[0, 3, 3, 0]} />
             </BarChart>
           </ResponsiveContainer>
@@ -756,7 +756,7 @@ function ZohoTab({ initial }: { initial: { transactions: BudgetTransaction[]; de
               <Pie data={itemData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={3} dataKey="value">
                 {itemData.map((_, i) => <Cell key={i} fill={ACCENT_COLORS[i % ACCENT_COLORS.length]} />)}
               </Pie>
-              <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E5E4DF", fontSize: 12 }} formatter={(v: number) => [fmtINR(v)]} />
+              <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E5E4DF", fontSize: 12 }} formatter={(v) => [fmtINR(Number(v ?? 0))]} />
               <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, color: "#6b6b6b" }} />
             </PieChart>
           </ResponsiveContainer>
