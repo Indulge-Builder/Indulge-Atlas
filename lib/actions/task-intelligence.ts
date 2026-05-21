@@ -158,15 +158,15 @@ function extractChecklist(attachments: unknown): ChecklistItem[] {
 
 /**
  * Pure data fetch for department overview — extracted so it can be wrapped with
- * unstable_cache per-user. The server action below calls this and handles auth.
+ * unstable_cache per-user. Caller must pass a Supabase client created outside the
+ * cache scope (createClient uses cookies(), which unstable_cache forbids inside).
  */
 async function fetchDepartmentTaskOverviewData(
-  userId: string,
+  supabase: Awaited<ReturnType<typeof createClient>>,
   role: string,
   domain: IndulgeDomain,
   profile: { department?: string | null } | null,
 ): Promise<DepartmentTaskOverview[] | null> {
-  const supabase = await createClient();
 
   let visibleDepts = resolveVisibleDepartments(role, domain, profile);
   if (visibleDepts.length === 0) return null;
@@ -358,13 +358,13 @@ export async function getDepartmentTaskOverview(): Promise<
   ActionResult<DepartmentTaskOverview[]>
 > {
   try {
-    const { user, role, domain, profile } = await getAuthUser();
+    const { supabase, user, role, domain, profile } = await getAuthUser();
     if (!assertTaskIntelligenceRole(role))
       return { success: false, error: "Not authorized" };
 
     // Cache per user+role with a 60s TTL — the department detail page hits the same cache
     const cached = unstable_cache(
-      () => fetchDepartmentTaskOverviewData(user.id, role, domain, profile),
+      () => fetchDepartmentTaskOverviewData(supabase, role, domain, profile),
       ["task-overview", user.id, role],
       { revalidate: 60 },
     );

@@ -163,18 +163,13 @@ BEGIN
 
   -- Elia deliverables
   INSERT INTO public.budget_deliverables (domain, text, done, sort_order, created_by) VALUES
-    ('elia', 'Supabase production database provisioned',     true,  1, founder_id),
-    ('elia', 'Claude API integrated for Elia AI engine',    true,  2, founder_id),
-    ('elia', 'Cursor IDE licences activated for dev team',  true,  3, founder_id),
-    ('elia', 'AI Model API live for client profile analysis', true, 4, founder_id),
-    ('elia', 'Elia WhatsApp profile integration (Chetto)',  true,  5, founder_id),
-    ('elia', 'Freshdesk integration',                       true,  6, founder_id),
-    ('elia', 'Expand Elia with streaming + RAG features',   false, 7, founder_id),
-    ('elia', 'Integrate Elia with Typeform',                false, 8, founder_id);
+    ('elia', 'Clients Ingested',     true,  1, founder_id),
+    ('elia', 'CRM Setup',    true,  2, founder_id),
+    ('elia', 'Dev Setup',  true,  3, founder_id);
 
   -- Zoho deliverables
   INSERT INTO public.budget_deliverables (domain, text, done, sort_order, created_by) VALUES
-    ('zoho', 'Zoho CRM plan activated',                              true,  1, founder_id),
+    ('zoho', 'Zoho for concierge and shop',                              true,  1, founder_id),
     ('zoho', 'Pabbly, Meta leads, WhatsApp business credit loaded',  false, 2, founder_id),
     ('zoho', 'All agent seats assigned and onboarded',              false, 3, founder_id),
     ('zoho', 'Features built, workflow set, Journey designed',       false, 4, founder_id);
