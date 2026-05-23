@@ -191,6 +191,7 @@ export async function processBotTurn(
     console.warn("[gupshupChatbot] Could not normalize phone:", phone);
     return;
   }
+  console.log('[chatbot:debug] step1 normalized phone:', normalizedPhone)
 
   const supabase = getServiceSupabaseClient();
 
@@ -201,6 +202,7 @@ export async function processBotTurn(
     console.error("[gupshupChatbot] Session load/create error:", err);
     return;
   }
+  console.log('[chatbot:debug] step3 session state:', session.state, 'turns:', session.bot_turn_count)
 
   // Agent has taken over — stay silent
   if (session.state === "handed_off") return;
@@ -215,9 +217,11 @@ export async function processBotTurn(
   }
 
   const catalog = await fetchActiveCatalog(supabase);
+  console.log('[chatbot:debug] step6 catalog items:', catalog.length)
   const systemPrompt = buildSystemPrompt(catalog);
 
   const parsed = await callClaude(systemPrompt, incomingText);
+  console.log('[chatbot:debug] step7 claude response received')
 
   // Fallback on parse/call failure
   if (!parsed) {
@@ -241,6 +245,7 @@ export async function processBotTurn(
 
   // Send reply based on reply_type
   let sentText = parsed.text_reply;
+  console.log('[chatbot:debug] step8 sending reply type:', parsed.reply_type)
   try {
     if (parsed.reply_type === "image" && parsed.image_reply) {
       const product = catalog.find((c) => c.id === parsed.image_reply!.product_id);
@@ -268,6 +273,7 @@ export async function processBotTurn(
   } catch (err) {
     console.error("[gupshupChatbot] Message send error:", err);
   }
+  console.log('[chatbot:debug] step9 reply sent')
   await logBotMessage(supabase, session.id, normalizedPhone, "assistant", sentText);
 
   // Build updated context — track last shown product ids
