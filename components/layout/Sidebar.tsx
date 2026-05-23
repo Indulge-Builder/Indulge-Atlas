@@ -97,6 +97,7 @@ const FOUNDER_SIDEBAR_PREFIXES = [
   "/indulge-world",
   "/leads",
   "/clients",
+  "/tasks",
   "/task-insights",
   "/budget",
   "/elia-preview",
@@ -129,6 +130,10 @@ const FOUNDER_NAV_SECTIONS: { label: string; hrefs: readonly string[] }[] = [
   {
     label: "Sales & relationships",
     hrefs: ["/leads", "/clients"],
+  },
+  {
+    label: "Work & delivery",
+    hrefs: ["/tasks"],
   },
   {
     label: "Insights & AI",
