@@ -100,7 +100,6 @@ const FOUNDER_SIDEBAR_PREFIXES = [
   "/task-insights",
   "/budget",
   "/elia-preview",
-  "/admin/onboarding",
 ] as const;
 
 function hrefMatchesFounderNav(href: string): boolean {
@@ -134,10 +133,6 @@ const FOUNDER_NAV_SECTIONS: { label: string; hrefs: readonly string[] }[] = [
   {
     label: "Insights & AI",
     hrefs: ["/task-insights", "/budget", "/elia-preview"],
-  },
-  {
-    label: "Onboarding",
-    hrefs: ["/admin/onboarding"],
   },
 ];
 
@@ -336,7 +331,7 @@ const navItems: NavItemDef[] = [
     href: "/admin/onboarding",
     label: "Onboarding oversight",
     icon: BarChart3,
-    roles: ["admin", "founder", "super_admin"],
+    roles: ["admin", "super_admin"],
     section: "admin",
     navGroup: "platform",
   },

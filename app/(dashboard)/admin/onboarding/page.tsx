@@ -41,11 +41,8 @@ export default async function OnboardingOversightPage(props: PageProps) {
       getOnboardingOverview(), // defaults to this month
     ]);
 
-  if (
-    !profile?.role ||
-    !["admin", "founder", "manager"].includes(profile.role)
-  ) {
-    redirect("/");
+  if (!profile?.role || !["admin", "manager"].includes(profile.role)) {
+    redirect(profile.role === "founder" ? "/workspace" : "/");
   }
 
   const leadsSlot =
