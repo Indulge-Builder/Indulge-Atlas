@@ -71,15 +71,16 @@ export async function sendGupshupMessage(
 ): Promise<void> {
   const apiKey = process.env.GUPSHUP_API_KEY?.trim();
   const appName = process.env.GUPSHUP_APP_NAME?.trim();
+  const partnerNumber = process.env.GUPSHUP_PARTNER_NUMBER?.trim();
 
-  if (!apiKey || !appName) {
-    console.error("[gupshupClient] GUPSHUP_API_KEY or GUPSHUP_APP_NAME is not configured; cannot send message");
+  if (!apiKey || !appName || !partnerNumber) {
+    console.error("[gupshupClient] GUPSHUP_API_KEY, GUPSHUP_APP_NAME, or GUPSHUP_PARTNER_NUMBER is not configured; cannot send message");
     return;
   }
 
   const formBody = new URLSearchParams({
     channel: "whatsapp",
-    source: appName,
+    source: partnerNumber,
     destination: phone.replace(/^\+/, ""),
     message: buildMessageBody(payload),
     "src.name": appName,

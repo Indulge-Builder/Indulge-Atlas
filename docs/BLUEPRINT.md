@@ -1,10 +1,9 @@
 # ATLAS BLUEPRINT
 ## Indulge Atlas — Complete System Reference & Architectural Contract
 
-> **Authored**: 2026-04-23 · **Updated**: 2026-05-07  
-> **Based on**: Full codebase audit, numbered migrations through **089** (client profile / completeness stack **087–089**), lib/ and app/, git status  
-> **Task system detail**: Summarized in **§2.1** (Atlas Unified Task System) and **§7** (migrations); test matrix in **`TESTING_MASTER_PLAN.md`**.  
-> **Status**: Authoritative specification. Supersedes all prior versions.  
+> **Authored**: 2026-04-23 · **Updated**: 2026-05-23
+> **Based on**: Full codebase audit, numbered migrations through **094** (Gupshup chatbot), lib/ and app/, git status
+> **Status**: Authoritative specification. Supersedes all prior versions.
 > **Audience**: Engineers, technical stakeholders.
 
 ---
@@ -13,7 +12,7 @@
 
 ### What Is Indulge Atlas?
 
-**Indulge Atlas** is a bespoke Company Operating System built exclusively for the **Indulge Group** — a high-ticket luxury lifestyle brand ecosystem. It began as a CRM for inbound sales and is evolving into a full internal platform covering CRM, team collaboration, project management, and AI-assisted workflows.
+**Indulge Atlas** is a bespoke Company Operating System built exclusively for the **Indulge Group** — a high-ticket luxury lifestyle brand ecosystem. It began as a CRM for inbound sales and is evolving into a full internal platform covering CRM, team collaboration, project management, AI-assisted workflows, budgeting, and a WhatsApp-first AI chatbot.
 
 **The four business units (domains):**
 - `indulge_concierge` — Luxury lifestyle concierge & primary inbound sales
@@ -28,18 +27,19 @@
 - **Sales agents** — managing inbound leads from Meta/Google/WhatsApp ad campaigns
 - **Shop agents** — WhatsApp-first product sales in the Shop War Room
 - **Managers** — cross-agent performance, campaign analytics, morning briefings
-- **Admins/Founders** — user management, routing rules, integrations, full visibility
+- **Admins/Founders** — user management, routing rules, integrations, budget oversight, full visibility
 - **Internal support staff** (Tech, Finance, Marketing, Onboarding) — projects, tasks, cross-domain analytics
-- **Elia AI** — Member intelligence assistant (in preview): **full-page** `/elia-preview` (`EliaChat` + `EliaChatMessage`, TypeScript) and **sidebar** shell (`EliaSidePanel.jsx`); shared POST **`/api/elia/chat`**
+- **Elia AI** — Member intelligence assistant: full-page `/elia-preview` (`EliaChat` + `EliaChatMessage`), sidebar shell (`EliaSidePanel.jsx`), client Overview chat, WhatsApp profile analysis pipeline, and Gupshup inbound chatbot
 
 ### Core Problems Solved
 
 1. **Speed-to-Lead**: Sub-5-minute inbound lead response with SLA monitoring and breach alerts
-2. **Multi-channel ingestion**: Meta Lead Ads, Google Ads, website forms, and WhatsApp → single `leads` table
+2. **Multi-channel ingestion**: Meta Lead Ads, Google Ads, website forms, WhatsApp, and Gupshup → single `leads` table
 3. **Multi-tenant data isolation**: Four business units share one database; PostgreSQL RLS enforces complete row-level separation
-4. **WhatsApp-first communication**: Two-way sync with Meta Cloud API from inside the lead dossier
+4. **WhatsApp-first communication**: Two-way sync with Meta Cloud API + Gupshup AI bot for inbound prospects
 5. **Gamified SLA compliance**: Real-time breach detection surfaced to agents and managers
 6. **Team collaboration**: Projects, tasks, internal chat across all departments
+7. **AI member intelligence**: Elia profiles built from WhatsApp history; on-demand summaries; chatbot lead qualification
 
 ---
 
@@ -48,18 +48,34 @@
 ### 2.1 Production-Ready (Hardened with RLS, Auth, Audit Trail)
 
 **CRM Core:**
-- Lead ingestion pipeline (Meta, Google, website, WhatsApp) via Pabbly webhooks with per-channel Bearer auth, HMAC-SHA256 WhatsApp verification, rate limiting, dynamic field mapping engine, burst-safe advisory-locked round-robin agent assignment
-- `agentRoutingConfig` is now wired into `leadIngestion.ts` — hardcoded email pool is supplemented by the DB-driven config
-- Lead dossier (`/leads/[id]`) — full 8-stage pipeline, WhatsApp two-way sync, activity timeline, tasks, disposition modals, scratchpad, follow-up drafts, executive dossier, tags
+- Lead ingestion pipeline (Meta, Google, website, WhatsApp, Gupshup) via Pabbly webhooks + Gupshup webhook with per-channel Bearer auth, HMAC-SHA256 WhatsApp verification, rate limiting, dynamic field mapping engine, burst-safe advisory-locked round-robin agent assignment
+- `agentRoutingConfig` is wired into `leadIngestion.ts` — hardcoded email pool is supplemented by the DB-driven config
+- Lead dossier (`/leads/[id]`) — full 8-stage pipeline, WhatsApp two-way sync, activity timeline, tasks, disposition modals, scratchpad, follow-up drafts, executive dossier, tags, collaborators
 - Leads table (`/leads`) — paginated, filterable by status/domain/source
-- **Clients** (`/clients`, `/clients/[id]`) — member directory + dossier tabs (**Overview** default, **Profile**, **Notes**, **Service History**, **WhatsApp**). **There is no separate Membership tab** — membership (**`ClientMembershipTab`**) renders **inside Profile** below **`ClientProfileFields`**, with **`showContact={false}`**, under a **Membership** heading. **Overview** (`components/clients/overview/`): Elia **3-sentence member summary** is **on demand only** — `ClientOverviewTab` + `ClientSummaryCard` expose **Generate summary** (`IndulgeButton` variant `gold`); `getClientSummary` in `lib/actions/elia.ts` (Haiku, client + `client_profiles` + Freshdesk snapshot; `ANTHROPIC_API_KEY` server-only) runs **after** the user clicks, not on every tab visit (saves tokens). **Metric pills** (membership, Freshdesk ticket counts via `getClientFreshdeskTickets`, **profile completeness %** on Overview only via `ClientMetricPills`) still load on visit — completeness is **not** duplicated as a top bar on the **Profile** tab or as a column in **directory list view**. **Profile** tab (`components/clients/profile/` — `ClientProfileFields`, `ProfileSection`, `ProfileFieldRow`): grouped fields with **light stone section headers** (`#F5F3EE`), **no** per-section field-count chips; field labels are **high-contrast** (`text-stone-800`). **Elia Intelligence** section (bottom of Profile, before Membership): **`EliaProfileAnalyseButton`** + inline **`elia_profile`** display (summary, sentiment, travel, recent requests) when persisted — migration **091**; pipeline **`lib/services/eliaProfileAnalysis.ts`** (Chetto Joule → Haiku → `client_profiles`); manual **`triggerEliaWhatsAppAnalysis`**; cron **`POST /api/elia/analyse-client`** (`ELIA_ANALYSIS_SECRET`). **Membership** section (same tab): **Timeline** shows start/end cards, term length, status pill, and **term progress** bar; **Queendom** appears on plan rows as implemented in `ClientMembershipTab`. **Client-scoped Elia chat** (POST `app/api/elia/chat` with optional `clientId` — single-member context + `eliaClientScopedPrompt` in `lib/elia/chat-prompt.ts`; session not persisted; chat UI resets when leaving the tab). Service History reads **Freshdesk** tickets live (server-only `FRESHDESK_API_KEY`); contact match order: E.164 `phone` / `mobile` on Freshdesk contacts, then name query. Ticket fetch now paginates across Freshdesk pages (UI stats use full count, not first-page-only). Top stats rule: **open = every status except Resolved/Closed** (`status !== 4 && status !== 5`), resolved = `4 | 5`, so custom statuses are counted as open unless explicitly closed/resolved. AI **ticket** summary via **Anthropic** (`getTicketAISummary` in `lib/actions/freshdesk.ts` — same non-streaming pattern as `app/api/elia/chat`). **WhatsApp (Chetto)** — `components/clients/chetto/ChettoTab.tsx`: concierge WhatsApp **group lookup** by normalized phone plus India dial variants (`91` + 10-digit); `lib/actions/chetto.ts` integrates Chetto **Joule** (`https://apiv2.chetto.ai/joule`) with queendom→sub-org maps and maintained per-queendom WhatsApp group id lists. **API proxies** (authenticated user, **never** expose `CHETTO_API_KEY` to the browser): `GET /api/chetto/find-group`, `GET /api/chetto/timeline`, `POST /api/chetto/insights`. Timeline may be empty when Joule returns **404** / “No groups found” for timeline while group metadata exists — UI **`timelineNotAvailable`** (API/indexing gap). **`lib/constants/chetto-jokers.ts`** — client-safe “joker” sender labels. Tab shell: bordered **`rounded-2xl`** card + **`min-w-0`** / wrap-safe copy so dashboard **`main`** rounding does not clip content. Implementation: `lib/freshdesk/client.ts`, `lib/freshdesk/types.ts`, `lib/actions/freshdesk.ts`, `lib/actions/elia.ts`, `lib/actions/chetto.ts`, `components/clients/FreshdeskTab.tsx`, `TicketCard.tsx`, `TicketSummaryModal.tsx`, `components/clients/chetto/ChettoTab.tsx`, `components/clients/overview/*`, `components/clients/profile/*`, `components/clients/membership/*`, `app/api/chetto/*`; `ClientProfileSheet.tsx` re-exports `ClientDetailView`.
+- **Clients** (`/clients`, `/clients/[id]`) — member directory + dossier tabs (**Overview** default, **Profile**, **Notes**, **Service History**, **WhatsApp**). **There is no separate Membership tab** — membership (`ClientMembershipTab`) renders **inside Profile** below `ClientProfileFields`, with `showContact={false}`, under a **Membership** heading. **Overview** (`components/clients/overview/`): Elia 3-sentence member summary is **on demand only** — `ClientOverviewTab` + `ClientSummaryCard` expose **Generate summary**; `getClientSummary` in `lib/actions/elia.ts` (Haiku) runs **after** the user clicks. **Metric pills** (membership, Freshdesk ticket counts, profile completeness %) load on visit via `ClientMetricPills` — completeness is **not** duplicated on the Profile tab or as a directory column. **Profile** tab (`components/clients/profile/`): grouped fields with light stone section headers, no per-section field-count chips, high-contrast field labels. **Elia Intelligence** section (bottom of Profile): `EliaProfileAnalyseButton` + inline `elia_profile` display (summary, sentiment, travel, recent requests) — migration **091**. **Membership** section (same tab): Timeline shows start/end cards, term length, status pill, term progress bar. **Client-scoped Elia chat** (POST `/api/elia/chat` with optional `clientId`; session not persisted; chat resets when leaving tab). **Chetto mapping admin tool**: `/clients/chetto-mapping` (admin/founder/manager — `canManageAnyClient()` gate) + `/clients/unmapped` for bulk Chetto group ID assignment. Service History reads Freshdesk tickets live (server-only `FRESHDESK_API_KEY`); paginates across Freshdesk pages. Top stats rule: **open = every status except Resolved/Closed** (`status !== 4 && status !== 5`), resolved = `4 | 5`. AI ticket summary via Anthropic (`getTicketAISummary` in `lib/actions/freshdesk.ts`). **WhatsApp (Chetto)** — `ChettoTab.tsx`: group lookup by normalized phone + India dial variants; `lib/actions/chetto.ts` integrates Chetto Joule (`https://apiv2.chetto.ai/joule`) with queendom→sub-org maps; `timelineNotAvailable` when Joule 404s while group metadata exists.
+
 - Global WhatsApp Hub (`/whatsapp`) — master-detail, `DISTINCT ON` view for latest threads
 - SLA monitor (`useSLA_Monitor`) — 60s polling, Level 1/2/3 breach detection, IST-aware off-duty anchors via consolidated `lib/utils/sla.ts`
 - Shop War Room (`/shop/workspace`) — task-based WhatsApp sales, atomic `target_sold` RPC, order registration, master targets
+- Personal Workspace (`/workspace`) — `DailyAnchor`, `PrimaryFocus`, `Scratchpad`, `WhisperBox`, `WorkspaceBoard` in `components/workspace/`
 - Admin panel — user management, routing rules editor, field mapping builder, webhook endpoint status, onboarding oversight
 - Campaign metrics — ad spend sync from Meta/Google via Pabbly, upsert to `campaign_metrics`, campaign dossier views
-- Authentication — Supabase Auth PKCE, cookie sessions, profile-based role resolution (post-058 hardened)
+- Authentication — Supabase Auth PKCE, cookie sessions, profile-based role resolution
+- **Middleware live** — `middleware.ts` created 2026-05-23; exports `{ proxy as middleware, config }` from `proxy.ts`; session refresh and edge auth gate now functional
 - Security vault — RLS on all tables, `get_user_role()` reads only from `profiles`, JWT claims never trusted for authorization
+
+**Budget Module (Migration 092):**
+- `budget_transactions` + budget deliverables tables per domain
+- `/budget` route + `lib/actions/budget.ts` + `components/budget/BudgetClient.tsx`
+- Visible and editable by founder/admin/super_admin only (application-layer + RLS)
+
+**Gupshup WhatsApp Chatbot (Migration 094):**
+- `bot_catalog_items` — product catalog for Elia bot recommendations
+- `bot_sessions` — per-phone conversation state (7-turn limit, handoff flag)
+- `webhook_logs.source` extended to include `'gupshup'`
+- Services: `lib/services/gupshupChatbot.ts` (Haiku-powered Elia persona, catalog-aware, 7-turn limit, lead handoff via `processAndInsertLead()`) + `lib/services/gupshupClient.ts` (outbound REST to `api.gupshup.io`)
+- Webhook: `POST /api/webhooks/gupshup` (`GUPSHUP_WEBHOOK_SECRET`)
+- Env: `GUPSHUP_API_KEY`, `GUPSHUP_APP_NAME`, `GUPSHUP_WEBHOOK_SECRET`
 
 **Manager Command Center (`/manager/`):**
 - Full route suite: `dashboard`, `campaigns`, `campaigns/[id]`, `planner`, `roster`, `team`
@@ -69,40 +85,40 @@
 
 **Projects System (Migrations 062–065, fully live):**
 - `projects`, `project_members`, `task_groups`, `task_comments`, `task_progress_updates` tables with full RLS
-- `tasks` table extended: `project_id`, `group_id`, `parent_task_id`, `priority`, `progress`, `estimated_minutes`, `actual_minutes`, `position`, `tags`, `attachments`
-- `components/projects/` — board view, list view, project card, task card, task detail sheet, create project modal, update progress modal
-- `app/(dashboard)/projects/` — **permanently redirected** to `/tasks` and `/tasks/[id]` (see `next.config.ts`); the product surface is **Atlas Tasks**
+- `components/projects/` — board view, list view, project card, task card, task detail sheet
+- `app/(dashboard)/projects/` — **permanently redirected** to `/tasks` (see `next.config.ts`)
 - `lib/actions/projects.ts` — full CRUD for projects, task groups, tasks within projects
-- `lib/hooks/useTaskRealtime.ts` — Realtime subscription for task comments and progress updates
 
-**Atlas Unified Task System (Migrations 067–079+ , fully live in app):**
+**Atlas Unified Task System (Migrations 067–086, fully live):**
 - **Master / subtask / personal** model on a single `tasks` table via `unified_task_type`; rich workflow via `atlas_status` (five values after migration **079**)
 - **`task_remarks`** append-only agent + system timeline; **`import_batches`** for CSV; **`task_notifications`** (077) for in-app notifications
-- Realtime publications extended by **073** (`task_remarks`), **074** (`task_groups`); legacy duplicate **`tasks` RLS** from 063 removed by **075**
-- Routes: `/tasks` (My Tasks + Atlas Tasks), `/tasks/[id]` workspace, `/tasks/import`; **`/task-insights`** (manager / admin / founder) — index, **`/task-insights/[departmentId]`** (department modal-style detail), **`/task-insights/agents/[agentId]`** (employee dossier)
-- **`lib/actions/tasks.ts`**, **`lib/actions/task-intelligence.ts`**, **`components/tasks/`**, **`components/task-intelligence/`** — see **§2.1** / **§8** for narrative. **Index UX (2026-05):** `TaskIntelligenceDashboard` — `max-w-5xl`; department **chip** filter (departments with active masters or overdue subtasks only); **Agents** tab first, **All workspaces** second; agent rows **prefetched** on scope change; **no** department health **card grid** on the index (cards removed; deep links unchanged). Workspaces: bento column spans via `components/task-intelligence/taskInsightsBento.ts` + denser `GroupTasksCommandView` cards. Dossier personal list: SOP strip omits completed rows; hint copy updated.
+- Migration **085**: `task_remarks` gains `previous_status` and `content` columns for richer timeline
+- Migration **086**: `shop_orders` context preserved when task deleted
+- Routes: `/tasks` (My Tasks + Atlas Tasks), `/tasks/[id]` workspace, `/tasks/import`; **`/task-insights`** (manager/admin/founder) — index, `[departmentId]` detail, `agents/[agentId]` dossier
+- **`lib/actions/tasks.ts`**, **`lib/actions/task-intelligence.ts`**, **`components/tasks/`**, **`components/task-intelligence/`**
+- **Task Insights index:** `max-w-5xl`; department chip filter; Agents tab first; agent summaries prefetched on scope change; no department card grid on index; bento workspace tiles (`taskInsightsBento.ts`); SOP strip omits completed rows
 
 **Department Access Control (Migration 066, fully live):**
 - `employee_department` enum: `concierge`, `finance`, `tech`, `shop`, `house`, `legacy`, `marketing`, `onboarding`
 - `profiles` extended: `department`, `job_title`, `reports_to` columns
-- `get_user_department()` SECURITY DEFINER function (same pattern as `get_user_role()`)
-- `indulge_global` domain re-added to enum as a real value for cross-department read access
-- `lib/constants/departments.ts` — `DEPARTMENT_CONFIG`, `DOMAIN_CONFIG`, `DEPARTMENT_ROUTE_ACCESS` — single source of truth for all UI routing and access logic
-- Sidebar filters nav items based on department route access map
-- Profiles SELECT policy updated: all authenticated users can read all profiles (for directory)
-- Leads SELECT policy updated: `indulge_global` domain users see all leads across all domains
+- `get_user_department()` SECURITY DEFINER function
+- `lib/constants/departments.ts` — `DEPARTMENT_CONFIG`, `DOMAIN_CONFIG`, `DEPARTMENT_ROUTE_ACCESS`
+
+**Task Performance Indexes (Migration 093):**
+- GIN + B-tree indexes on `tasks` for task-intelligence aggregate queries (no schema changes)
 
 **Security Hardening (done):**
-- `sendDefaultPii: false` in `sentry.server.config.ts` — PII no longer forwarded to Sentry
+- `sendDefaultPii: false` in `sentry.server.config.ts`
 - Per-channel Pabbly secrets (Meta/Google/website each have independent Bearer tokens)
 - HMAC-SHA256 WhatsApp webhook verification (`WHATSAPP_APP_SECRET` mandatory)
-- `lib/utils/sla.ts` — consolidated `getOffDutyAnchor()` (duplicate implementation resolved)
+- `lib/utils/sla.ts` — consolidated `getOffDutyAnchor()`
+- `middleware.ts` live — session refresh and edge auth gate functional (fixed 2026-05-23)
 
 ### 2.2 In Preview / Partially Built
 
 | Feature | Location | Status |
 |---|---|---|
-| Elia AI Assistant | `app/(dashboard)/elia-preview/page.tsx`, `components/elia/EliaChat.tsx`, `EliaChatMessage.tsx`, `EliaSidePanel.jsx` | **`/elia-preview`:** RSC passes `clientCount` from **`getEliaActiveMemberCount()`**; POST **`/api/elia/chat`** (Haiku). Client **Overview**: scoped chat + on-demand **`getClientSummary`**. **Profile → Elia Intelligence:** WhatsApp profile pipeline (**`eliaProfileAnalysis.ts`**, migration **091** `elia_profile` JSONB). **`EliaSidePanel.jsx`:** sidebar shell (JSX). See **`docs/Elia - Architecture.md` §0**. |
+| Elia AI Assistant | `app/(dashboard)/elia-preview/page.tsx`, `components/elia/EliaChat.tsx`, `EliaChatMessage.tsx`, `EliaSidePanel.jsx` | `/elia-preview`: RSC passes `clientCount`; POST `/api/elia/chat`. Client Overview: scoped chat + on-demand `getClientSummary`. Profile → Elia Intelligence: WhatsApp profile pipeline (migration **091**). `EliaSidePanel.jsx`: sidebar shell (JSX). |
 | Manager Morning Briefing | `components/manager/MorningBriefing.tsx` | Some widgets real, some stubs |
 | Executive Briefing | `lib/briefing/executiveBriefing.ts`, `lib/actions/briefing.ts` | Service exists, no clear UI page consuming it |
 | Performance analytics | `app/(dashboard)/performance/page.tsx` | Page + `lib/actions/performance.ts` exists; mix of real and stubbed data |
@@ -119,28 +135,30 @@
 
 ### 2.4 Critical Known Bugs (Unresolved)
 
-1. **`proxy.ts` is dead code — middleware is not running.** `middleware.ts` does not exist at the project root. Next.js only loads middleware from `middleware.ts`. Session refresh and edge-level auth gate are non-functional. Auth is enforced only by the RSC `app/(dashboard)/layout.tsx` (fires after render begins, not at the edge). Fix: create `middleware.ts` at root that exports `{ proxy as middleware, config } from "./proxy"`.
+1. ~~**`proxy.ts` is dead code — middleware is not running.**~~ **FIXED 2026-05-23** — `middleware.ts` now exists at root; session refresh and edge auth gate are live.
 
-2. **Hardcoded agent emails still partially present in `leadIngestion.ts`.** While `agentRoutingConfig` is now imported, the hardcoded shift pool logic (night/day shift, Samson cap) still references specific email addresses. Agent identity is still partially source-code-level configuration.
+2. **Hardcoded agent emails still partially present in `leadIngestion.ts`.** While `agentRoutingConfig` is imported, the hardcoded shift pool logic (night/day shift, Samson cap) still references specific email addresses.
 
 3. **`/api/webhooks/leads/route.ts` (legacy root endpoint)** — exists alongside per-channel routes; unclear if it receives live traffic. Needs confirmation before removal.
 
 4. **`lib/concierge/mockData.ts` serves a live route** — the concierge page appears in the sidebar and shows fabricated UHNI data to real users.
 
-5. **`EliaSidePanel.jsx` is `.jsx` not `.tsx`** — the rest of the codebase is TypeScript strict mode. This file bypasses type safety.
+5. **`EliaSidePanel.jsx` is `.jsx` not `.tsx`** — bypasses type safety.
 
-6. **`supabase/20260308000000_initial_schema.sql`** — a migration file outside the numbered `001–066` sequence; its relationship to the canonical migration history is ambiguous.
+6. **`supabase/20260308000000_initial_schema.sql`** — a migration file outside the numbered `001–094` sequence; its relationship to the canonical migration history is ambiguous.
+
+7. **`/api/bootstrap` and `/api/campaigns/sync`** — no visible auth on these routes. Needs audit before public exposure.
 
 ### 2.5 Tech Debt Items (Non-Blocking)
 
-- `lib/briefing/executiveBriefing.ts` — exists but no clear UI surface consuming it; may be dead code
+- `lib/briefing/executiveBriefing.ts` — exists but no UI surface consuming it; may be dead code
 - `SCOUT_TASK_TYPES` — marked `@deprecated` in `lib/types/database.ts`, still present
 - Dual-write in `lead_activities` — old columns (`performed_by`, `type`, `payload`) still written alongside new (`actor_id`, `action_type`, `details`)
 - `tsconfig.tsbuildinfo` — committed to repo; should be gitignored
 - `.DS_Store` files in multiple directories — should be gitignored
 - `tracesSampleRate: 1` in Sentry configs — 100% sampling is expensive at production scale; should be reduced to 0.1
-- No `.env.example` ⚠️ Actually: `.env.example` DOES exist in the project root (visible in directory listing)
 - `next-themes` installed but dark/light toggle is not user-facing
+- Many components still hardcode `#D4AF37` — should migrate to `brand-gold` tokens
 
 ---
 
@@ -155,7 +173,7 @@
 | Language | TypeScript | ^5 (strict mode) |
 | Package Manager | npm | (lockfile present) |
 
-> ⚠️ **Next.js 16.1.6 + React 19**: Bleeding edge — beyond current stable 15.x. Introduces upgrade risk. Uses Turbopack (`turbopack: { root: process.cwd() }` in next.config.ts).
+> ⚠️ **Next.js 16.1.6 + React 19**: Bleeding edge — beyond current stable 15.x. Uses Turbopack (`turbopack: { root: process.cwd() }` in `next.config.ts`).
 
 ### Backend / Database
 
@@ -204,7 +222,7 @@
 | `@vitejs/plugin-react` | ^6.0.1 |
 | `vite-tsconfig-paths` | ^6.1.1 |
 | CI/CD | GitHub Actions — lint + test on every push/PR to `main` |
-| Deployment | Vercel (inferred from Next.js stack + Sentry config) |
+| Deployment | Vercel |
 
 ### External Services
 
@@ -214,12 +232,13 @@
 | Pabbly Connect | Webhook intermediary | ETL from Meta/Google Ads + website forms |
 | Meta Lead Ads | Via Pabbly | Lead form submissions |
 | Google Ads | Via Pabbly | Lead form submissions |
+| Gupshup | REST + webhook | Inbound WhatsApp AI chatbot — Elia persona, lead capture |
 | Upstash Redis | REST | Sliding-window rate limiting on webhooks |
 | Sentry | SDK | Error monitoring + performance tracing |
 | Supabase | Managed Postgres + Auth + Realtime + Storage | Database, auth, real-time subscriptions |
 | Freshdesk | REST (`indulge.freshdesk.com/api/v2`) | Client Service History: contacts + tickets (Basic auth, server-only key) |
-| Anthropic | REST (`api.anthropic.com`) | `app/api/elia/chat`, `getClientSummary`, `getTicketAISummary`, **`runEliaWhatsAppAnalysis`** (WhatsApp profile); model **`claude-haiku-4-5-20251001`**; `ANTHROPIC_API_KEY` |
-| Chetto (Joule) | REST (`apiv2.chetto.ai/joule`) | Client **WhatsApp** tab: find concierge WhatsApp group by phone, optional timeline + AI insight prompts; **`CHETTO_API_KEY`** server-only via `/api/chetto/*` proxies |
+| Anthropic | REST (`api.anthropic.com`) | `/api/elia/chat`, `getClientSummary`, `getTicketAISummary`, `runEliaWhatsAppAnalysis`, Gupshup bot; model `claude-haiku-4-5-20251001`; `ANTHROPIC_API_KEY` |
+| Chetto (Joule) | REST (`apiv2.chetto.ai/joule`) | Client WhatsApp tab: find concierge WhatsApp group by phone, optional timeline + AI insight prompts; `CHETTO_API_KEY` server-only |
 
 ---
 
@@ -233,13 +252,15 @@ Full-stack monolith on Next.js App Router. Server Components, Server Actions, an
 ┌──────────────────────────────────────────────────────────────┐
 │                     Next.js 16 Monolith                      │
 │                                                              │
+│  middleware.ts (proxy.ts) — session refresh + auth gate      │
+│                                                              │
 │  ┌──────────────────┐   ┌─────────────────────────────────┐  │
 │  │ App Router        │   │ API Routes (/api/...)            │  │
 │  │ (RSC + Actions)  │   │ webhooks/leads/{meta,google,web} │  │
 │  │                  │   │ webhooks/whatsapp                │  │
-│  │ /dashboard/**    │   │ webhooks/ads                    │  │
-│  │ /auth/**         │   │ finance-notify                  │  │
-│  │ /tv/**           │   │ campaigns/sync                  │  │
+│  │ /dashboard/**    │   │ webhooks/gupshup                │  │
+│  │ /auth/**         │   │ webhooks/ads                    │  │
+│  │ /tv/**           │   │ finance-notify / campaigns/sync  │  │
 │  └────────┬─────────┘   └──────────────┬──────────────────┘  │
 │           │                            │                      │
 │           └──────────────┬─────────────┘                      │
@@ -252,10 +273,10 @@ Full-stack monolith on Next.js App Router. Server Components, Server Actions, an
               │  + Realtime + Storage  │
               └────────────────────────┘
                            │
-          ┌────────────────┼──────────────┐
-          │                │              │
-     Pabbly Connect    Meta Cloud API  Upstash Redis
-     (webhook ETL)     (WhatsApp)     (rate limiting)
+          ┌────────────────┼──────────────┬────────────────┐
+          │                │              │                │
+     Pabbly Connect    Meta Cloud API  Upstash Redis   Gupshup
+     (webhook ETL)     (WhatsApp)     (rate limiting)  (WhatsApp bot)
 ```
 
 ### Data Flow — Webhook Ingestion
@@ -269,6 +290,12 @@ Ad Platform (Meta / Google / Website)
           → processAndInsertLead() (service-role Supabase client)
             → leads INSERT + lead_activities INSERT
               → revalidatePath() → RSC re-render
+
+Gupshup inbound prospect
+  → POST /api/webhooks/gupshup  (GUPSHUP_WEBHOOK_SECRET bearer auth)
+    → gupshupChatbot.ts (Haiku bot — catalog lookup, session state)
+      → sendGupshupMessage() for reply
+      → processAndInsertLead() on handoff (7-turn limit or explicit handoff)
 ```
 
 ### Data Flow — User Mutation
@@ -288,16 +315,17 @@ Agent clicks status button (StatusActionPanel)
 
 | State | Location | Mechanism |
 |---|---|---|
-| Auth session | Supabase cookie (HTTP-only) | `@supabase/ssr` |
+| Auth session | Supabase cookie (HTTP-only) | `@supabase/ssr` + middleware session refresh |
 | User profile | `ProfileProvider` context | Fetched once in DashboardLayout |
 | SLA breach state | `SLAProvider` context | 60s polling via `useSLA_Monitor` |
 | Task alerts | `TaskAlertProvider` context | Supabase Realtime |
 | Lead alerts | `LeadAlertProvider` context | Supabase Realtime |
 | Chat messages | `useMessages` hook | Supabase Realtime |
 | Project task updates | `useTaskRealtime` hook | Supabase Realtime |
-| Atlas Tasks / Task Insights | `useAtlasTaskRealtime`, `useMasterTasksIndexRealtime`, `useTaskIntelligenceRealtime`, etc. | Supabase Realtime + `router.refresh()` |
+| Atlas Tasks / Task Insights | `useTaskIntelligenceRealtime`, etc. | Supabase Realtime + `router.refresh()` |
 | Server data | Next.js Data Cache | RSC fetch + `revalidatePath()` |
 | Rate limit counters | Upstash Redis | External, persistent |
+| Gupshup bot sessions | `bot_sessions` table | Per-phone conversation state, 7-turn limit |
 | All business data | Supabase PostgreSQL | Source of truth |
 
 ### Provider Tree (Dashboard Layout)
@@ -321,203 +349,190 @@ TaskReminderProvider
 
 ## Section 5 — File & Folder Structure
 
-### 5.1 Design tokens (`app/globals.css`)
+### 5.1 Design Tokens (`app/globals.css`)
 
-- **`@theme inline`** defines `--color-brand-black`, **`--color-brand-gold`**, **`--color-brand-gold-light`**, **`--color-brand-gold-dark`** (Tailwind utilities: `bg-brand-gold`, `text-brand-gold-dark`, etc.). The **`gold` suffix is legacy naming**; values are a **muted warm umber** (stone/cream-adjacent primary accent, not bright metallic gold). `:root { --ring: var(--color-brand-gold); }` drives default focus rings.
-- **Surfaces & chrome** — `--color-surface` / `--color-surface-subtle` / `--color-surface-border`, taupe/olive helpers, `--shadow-gold` (soft umber-tinted elevation, name retained).
-- **Primary CTA** — `components/ui/button.tsx` variant **`gold`**: `bg-brand-gold`, `text-surface` (cream on fill), `hover:bg-brand-gold-dark`, `focus-visible:ring-brand-gold` (wired to globals so CTAs track the accent).
-- **Tech debt:** many components still use hardcoded **`#D4AF37`** / old gold hex in class strings; new work should prefer **`brand-gold`** / theme tokens for consistency.
+- **`@theme inline`** defines `--color-brand-black`, **`--color-brand-gold`**, **`--color-brand-gold-light`**, **`--color-brand-gold-dark`** (Tailwind utilities: `bg-brand-gold`, `text-brand-gold-dark`, etc.). The **`gold` suffix is legacy naming**; values are a **muted warm umber** — not bright metallic gold.
+- **Surfaces & chrome** — `--color-surface` / `--color-surface-subtle` / `--color-surface-border`, taupe/olive helpers, `--shadow-gold`.
+- **Primary CTA** — `components/ui/button.tsx` variant **`gold`**: `bg-brand-gold`, `text-surface` (cream on fill), `hover:bg-brand-gold-dark`.
+- **Tech debt:** many components still use hardcoded **`#D4AF37`**; new work should prefer **`brand-gold`** / theme tokens.
 
 ```
 /
-├── __tests__/                      Vitest test files (5 cases — see Section 11)
+├── __tests__/                      Vitest test files
 │   ├── phone.test.ts
-│   └── sanitize.test.ts
+│   ├── sanitize.test.ts
+│   └── time.test.ts
 │
 ├── .github/workflows/ci.yml        GitHub Actions: lint + test on push/PR to main
 ├── .env.example                    Template for required env vars (committed)
+├── middleware.ts                   ✅ Live — re-exports proxy as middleware + config
+├── proxy.ts                        Next.js middleware implementation
 │
 ├── app/
 │   ├── layout.tsx                  Root layout: fonts, Sentry, global providers
-│   ├── globals.css                 Tailwind @import + `@theme inline` tokens (Section 5.1)
-│   ├── error.tsx                   Non-catastrophic error boundary
-│   ├── global-error.tsx            Last-resort boundary + Sentry.captureException
+│   ├── globals.css                 Tailwind @import + @theme inline tokens
+│   ├── error.tsx / global-error.tsx
 │   │
-│   ├── (auth)/                     No shared layout — login, forgot-password, update-password
+│   ├── (auth)/                     Login, forgot-password, update-password
 │   │
 │   ├── (dashboard)/                Authenticated shell — shares DashboardLayout
 │   │   ├── layout.tsx              Auth gate + provider tree + layout-canvas
 │   │   ├── page.tsx                / — Agent Dashboard
-│   │   ├── leads/                  Leads table + Lead Dossier RSC
-│   │   │   ├── page.tsx
-│   │   │   └── [id]/page.tsx       Lead Dossier (force-dynamic RSC)
-│   │   ├── clients/                Client directory + profile (`ClientDetailView` / `ClientProfileSheet`)
-│   │   │   ├── page.tsx
-│   │   │   └── [id]/page.tsx       Default Overview: on-demand Elia summary + metrics + scoped chat; Freshdesk; WhatsApp/Chetto tab
+│   │   ├── leads/                  Leads table + Lead Dossier RSC (force-dynamic)
+│   │   ├── clients/
+│   │   │   ├── page.tsx            Client directory
+│   │   │   ├── [id]/page.tsx       Overview (on-demand summary, metrics, Elia chat) + Profile + Notes + Service History + WhatsApp tabs
+│   │   │   ├── chetto-mapping/     Admin: bulk map Chetto group IDs to client records
+│   │   │   └── unmapped/           Clients with no Chetto group mapping
 │   │   ├── tasks/                  Atlas Tasks — index, [id] workspace, import
-│   │   ├── task-insights/         Task Insights index + `[departmentId]` + `agents/[agentId]` (manager / admin / founder)
-│   │   ├── workspace/page.tsx
-│   │   ├── calendar/page.tsx
-│   │   ├── performance/page.tsx
-│   │   ├── profile/page.tsx
-│   │   ├── whatsapp/page.tsx
-│   │   ├── escalations/page.tsx
-│   │   ├── conversions/page.tsx
-│   │   ├── concierge/page.tsx      ⚠️ MOCK DATA — full mock UHNI profiles served
-│   │   ├── elia-preview/page.tsx   Elia preview — `EliaChat` + member count (`getEliaActiveMemberCount`)
-│   │   ├── indulge-world/page.tsx  Brand/org chart page
-│   │   ├── projects/               → 301 redirect to /tasks (see next.config.ts)
-│   │   ├── manager/                Manager workspace (fully consolidated)
-│   │   │   ├── page.tsx            Manager Command Center
-│   │   │   ├── campaigns/          Campaign list + [id] dossier
-│   │   │   ├── planner/            Ad Planner Studio
-│   │   │   ├── roster/             Agent roster
-│   │   │   └── team/               Team management
-│   │   ├── admin/                  Admin-role views (user mgmt, routing, integrations)
+│   │   ├── task-insights/          Task Insights index + [departmentId] + agents/[agentId]
+│   │   ├── budget/                 Budget tracking (founder/admin/super_admin only)
+│   │   ├── workspace/              Personal workspace (DailyAnchor, PrimaryFocus, Scratchpad, WhisperBox)
+│   │   ├── whatsapp/               Global WhatsApp Hub
+│   │   ├── calendar/               Smart calendar (chrono-node NLP)
+│   │   ├── performance/            Agent performance analytics
+│   │   ├── profile/                User profile settings
+│   │   ├── escalations/            SLA escalation table
+│   │   ├── conversions/            Conversion history
+│   │   ├── concierge/              ⚠️ MOCK DATA
+│   │   ├── elia-preview/           Full-page Elia chat
+│   │   ├── indulge-world/          Brand/org chart
+│   │   ├── projects/               → 301 redirect to /tasks
+│   │   ├── manager/                dashboard, campaigns, planner, roster, team
+│   │   ├── admin/                  conversions, integrations, mappings, marketing, onboarding, routing, shop
 │   │   └── shop/workspace/         Shop War Room
 │   │
 │   ├── api/
-│   │   ├── chetto/
-│   │   │   ├── find-group/route.ts GET — proxy group lookup (auth + CHETTO_API_KEY)
-│   │   │   ├── timeline/route.ts   GET — proxy message timeline
-│   │   │   └── insights/route.ts   POST — proxy Chetto intelligence prompts
-│   │   ├── elia/chat/route.ts      POST — Anthropic Haiku; optional `clientId` for single-member scoped chat
-│   │   ├── elia/analyse-client/route.ts POST — Bearer ELIA_ANALYSIS_SECRET; cron → runEliaWhatsAppAnalysis
-│   │   ├── bootstrap/              One-time DB bootstrap helper
+│   │   ├── elia/chat/route.ts      POST — Haiku; optional clientId
+│   │   ├── elia/analyse-client/    POST — Bearer ELIA_ANALYSIS_SECRET; cron trigger
+│   │   ├── chetto/                 find-group, group, timeline, insights (CHETTO_API_KEY proxy)
 │   │   ├── campaigns/sync/         Campaign metrics sync
-│   │   ├── finance-notify/         Internal: called on won deal
-│   │   ├── tv/onboarding-feed/     TV dashboard data feed
+│   │   ├── finance-notify/         Internal: won deal notification (INTERNAL_API_SECRET)
+│   │   ├── bootstrap/              ⚠️ No visible auth — audit needed
+│   │   ├── freshdesk/attachment/   Freshdesk attachment proxy
+│   │   ├── tv/onboarding-feed/     TV display data
 │   │   └── webhooks/
-│   │       ├── ads/                Pabbly → campaign_metrics upsert
-│   │       ├── leads/              Legacy combined endpoint (⚠️ status unclear)
-│   │       ├── leads/meta/
-│   │       ├── leads/google/
-│   │       ├── leads/website/
+│   │       ├── ads/                Pabbly → campaign_metrics
+│   │       ├── leads/              ⚠️ Legacy combined endpoint — unclear if active
+│   │       ├── leads/meta/         Meta Lead Ads (PABBLY_META_SECRET)
+│   │       ├── leads/google/       Google Ads (PABBLY_GOOGLE_SECRET)
+│   │       ├── leads/website/      Website forms (PABBLY_WEBSITE_SECRET)
+│   │       ├── gupshup/            Gupshup inbound bot (GUPSHUP_WEBHOOK_SECRET)
 │   │       ├── onboarding-conversion/
-│   │       └── whatsapp/           Two-way WhatsApp Cloud API sync
+│   │       └── whatsapp/           Meta Cloud API two-way sync (HMAC-SHA256)
 │   │
 │   ├── auth/callback/              Supabase PKCE auth callback
-│   └── tv/conversions/             TV display mode (no standard auth)
+│   └── tv/conversions/             TV display mode
 │
 ├── components/
 │   ├── ui/                         Zero-dependency design system primitives
 │   │   ├── button.tsx              CVA — 8 variants × 6 sizes
 │   │   ├── indulge-button.tsx      Extends Button: loading state + icon slots
 │   │   ├── input.tsx               CVA — size + error props
-│   │   ├── card.tsx                surfaceCardVariants (5 tones × 4 elevations) + Card family
+│   │   ├── card.tsx                surfaceCardVariants (5 tones × 4 elevations)
 │   │   ├── indulge-field.tsx       Form field wrapper: label + error + hint
-│   │   ├── info-row.tsx            Canonical icon-label-value row (Lead Dossier)
+│   │   ├── info-row.tsx            Canonical icon-label-value row
 │   │   └── ...                     badge, dialog, sheet, select, skeleton, tabs, tooltip, etc.
 │   │
-│   ├── layout/                     Sidebar, TopBar, NotificationBell
-│   ├── leads/                      All CRM lead components (dossier, modals, table)
+│   ├── layout/                     Sidebar, TopBar, NotificationBell, LeaderPerspectiveNotice
+│   ├── leads/                      All CRM lead components (dossier, modals, table, collaborators)
+│   ├── clients/                    Client list + profile; overview/; profile/; membership/; chetto/ (ChettoTab + ChettoMappingClient); FreshdeskTab; unmapped/
+│   ├── elia/                       EliaChat.tsx, EliaChatMessage.tsx, EliaMobilePrototype.tsx, EliaSidePanel.jsx (⚠️ JSX)
+│   ├── tasks/                      Atlas Tasks UI (40+ components — master list, subtask modal, import, My Tasks)
+│   ├── task-intelligence/          Task Insights UI (18 components + taskInsightsBento.ts)
+│   ├── manager/                    Full manager suite (Morning Briefing, Campaign Dossier, etc.)
+│   ├── projects/                   Shared board/list/sheet primitives
+│   ├── workspace/                  DailyAnchor, PrimaryFocus, Scratchpad, WhisperBox, WorkspaceBoard
+│   ├── whatsapp/                   ActiveChatPanel, WhatsAppHubClient
+│   ├── dashboard/                  Agent dashboard widgets
+│   ├── budget/                     BudgetClient
 │   ├── admin/                      Admin panel components
 │   ├── chat/                       GlobalChatDrawer, LeadContextChat, ChatProvider
 │   ├── calendar/                   Smart calendar views
-│   ├── dashboard/                  Agent dashboard widgets
-│   ├── escalations/                SLA escalation table
-│   ├── manager/                    Full manager suite components (Morning Briefing, etc.)
-│   ├── projects/                   Shared board/list/sheet primitives (also used by Atlas `/tasks`)
-│   ├── tasks/                      Atlas Tasks UI (master list, subtask modal, import, My Tasks)
-│   ├── task-intelligence/          Task Insights UI: `TaskIntelligenceDashboard`, `GroupTasksCommandView`, `DepartmentDetailView`, `EmployeeDossierView`, `DepartmentIndividualTasksView`, `taskInsightsBento.ts`, etc.
-│   ├── clients/                    Client list + profile; `overview/`; **`profile/`**; **`membership/`** (embedded in Profile); Freshdesk; **`chetto/ChettoTab.tsx`** (WhatsApp tab); `ClientDetailView`
-│   ├── concierge/                  ConciergeClient.tsx — ⚠️ ALL MOCK DATA
-│   ├── elia/                       `EliaChat.tsx`, `EliaChatMessage.tsx` (preview UI); `EliaSidePanel.jsx` (sidebar); POST `/api/elia/chat`
 │   ├── shop/                       Shop War Room components
 │   ├── sla/                        SLAProvider + ProfileProvider
 │   ├── providers/                  TaskAlertProvider, LeadAlertProvider, CommandPaletteProvider
-│   ├── domain/                     DomainSwitcher
+│   ├── concierge/                  ⚠️ ALL MOCK DATA
 │   └── indulge-world/              Brand/org chart views
 │
 ├── lib/
-│   ├── actions/                    Mostly Server Actions (`"use server"`) — component-facing data layer; **`chetto.ts`** is **exception** (route-handler-only imports)
-│   │   ├── leads.ts                Lead status transitions, activity logging, won deal
-│   │   ├── tasks.ts                Atlas unified tasks + CRM/legacy exports
-│   │   ├── task-intelligence.ts   Task Insights read model
-│   │   ├── projects.ts             Project + task group + project task CRUD
-│   │   ├── shop-tasks.ts           Shop task creation + sale registration
-│   │   ├── whatsapp.ts             sendWhatsAppMessage()
-│   │   ├── admin.ts                User management
-│   │   ├── auth.ts                 signIn, signOut
-│   │   ├── campaigns.ts            Campaign metrics
-│   │   ├── dashboards.ts           getDashboardData()
-│   │   ├── manager-analytics.ts    Manager-level analytics (leaderboard, funnel, wins)
-│   │   ├── performance.ts          Agent performance stats
-│   │   ├── planner.ts              Ad Planner Studio
-│   │   ├── roster.ts               Agent roster data
-│   │   ├── routing-rules.ts        Routing rules CRUD
-│   │   ├── search.ts               Global command palette search
-│   │   ├── team-stats.ts           Team statistics
-│   │   ├── clients.ts              Client directory + profile + notes
-│   │   ├── freshdesk.ts            Freshdesk ticket fetch + Elia ticket summary (server-only)
-│   │   ├── chetto.ts               Chetto Joule — async helpers for `/api/chetto/*` (**no** `"use server"` — not a Server Actions module; routes import these functions)
-│   │   ├── elia.ts                 Elia: global member context, active count, single-client profile text, **getClientSummary** (Haiku)
-│   │   └── ...                     briefing, calendar, messages, profile, workspace, etc.
+│   ├── actions/                    Server Actions ("use server") — 38 modules
+│   │   ├── leads.ts, clients.ts, tasks.ts, task-intelligence.ts, projects.ts
+│   │   ├── shop-tasks.ts, whatsapp.ts, admin.ts, auth.ts, campaigns.ts
+│   │   ├── dashboards.ts, manager-analytics.ts, performance.ts, planner.ts
+│   │   ├── roster.ts, routing-rules.ts, search.ts, team-stats.ts
+│   │   ├── freshdesk.ts, elia.ts, budget.ts, briefing.ts
+│   │   ├── chetto.ts               ⚠️ No "use server" — route-handler-only imports
+│   │   └── ...                     field-mappings, manager, messages, notifications,
+│   │                               onboarding-conversions, pipeline, profile, scratchpad,
+│   │                               sla, smart-calendar, todos, workspace
 │   │
 │   ├── services/                   Core business services (not component-facing)
 │   │   ├── leadIngestion.ts        processAndInsertLead(), IST shift waterfall
 │   │   ├── fieldMappingEngine.ts   Dynamic field mapping from DB rules
-│   │   ├── taskContext.ts          Elia / server read model (service role, cross-domain)
-│   │   ├── taskNotificationInsert.ts  task_notifications insert helper
 │   │   ├── evaluateRoutingRules.ts Pure routing rule evaluation (no I/O)
-│   │   ├── agentRoutingConfig.ts   DB-driven agent routing config (wired into ingestion)
-│   │   ├── campaign-sync.ts        Campaign metrics sync logic
-│   │   └── webhookLog.ts           Fire-and-forget webhook logging
+│   │   ├── agentRoutingConfig.ts   DB-driven agent routing config
+│   │   ├── eliaProfileAnalysis.ts  WhatsApp → Chetto → Haiku → client_profiles.elia_profile
+│   │   ├── gupshupChatbot.ts       Gupshup inbound bot — Elia persona, 7-turn limit, lead handoff
+│   │   ├── gupshupClient.ts        Gupshup outbound REST client
+│   │   ├── taskContext.ts          Task read model (service role, cross-domain)
+│   │   ├── taskNotificationInsert.ts
+│   │   ├── campaign-sync.ts
+│   │   └── webhookLog.ts
+│   │
+│   ├── elia/chat-prompt.ts         eliaSystemPrompt, eliaClientScopedPrompt, buildWhatsAppProfilePrompt
+│   ├── briefing/executiveBriefing.ts   Executive briefing service (no UI surface yet)
+│   ├── freshdesk/                  client.ts + types.ts — server-only; never import from browser
+│   ├── concierge/mockData.ts       ⚠️ MOCK DATA in production path
 │   │
 │   ├── utils/
 │   │   ├── sanitize.ts             sanitizeText() + sanitizeFormData()
 │   │   ├── phone.ts                normalizeToE164() + e164LookupVariants()
+│   │   ├── sla.ts                  getOffDutyAnchor() — canonical shared SLA utility
 │   │   ├── webhook.ts              verifyPabblyWebhook() + verifyBearerSecret()
 │   │   ├── rateLimit.ts            Upstash sliding-window rate limiter
-│   │   ├── sla.ts                  getOffDutyAnchor() — consolidated shared SLA utility
 │   │   ├── date-format.ts          IST-aware date formatters
-│   │   └── ...                     time, audio, lead-source-mapper
+│   │   └── ...                     time, audio, auth-errors, format-phone-display,
+│   │                               lead-source-mapper, site-url
 │   │
 │   ├── hooks/
-│   │   ├── useSLA_Monitor.ts       Client-side SLA breach detection (60s poll)
-│   │   ├── useSlaAlerts.ts         SLA alert toast logic
-│   │   ├── useSlaAlerts.utils.ts   computeBreachLevel() pure function
-│   │   ├── useMessages.ts          Supabase Realtime subscription for chat
-│   │   ├── useTaskRealtime.ts      Project task comments + Atlas board/index/modal realtime
-│   │   ├── useTaskIntelligenceRealtime.ts  Task Insights + employee dossier bumps
+│   │   ├── useSLA_Monitor.ts       60s poll SLA breach detection
+│   │   ├── useSlaAlerts.ts / useSlaAlerts.utils.ts
+│   │   ├── useTaskRealtime.ts      Project task + Atlas board/index/modal realtime
+│   │   ├── useTaskIntelligenceRealtime.ts
+│   │   ├── useMessages.ts          Internal chat realtime
+│   │   ├── useLeadCollaboratorsRealtime.ts
+│   │   ├── useNotificationRealtime.ts
 │   │   └── ...                     useDebounce, useClientOnly, useUserDomain
 │   │
 │   ├── constants/
 │   │   ├── departments.ts          DEPARTMENT_CONFIG, DOMAIN_CONFIG, DEPARTMENT_ROUTE_ACCESS
-│   │   └── chetto-jokers.ts        Client-safe joker phone labels for Chetto sender UI
-│   │
-│   ├── supabase/
-│   │   ├── client.ts               Browser client (singleton)
-│   │   ├── server.ts               Server client (cookie-aware)
-│   │   └── service.ts              Service role client (bypasses RLS — webhooks + elia_profile writes)
+│   │   ├── chetto-jokers.ts        Client-safe joker phone labels
+│   │   ├── personalTaskTags.ts     Personal task tag constants
+│   │   ├── tasks.ts                Task-related constants
+│   │   └── onboarding-overview.ts
 │   │
 │   ├── types/
 │   │   ├── database.ts             All TypeScript types + constants (HAND-WRITTEN — not generated)
-│   │   └── campaigns.ts            Campaign-specific types
+│   │   ├── campaigns.ts            Campaign-specific types
+│   │   └── onboarding-overview.ts
 │   │
-│   ├── elia/
-│   │   └── chat-prompt.ts          `eliaSystemPrompt`, `eliaClientScopedPrompt`, `buildWhatsAppProfilePrompt` — **not** `"use server"`
-│   ├── services/
-│   │   └── eliaProfileAnalysis.ts  WhatsApp → Chetto → Haiku → client_profiles.elia_profile — **not** `"use server"`
-│   ├── freshdesk/                  Freshdesk API client + types (never import client from browser code)
-│   ├── concierge/mockData.ts       ⚠️ MOCK DATA in production path
-│   ├── data/campaigns-mock.ts      ⚠️ MOCK DATA (latent — may not be imported)
-│   └── ...                         briefing, leads/, schemas/, tv/, shop/, onboarding/
+│   ├── schemas/                    lead.ts, password.ts, tasks.ts — Zod schemas
+│   ├── auth/getAuthUser.ts         Shared auth helper (non-action modules)
+│   ├── supabase/                   client.ts (browser), server.ts (SSR), service.ts (bypasses RLS)
+│   └── leads/                      leadDetailRequestCache.ts, leadJourneyStages.ts,
+│                                   leadsTableSelect.ts, pipelineProgress.ts
 │
 ├── supabase/
-│   ├── config.toml                 Supabase CLI project config
-│   ├── 20260308000000_initial_schema.sql  ⚠️ Outside numbered sequence — relationship unclear
-│   └── migrations/                 71 numbered SQL files (001–080+); task milestones in **§7**
+│   ├── config.toml
+│   ├── 20260308000000_initial_schema.sql  ⚠️ Outside numbered sequence
+│   └── migrations/                 094 numbered SQL files (001–094)
 │
-├── proxy.ts                        Next.js middleware IMPLEMENTATION — load via **middleware.ts** (see §2.4)
+├── docs/                           BLUEPRINT.md, Elia - Architecture.md, TESTING_MASTER_PLAN.md, etc.
+├── scripts/                        map-chetto-groups.ts, seed-clients.ts, sync-csv-phones.ts, zoho-import.py
 ├── next.config.ts                  Next.js config + Sentry + /scout/* redirects
-├── TESTING_MASTER_PLAN.md          263-case test specification (only 5 cases implemented)
-├── package.json
-├── tsconfig.json
-├── vitest.config.ts
-├── sentry.server.config.ts
-├── sentry.edge.config.ts
-└── instrumentation.ts
+├── package.json / tsconfig.json / vitest.config.ts
+└── sentry.server.config.ts / sentry.edge.config.ts / instrumentation.ts
 ```
 
 ---
@@ -528,34 +543,32 @@ TaskReminderProvider
 
 1. User submits email/password at `/login` → `lib/actions/auth.ts` → `supabase.auth.signInWithPassword()`
 2. Supabase returns session JWT stored in HTTP-only cookies via `@supabase/ssr`
-3. **`proxy.ts`** — Intended Next.js middleware implementation (`createServerClient`, session refresh, auth redirects). **Must be wired from a root `middleware.ts`** file (`export { proxy as middleware, config } from "./proxy"`). As of repository scan **2026-04-30**, **`middleware.ts` is not present** at the project root — edge refresh and middleware redirects do not run until that file exists.
-4. Auth gate is enforced by `app/(dashboard)/layout.tsx` RSC — calls `supabase.auth.getUser()`, redirects to `/login` if missing
+3. **`middleware.ts`** (live as of 2026-05-23) — re-exports `proxy` from `proxy.ts`. `proxy.ts` creates a server client, refreshes the session cookie, and redirects unauthenticated requests to `/login`. Auth session missing errors on public routes (login, forgot-password, webhooks) are expected and suppressed.
+4. Auth gate enforced by `app/(dashboard)/layout.tsx` RSC as a second layer
 5. Password reset: `/forgot-password` → `/update-password` via `auth/callback/route.ts` (PKCE)
 
 ### Authorization — Three-Layer Defense
 
-1. **Middleware** (`proxy.ts` via root **`middleware.ts`**): ⚠️ **Not loaded** until `middleware.ts` exists — see Section 2.4 critical bug
+1. **Middleware** (`middleware.ts` via `proxy.ts`): ✅ Live — session refresh + auth redirects
 2. **Server Actions** (`getAuthUser()`): Every mutation re-authenticates, fetches role from `profiles`, checks ownership
 3. **PostgreSQL RLS**: All queries subject to row-level policies calling `get_user_role()`, `get_user_domain()`, `get_user_department()`
 
 ### Access Control Axes
-
-**Two orthogonal axes govern what a user can do:**
 
 | Axis | Field | Controls | Mechanism |
 |---|---|---|---|
 | **Data** | `profiles.domain` | What rows you can read/write | RLS via `get_user_domain()` |
 | **Workspace** | `profiles.department` | What screens/routes you can open | `DEPARTMENT_ROUTE_ACCESS` in `lib/constants/departments.ts` |
 
-### Roles (post-056)
+### Roles
 
 | Role | Access |
 |---|---|
 | `admin` | Full system access, all domains, user management |
 | `founder` | Same as admin for data; no DELETE on profiles |
-| `manager` | Full CRUD within own domain (was `scout` pre-056) |
+| `manager` | Full CRUD within own domain |
 | `agent` | Own assigned leads/tasks within own domain |
-| `guest` | SELECT only, own domain (was `finance` pre-056) |
+| `guest` | SELECT only, own domain |
 
 ### Domains (post-066)
 
@@ -583,7 +596,7 @@ TaskReminderProvider
 
 ### Migration History
 
-71 numbered SQL files in `supabase/migrations/` (001 through **080** as of this revision). Key milestones:
+94 numbered SQL files in `supabase/migrations/` (001 through **094** as of this revision). Key milestones:
 
 | Migration | Change |
 |---|---|
@@ -593,66 +606,73 @@ TaskReminderProvider
 | 041 | Multi-tenant domain isolation |
 | 053 | Shop War Room workspace |
 | 055 | WhatsApp messages table |
-| 056 | Strict tenant isolation — scout→manager, finance→guest, indulge_global→indulge_concierge rename |
+| 056 | Strict tenant isolation — scout→manager, finance→guest |
 | 057 | Dynamic field mapping engine |
-| 058 | **RLS Security Hardening** — JWT claims removed from authorization, profiles-only |
-| 059 | Missing indexes (5 strategic indexes on leads) |
+| 058 | **RLS Security Hardening** — JWT claims removed from authorization |
+| 059 | Missing indexes on leads |
 | 060 | Advisory lock on agent assignment, `vw_latest_whatsapp_threads` view |
 | 061 | `agent_routing_config` table |
-| 062 | `projects`, `project_members`, `task_groups` tables + RLS |
-| 063 | `tasks` extended with project system columns |
-| 064 | `task_comments`, `task_progress_updates` tables |
-| 065 | `tasks.due_date` nullable |
-| 066 | `employee_department` enum, `profiles.department/job_title/reports_to`, `get_user_department()`, `indulge_global` re-added, updated RLS |
-| **067** | **Unified task schema** — `unified_task_type`, `atlas_status`, `task_remarks`, `import_batches` (see **§2.1** / **`tasks`** in **§7**) |
-| **068–072** | Backfill, RLS v2, indexes, `task_remarks` metadata, **priority `critical`** |
-| **073–075** | Realtime for `task_remarks` + `task_groups`; **drop legacy `tasks_*` RLS** from 063 |
-| **076–078** | Group-task experiment, notifications, backfill to **master** workspaces |
-| **079** | **`atlas_status` five values** (remap `in_review` / `blocked`) |
-| **080** | **`lead_collaborators`** + RLS (cross-domain lead access) |
+| 062–065 | Projects system (`projects`, `project_members`, `task_groups`, `task_comments`, `task_progress_updates`) |
+| 066 | `employee_department` enum, `profiles.department/job_title/reports_to`, `get_user_department()`, `indulge_global` re-added |
+| **067** | **Unified task schema** — `unified_task_type`, `atlas_status`, `task_remarks`, `import_batches` |
+| **068–072** | Backfill, RLS v2, indexes, task_remarks metadata, priority `critical` |
+| **073–075** | Realtime for task_remarks + task_groups; drop legacy tasks RLS from 063 |
+| **076–078** | Group-task experiment, `task_notifications`, backfill to master workspaces |
+| **079** | `atlas_status` five values (remap `in_review` / `blocked`) |
+| **080** | `lead_collaborators` + RLS (cross-domain lead access) |
+| **081** | Ad-hoc tasks and SOPs |
+| **082** | Spawn exclude personal self SOPs |
+| **083–084** | `task_remarks` RLS visibility + group member insert |
+| **085** | `task_remarks` gains `previous_status` + `content` columns |
+| **086** | `shop_orders` context preserved when task deleted |
+| **087–089** | Client profile foundation, update policy, completeness cache |
+| **090** | `clients.chetto_group_id` column |
+| **091** | `client_profiles.elia_profile` JSONB (EliaProfile), `elia_version`, `elia_analyzed_at`, `elia_messages_through` |
+| **092** | `budget_transactions` + budget deliverables tables |
+| **093** | Task performance indexes (GIN + B-tree on tasks) |
+| **094** | `bot_catalog_items`, `bot_sessions`; `webhook_logs.source` extended to include `'gupshup'` |
 
 ### Core Tables
 
 #### `profiles`
-One row per auth user. RLS authorization anchor. Auto-created by `on_auth_user_created` trigger.
+One row per auth user. RLS authorization anchor.
 
 | Key Column | Type | Notes |
 |---|---|---|
 | `id` | uuid | PK = `auth.users.id` |
 | `role` | user_role enum | admin/founder/manager/agent/guest |
 | `domain` | indulge_domain enum | Business unit assignment (drives RLS) |
-| `department` | employee_department enum | NULL for admin/founder (added 066) |
-| `job_title` | text | Display only (added 066) |
-| `reports_to` | uuid → profiles | Org hierarchy (added 066) |
-| `is_active` | boolean | Set false to deactivate without deleting |
-| `is_on_leave` | boolean | Agent leave status — prevents lead assignment |
+| `department` | employee_department enum | NULL for admin/founder |
+| `job_title` | text | Display only |
+| `reports_to` | uuid → profiles | Org hierarchy |
+| `is_active` | boolean | Set false to deactivate |
+| `is_on_leave` | boolean | Prevents lead assignment |
 
 #### `leads`
 Central CRM entity. 8-stage pipeline: `new → attempted → connected → in_discussion → won/nurturing/lost/trash`
 
-Key columns: `phone_number` (E.164), `domain`, `status`, `assigned_to`, `assigned_at`, `is_off_duty`, `form_data` (JSONB — zero data loss), `follow_up_drafts`, `private_scratchpad`, `tags`, `deal_value`
+Key columns: `phone_number` (E.164), `domain`, `status`, `assigned_to`, `assigned_at`, `is_off_duty`, `form_data` (JSONB), `follow_up_drafts`, `private_scratchpad`, `tags`, `deal_value`
 
 #### `tasks`
-Multi-purpose: CRM lead tasks, shop tasks, personal tasks, project tasks, and **unified Atlas tasks** (`unified_task_type` = `master` | `subtask` | `personal`). Discriminated in application code by:
-- `unified_task_type` and `atlas_status` (Atlas Tasks — primary)
-- `lead_id IS NOT NULL` → CRM task
-- `shop_operation_scope IS NOT NULL` → Shop War Room task
-- `project_id IS NOT NULL` (with `unified_task_type` subtask) → board subtask
-- Personal rows: `unified_task_type = 'personal'`
+Multi-purpose via `unified_task_type` = `master` | `subtask` | `personal`. Atlas Tasks are primary; also covers CRM tasks (`lead_id IS NOT NULL`), Shop tasks (`shop_operation_scope IS NOT NULL`), project board subtasks (`project_id IS NOT NULL`).
 
-Extended in 062/063 with: `project_id`, `group_id`, `parent_task_id`, `priority`, `progress`, `estimated_minutes`, `actual_minutes`, `position`, `tags`, `attachments`. **067+** adds `unified_task_type`, `atlas_status`, domain/department, archive and import fields, `master_task_id`, etc. — summarized under **`tasks`** in **§7**.
+Extended columns include: `project_id`, `group_id`, `parent_task_id`, `priority`, `progress`, `estimated_minutes`, `actual_minutes`, `position`, `tags`, `attachments`, `unified_task_type`, `atlas_status`, domain/department, archive/import fields, `master_task_id`.
 
-#### `lead_activities`
-Immutable audit log. No UPDATE or DELETE policies. Dual-write (legacy + new columns) for backward compat.
+#### `task_remarks`
+Append-only timeline for Atlas subtasks. Gains `previous_status` + `content` in migration **085**.
 
-#### `projects` / `project_members` / `task_groups`
-Project system (migration 062). RLS uses `is_project_member()` and `get_project_member_role()` helper functions. Four project roles: `owner`, `manager`, `member`, `viewer`.
+#### `clients`
+Members promoted from leads on `status = won`. Extended in **090** with `chetto_group_id`.
 
-#### `task_remarks` / `import_batches` / `task_notifications`
-**067+** — Append-only **remarks** timeline for Atlas subtasks (distinct from `task_comments`). **import_batches** audit for CSV. **077** adds **`task_notifications`** for in-app task events. Policies and Realtime publication requirements are covered in **§2.1** (task bullets) and migration rows in **§7**.
+#### `client_profiles`
+One row per client. Extended in **091** with `elia_profile` (JSONB `EliaProfile`), `elia_version`, `elia_analyzed_at`, `elia_messages_through`. Writes via `getServiceSupabaseClient()` (service role).
 
-#### `task_comments` / `task_progress_updates`
-Added in migration 064. `task_progress_updates` is append-only (no UPDATE/DELETE policies). Both published to Supabase Realtime via `useTaskRealtime` hook.
+#### `bot_catalog_items` / `bot_sessions` (Migration 094)
+- `bot_catalog_items` — product catalog for Gupshup Elia bot recommendations (category, name, description, price_range, image_url)
+- `bot_sessions` — per-phone conversation state: turn count (max 7), handoff flag, message history JSONB
+
+#### `budget_transactions` (Migration 092)
+Budget tracking per domain. Founder/admin/super_admin only via application-layer + RLS.
 
 #### Other Core Tables
 
@@ -660,18 +680,16 @@ Added in migration 064. `task_progress_updates` is append-only (no UPDATE/DELETE
 |---|---|
 | `whatsapp_messages` | Two-way WhatsApp thread per lead |
 | `campaign_metrics` | Cached ad spend (Meta/Google via Pabbly) |
-| `campaign_drafts` | Ad Planner Studio saves |
 | `shop_orders` | Shop order lifecycle |
 | `shop_master_targets` | Admin-defined inventory targets |
 | `lead_routing_rules` | Dynamic routing rules |
 | `field_mappings` | Dynamic webhook field mapping config |
-| `webhook_endpoints` | Webhook endpoint status |
-| `webhook_logs` | Raw inbound payload archive |
-| `clients` | Promoted from leads on `status = won` |
-| `onboarding_leads` | Separate onboarding tracking |
+| `webhook_logs` | Raw inbound payload archive (source includes `'gupshup'` post-094) |
+| `task_notifications` | In-app task event notifications (077) |
+| `lead_collaborators` | Cross-domain lead access grants (080) |
+| `agent_routing_config` | DB-driven agent routing config |
 | `personal_todos` | Agent-private to-do items |
 | `sla_alert_tracking` | Per-lead SLA alert sent flags |
-| `agent_routing_config` | DB-driven agent routing configuration |
 
 ### Database Functions
 
@@ -680,18 +698,12 @@ Added in migration 064. `task_progress_updates` is append-only (no UPDATE/DELETE
 | `get_user_role()` | Profiles-only role resolver (SECURITY DEFINER, no JWT) |
 | `get_user_domain()` | Profiles-only domain resolver |
 | `get_user_department()` | Profiles-only department resolver (added 066) |
-| `pick_next_agent_for_domain(domain)` | Round-robin with `pg_advisory_xact_lock` — burst-safe serialization |
+| `pick_next_agent_for_domain(domain)` | Round-robin with `pg_advisory_xact_lock` |
 | `increment_shop_task_target_sold(task_id)` | Atomic counter increment |
 | `get_project_member_role(project_id)` | Returns current user's role in a project |
 | `is_project_member(project_id)` | Returns true if current user is a project member |
-| `handle_new_user()` | Trigger: creates profiles row; reads role/domain/department from `raw_app_meta_data` only |
+| `handle_new_user()` | Trigger: creates profiles row from `raw_app_meta_data` only |
 | `set_updated_at()` | Trigger function: updates `updated_at = now()` |
-
-### Database Views
-
-| View | Purpose |
-|---|---|
-| `vw_latest_whatsapp_threads` | `DISTINCT ON (lead_id)` — latest WhatsApp message per lead (O(log n) via index) |
 
 ---
 
@@ -714,68 +726,58 @@ Ad Platform → Pabbly Connect
     → revalidatePath('/')
 ```
 
-### Agent Assignment Waterfall (`resolveAssignedAgent()`)
+### Gupshup Bot Flow
 
 ```
-1. Dynamic routing rules (from lead_routing_rules table, priority ASC)
-   → If assign_to_agent rule matches → return agent UUID
-   → If route_to_domain_pool matches → override domain, continue
+Prospect sends WhatsApp message via Gupshup
+  → POST /api/webhooks/gupshup (GUPSHUP_WEBHOOK_SECRET bearer auth)
+    → gupshupChatbot.ts
+      → bot_sessions lookup (or create) by phone
+      → bot_catalog_items lookup for context
+      → buildSystemPrompt() + Haiku (claude-haiku-4-5-20251001, max_tokens 512)
+      → sendGupshupMessage() → gupshupClient.ts → api.gupshup.io
+      → increment turn count in bot_sessions
+      → if turns >= 7 OR explicit handoff intent:
+          → processAndInsertLead() → lead inserted → human agent takes over
+```
 
-2. IST Time-Based Shift Check (getCurrentHourIST())
+### Agent Assignment Waterfall
+
+```
+1. Dynamic routing rules (lead_routing_rules, priority ASC)
+2. IST Time-Based Shift:
    NIGHT (20:00–10:59 IST): pool = [meghana, amit]
-   DAY (11:00–19:59 IST):
-     → Check Samson daily cap (<15): pool = [samson, meghana, amit, kaniisha]
-     → Samson at cap: pool = [meghana, amit, kaniisha]
-   → pickNextAgentForDomain(domain, pool)
-
-3. Final fallback: pick_next_agent_for_domain(domain)
-   → pg_advisory_xact_lock (domain-scoped, burst-safe)
-   → Round-robin: lowest new_lead_count, skips is_on_leave=true, cap<15
+   DAY (11:00–19:59 IST): check Samson cap (<15), build pool
+3. Fallback: pick_next_agent_for_domain(domain)
+   → pg_advisory_xact_lock (burst-safe)
+   → Round-robin: lowest new_lead_count, skips is_on_leave=true
    → Returns NULL if no eligible agents → lead inserted unassigned
 ```
 
-### Lead Dossier Async Sections
-
-| Section | Data Source | Notes |
-|---|---|---|
-| Lead Journey Bar | `lead_activities` | Timeline stage progress |
-| Status Action Panel | Server Actions | 8-stage transitions with optimistic UI |
-| Task Widget | `tasks WHERE lead_id = X` | |
-| WhatsApp Chat | `whatsapp_messages WHERE lead_id = X` | |
-| Activity Timeline | `lead_activities` (reverse-chronological) | |
-| Context Chat | Internal chat via `useMessages` | Supabase Realtime |
-| Executive Dossier | `company`, `personal_details`, `private_scratchpad` | |
-| Follow-Up Drafts | `follow_up_drafts` JSONB | 3-strike system |
-
-### Shop War Room Flow
-
-1. Admin creates a shop task with `shop_operation_scope`, `target_inventory`, `shop_product_name`
-2. Agent registers a sale via `registerTaskSale()` → INSERT `shop_orders` + `increment_shop_task_target_sold()` RPC (atomic)
-3. `shop_master_targets.inventory_sold` incremented via trigger on `shop_target_updates` INSERT
-
-### WhatsApp Two-Way Sync
-
-**Outbound:** `sendWhatsAppMessage(leadId, text)` → Zod validate → auth check → fetch lead phone → POST Meta Graph API v19.0 → INSERT `whatsapp_messages` (outbound) → revalidatePath
-
-**Inbound:** POST `/api/webhooks/whatsapp` → rate limit → HMAC-SHA256 verify → return 200 immediately → `after()` async processing → deduplicate by `wa_message_id` → phone lookup variants → INSERT `whatsapp_messages` (inbound) OR `processAndInsertLead()` if no match
-
-### Project Task Workflow
-
-1. User creates project → auto-added as `owner` in `project_members`
-2. Owner/manager adds task groups (board columns) with position ordering
-3. Members create tasks within groups with priority, assignees, due dates
-4. Real-time updates via `useTaskRealtime` subscription on `task_comments` and `task_progress_updates`
-5. Progress logged as append-only entries in `task_progress_updates`
-
-**Routing note:** `app/(dashboard)/projects/*` is **301-redirected** to **`/tasks/*`**. New feature work should follow **§8** (Atlas Unified Task Workflow), not a separate projects route.
-
-### Atlas Unified Task Workflow (summary)
+### Atlas Unified Task Workflow
 
 1. **Master task** — `createMasterTask` seeds `tasks` (`unified_task_type: master`), `projects`, `project_members`, three default Kanban groups, then sets `project_id` / `master_task_id` on the master row.
-2. **Subtasks** — Live in `task_groups` columns; agent narrative in `task_remarks`, structured % progress in `task_progress_updates`; cache invalidation via `revalidateAtlasTaskSurfaces`.
-3. **Task Insights** — `lib/actions/task-intelligence.ts`; role gate (manager or privileged); Realtime via `useTaskIntelligenceRealtime`. **Main index** (`components/task-intelligence/TaskIntelligenceDashboard.tsx`): department filter chips, Agents + Workspaces tabs, prefetched agent summaries, no department card grid. **Department detail** tab key `agents` (label **Agents**); workspace list bento + card density in `GroupTasksCommandView`.
+2. **Subtasks** — Live in `task_groups` columns; agent narrative in `task_remarks` (append-only), structured % progress in `task_progress_updates`; cache invalidation via `revalidateAtlasTaskSurfaces`.
+3. **Task Insights** — `lib/actions/task-intelligence.ts`; role gate (manager or privileged); Realtime via `useTaskIntelligenceRealtime`. Main index: department filter chips, Agents + Workspaces tabs, prefetched agent summaries, no department card grid.
 
-Authoritative detail: **§8** (workflows), **§2.1** (live task surface), and **`TESTING_MASTER_PLAN.md`** (planned tests).
+### Elia WhatsApp Profile Analysis
+
+```
+triggerEliaWhatsAppAnalysis(clientId)  [manager+ only]
+  → lib/services/eliaProfileAnalysis.ts
+    → lib/actions/chetto.ts → Chetto Joule timeline fetch
+    → classify messages: client vs staff (e164LookupVariants)
+    → skip if < 5 new client messages since elia_messages_through
+    → buildWhatsAppProfilePrompt() → Haiku (max_tokens 2000)
+    → UPDATE client_profiles SET elia_profile = {...}
+    → INSERT if no row exists
+    → ClientDetailView refetches via getClientById (tab stays on Profile)
+
+Cron trigger: POST /api/elia/analyse-client
+  → Bearer ELIA_ANALYSIS_SECRET
+  → body: { clientId }
+  → same runEliaWhatsAppAnalysis() service
+```
 
 ---
 
@@ -790,26 +792,20 @@ Authoritative detail: **§8** (workflows), **§2.1** (live task surface), and **
 | `/api/webhooks/leads/website` | POST | Bearer `PABBLY_WEBSITE_SECRET` | Website form ingestion |
 | `/api/webhooks/leads` | POST | ⚠️ Unknown | Legacy — unclear if active |
 | `/api/webhooks/ads` | POST | Bearer `PABBLY_WEBHOOK_SECRET` | Campaign metrics upsert |
-| `/api/webhooks/whatsapp` | GET/POST | HMAC-SHA256 `WHATSAPP_APP_SECRET` | WhatsApp two-way sync |
+| `/api/webhooks/whatsapp` | GET/POST | HMAC-SHA256 `WHATSAPP_APP_SECRET` | Meta WhatsApp two-way sync |
+| `/api/webhooks/gupshup` | POST | Bearer `GUPSHUP_WEBHOOK_SECRET` | Gupshup inbound bot messages |
 | `/api/webhooks/onboarding-conversion` | POST | — | Onboarding conversion event |
 | `/api/finance-notify` | POST | Bearer `INTERNAL_API_SECRET` | Won deal notification |
-| `/api/chetto/find-group` | GET | Cookie session + server `CHETTO_API_KEY` | Client WhatsApp tab — resolve concierge group by phone |
-| `/api/chetto/timeline` | GET | Same | Proxy Joule message timeline (may be empty / API limitation) |
+| `/api/chetto/find-group` | GET | Cookie session + `CHETTO_API_KEY` | Resolve concierge group by phone |
+| `/api/chetto/timeline` | GET | Same | Proxy Joule message timeline |
 | `/api/chetto/insights` | POST | Same | Chetto Intelligence prompt chips |
-| `/api/campaigns/sync` | POST | — | ⚠️ No auth visible — audit needed |
-| `/api/bootstrap` | POST | — | ⚠️ No auth visible — audit needed |
+| `/api/elia/chat` | POST | Cookie session | Haiku chat (global or client-scoped) |
+| `/api/elia/analyse-client` | POST | Bearer `ELIA_ANALYSIS_SECRET` | WhatsApp profile analysis cron |
+| `/api/campaigns/sync` | POST | ⚠️ No auth visible | Campaign sync — audit needed |
+| `/api/bootstrap` | POST | ⚠️ No auth visible | Bootstrap helper — audit needed |
 | `/api/tv/onboarding-feed` | GET | TV token | TV display data |
 
-### External Services
-
-| Service | Env Var(s) | Protocol |
-|---|---|---|
-| Meta WhatsApp Cloud API | `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_API_TOKEN`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_APP_SECRET` | REST + HMAC |
-| Pabbly Connect | `PABBLY_META_SECRET`, `PABBLY_GOOGLE_SECRET`, `PABBLY_WEBSITE_SECRET`, `PABBLY_WEBHOOK_SECRET` | Webhook ETL |
-| Upstash Redis | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | REST |
-| Sentry | `SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_AUTH_TOKEN` | SDK |
-| Supabase | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | REST + WS |
-| Chetto (Joule) | `CHETTO_API_KEY` | REST — client WhatsApp tab proxies only |
+---
 
 ## Section 10 — Environment Variables
 
@@ -817,7 +813,7 @@ Authoritative detail: **§8** (workflows), **§2.1** (live task surface), and **
 |---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | ✅ | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✅ | Public anon key |
-| `SUPABASE_SERVICE_ROLE_KEY` | ✅ | Bypasses RLS for webhook writes |
+| `SUPABASE_SERVICE_ROLE_KEY` | ✅ | Bypasses RLS — webhooks + elia_profile writes |
 | `PABBLY_WEBHOOK_SECRET` | ✅ | Campaign metrics endpoint |
 | `PABBLY_META_SECRET` | ✅ | Meta lead ingestion |
 | `PABBLY_GOOGLE_SECRET` | ✅ | Google lead ingestion |
@@ -827,7 +823,14 @@ Authoritative detail: **§8** (workflows), **§2.1** (live task surface), and **
 | `WHATSAPP_VERIFY_TOKEN` | ✅ | Meta webhook challenge |
 | `WHATSAPP_APP_SECRET` | ✅ Mandatory | HMAC-SHA256 signature key |
 | `INTERNAL_API_SECRET` | ✅ | Internal API auth (finance-notify) |
-| `CHETTO_API_KEY` | Optional | Chetto Joule API — enables `/api/chetto/*` for client **WhatsApp** tab |
+| `ANTHROPIC_API_KEY` | ✅ | All Elia + Gupshup bot Claude calls |
+| `ELIA_ANALYSIS_SECRET` | ✅ | Cron auth for `/api/elia/analyse-client` |
+| `FRESHDESK_API_KEY` | ✅ | Freshdesk REST API (server-only) |
+| `CHETTO_API_KEY` | Optional | Chetto Joule — enables `/api/chetto/*` + Elia profile pipeline |
+| `CHETTO_ORG_ID` | Optional | Chetto org identifier |
+| `GUPSHUP_API_KEY` | ✅ (if bot active) | Gupshup outbound messages |
+| `GUPSHUP_APP_NAME` | ✅ (if bot active) | Gupshup app name |
+| `GUPSHUP_WEBHOOK_SECRET` | ✅ (if bot active) | Gupshup webhook Bearer auth |
 | `NEXT_PUBLIC_APP_URL` | ✅ | Base URL for internal calls |
 | `UPSTASH_REDIS_REST_URL` | ✅ Fail-closed | Upstash Redis endpoint |
 | `UPSTASH_REDIS_REST_TOKEN` | ✅ Fail-closed | Upstash Redis token |
@@ -843,35 +846,30 @@ Authoritative detail: **§8** (workflows), **§2.1** (live task surface), and **
 
 ### Current Coverage
 
-5 test cases across 2 files (pure utility functions only):
+Tests across 3 files (pure utility functions only):
 
 | File | Cases | What's Tested |
 |---|---|---|
 | `__tests__/phone.test.ts` | 3 | `normalizeToE164()` |
 | `__tests__/sanitize.test.ts` | 2 | `sanitizeFormData()` |
+| `__tests__/time.test.ts` | ? | Time utilities |
 
 ### Infrastructure
 
 - **Framework**: Vitest ^4.1.4, `@vitejs/plugin-react`, `vite-tsconfig-paths`
-- **Environment**: `node` (not jsdom) — pure function tests
-- **Globals**: `describe`/`it`/`expect` without imports
+- **Environment**: `node` — pure function tests
 - **CI**: `npx vitest run` on every push/PR to `main`
 
 ### Planned Coverage (`TESTING_MASTER_PLAN.md`)
 
-263 planned cases across 4 tiers. Current gap: 98%.
+263 planned cases across 4 tiers. Current gap: ~98%.
 
 | Tier | Planned | Done |
 |---|---|---|
-| 1 — Core Business Logic | 100 | 5 |
+| 1 — Core Business Logic | 100 | ~5 |
 | 2 — Security & RLS | 54 | 0 |
 | 3 — Data Front Door | 49 | 0 |
 | 4 — Server Actions & E2E | 60 | 0 |
-
-**Functions requiring export before they can be tested:**
-- `applyTransformation` / `getNestedValue` in `fieldMappingEngine.ts`
-- `splitFullName` / `isOffDutyInsertion` in `leadIngestion.ts`
-- `verifyMetaSignature` / `extractMessageBody` in WhatsApp route (extract to `lib/utils/whatsapp-helpers.ts`)
 
 ---
 
@@ -881,17 +879,16 @@ Authoritative detail: **§8** (workflows), **§2.1** (live task surface), and **
 
 | Decision | Rejected Alternatives | Reasoning |
 |---|---|---|
-| **Single `public` schema, naming conventions** | Schema-per-department | No benefit at current scale; adds operational surface area; breaks RLS helper pattern |
-| **`employee_department` enum on `profiles`** | Separate join table | 95%+ employees are in one department; join adds query complexity for no benefit |
-| **Role + explicit scope grants** | Full ABAC/Casbin | Maintenance burden exceeds benefit; 5-role model with scopes covers all foreseeable cases |
-| **Supabase Storage (planned)** | AWS S3, Cloudinary | Integrates with Supabase RLS; one fewer external service |
-| **Realtime for entities, SSE for user notifications (planned)** | WebSockets, polling | WebSockets require persistent server (not Vercel-compatible); polling is wasteful |
+| **Single `public` schema, naming conventions** | Schema-per-department | No benefit at current scale |
+| **`employee_department` enum on `profiles`** | Separate join table | 95%+ employees are in one department |
+| **Role + explicit scope grants** | Full ABAC/Casbin | Maintenance burden exceeds benefit |
 | **Next.js monolith** | Separate API service | Doubles deployment surface; no benefit at current scale |
-| **SHA-256 hash for API keys (planned)** | JWT agent auth | Individual revocation via `is_active=false`; JWTs require a blocklist |
-| **`proxy.ts` retained, `middleware.ts` needed** | Rename `proxy.ts` | Current state is a bug — `middleware.ts` must be created to re-export from `proxy.ts` |
-| **`sendDefaultPii: false` in Sentry** | PII enabled | UHNI client data cannot flow to a US-hosted third party; fixed as of 2026-04-22 |
 | **Sequential numbered migrations** | Timestamp-prefixed | Simpler at current scale; revisit when count exceeds 100 |
-| **Two-axis access control (domain + department)** | Single-axis | CRM agents and internal staff have orthogonal needs: domain drives data, department drives screens |
+| **Two-axis access control (domain + department)** | Single-axis | CRM agents and internal staff have orthogonal needs |
+| **`middleware.ts` re-exports `proxy.ts`** | Rename proxy.ts | Separation preserves implementation clarity; `proxy.ts` can be tested independently |
+| **`sendDefaultPii: false` in Sentry** | PII enabled | UHNI client data cannot flow to a US-hosted third party |
+| **Gupshup as second WhatsApp provider** | Extend Meta webhook | Gupshup provides managed bot session + outbound API; Meta webhook is for agent-side sync |
+| **`bot_sessions` 7-turn limit** | Unlimited turns | Prevents infinite bot loops; ensures human handoff for qualified leads |
 
 ### Architectural Invariants
 
@@ -907,8 +904,9 @@ These are load-bearing decisions. Changing any requires a full architectural rev
 8. The `pg_advisory_xact_lock` on `pick_next_agent_for_domain()` must never be removed.
 9. `profiles.id` = `auth.users.id`. Every `profiles` row must have a corresponding `auth.users` row.
 10. Every new table must have RLS enabled.
+11. **Gupshup + Anthropic API keys are server-only.** `GUPSHUP_API_KEY` and `ANTHROPIC_API_KEY` must never appear in client bundles. All bot logic runs in `lib/services/gupshupChatbot.ts` — never import from client components.
 
-**Next.js Server Actions:** Every **export** from `lib/actions/*.ts` (`"use server"`) must be an **`async`** Server Action. Synchronous helpers (pure functions, prompt builders, parsers) belong in plain modules such as `lib/elia/chat-prompt.ts`, not exported from action files.
+**Next.js Server Actions:** Every **export** from `lib/actions/*.ts` (`"use server"`) must be an **`async`** Server Action. Synchronous helpers belong in plain modules such as `lib/elia/chat-prompt.ts`.
 
 ---
 
@@ -916,11 +914,9 @@ These are load-bearing decisions. Changing any requires a full architectural rev
 
 ### Phase 0 — Foundation Hardening (Items Remaining)
 
-**Blockers that must be resolved before building new features:**
-
 | Item | Status | Priority |
 |---|---|---|
-| Create `middleware.ts` at root (export from `proxy.ts`) | ❌ Not done | **CRITICAL** |
+| ~~Create `middleware.ts` at root~~ | ✅ Done 2026-05-23 | ~~CRITICAL~~ |
 | Remove mock data from `/concierge` page | ❌ Not done | High |
 | Audit `/api/bootstrap` and `/api/campaigns/sync` — no visible auth | ❌ Not done | High |
 | Audit legacy `/api/webhooks/leads` root endpoint — unclear if active | ❌ Not done | Medium |
@@ -929,50 +925,46 @@ These are load-bearing decisions. Changing any requires a full architectural rev
 | Run `supabase gen types typescript` — replace handwritten database.ts | ❌ Not done | Medium |
 
 **Completed Phase 0 items:**
+- ✅ `middleware.ts` created — session refresh and edge auth gate live (2026-05-23)
 - ✅ `sendDefaultPii: false` in Sentry
-- ✅ `/scout/*` → `/manager/*` permanent redirects in `next.config.ts`
+- ✅ `/scout/*` → `/manager/*` permanent redirects
 - ✅ `agentRoutingConfig` wired into `leadIngestion.ts`
-- ✅ `lib/utils/sla.ts` created — duplicate `getOffDutyAnchor()` resolved
-- ✅ Foundation migrations (062–066) run: department access, projects system
+- ✅ `lib/utils/sla.ts` — duplicate `getOffDutyAnchor()` resolved
+- ✅ Foundation migrations (062–094) run
 
 ### Phase 1 — Universal Employee Layer MVP
 
 Goal: every employee has a daily reason to open Atlas beyond their CRM role.
 
 Planned deliverables (in build order):
-1. **Directory** (`/directory`) — org chart + employee profiles (data columns already in `profiles` from migration 066)
-2. **Announcements** (`/announcements`) — company/department broadcasts; `sys_announcements` table
-3. **Notifications panel** — in-app notification center; `sys_notifications` + `sys_notification_prefs` + SSE
-4. **Leaves — Employee** (`/leaves`) — apply/track leave; `hr_leave_requests`, `hr_leave_balances`, `hr_leave_types`, `hr_holidays`
-5. **Leaves — Approval** — approve/reject for managers and HR; auto-sets `profiles.is_on_leave`
+1. **Directory** (`/directory`) — org chart + employee profiles
+2. **Announcements** (`/announcements`) — company/department broadcasts
+3. **Notifications panel** — in-app notification center (`task_notifications` already exists)
+4. **Leaves — Employee** (`/leaves`) — apply/track leave; `hr_leave_requests`, `hr_leave_balances`
+5. **Leaves — Approval** — approve/reject; auto-sets `profiles.is_on_leave`
 6. **Calendar extension** — add leave events + holidays to smart calendar
 7. **Profile completeness** — edit `job_title`, `department`, `reports_to`, avatar
 
 ### Phase 2 — Department Workspace Rollout
 
-Build sequence (by business priority):
-1. **Concierge Workspace** — highest priority; `crm_concierge_clients`, `crm_concierge_requests`, `crm_concierge_vendors` tables; replace mock data
-2. **Management Workspace** — extend existing with leave calendar + headcount from Phase 1
-3. **Finance Employee Self-Service** — expense claims, advance requests, payslip viewer
-4. **HR Workspace** — recruitment pipeline + onboarding checklists
-5. **Marketing Workspace** — content calendar + asset library + campaign consolidation
-6. **Tech Workspace** — ticket system + sprint board (dogfood Atlas's own dev process)
-7. **Finance Workspace (full)** — invoice management + budget vs actuals
+1. **Concierge Workspace** — replace mock data; `crm_concierge_clients`, `crm_concierge_requests`
+2. **Finance Employee Self-Service** — expense claims, advance requests, payslip viewer
+3. **HR Workspace** — recruitment pipeline + onboarding checklists
+4. **Marketing Workspace** — content calendar + asset library
+5. **Tech Workspace** — ticket system + sprint board
+6. **Finance Workspace (full)** — invoice management + budget vs actuals (budget tables already in 092)
 
 ### Phase 3 — AI Agent Layer (Elia)
 
-Pre-conditions:
-1. `sys_audit_log` populated by all Server Actions
-2. `sys_api_keys` table + key validation middleware
-3. Context API endpoints for leads, concierge requests, leave requests
+Pre-conditions: `sys_audit_log` populated, `sys_api_keys` table + key validation middleware, context API endpoints.
 
 Build order:
 1. Agent infrastructure — `sys_api_keys`, validation middleware, audit log writer
 2. Lead scoring agent — reads `getLeadContext()`, writes score + next_best_action
-3. WhatsApp reply drafting — generates draft stored in `follow_up_drafts`; human approves
+3. WhatsApp reply drafting — generates draft in `follow_up_drafts`; human approves
 4. Morning briefing generation — replaces stub in `MorningBriefing.tsx`
 5. Concierge request triage — vendor recommendation + complexity scoring
-6. IT ticket classification — auto type + priority from title + description
+6. Gupshup bot: expand catalog, multi-turn memory improvements, image/media handling
 
 ---
 
@@ -984,19 +976,20 @@ Build order:
 | 2026-03 to early Apr | Migrations 001–057: leads pipeline, tasks, shop, WhatsApp, field mapping |
 | 2026-04-11 | Code Red security lockdown: migrations 058–060, per-channel webhook secrets, Sentry hardening, CI/CD |
 | 2026-04-11 | DRY component library refactor: CVA variants, `IndulgeButton`, `IndulgeField`, `InfoRow` |
-| 2026-04-22 | `ATLAS_BLUEPRINT.md` v1 + `audit.md` v1 authored; migration 061 (`agent_routing_config`) |
-| 2026-04-22–23 | Migrations 062–066: Projects system, department access control; `/scout/*` redirects live; `sendDefaultPii` fixed; `lib/utils/sla.ts` consolidated; manager suite fully built; `lib/constants/departments.ts` added |
+| 2026-04-22 | `ATLAS_BLUEPRINT.md` v1 + `audit.md` v1; migration 061 (`agent_routing_config`) |
+| 2026-04-22–23 | Migrations 062–066: Projects system, department access control; `/scout/*` redirects; Sentry PII fix; `lib/utils/sla.ts` consolidated; manager suite; `lib/constants/departments.ts` |
 | 2026-04-23 | `ATLAS_BLUEPRINT.md` v2 |
-| 2026-05-17 | **v3.5** — **Elia WhatsApp profile analysis** (migration **091**): `client_profiles.elia_profile` JSONB; **`lib/services/eliaProfileAnalysis.ts`**; **`POST /api/elia/analyse-client`**; Profile tab **Elia Intelligence** + **`EliaProfileAnalyseButton`**; **`docs/Elia - Architecture.md` §0** |
-| 2026-05-07 | **v3.4** — Freshdesk Service History stats: ticket fetch now paginates across pages (full Freshdesk count in UI); top stat rule updated to **open = all statuses except Resolved/Closed** (`status !== 4 && status !== 5`), resolved = `4 | 5` (custom statuses treated as open unless closed/resolved) |
-| 2026-05-06 | **v3.3** — Client dossier: **WhatsApp** (**Chetto / Joule**) — `components/clients/chetto/ChettoTab.tsx`, **`GET`/`POST` `/api/chetto/{find-group,timeline,insights}`**, `lib/actions/chetto.ts` (**no** `"use server"` — route-handler-only), `lib/constants/chetto-jokers.ts`, **`timelineNotAvailable`**, bordered card + `min-w-0` layout. **Membership** lives under **Profile** (no separate tab). Docs: **`task_details.md`** refs removed → **§2.1** / **§7** / **§8** / **`TESTING_MASTER_PLAN.md`**; **`claude.md`** / §5 tree aligned |
-| 2026-05-05 | **v3.2** — **`/elia-preview`** flagship chat: `EliaChat.tsx` + `EliaChatMessage.tsx` (strict TS), Atlas tokens + `surfaceCardVariants`, `getEliaActiveMemberCount`, motion; sidebar `EliaSidePanel.jsx` unchanged (JSX) |
-| 2026-05-05 | **v3.1** — Task Insights index refresh: `max-w-5xl`, Agents-first tabs + prefetch, department chips only (no index department grid), bento workspace tiles (`taskInsightsBento.ts`), dossier SOP strip + copy tweaks; `claude.md` / blueprint aligned |
-| 2026-04-30 | **v3** — 71 migrations through **080**; Atlas unified tasks + Task Insights documented in **§2.1** / **§7** / **§8**; `/projects` → `/tasks`; schema sections for `task_remarks`, `task_notifications`; middleware wiring note |
+| 2026-04-30 | **v3** — 71 migrations through 080; Atlas unified tasks + Task Insights documented |
+| 2026-05-05 | **v3.1** — Task Insights index refresh (Agents-first tabs, bento tiles, prefetch) |
+| 2026-05-05 | **v3.2** — `/elia-preview` flagship chat: `EliaChat.tsx` + `EliaChatMessage.tsx` |
+| 2026-05-06 | **v3.3** — Chetto WhatsApp tab on client dossier; Membership under Profile |
+| 2026-05-07 | **v3.4** — Freshdesk pagination fix; open ticket stat rule updated |
+| 2026-05-17 | **v3.5** — Elia WhatsApp profile analysis (migration 091); Profile tab Elia Intelligence |
+| 2026-05-23 | **v4.0** — Migrations 092–094 (Budget, task indexes, Gupshup chatbot); `middleware.ts` live; Chetto mapping admin tool; Workspace module; `proxy.ts` auth-session log suppressed; BLUEPRINT updated to current state |
 
 ---
 
-*End of ATLAS_BLUEPRINT.md*  
-*Supersedes all prior versions and the deleted `audit.md`.*  
-*For Atlas Tasks / Task Insights / `task_remarks` / related migrations, see **§2.1**, **§7**, **§8**, and **`TESTING_MASTER_PLAN.md`***  
+*End of ATLAS_BLUEPRINT.md*
+*Supersedes all prior versions.*
+*For Atlas Tasks / Task Insights / task_remarks / related migrations, see §2.1, §7, §8, and `TESTING_MASTER_PLAN.md`.*
 *Review Section 13 (Roadmap) at the end of each Phase. Review Section 12 (Architectural Decisions) only when a revisit trigger is met.*
