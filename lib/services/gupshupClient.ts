@@ -5,7 +5,7 @@
  * Env: GUPSHUP_API_KEY, GUPSHUP_APP_NAME
  */
 
-const GUPSHUP_API_URL = "https://api.gupshup.io/wa/msg";
+const GUPSHUP_API_URL = "https://api.gupshup.io/wa/api/v1/msg";
 
 export type GupshupTextPayload = {
   type: "text";
@@ -78,11 +78,11 @@ export async function sendGupshupMessage(
     return;
   }
 
-  const jsonBody = JSON.stringify({
+  const formBody = new URLSearchParams({
     channel: "whatsapp",
-    source: partnerNumber,
+    source: partnerNumber.replace(/^\+/, ""),
     destination: phone.replace(/^\+/, ""),
-    message: JSON.parse(buildMessageBody(payload)),
+    message: buildMessageBody(payload),
     "src.name": appName,
   });
 
@@ -90,10 +90,10 @@ export async function sendGupshupMessage(
     const res = await fetch(GUPSHUP_API_URL, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
+        "Content-Type": "application/x-www-form-urlencoded",
         apikey: apiKey,
       },
-      body: jsonBody,
+      body: formBody,
     });
 
     if (!res.ok) {
