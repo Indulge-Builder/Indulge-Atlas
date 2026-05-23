@@ -396,9 +396,7 @@ export async function processAndInsertLead(
           : "Unknown Lead";
   }
 
-  first_name = sanitizeText(first_name);
-  last_name = last_name != null ? sanitizeText(last_name) : null;
-
+  // first_name / last_name already sanitized above by sanitizePayloadStringFields
   data.first_name = first_name;
   data.last_name = last_name;
 

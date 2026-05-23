@@ -21,7 +21,7 @@ function buildSystemPrompt(catalogItems: BotCatalogItem[]): string {
   const catalogText = catalogItems
     .map(
       (item) =>
-        `- ID: ${item.id}\n  Category: ${item.category}\n  Name: ${item.name}\n  Description: ${item.description}\n  Price range: ${item.price_range ?? "upon request"}\n  Image: ${item.image_url ?? "none"}`,
+        `- ID: ${item.id}\n  Category: ${item.category}\n  Name: ${item.name}\n  Tags: ${item.tags?.length ? item.tags.join(", ") : "none"}\n  Description: ${item.description}\n  Price range: ${item.price_range ?? "upon request"}\n  Image: ${item.image_url ?? "none"}`,
     )
     .join("\n\n");
 
@@ -61,7 +61,8 @@ RULES:
 - Keep text_reply under 300 characters for WhatsApp readability.
 - Button titles must be max 20 chars. List row titles must be max 24 chars. List row descriptions must be max 72 chars.
 - Do not invent products not in the catalog.
-- For out-of-scope queries, politely redirect to one of the six luxury categories.`;
+- Match client interests using Tags (brands, locations, experience types) before recommending.
+- For out-of-scope queries, politely redirect to one of the six luxury categories: watches, travel, events, sports, art, fashion.`;
 }
 
 async function logBotMessage(
@@ -291,20 +292,36 @@ export async function processBotTurn(
         replyType = "text";
       }
     } else if (parsed.reply_type === "list" && parsed.list_reply) {
-      await sendGupshupMessage(normalizedPhone, {
-        type: "list",
-        body: parsed.list_reply.body,
-        buttonText: parsed.list_reply.button_text ?? "View Options",
-        sections: parsed.list_reply.sections,
-      });
-      sentText = `[List] ${parsed.list_reply.body}`;
+      // Interactive list disabled — re-enable when plan supports it:
+      // await sendGupshupMessage(normalizedPhone, {
+      //   type: "list",
+      //   body: parsed.list_reply.body,
+      //   buttonText: parsed.list_reply.button_text ?? "View Options",
+      //   sections: parsed.list_reply.sections,
+      // });
+      const rows = parsed.list_reply.sections.flatMap((s) => s.rows);
+      const listText =
+        parsed.list_reply.body +
+        "\n\n" +
+        rows.map((r, i) => `*${i + 1}. ${r.title}*\n${r.description ?? ""}`).join("\n\n") +
+        "\n\n_Reply with a number or name to learn more_";
+      await sendGupshupMessage(normalizedPhone, { type: "text", text: listText });
+      sentText = listText;
+      replyType = "text";
     } else if (parsed.reply_type === "buttons" && parsed.buttons_reply) {
-      await sendGupshupMessage(normalizedPhone, {
-        type: "buttons",
-        body: parsed.buttons_reply.body,
-        buttons: parsed.buttons_reply.buttons,
-      });
-      sentText = `[Buttons] ${parsed.buttons_reply.body}`;
+      // Interactive buttons disabled — re-enable when plan supports it:
+      // await sendGupshupMessage(normalizedPhone, {
+      //   type: "buttons",
+      //   body: parsed.buttons_reply.body,
+      //   buttons: parsed.buttons_reply.buttons,
+      // });
+      const btnText =
+        parsed.buttons_reply.body +
+        "\n\n" +
+        parsed.buttons_reply.buttons.map((b, i) => `${i + 1}. ${b.title}`).join("\n");
+      await sendGupshupMessage(normalizedPhone, { type: "text", text: btnText });
+      sentText = btnText;
+      replyType = "text";
     } else {
       // text fallback — also catches list/buttons when their payload is null
       await sendGupshupMessage(normalizedPhone, { type: "text", text: parsed.text_reply });

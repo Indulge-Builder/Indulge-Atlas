@@ -28,7 +28,7 @@ export function verifyPabblyWebhook(request: NextRequest): NextResponse | null {
 
 /**
  * Verifies `Authorization: Bearer <token>` against `process.env[envVarName]`.
- * Lead adapters: `PABBLY_META_SECRET`, `PABBLY_GOOGLE_SECRET`, `PABBLY_WEBSITE_SECRET`.
+ * Lead webhook: `PABBLY_WEBHOOK_SECRET`.
  */
 export function verifyBearerSecret(
   request: NextRequest,

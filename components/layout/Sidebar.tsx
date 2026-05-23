@@ -406,6 +406,14 @@ const navItems: NavItemDef[] = [
     navGroup: "platform",
   },
   {
+    href: "/admin/bot-catalog",
+    label: "Bot catalog",
+    icon: MessageSquare,
+    roles: ["admin", "founder", "super_admin", "manager"],
+    section: "admin",
+    navGroup: "platform",
+  },
+  {
     href: "/admin",
     label: "User management",
     icon: ShieldCheck,
