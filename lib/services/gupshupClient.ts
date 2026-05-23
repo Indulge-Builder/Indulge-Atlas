@@ -111,6 +111,13 @@ export async function sendGupshupMessage(
   }
 
   try {
+    console.log('[gupshupClient:debug] sending type:', payload.type)
+    console.log('[gupshupClient:debug] params keys:',
+      Array.from(formBody.keys()).join(', '))
+    console.log('[gupshupClient:debug] message field:',
+      formBody.get('message')?.slice(0, 200))
+    console.log('[gupshupClient:debug] encode field:',
+      formBody.get('encode'))
     console.log('[gupshupClient:debug] form body string:',
       formBody.toString().slice(0, 500))
     const res = await fetch(GUPSHUP_API_URL, {
