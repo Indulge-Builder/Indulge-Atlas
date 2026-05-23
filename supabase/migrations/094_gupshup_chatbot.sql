@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS public.bot_catalog_items (
 ALTER TABLE public.bot_catalog_items ENABLE ROW LEVEL SECURITY;
 
 -- Authenticated privileged users can read, insert, update catalog items
+DROP POLICY IF EXISTS "catalog_items_privileged_access" ON public.bot_catalog_items;
 CREATE POLICY "catalog_items_privileged_access" ON public.bot_catalog_items
   FOR ALL
   USING (
@@ -38,11 +39,13 @@ CREATE POLICY "catalog_items_privileged_access" ON public.bot_catalog_items
   );
 
 -- Service role bypass (bot reads without auth context)
+DROP POLICY IF EXISTS "catalog_items_service_role_bypass" ON public.bot_catalog_items;
 CREATE POLICY "catalog_items_service_role_bypass" ON public.bot_catalog_items
   FOR ALL
   USING (auth.role() = 'service_role')
   WITH CHECK (auth.role() = 'service_role');
 
+DROP TRIGGER IF EXISTS set_bot_catalog_items_updated_at ON public.bot_catalog_items;
 CREATE TRIGGER set_bot_catalog_items_updated_at
   BEFORE UPDATE ON public.bot_catalog_items
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
@@ -65,11 +68,13 @@ CREATE TABLE IF NOT EXISTS public.bot_sessions (
 ALTER TABLE public.bot_sessions ENABLE ROW LEVEL SECURITY;
 
 -- Service role only — never accessed from the browser
+DROP POLICY IF EXISTS "bot_sessions_service_role_bypass" ON public.bot_sessions;
 CREATE POLICY "bot_sessions_service_role_bypass" ON public.bot_sessions
   FOR ALL
   USING (auth.role() = 'service_role')
   WITH CHECK (auth.role() = 'service_role');
 
+DROP TRIGGER IF EXISTS set_bot_sessions_updated_at ON public.bot_sessions;
 CREATE TRIGGER set_bot_sessions_updated_at
   BEFORE UPDATE ON public.bot_sessions
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();

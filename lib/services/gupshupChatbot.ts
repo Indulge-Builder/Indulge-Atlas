@@ -101,9 +101,9 @@ async function callClaude(
   systemPrompt: string,
   userMessage: string,
 ): Promise<BotClaudeResponse | null> {
-  const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
+  const apiKey = process.env.GUPSHUP_ANTHROPIC_API_KEY?.trim();
   if (!apiKey) {
-    console.error("[gupshupChatbot] ANTHROPIC_API_KEY is not configured");
+    console.error("[gupshupChatbot] GUPSHUP_ANTHROPIC_API_KEY is not configured");
     return null;
   }
 
@@ -203,6 +203,11 @@ export async function processBotTurn(
   phone: string,
   incomingText: string,
 ): Promise<void> {
+  if (!process.env.GUPSHUP_ANTHROPIC_API_KEY?.trim()) {
+    console.error("[gupshupChatbot] GUPSHUP_ANTHROPIC_API_KEY is not configured");
+    return;
+  }
+
   const normalizedPhone = normalizeToE164(phone, "IN");
   if (!normalizedPhone) {
     console.warn("[gupshupChatbot] Could not normalize phone:", phone);
