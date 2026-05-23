@@ -1496,6 +1496,15 @@ export interface BotSession {
   updated_at: string;
 }
 
+export interface BotMessage {
+  id: string;
+  session_id: string;
+  phone: string;
+  role: 'user' | 'assistant';
+  content: string;
+  created_at: string;
+}
+
 /** Structured JSON Claude Haiku must return for each bot turn. */
 export interface BotClaudeResponse {
   intent: 'greeting' | 'browsing' | 'product_inquiry' | 'interested' | 'out_of_scope' | 'handoff_request';

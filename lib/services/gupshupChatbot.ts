@@ -7,7 +7,6 @@
 
 import { getServiceSupabaseClient } from "@/lib/supabase/service";
 import { normalizeToE164 } from "@/lib/utils/phone";
-import { processAndInsertLead } from "@/lib/services/leadIngestion";
 import { sendGupshupMessage } from "@/lib/services/gupshupClient";
 import type { BotCatalogItem, BotClaudeResponse, BotSession } from "@/lib/types/database";
 
@@ -54,6 +53,22 @@ RULES:
 - list_reply.items must have 2–5 entries.
 - Do not invent products not in the catalog.
 - For out-of-scope queries, politely redirect to one of the six luxury categories.`;
+}
+
+async function logBotMessage(
+  supabase: ReturnType<typeof getServiceSupabaseClient>,
+  sessionId: string,
+  phone: string,
+  role: "user" | "assistant",
+  content: string,
+): Promise<void> {
+  try {
+    await supabase
+      .from("bot_messages")
+      .insert({ session_id: sessionId, phone, role, content } as never);
+  } catch (err) {
+    console.error("[gupshupChatbot] Failed to log bot message:", err);
+  }
 }
 
 async function fetchActiveCatalog(
@@ -148,55 +163,18 @@ async function triggerHandoff(
   phone: string,
   session: BotSession,
 ): Promise<void> {
-  const result = await processAndInsertLead(
-    {
-      first_name: "WhatsApp Enquiry",
-      last_name: null,
-      phone_number: phone,
-      utm_source: "whatsapp_bot",
-      utm_medium: "whatsapp_bot",
-      domain: "indulge_concierge",
-      form_data: {
-        bot_session_id: session.id,
-        last_category: session.last_category ?? null,
-        bot_turn_count: session.bot_turn_count,
-      },
-    },
-    "meta",
-  );
-
-  if (!result.success) {
-    console.error("[gupshupChatbot] Lead creation on handoff failed:", result.error);
-  }
-
-  const leadId = result.success ? result.lead_id : null;
-
-  // Fetch last 5 context entries for the activity note
-  const contextSummary = JSON.stringify(session.context_jsonb).slice(0, 1000);
+  await sendGupshupMessage(phone, { type: "text", text: HANDOFF_REPLY });
+  await logBotMessage(supabase, session.id, phone, "assistant", HANDOFF_REPLY);
 
   await supabase
     .from("bot_sessions")
     .update({
       state: "handed_off",
-      lead_id: leadId,
       last_message_at: new Date().toISOString(),
     } as never)
     .eq("id", session.id);
 
-  if (leadId) {
-    await supabase
-      .from("lead_activities")
-      .insert({
-        lead_id: leadId,
-        actor_id: null,
-        action_type: "note",
-        details: {
-          note: `Lead created via WhatsApp bot. Bot conversation transcript: ${contextSummary}`,
-        },
-      } as never);
-  }
-
-  await sendGupshupMessage(phone, { type: "text", text: HANDOFF_REPLY });
+  console.log("[gupshupChatbot] Conversation handed off, phone:", phone);
 }
 
 export async function processBotTurn(
@@ -227,6 +205,9 @@ export async function processBotTurn(
   // Agent has taken over — stay silent
   if (session.state === "handed_off") return;
 
+  // Log inbound message
+  await logBotMessage(supabase, session.id, normalizedPhone, "user", incomingText);
+
   // Hard turn limit
   if (session.bot_turn_count >= BOT_TURN_LIMIT) {
     await triggerHandoff(supabase, normalizedPhone, session);
@@ -241,6 +222,7 @@ export async function processBotTurn(
   // Fallback on parse/call failure
   if (!parsed) {
     await sendGupshupMessage(normalizedPhone, { type: "text", text: FALLBACK_REPLY });
+    await logBotMessage(supabase, session.id, normalizedPhone, "assistant", FALLBACK_REPLY);
     await supabase
       .from("bot_sessions")
       .update({
@@ -258,6 +240,7 @@ export async function processBotTurn(
   }
 
   // Send reply based on reply_type
+  let sentText = parsed.text_reply;
   try {
     if (parsed.reply_type === "image" && parsed.image_reply) {
       const product = catalog.find((c) => c.id === parsed.image_reply!.product_id);
@@ -267,6 +250,7 @@ export async function processBotTurn(
           imageUrl: product.image_url,
           caption: parsed.image_reply.caption,
         });
+        sentText = parsed.image_reply.caption;
       } else {
         // Fall back to text if product not found or has no image
         await sendGupshupMessage(normalizedPhone, { type: "text", text: parsed.text_reply });
@@ -277,12 +261,14 @@ export async function processBotTurn(
         title: parsed.list_reply.title,
         items: parsed.list_reply.items,
       });
+      sentText = `[List] ${parsed.list_reply.title}: ${parsed.list_reply.items.map((i) => i.title).join(", ")}`;
     } else {
       await sendGupshupMessage(normalizedPhone, { type: "text", text: parsed.text_reply });
     }
   } catch (err) {
     console.error("[gupshupChatbot] Message send error:", err);
   }
+  await logBotMessage(supabase, session.id, normalizedPhone, "assistant", sentText);
 
   // Build updated context — track last shown product ids
   const shownProductIds: string[] = [];

@@ -203,6 +203,14 @@ const navItems: NavItemDef[] = [
     navGroup: "crm",
   },
   {
+    href: "/wa-business",
+    label: "WA Business",
+    icon: MessageSquare,
+    roles: ["agent", "manager", "founder", "admin", "super_admin"],
+    section: "main",
+    navGroup: "crm",
+  },
+  {
     href: "/tasks",
     label: "Tasks",
     icon: CheckSquare,
