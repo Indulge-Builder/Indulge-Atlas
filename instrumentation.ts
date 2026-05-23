@@ -1,13 +1,5 @@
-import * as Sentry from "@sentry/nextjs";
+// Sentry disabled — re-enable by importing sentry configs and captureRequestError when ready.
 
 export async function register() {
-  if (process.env.NEXT_RUNTIME === "nodejs") {
-    await import("./sentry.server.config");
-  }
-
-  if (process.env.NEXT_RUNTIME === "edge") {
-    await import("./sentry.edge.config");
-  }
+  // no-op until Sentry is configured
 }
-
-export const onRequestError = Sentry.captureRequestError;

@@ -42,7 +42,7 @@ export default async function OnboardingOversightPage(props: PageProps) {
     ]);
 
   if (!profile?.role || !["admin", "manager"].includes(profile.role)) {
-    redirect(profile.role === "founder" ? "/workspace" : "/");
+    redirect(profile?.role === "founder" ? "/workspace" : "/");
   }
 
   const leadsSlot =

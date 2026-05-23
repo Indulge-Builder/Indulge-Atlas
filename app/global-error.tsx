@@ -1,9 +1,7 @@
 "use client";
 
-import * as Sentry from "@sentry/nextjs";
 import { Geist } from "next/font/google";
 import { AlertCircle } from "lucide-react";
-import { useEffect } from "react";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,15 +11,12 @@ const geistSans = Geist({
 });
 
 export default function GlobalError({
-  error,
+  error: _error,
   reset,
 }: {
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  useEffect(() => {
-    Sentry.captureException(error);
-  }, [error]);
 
   return (
     <html lang="en" suppressHydrationWarning>
