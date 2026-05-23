@@ -35,6 +35,8 @@ function getLucideIcon(name: string) {
   return icons[name] ?? LucideIcons.Sparkles;
 }
 
+type TabKey = "group" | "agents";
+
 interface DepartmentDetailViewProps {
   overview: DepartmentTaskOverview;
   currentUser: { id: string; full_name: string; job_title: string | null; role: string };
