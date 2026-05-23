@@ -142,14 +142,61 @@ async function insertSystemLog(
   if (error) console.error("[insertSystemLog]", error);
 }
 
+/** Master task IDs visible on /tasks Group Tasks (membership or subtask assignee). */
+async function getAccessibleMasterTaskIds(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+): Promise<string[]> {
+  const ids = new Set<string>();
+
+  const { data: memberRows } = await supabase
+    .from("project_members")
+    .select("project_id")
+    .eq("user_id", userId);
+  for (const r of memberRows ?? []) ids.add(r.project_id as string);
+
+  const { data: assignedSubtasks } = await supabase
+    .from("tasks")
+    .select("project_id")
+    .eq("unified_task_type", "subtask")
+    .contains("assigned_to_users", [userId])
+    .not("project_id", "is", null);
+  for (const r of assignedSubtasks ?? []) ids.add(r.project_id as string);
+
+  return [...ids];
+}
+
+async function userCanAccessMasterTask(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  masterTaskId: string,
+  userId: string,
+): Promise<boolean> {
+  const { data: member } = await supabase
+    .from("project_members")
+    .select("project_id")
+    .eq("project_id", masterTaskId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (member) return true;
+
+  const { data: subtask } = await supabase
+    .from("tasks")
+    .select("id")
+    .eq("project_id", masterTaskId)
+    .eq("unified_task_type", "subtask")
+    .contains("assigned_to_users", [userId])
+    .limit(1)
+    .maybeSingle();
+  return !!subtask;
+}
+
 async function assertMasterTaskAccess(
   supabase: Awaited<ReturnType<typeof createClient>>,
   masterTaskId: string,
   userId: string,
-  userRole: string,
+  _userRole: string,
   requiredRoles: string[] = ["owner", "manager", "member"],
 ): Promise<boolean> {
-  if (isPrivilegedRole(userRole)) return true;
   const { data } = await supabase
     .from("project_members")
     .select("role")
@@ -300,7 +347,7 @@ export async function getMasterTasks(filters?: {
   domain?: string;
 }): Promise<ActionResult<MasterTask[]>> {
   try {
-    const { supabase, user, role } = await getAuthUser();
+    const { supabase, user } = await getAuthUser();
 
     let query = supabase
       .from("tasks")
@@ -322,16 +369,10 @@ export async function getMasterTasks(filters?: {
       query = query.eq("department", filters.department);
     }
 
-    if (!isPrivilegedRole(role)) {
-      // Non-admins see tasks they're members of
-      const { data: memberRows } = await supabase
-        .from("project_members")
-        .select("project_id")
-        .eq("user_id", user.id);
-      const ids = (memberRows ?? []).map((r) => r.project_id);
-      if (ids.length === 0) return { success: true, data: [] };
-      query = query.in("id", ids);
-    }
+    // Group Tasks tab: membership or subtask assignee only (founders use /task-insights for org view).
+    const accessibleIds = await getAccessibleMasterTaskIds(supabase, user.id);
+    if (accessibleIds.length === 0) return { success: true, data: [] };
+    query = query.in("id", accessibleIds);
 
     const { data, error } = await query;
     if (error) return { success: false, error: "Failed to fetch tasks" };
@@ -386,7 +427,10 @@ export async function getMasterTaskDetail(
   if (!parsed.success) return { success: false, error: "Invalid task ID" };
 
   try {
-    const { supabase } = await getAuthUser();
+    const { supabase, user } = await getAuthUser();
+
+    const canView = await userCanAccessMasterTask(supabase, parsed.data, user.id);
+    if (!canView) return { success: false, error: "Master task not found" };
 
     const [
       { data: masterTask, error: taskErr },
