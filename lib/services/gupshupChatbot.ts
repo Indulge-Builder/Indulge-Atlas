@@ -282,12 +282,15 @@ export async function processBotTurn(
         replyType = "text";
       }
     } else if (parsed.reply_type === "list" && parsed.list_reply) {
-      await sendGupshupMessage(normalizedPhone, {
-        type: "list",
-        title: parsed.list_reply.title,
-        items: parsed.list_reply.items,
-      });
-      sentText = `[List] ${parsed.list_reply.title}: ${parsed.list_reply.items.map((i) => i.title).join(", ")}`;
+      const listText =
+        `${parsed.list_reply.title}\n\n` +
+        parsed.list_reply.items
+          .map((item, i) => `${i + 1}. *${item.title}*\n${item.description}`)
+          .join("\n\n") +
+        "\n\nReply with a number or name to learn more about any item.";
+      await sendGupshupMessage(normalizedPhone, { type: "text", text: listText });
+      sentText = listText;
+      replyType = "text";
     } else {
       await sendGupshupMessage(normalizedPhone, { type: "text", text: parsed.text_reply });
       replyType = "text";
