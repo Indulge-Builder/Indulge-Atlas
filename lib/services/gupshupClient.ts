@@ -18,15 +18,26 @@ export type GupshupImagePayload = {
   caption: string;
 };
 
+export type GupshupButtonsPayload = {
+  type: "buttons";
+  body: string;
+  buttons: Array<{ id: string; title: string }>;
+};
+
 export type GupshupListPayload = {
   type: "list";
-  title: string;
-  items: Array<{ title: string; description: string }>;
+  body: string;
+  buttonText: string;
+  sections: Array<{
+    title: string;
+    rows: Array<{ id: string; title: string; description?: string }>;
+  }>;
 };
 
 export type GupshupOutboundPayload =
   | GupshupTextPayload
   | GupshupImagePayload
+  | GupshupButtonsPayload
   | GupshupListPayload;
 
 function buildMessageBody(payload: GupshupOutboundPayload): string {
@@ -43,25 +54,34 @@ function buildMessageBody(payload: GupshupOutboundPayload): string {
     });
   }
 
+  if (payload.type === "buttons") {
+    return JSON.stringify({
+      type: "button",
+      text: { body: payload.body },
+      action: {
+        buttons: payload.buttons.map((b) => ({
+          type: "reply",
+          reply: { id: b.id, title: b.title.slice(0, 20) },
+        })),
+      },
+    });
+  }
+
   // list
   return JSON.stringify({
     type: "list",
-    title: payload.title,
-    body: payload.title,
-    msgid: `list_${Date.now()}`,
-    globalButtons: [{ type: "text", title: "View options" }],
-    items: [
-      {
-        title: payload.title,
-        subtitle: payload.title,
-        options: payload.items.map((item) => ({
-          type: "text",
-          title: item.title,
-          description: item.description,
-          postbackText: item.title,
+    body: { text: payload.body },
+    action: {
+      button: payload.buttonText.slice(0, 20),
+      sections: payload.sections.map((s) => ({
+        title: s.title,
+        rows: s.rows.map((r) => ({
+          id: r.id,
+          title: r.title.slice(0, 24),
+          description: r.description?.slice(0, 72) ?? "",
         })),
-      },
-    ],
+      })),
+    },
   });
 }
 
@@ -85,6 +105,10 @@ export async function sendGupshupMessage(
     message: buildMessageBody(payload),
     "src.name": appName,
   });
+
+  if (payload.type === "buttons" || payload.type === "list") {
+    formBody.set("encode", "true");
+  }
 
   try {
     const res = await fetch(GUPSHUP_API_URL, {

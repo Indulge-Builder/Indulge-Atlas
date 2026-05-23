@@ -69,10 +69,9 @@ const ROLE_CONFIG: {
   {
     value: "founder",
     label: "Founder",
-    description: "Business owner — not assignable from this screen",
+    description: "Business owner — full platform access",
     color: "#A88B25",
     bg: "#FEF3C7",
-    founderLocked: true,
   },
   {
     value: "admin",

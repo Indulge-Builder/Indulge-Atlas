@@ -170,10 +170,18 @@ function TransactionModal({
   const [adding, setAdding] = useState(false);
   const [saving, setSaving] = useState(false);
   const itemRef = useRef<HTMLInputElement>(null);
+  const formSectionRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) { setAdding(false); setForm({ date: today, item: "", amount: "", by: "" }); }
   }, [open, today]);
+
+  useEffect(() => {
+    if (!adding) return;
+    formSectionRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    const t = setTimeout(() => itemRef.current?.focus(), 80);
+    return () => clearTimeout(t);
+  }, [adding]);
 
   useEffect(() => {
     if (!open) return;
@@ -203,11 +211,11 @@ function TransactionModal({
           <motion.div
             initial={{ opacity: 0, y: 16, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 16, scale: 0.97 }} transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-            className={cn(surfaceCardVariants({ tone: "luxury", elevation: "md", overflow: "visible" }),
+            className={cn(surfaceCardVariants({ tone: "luxury", elevation: "md", overflow: "hidden" }),
               "w-full max-w-xl max-h-[85vh] flex flex-col")}>
 
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-[#E5E4DF] px-6 py-4">
+            <div className="flex shrink-0 items-center justify-between border-b border-[#E5E4DF] px-6 py-4">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-widest text-[#9e9e8e]">Transaction history</p>
                 <h3 className="mt-0.5 text-base font-semibold text-[#1a1a1a]">{title}</h3>
@@ -218,106 +226,112 @@ function TransactionModal({
               </button>
             </div>
 
-            {/* List */}
-            <div className="overflow-y-auto flex-1 px-6 py-4">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-[#E5E4DF]">
-                    <th className="pb-2 text-left text-[10px] font-semibold uppercase tracking-wider text-[#9e9e8e]">Date</th>
-                    <th className="pb-2 text-left text-[10px] font-semibold uppercase tracking-wider text-[#9e9e8e]">Item / Account</th>
-                    {showBy && <th className="pb-2 text-left text-[10px] font-semibold uppercase tracking-wider text-[#9e9e8e]">Paid by</th>}
-                    <th className="pb-2 text-right text-[10px] font-semibold uppercase tracking-wider text-[#9e9e8e]">Amount</th>
-                    <th className="pb-2 w-8" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row) => (
-                    <tr key={row.id} className="group border-b border-[#F2F2EE] last:border-0">
-                      <td className="py-2.5 text-[#6b6b6b]">{row.date}</td>
-                      <td className="py-2.5 font-medium text-[#1a1a1a]">{row.item}</td>
-                      {showBy && <td className="py-2.5 text-[#6b6b6b]">{row.by ?? "—"}</td>}
-                      <td className="py-2.5 text-right font-semibold text-[#1a1a1a]">{fmt(row.amount)}</td>
-                      <td className="py-2.5 pl-2">
-                        <button onClick={() => onRemove(row.id)}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity text-[#9e9e8e] hover:text-danger"
-                          aria-label="Remove">
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </td>
+            {/* Scrollable body — list + add form share one region so fields are never clipped */}
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <div className="px-6 py-4">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-[#E5E4DF]">
+                      <th className="pb-2 text-left text-[10px] font-semibold uppercase tracking-wider text-[#9e9e8e]">Date</th>
+                      <th className="pb-2 text-left text-[10px] font-semibold uppercase tracking-wider text-[#9e9e8e]">Item / Account</th>
+                      {showBy && <th className="pb-2 text-left text-[10px] font-semibold uppercase tracking-wider text-[#9e9e8e]">Paid by</th>}
+                      <th className="pb-2 text-right text-[10px] font-semibold uppercase tracking-wider text-[#9e9e8e]">Amount</th>
+                      <th className="pb-2 w-8" />
                     </tr>
-                  ))}
-                  {rows.length === 0 && (
-                    <tr><td colSpan={showBy ? 5 : 4} className="py-8 text-center text-sm text-[#9e9e8e]">No transactions yet</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {rows.map((row) => (
+                      <tr key={row.id} className="group border-b border-[#F2F2EE] last:border-0">
+                        <td className="py-2.5 text-[#6b6b6b]">{row.date}</td>
+                        <td className="py-2.5 font-medium text-[#1a1a1a]">{row.item}</td>
+                        {showBy && <td className="py-2.5 text-[#6b6b6b]">{row.by ?? "—"}</td>}
+                        <td className="py-2.5 text-right font-semibold text-[#1a1a1a]">{fmt(row.amount)}</td>
+                        <td className="py-2.5 pl-2">
+                          <button onClick={() => onRemove(row.id)}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity text-[#9e9e8e] hover:text-danger"
+                            aria-label="Remove">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {rows.length === 0 && (
+                      <tr><td colSpan={showBy ? 5 : 4} className="py-8 text-center text-sm text-[#9e9e8e]">No transactions yet</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
 
-            {/* Add form */}
-            <AnimatePresence>
-              {adding && (
-                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.18 }}
-                  className="overflow-hidden border-t border-[#E5E4DF] bg-[#F9F9F6] px-6 py-4">
-                  <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-[#9e9e8e]">New purchase</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="col-span-2 sm:col-span-1">
-                      <label className="mb-1 block text-[11px] text-[#9e9e8e]">Item / Account</label>
-                      <input ref={itemRef} autoFocus value={form.item}
-                        onChange={(e) => setForm((f) => ({ ...f, item: e.target.value }))}
-                        onKeyDown={(e) => e.key === "Enter" && submitAdd()}
-                        placeholder="e.g. Supabase"
-                        className="w-full rounded-lg border border-[#E5E4DF] bg-white px-3 py-2 text-sm text-[#1a1a1a] placeholder:text-taupe outline-none focus:border-brand-gold/60 transition-colors" />
-                    </div>
-                    <div className="col-span-2 sm:col-span-1">
-                      <label className="mb-1 block text-[11px] text-[#9e9e8e]">Amount ({currency})</label>
-                      <input value={form.amount}
-                        onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
-                        onKeyDown={(e) => e.key === "Enter" && submitAdd()}
-                        placeholder={currency === "USD" ? "e.g. 25" : "e.g. 3540"}
-                        className="w-full rounded-lg border border-[#E5E4DF] bg-white px-3 py-2 text-sm text-[#1a1a1a] placeholder:text-taupe outline-none focus:border-brand-gold/60 transition-colors" />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-[11px] text-[#9e9e8e]">Date</label>
-                      <input value={form.date}
-                        onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
-                        placeholder="e.g. May 21, 2026"
-                        className="w-full rounded-lg border border-[#E5E4DF] bg-white px-3 py-2 text-sm text-[#1a1a1a] placeholder:text-taupe outline-none focus:border-brand-gold/60 transition-colors" />
-                    </div>
-                    {showBy && (
-                      <div>
-                        <label className="mb-1 block text-[11px] text-[#9e9e8e]">Paid by</label>
-                        <input value={form.by}
-                          onChange={(e) => setForm((f) => ({ ...f, by: e.target.value }))}
+              <AnimatePresence>
+                {adding && (
+                  <motion.div
+                    ref={formSectionRef}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 6 }}
+                    transition={{ duration: 0.18 }}
+                    className="border-t border-[#E5E4DF] bg-[#F9F9F6] px-6 py-4"
+                  >
+                    <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-[#9e9e8e]">New purchase</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="col-span-2 sm:col-span-1">
+                        <label className="mb-1 block text-[11px] text-[#9e9e8e]">Item / Account</label>
+                        <input ref={itemRef} autoFocus value={form.item}
+                          onChange={(e) => setForm((f) => ({ ...f, item: e.target.value }))}
                           onKeyDown={(e) => e.key === "Enter" && submitAdd()}
-                          placeholder="e.g. Mastercard"
+                          placeholder="e.g. Supabase"
                           className="w-full rounded-lg border border-[#E5E4DF] bg-white px-3 py-2 text-sm text-[#1a1a1a] placeholder:text-taupe outline-none focus:border-brand-gold/60 transition-colors" />
                       </div>
-                    )}
-                  </div>
-                  <div className="mt-3 flex items-center gap-2">
-                    <button onClick={submitAdd} disabled={saving}
-                      className="rounded-lg bg-brand-gold px-4 py-2 text-sm font-semibold text-white hover:bg-brand-gold-dark transition-colors disabled:opacity-60">
-                      {saving ? "Saving…" : "Add purchase"}
-                    </button>
-                    <button onClick={() => setAdding(false)}
-                      className="rounded-lg px-4 py-2 text-sm font-medium text-[#6b6b6b] hover:bg-[#F2F2EE] transition-colors">
-                      Cancel
-                    </button>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                      <div className="col-span-2 sm:col-span-1">
+                        <label className="mb-1 block text-[11px] text-[#9e9e8e]">Amount ({currency})</label>
+                        <input value={form.amount}
+                          onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
+                          onKeyDown={(e) => e.key === "Enter" && submitAdd()}
+                          placeholder={currency === "USD" ? "e.g. 25" : "e.g. 3540"}
+                          className="w-full rounded-lg border border-[#E5E4DF] bg-white px-3 py-2 text-sm text-[#1a1a1a] placeholder:text-taupe outline-none focus:border-brand-gold/60 transition-colors" />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-[11px] text-[#9e9e8e]">Date</label>
+                        <input value={form.date}
+                          onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
+                          placeholder="e.g. May 21, 2026"
+                          className="w-full rounded-lg border border-[#E5E4DF] bg-white px-3 py-2 text-sm text-[#1a1a1a] placeholder:text-taupe outline-none focus:border-brand-gold/60 transition-colors" />
+                      </div>
+                      {showBy && (
+                        <div>
+                          <label className="mb-1 block text-[11px] text-[#9e9e8e]">Paid by</label>
+                          <input value={form.by}
+                            onChange={(e) => setForm((f) => ({ ...f, by: e.target.value }))}
+                            onKeyDown={(e) => e.key === "Enter" && submitAdd()}
+                            placeholder="e.g. Mastercard"
+                            className="w-full rounded-lg border border-[#E5E4DF] bg-white px-3 py-2 text-sm text-[#1a1a1a] placeholder:text-taupe outline-none focus:border-brand-gold/60 transition-colors" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-3 flex items-center gap-2">
+                      <button onClick={submitAdd} disabled={saving}
+                        className="rounded-lg bg-brand-gold px-4 py-2 text-sm font-semibold text-white hover:bg-brand-gold-dark transition-colors disabled:opacity-60">
+                        {saving ? "Saving…" : "Add purchase"}
+                      </button>
+                      <button onClick={() => setAdding(false)}
+                        className="rounded-lg px-4 py-2 text-sm font-medium text-[#6b6b6b] hover:bg-[#F2F2EE] transition-colors">
+                        Cancel
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
 
             {/* Footer */}
-            <div className="border-t border-[#E5E4DF] px-6 py-4 flex items-center justify-between bg-[#F9F9F6] rounded-b-2xl">
+            <div className="flex shrink-0 items-center justify-between border-t border-[#E5E4DF] bg-[#F9F9F6] px-6 py-4 rounded-b-2xl">
               <div className="flex items-center gap-3">
                 <span className="text-xs font-semibold uppercase tracking-widest text-[#9e9e8e]">Total ({rows.length})</span>
                 <span className="text-lg font-semibold text-brand-gold">{fmt(total)}</span>
               </div>
               {!adding && (
                 <button
-                  onClick={() => { setAdding(true); setTimeout(() => itemRef.current?.focus(), 80); }}
+                  onClick={() => setAdding(true)}
                   className="flex items-center gap-1.5 rounded-lg border border-[#E5E4DF] bg-white px-3 py-1.5 text-xs font-semibold text-brand-gold hover:border-brand-gold/40 hover:bg-[#F9F9F6] transition-colors">
                   <Plus className="h-3.5 w-3.5" />
                   Add purchase

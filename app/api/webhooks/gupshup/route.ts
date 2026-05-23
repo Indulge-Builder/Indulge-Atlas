@@ -28,7 +28,37 @@ function verifyGupshupSecret(
   }
 }
 
-type GupshupInboundPayload = {
+// Meta v3 (Cloud API) inbound shape
+type MetaV3Entry = {
+  object?: string;
+  entry?: Array<{
+    id?: string;
+    changes?: Array<{
+      value?: {
+        messaging_product?: string;
+        metadata?: { phone_number_id?: string; display_phone_number?: string };
+        contacts?: Array<{ profile?: { name?: string }; wa_id?: string }>;
+        messages?: Array<{
+          id?: string;
+          from?: string;
+          timestamp?: string;
+          type?: string;
+          text?: { body?: string };
+          interactive?: {
+            type?: string;
+            list_reply?: { id?: string; title?: string; description?: string };
+            button_reply?: { id?: string; title?: string };
+          };
+        }>;
+        statuses?: Array<unknown>;
+      };
+      field?: string;
+    }>;
+  }>;
+};
+
+// Gupshup v2 inbound shape (still used for status/event webhooks)
+type GupshupV2Payload = {
   app?: string;
   timestamp?: number;
   version?: number;
@@ -37,13 +67,8 @@ type GupshupInboundPayload = {
     id?: string;
     source?: string;
     type?: string;
-    payload?: {
-      text?: string;
-    };
-    sender?: {
-      phone?: string;
-      name?: string;
-    };
+    payload?: { text?: string };
+    sender?: { phone?: string; name?: string };
   };
 };
 
@@ -53,24 +78,59 @@ function extractMessageFields(body: unknown): {
   text: string;
 } | null {
   if (!body || typeof body !== "object") return null;
-  const raw = body as GupshupInboundPayload;
+  const raw = body as MetaV3Entry & GupshupV2Payload;
 
+  // ── Silently ignore status/event webhooks ──────────────────────────────
+  if (raw.type === "message-event" || raw.type === "billing-event") return null;
+  const metaValue = raw.entry?.[0]?.changes?.[0]?.value;
+  if (metaValue?.statuses) return null; // delivery receipts
+
+  // ── Meta v3 format ─────────────────────────────────────────────────────
+  if (raw.object === "whatsapp_business_account" && metaValue) {
+    const message = metaValue.messages?.[0];
+    if (!message) return null;
+
+    const messageId = message.id?.trim();
+    const rawPhone = message.from?.trim();
+    if (!messageId || !rawPhone) return null;
+    const phone = rawPhone.startsWith("+") ? rawPhone : `+${rawPhone}`;
+
+    const msgType = message.type;
+    let text: string | undefined;
+
+    if (msgType === "text") {
+      text = message.text?.body?.trim();
+    } else if (msgType === "interactive") {
+      const iType = message.interactive?.type;
+      if (iType === "list_reply") {
+        text = message.interactive?.list_reply?.title?.trim();
+      } else if (iType === "button_reply") {
+        text = message.interactive?.button_reply?.title?.trim();
+      }
+    } else {
+      // Unsupported media types — log and skip
+      console.log(`[webhook] skipping unsupported message type: ${msgType}, phone suffix: ${rawPhone.slice(-4)}`);
+      return null;
+    }
+
+    if (!text) return null;
+
+    console.log("[webhook] parsed message, format: meta_v3, type:", msgType, "phone suffix:", rawPhone.slice(-4));
+    return { messageId, phone, text };
+  }
+
+  // ── Gupshup v2 fallback (status events + legacy format) ───────────────
   if (raw.type !== "message") return null;
-
   const outer = raw.payload;
-  if (!outer) return null;
-
-  // Only handle text messages
-  if (outer.type !== "text") return null;
+  if (!outer || outer.type !== "text") return null;
 
   const messageId = outer.id?.trim();
-  const phone = outer.source?.trim();
+  const rawPhone = outer.source?.trim();
   const text = outer.payload?.text?.trim();
+  if (!messageId || !rawPhone || !text) return null;
 
-  if (!messageId || !phone || !text) return null;
-
-  // Gupshup sends phone without '+'; normalizeToE164 handles this
-  return { messageId, phone: `+${phone}`, text };
+  console.log("[webhook] parsed message, format: gupshup_v2, type: text, phone suffix:", rawPhone.slice(-4));
+  return { messageId, phone: `+${rawPhone}`, text };
 }
 
 async function isDuplicate(messageId: string): Promise<boolean> {
@@ -93,12 +153,6 @@ async function logAndProcess(rawBody: string): Promise<void> {
     console.warn("[webhooks/gupshup] Unparseable body; skipping");
     return;
   }
-
-  console.log(
-    "[webhook:debug] raw payload type:", (payload as Record<string, unknown>)?.type,
-    "inner type:", (payload as { payload?: { type?: string } })?.payload?.type,
-    "text:", (payload as { payload?: { payload?: { text?: string } } })?.payload?.payload?.text?.slice(0, 30),
-  );
 
   const fields = extractMessageFields(payload);
   if (!fields) return; // not a text message event; silently ignore

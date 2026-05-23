@@ -1500,7 +1500,7 @@ export interface BotMessage {
   id: string;
   session_id: string;
   phone: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'agent';
   content: string;
   created_at: string;
 }
@@ -1509,10 +1509,21 @@ export interface BotMessage {
 export interface BotClaudeResponse {
   intent: 'greeting' | 'browsing' | 'product_inquiry' | 'interested' | 'out_of_scope' | 'handoff_request';
   category: BotCatalogCategory | null;
-  reply_type: 'text' | 'image' | 'list';
+  reply_type: 'text' | 'image' | 'list' | 'buttons';
   text_reply: string;
   image_reply: { product_id: string; caption: string } | null;
-  list_reply: { title: string; items: Array<{ title: string; description: string }> } | null;
+  list_reply: {
+    body: string;
+    button_text: string;
+    sections: Array<{
+      title: string;
+      rows: Array<{ id: string; title: string; description?: string }>;
+    }>;
+  } | null;
+  buttons_reply: {
+    body: string;
+    buttons: Array<{ id: string; title: string }>;
+  } | null;
   should_handoff: boolean;
   handoff_reason: string | null;
 }

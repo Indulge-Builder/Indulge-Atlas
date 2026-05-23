@@ -2,8 +2,7 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import {
-  getMasterTaskDetail,
-  getMasterTasks,
+  getMasterTasksWithDetail,
   getDailyPersonalTasks,
   getMyTasks,
   getMySubTasks,
@@ -92,19 +91,19 @@ async function TasksPageData({ initialTab }: { initialTab: TabKey }) {
   };
 
   const [
-    masterTasksResult,
+    atlasTasksResult,
     personalTasksResult,
     dailySopResult,
     subTasksResult,
   ] = await Promise.all([
-    getMasterTasks({ archived: false }),
+    getMasterTasksWithDetail({ archived: false }),
     getMyTasks(),
     getDailyPersonalTasks(),
     getMySubTasks(),
   ]);
 
-  const masterTasks: MasterTask[] = masterTasksResult.success
-    ? (masterTasksResult.data ?? [])
+  const atlasTasks: AtlasTasksData[] = atlasTasksResult.success
+    ? (atlasTasksResult.data ?? [])
     : [];
 
   const personalTasks: PersonalTask[] =
@@ -119,30 +118,6 @@ async function TasksPageData({ initialTab }: { initialTab: TabKey }) {
 
   const subTasks: Array<SubTask & { masterTaskTitle: string | null }> =
     subTasksResult.success ? (subTasksResult.data ?? []) : [];
-
-  const atlasTasks: AtlasTasksData[] = [];
-  const detailResults = await Promise.allSettled(
-    masterTasks.map((mt) => getMasterTaskDetail(mt.id)),
-  );
-
-  for (let i = 0; i < masterTasks.length; i++) {
-    const result = detailResults[i];
-    if (
-      result.status === "fulfilled" &&
-      result.value.success &&
-      result.value.data
-    ) {
-      atlasTasks.push({
-        masterTask: {
-          ...result.value.data.masterTask,
-          members: result.value.data.members,
-        },
-        taskGroups: result.value.data.taskGroups,
-      });
-    } else {
-      atlasTasks.push({ masterTask: masterTasks[i], taskGroups: [] });
-    }
-  }
 
   const activeTaskCount =
     personalTasks.filter(

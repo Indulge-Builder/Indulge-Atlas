@@ -105,12 +105,9 @@ const ROLE_CONFIG: {
     value: "founder",
     label: "Founder",
     description:
-      "Business owner — assigned directly by the platform administrator",
+      "Business owner — full platform access",
     color: "#A88B25",
     bg: "#FEF3C7",
-    locked: true,
-    lockedReason:
-      "Founders are assigned directly by the platform administrator",
   },
   {
     value: "admin",

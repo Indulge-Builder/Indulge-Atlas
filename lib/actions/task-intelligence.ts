@@ -505,107 +505,130 @@ export async function getDepartmentGroupTasks(
 }
 
 /**
- * Org-wide agent summary in 2 DB queries (profiles + tasks), scoped to the
- * caller's visible departments. Used by the page RSC to SSR the Agents tab
- * so there is zero client-side fetch on initial load.
+ * Pure data fetch for agent summaries — extracted so it can be wrapped with
+ * unstable_cache per-user. Caller must pass a Supabase client created outside
+ * the cache scope (createClient uses cookies(), which unstable_cache forbids inside).
+ */
+async function fetchAllAgentSummariesData(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  role: string,
+  domain: IndulgeDomain,
+  profile: { department?: string | null } | null,
+): Promise<{ agents: TaskIntelligenceAgentSummary[] } | null> {
+  const visibleDepts = resolveVisibleDepartments(role, domain, profile);
+  if (visibleDepts.length === 0) return { agents: [] };
+
+  // Query 1 — all active non-guest agents across visible departments
+  const { data: agentRows, error: aErr } = await supabase
+    .from("profiles")
+    .select("id, full_name, job_title, domain, department")
+    .in("department", visibleDepts)
+    .eq("is_active", true)
+    .neq("role", "guest");
+
+  if (aErr) return null;
+
+  const agentList = agentRows ?? [];
+  const agentIds = agentList.map((a) => a.id as string);
+  if (agentIds.length === 0) return { agents: [] };
+
+  // Query 2 — personal tasks for all those agents across all visible depts
+  const nowMs = Date.now();
+  const { startIso, endIso } = istTodayBounds();
+
+  const { data: personalRows } = await supabase
+    .from("tasks")
+    .select("id, atlas_status, due_date, assigned_to_users, created_at, created_by")
+    .eq("unified_task_type", "personal")
+    .in("department", visibleDepts)
+    .neq("atlas_status", "cancelled")
+    .overlaps("assigned_to_users", agentIds);
+
+  const byAgent = new Map<
+    string,
+    {
+      total: number;
+      statusCounts: Partial<Record<AtlasTaskStatus, number>>;
+      todayTotal: number;
+      todayDone: number;
+      overdue: number;
+    }
+  >();
+  for (const id of agentIds) {
+    byAgent.set(id, { total: 0, statusCounts: {}, todayTotal: 0, todayDone: 0, overdue: 0 });
+  }
+
+  const startMs = new Date(startIso).getTime();
+  const endMs = new Date(endIso).getTime();
+
+  for (const row of personalRows ?? []) {
+    const assignees = (row.assigned_to_users as string[] | null) ?? [];
+    const uid =
+      assignees.find((id) => byAgent.has(id)) ??
+      ((row as { created_by?: string | null }).created_by as string | undefined);
+    if (!uid || !byAgent.has(uid)) continue;
+    const b = byAgent.get(uid)!;
+    b.total++;
+    const st = row.atlas_status as AtlasTaskStatus;
+    b.statusCounts[st] = (b.statusCounts[st] ?? 0) + 1;
+
+    const createdMs = row.created_at ? new Date(row.created_at as string).getTime() : 0;
+    const dueMs = row.due_date ? new Date(row.due_date as string).getTime() : 0;
+    if ((createdMs && createdMs >= startMs && createdMs <= endMs) ||
+        (dueMs && dueMs >= startMs && dueMs <= endMs)) {
+      b.todayTotal++;
+      if (st === "done") b.todayDone++;
+    }
+    if (dueMs && st !== "done" && st !== "cancelled" && dueMs < nowMs) b.overdue++;
+  }
+
+  const agents: TaskIntelligenceAgentSummary[] = agentList.map((a) => {
+    const id = a.id as string;
+    const b = byAgent.get(id)!;
+    const deptRaw = a.department as string | null | undefined;
+    return {
+      id,
+      full_name: (a.full_name as string) ?? "Member",
+      job_title: (a.job_title as string | null) ?? null,
+      is_on_leave: false,
+      personalTaskTotal: b.total,
+      statusCounts: b.statusCounts,
+      todaySopCompletionPct: b.todayTotal > 0 ? Math.round((b.todayDone / b.todayTotal) * 100) : 0,
+      overduePersonalCount: b.overdue,
+      domain: coerceIndulgeDomain(a.domain as string),
+      department:
+        deptRaw && ALL_DEPARTMENTS.includes(deptRaw as EmployeeDepartment)
+          ? (deptRaw as EmployeeDepartment)
+          : (visibleDepts[0] as EmployeeDepartment),
+    };
+  });
+
+  return { agents };
+}
+
+/**
+ * Org-wide agent summary — 2 DB queries, scoped to the caller's visible
+ * departments. Used by the page RSC to SSR the Agents tab with zero
+ * client-side fetch on initial load. Cached 60s per user+role, same TTL
+ * as getDepartmentTaskOverview so the two stay in sync on refresh.
  */
 export async function getAllAgentSummaries(): Promise<
   ActionResult<{ agents: TaskIntelligenceAgentSummary[] }>
 > {
   try {
-    const { supabase, role, domain, profile } = await getTaskIntelAuthUser();
+    const { supabase, user, role, domain, profile } = await getTaskIntelAuthUser();
     if (!assertTaskIntelligenceRole(role))
       return { success: false, error: "Not authorized" };
 
-    const visibleDepts = resolveVisibleDepartments(role, domain, profile);
-    if (visibleDepts.length === 0) return { success: true, data: { agents: [] } };
+    const cached = unstable_cache(
+      () => fetchAllAgentSummariesData(supabase, role, domain, profile),
+      ["agent-summaries", user.id, role],
+      { revalidate: 60 },
+    );
 
-    // Query 1 — all active non-guest agents across visible departments
-    const { data: agentRows, error: aErr } = await supabase
-      .from("profiles")
-      .select("id, full_name, job_title, domain, department")
-      .in("department", visibleDepts)
-      .eq("is_active", true)
-      .neq("role", "guest");
-
-    if (aErr) return { success: false, error: "Failed to load agents" };
-
-    const agentList = agentRows ?? [];
-    const agentIds = agentList.map((a) => a.id as string);
-    if (agentIds.length === 0) return { success: true, data: { agents: [] } };
-
-    // Query 2 — personal tasks for all those agents across all visible depts
-    const nowMs = Date.now();
-    const { startIso, endIso } = istTodayBounds();
-
-    const { data: personalRows } = await supabase
-      .from("tasks")
-      .select("id, atlas_status, due_date, assigned_to_users, created_at, created_by")
-      .eq("unified_task_type", "personal")
-      .in("department", visibleDepts)
-      .neq("atlas_status", "cancelled")
-      .overlaps("assigned_to_users", agentIds);
-
-    const byAgent = new Map<
-      string,
-      {
-        total: number;
-        statusCounts: Partial<Record<AtlasTaskStatus, number>>;
-        todayTotal: number;
-        todayDone: number;
-        overdue: number;
-      }
-    >();
-    for (const id of agentIds) {
-      byAgent.set(id, { total: 0, statusCounts: {}, todayTotal: 0, todayDone: 0, overdue: 0 });
-    }
-
-    const startMs = new Date(startIso).getTime();
-    const endMs = new Date(endIso).getTime();
-
-    for (const row of personalRows ?? []) {
-      const assignees = (row.assigned_to_users as string[] | null) ?? [];
-      const uid =
-        assignees.find((id) => byAgent.has(id)) ??
-        ((row as { created_by?: string | null }).created_by as string | undefined);
-      if (!uid || !byAgent.has(uid)) continue;
-      const b = byAgent.get(uid)!;
-      b.total++;
-      const st = row.atlas_status as AtlasTaskStatus;
-      b.statusCounts[st] = (b.statusCounts[st] ?? 0) + 1;
-
-      const createdMs = row.created_at ? new Date(row.created_at as string).getTime() : 0;
-      const dueMs = row.due_date ? new Date(row.due_date as string).getTime() : 0;
-      if ((createdMs && createdMs >= startMs && createdMs <= endMs) ||
-          (dueMs && dueMs >= startMs && dueMs <= endMs)) {
-        b.todayTotal++;
-        if (st === "done") b.todayDone++;
-      }
-      if (dueMs && st !== "done" && st !== "cancelled" && dueMs < nowMs) b.overdue++;
-    }
-
-    const agents: TaskIntelligenceAgentSummary[] = agentList.map((a) => {
-      const id = a.id as string;
-      const b = byAgent.get(id)!;
-      const deptRaw = a.department as string | null | undefined;
-      return {
-        id,
-        full_name: (a.full_name as string) ?? "Member",
-        job_title: (a.job_title as string | null) ?? null,
-        is_on_leave: false,
-        personalTaskTotal: b.total,
-        statusCounts: b.statusCounts,
-        todaySopCompletionPct: b.todayTotal > 0 ? Math.round((b.todayDone / b.todayTotal) * 100) : 0,
-        overduePersonalCount: b.overdue,
-        domain: coerceIndulgeDomain(a.domain as string),
-        department:
-          deptRaw && ALL_DEPARTMENTS.includes(deptRaw as EmployeeDepartment)
-            ? (deptRaw as EmployeeDepartment)
-            : (visibleDepts[0] as EmployeeDepartment),
-      };
-    });
-
-    return { success: true, data: { agents } };
+    const data = await cached();
+    if (!data) return { success: false, error: "Failed to load agents" };
+    return { success: true, data };
   } catch (err) {
     console.error("[getAllAgentSummaries]", err);
     return { success: false, error: "An unexpected error occurred" };

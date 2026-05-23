@@ -250,14 +250,6 @@ export async function createUser(params: {
     // Validate role assignment: admins cannot assign founder or another admin.
     const { serviceClient, callerRole } = await requireAdminOnly();
 
-    if (parsed.data.role === "founder") {
-      return {
-        success: false,
-        error:
-          "Founder role cannot be assigned via user creation. Contact the platform administrator.",
-      };
-    }
-
     // Sanitize all user-supplied text before writing to DB.
     const sanitizedName = sanitizeText(parsed.data.full_name);
     const sanitizedJobTitle = sanitizeText(parsed.data.job_title);
@@ -410,25 +402,6 @@ export async function updateUserProfile(
 
     if (validated.data.reports_to && validated.data.reports_to === userId) {
       return { success: false, error: "A user cannot report to themselves." };
-    }
-
-    if (
-      typeof validated.data.role === "string" &&
-      validated.data.role === "founder"
-    ) {
-      const { data: targetProfile, error: targetErr } = await serviceClient
-        .from("profiles")
-        .select("role")
-        .eq("id", userId)
-        .maybeSingle();
-      if (targetErr) return { success: false, error: targetErr.message };
-      if ((targetProfile as { role?: string } | null)?.role !== "founder") {
-        return {
-          success: false,
-          error:
-            "Founder role cannot be assigned through user updates. Contact the platform administrator.",
-        };
-      }
     }
 
     // Sanitize text fields before update.

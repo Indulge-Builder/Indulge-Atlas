@@ -36,21 +36,30 @@ You MUST respond with valid JSON only. No prose, no markdown, no explanation —
 {
   "intent": "<greeting|browsing|product_inquiry|interested|out_of_scope|handoff_request>",
   "category": "<watches|travel|events|sports|art|fashion|null>",
-  "reply_type": "<text|image|list>",
-  "text_reply": "<your reply as a string — always populate this even when reply_type is image or list, as a fallback>",
+  "reply_type": "<text|image|list|buttons>",
+  "text_reply": "<your reply as a string — ALWAYS populate this even when reply_type is image, list, or buttons, as a fallback>",
   "image_reply": { "product_id": "<uuid from catalog>", "caption": "<caption>" } or null,
-  "list_reply": { "title": "<list title>", "items": [{ "title": "<item title>", "description": "<item description>" }] } or null,
+  "list_reply": {
+    "body": "<text above the list>",
+    "button_text": "View Options",
+    "sections": [{ "title": "<section title>", "rows": [{ "id": "<product id from catalog>", "title": "<product name max 24 chars>", "description": "<price range max 72 chars>" }] }]
+  } or null,
+  "buttons_reply": {
+    "body": "<the question or statement>",
+    "buttons": [{ "id": "<unique id>", "title": "<label max 20 chars>" }]
+  } or null,
   "should_handoff": false,
   "handoff_reason": null
 }
 
 RULES:
 - Set should_handoff: true when intent is "interested" or "handoff_request", or when the client explicitly asks to speak to a human.
-- Use reply_type "list" when presenting 2–5 products in a category.
+- Use reply_type "list" when presenting 2–8 products in a category. Group all rows into one section with the category as the section title. Row id = product id from catalog. Row title = product name truncated to 24 chars. Row description = price range truncated to 72 chars. button_text = "View Options". Max 8 rows.
+- Use reply_type "buttons" for yes/no questions or when offering 2–3 distinct next actions. Example after showing a product: [{ "id": "interested", "title": "I'm Interested 🙌" }, { "id": "more_options", "title": "Show More" }, { "id": "other_category", "title": "Other Categories" }]. Max 3 buttons.
 - Use reply_type "image" only when showing a single specific product that has an image_url in the catalog.
 - Use reply_type "text" for greetings, clarifying questions, out-of-scope messages, and handoff notices.
 - Keep text_reply under 300 characters for WhatsApp readability.
-- list_reply.items must have 2–5 entries.
+- Button titles must be max 20 chars. List row titles must be max 24 chars. List row descriptions must be max 72 chars.
 - Do not invent products not in the catalog.
 - For out-of-scope queries, politely redirect to one of the six luxury categories.`;
 }
@@ -282,16 +291,22 @@ export async function processBotTurn(
         replyType = "text";
       }
     } else if (parsed.reply_type === "list" && parsed.list_reply) {
-      const listText =
-        `${parsed.list_reply.title}\n\n` +
-        parsed.list_reply.items
-          .map((item, i) => `${i + 1}. *${item.title}*\n${item.description}`)
-          .join("\n\n") +
-        "\n\nReply with a number or name to learn more about any item.";
-      await sendGupshupMessage(normalizedPhone, { type: "text", text: listText });
-      sentText = listText;
-      replyType = "text";
+      await sendGupshupMessage(normalizedPhone, {
+        type: "list",
+        body: parsed.list_reply.body,
+        buttonText: parsed.list_reply.button_text ?? "View Options",
+        sections: parsed.list_reply.sections,
+      });
+      sentText = `[List] ${parsed.list_reply.body}`;
+    } else if (parsed.reply_type === "buttons" && parsed.buttons_reply) {
+      await sendGupshupMessage(normalizedPhone, {
+        type: "buttons",
+        body: parsed.buttons_reply.body,
+        buttons: parsed.buttons_reply.buttons,
+      });
+      sentText = `[Buttons] ${parsed.buttons_reply.body}`;
     } else {
+      // text fallback — also catches list/buttons when their payload is null
       await sendGupshupMessage(normalizedPhone, { type: "text", text: parsed.text_reply });
       replyType = "text";
     }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useTransition, useMemo, useRef } from "react";
+import { useDebounce } from "@/lib/hooks/useDebounce";
 import { cn } from "@/lib/utils";
 import { surfaceCardVariants } from "@/components/ui/card";
 import {
@@ -73,6 +74,10 @@ export function TaskIntelligenceDashboard({
   // Derive visible dept IDs from the overview rows — used to scope realtime subscriptions.
   const visibleDeptIds = useMemo(() => rows.map((r) => r.departmentId), [rows]);
   const refreshSignal = useTaskIntelligenceRealtime(visibleDeptIds);
+  // Batch rapid realtime events (e.g. bulk task mutations) into a single refetch
+  // instead of firing one per event. 2500ms matches the cadence of task bursts
+  // while keeping the dashboard feeling live for normal single-task updates.
+  const debouncedSignal = useDebounce(refreshSignal, 2500);
 
   const refetchAll = useCallback(() => {
     startTransition(() => {
@@ -90,9 +95,9 @@ export function TaskIntelligenceDashboard({
   }, []);
 
   useEffect(() => {
-    if (refreshSignal === 0) return;
+    if (debouncedSignal === 0) return;
     refetchAll();
-  }, [refreshSignal, refetchAll]);
+  }, [debouncedSignal, refetchAll]);
 
   const filteredRows = useMemo(() => {
     if (!filterDepartmentId) return rows;

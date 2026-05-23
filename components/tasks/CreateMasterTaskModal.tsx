@@ -39,7 +39,7 @@ import type { EmployeeDepartment, IndulgeDomain } from "@/lib/types/database";
 import {
   createMasterTask,
   updateMasterTask,
-  addMasterTaskMember,
+  addMasterTaskMembers,
   searchProfilesForTasks,
 } from "@/lib/actions/tasks";
 import { CreateMasterTaskSchema, type CreateMasterTaskFormValues, type CreateMasterTaskInput } from "@/lib/schemas/tasks";
@@ -429,14 +429,18 @@ export function CreateMasterTaskModal({
         cover_color: selectedColor || undefined,
         icon_key:    selectedIcon  || undefined,
       };
-      const params = editTask
-        ? { ...base, due_date: base.due_date ?? null }
-        : base;
 
       let result;
       if (editTask) {
+        const params = { ...base, due_date: base.due_date ?? null };
         result = await updateMasterTask(editTask.id, params);
       } else {
+        // Pass member IDs directly so createMasterTask inserts them in the
+        // same DB round-trip -- no extra server action calls needed on create.
+        const params = {
+          ...base,
+          initialMemberIds: members.map((m) => m.id),
+        };
         result = await createMasterTask(params);
       }
 
@@ -445,25 +449,15 @@ export function CreateMasterTaskModal({
           ? (result.data as { id: string } | null)?.id
           : null;
 
-        // Add selected members to a newly created task
-        if (newTaskId && members.length > 0) {
-          await Promise.allSettled(
-            members.map((m) =>
-              addMasterTaskMember({ masterTaskId: newTaskId, profileId: m.id, role: "member" }),
-            ),
-          );
-        }
-
-        // Add members to an existing task (same flow as create — PeoplePicker is available in edit mode)
+        // Edit mode: batch-add any newly selected members in a single call
         if (editTask && members.length > 0) {
-          const addOut = await Promise.all(
-            members.map((m) =>
-              addMasterTaskMember({ masterTaskId: editTask.id, profileId: m.id, role: "member" }),
-            ),
+          const addOut = await addMasterTaskMembers(
+            editTask.id,
+            members.map((m) => m.id),
           );
-          if (addOut.some((r) => !r.success)) {
+          if (!addOut.success) {
             toast.error(
-              addOut.find((r) => !r.success)?.error ??
+              addOut.error ??
                 "Some members could not be added. Only owners and task managers can invite people.",
             );
           }
@@ -693,17 +687,17 @@ export function CreateMasterTaskModal({
                   shouldValidate: true,
                 })
               }
-              placeholder="Optional — pick date & time"
+              placeholder="Optional -- pick date & time"
             />
           </IndulgeField>
 
-          {/* ── Members (create + edit — invite teammates any time) ── */}
+          {/* ── Members (create + edit -- invite teammates any time) ── */}
           <IndulgeField
             label={editTask ? "Add members" : "Add Members"}
             hint={
               editTask
-                ? "Search and add people here, then save — they are added to this group task."
-                : "Optional — you can also add people after the task is created via Edit."
+                ? "Search and add people here, then save -- they are added to this group task."
+                : "Optional -- you can also add people after the task is created via Edit."
             }
             htmlFor="mt-members"
           >

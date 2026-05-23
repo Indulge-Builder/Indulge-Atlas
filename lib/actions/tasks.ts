@@ -3,7 +3,7 @@
 /**
  * lib/actions/tasks.ts
  *
- * Unified Task Management Server Actions — Atlas Tasks System.
+ * Unified Task Management Server Actions -- Atlas Tasks System.
  * Single source of truth for all task CRUD operations.
  *
  * Every function:
@@ -261,80 +261,99 @@ export async function createMasterTask(
       return { success: false, error: "Department and domain are required." };
     }
 
-    // Insert a tasks row with unified_task_type = 'master'
-    const { data: task, error: taskErr } = await supabase
-      .from("tasks")
-      .insert({
-        title:              sanitizeText(d.title),
-        notes:              d.description ? sanitizeText(d.description) : null,
-        unified_task_type:  "master",
-        atlas_status:       "todo",
-        domain:             taskDomain,
-        department:         taskDepartment,
-        cover_color:        d.cover_color ?? null,
-        icon_key:           d.icon_key ?? null,
-        due_date:           d.due_date ?? null,
-        created_by:         user.id,
-        status:             "pending",
-        task_type:          "general_follow_up",
-        progress:           0,
-        progress_updates:   [],
-        assigned_to_users:  [user.id],
-        tags:               [],
-        attachments:        [],
-      })
-      .select("id")
-      .single();
+    const sanitizedTitle       = sanitizeText(d.title);
+    const sanitizedDescription = d.description ? sanitizeText(d.description) : null;
 
-    if (taskErr || !task)
+    // Pre-generate the task ID so both inserts can reference it without
+    // waiting for the DB to return it sequentially.
+    const taskId = randomUUID();
+
+    // Phase 1 -- tasks and projects rows have no dependency on each other;
+    // run them in parallel. projects must exist before tasks.project_id (FK)
+    // can be set, so project_id is applied in Phase 2.
+    const [taskResult, projectResult] = await Promise.all([
+      supabase
+        .from("tasks")
+        .insert({
+          id:                 taskId,
+          title:              sanitizedTitle,
+          notes:              sanitizedDescription,
+          unified_task_type:  "master",
+          atlas_status:       "todo",
+          domain:             taskDomain,
+          department:         taskDepartment,
+          cover_color:        d.cover_color ?? null,
+          icon_key:           d.icon_key ?? null,
+          due_date:           d.due_date ?? null,
+          created_by:         user.id,
+          status:             "pending",
+          task_type:          "general_follow_up",
+          progress:           0,
+          progress_updates:   [],
+          assigned_to_users:  [user.id],
+          tags:               [],
+          attachments:        [],
+        })
+        .select("id")
+        .single(),
+      supabase.from("projects").insert({
+        id:          taskId,
+        title:       sanitizedTitle,
+        description: sanitizedDescription,
+        owner_id:    user.id,
+        domain:      taskDomain,
+        department:  taskDepartment,
+        color:       d.cover_color ?? null,
+        icon:        d.icon_key ?? null,
+        due_date:    d.due_date ?? null,
+        status:      "active",
+      }),
+    ]);
+
+    if (taskResult.error || !taskResult.data) {
+      console.error("[createMasterTask] tasks insert", taskResult.error);
       return { success: false, error: "Failed to create master task" };
+    }
+    if (projectResult.error) {
+      console.error("[createMasterTask] projects insert", projectResult.error);
+      return { success: false, error: "Failed to create master task" };
+    }
 
-    // Also create a corresponding projects row so project_members FK works
-    await supabase.from("projects").insert({
-      id:         task.id,
-      title:      sanitizeText(d.title),
-      description: d.description ? sanitizeText(d.description) : null,
-      owner_id:   user.id,
-      domain:     taskDomain,
-      department: taskDepartment,
-      color:      d.cover_color ?? null,
-      icon:       d.icon_key ?? null,
-      due_date:   d.due_date ?? null,
-      status:     "active",
-    });
-
-    // Add creator as owner in project_members
+    // Phase 2 -- now that both rows exist, set FK + seed board data.
+    // All three operations are independent of each other; run in parallel.
     const memberInserts = [
-      { project_id: task.id, user_id: user.id, role: "owner", added_by: user.id },
+      { project_id: taskId, user_id: user.id, role: "owner", added_by: user.id },
       ...(d.initialMemberIds ?? [])
         .filter((id) => id !== user.id)
         .map((id) => ({
-          project_id: task.id,
-          user_id: id,
-          role: "member" as const,
-          added_by: user.id,
+          project_id: taskId,
+          user_id:    id,
+          role:       "member" as const,
+          added_by:   user.id,
         })),
     ];
-    await supabase.from("project_members").insert(memberInserts);
 
-    // Seed a simple Kanban: master tasks use task_groups as board columns.
-    // Without this, the board starts empty and users only see “Add Group”.
-    const { error: defaultGroupsErr } = await supabase.from("task_groups").insert([
-      { project_id: task.id, title: "To do", position: 0, created_by: user.id },
-      { project_id: task.id, title: "In progress", position: 1, created_by: user.id },
-      { project_id: task.id, title: "Done", position: 2, created_by: user.id },
+    const [, , groupsResult] = await Promise.all([
+      // Set project_id (FK → projects) and master_task_id (self-ref → tasks)
+      supabase
+        .from("tasks")
+        .update({ project_id: taskId, master_task_id: taskId })
+        .eq("id", taskId),
+      // Creator as owner + any initial members
+      supabase.from("project_members").insert(memberInserts),
+      // Seed Kanban columns so the board isn't empty on first open
+      supabase.from("task_groups").insert([
+        { project_id: taskId, title: "To do",        position: 0, created_by: user.id },
+        { project_id: taskId, title: "In progress",  position: 1, created_by: user.id },
+        { project_id: taskId, title: "Done",         position: 2, created_by: user.id },
+      ]),
     ]);
-    if (defaultGroupsErr)
-      console.error("[createMasterTask] default task_groups", defaultGroupsErr);
 
-    // Update the tasks row's project_id to itself (master task is its own project)
-    await supabase
-      .from("tasks")
-      .update({ project_id: task.id, master_task_id: task.id })
-      .eq("id", task.id);
+    if (groupsResult.error)
+      console.error("[createMasterTask] default task_groups", groupsResult.error);
 
-    revalidateAtlasTaskSurfaces(task.id);
-    return { success: true, data: { id: task.id } };
+    revalidateAtlasTaskSurfaces(taskId);
+    return { success: true, data: { id: taskId } };
   } catch (err) {
     console.error("[createMasterTask]", err);
     return { success: false, error: "An unexpected error occurred" };
@@ -410,6 +429,178 @@ export async function getMasterTasks(filters?: {
     return { success: true, data: tasks };
   } catch (err) {
     console.error("[getMasterTasks]", err);
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+/**
+ * Batch replacement for getMasterTasks + N*getMasterTaskDetail.
+ * Single auth check, parallel access-ID resolution, then one round-trip
+ * each for tasks/groups/subtasks/members across ALL master tasks.
+ * Used by the tasks dashboard page to avoid the N-waterfall pattern.
+ */
+export async function getMasterTasksWithDetail(filters?: {
+  archived?: boolean;
+  department?: string;
+}): Promise<ActionResult<Array<{ masterTask: MasterTask; taskGroups: (TaskGroup & { tasks: SubTask[] })[] }>>> {
+  try {
+    const { supabase, user } = await getAuthUser();
+
+    // Resolve accessible IDs with parallel queries instead of sequential
+    const [memberRows, assignedSubtaskRows] = await Promise.all([
+      supabase
+        .from("project_members")
+        .select("project_id")
+        .eq("user_id", user.id),
+      supabase
+        .from("tasks")
+        .select("project_id")
+        .eq("unified_task_type", "subtask")
+        .contains("assigned_to_users", [user.id])
+        .not("project_id", "is", null),
+    ]);
+
+    const accessibleIds = new Set<string>();
+    for (const r of memberRows.data ?? []) accessibleIds.add(r.project_id as string);
+    for (const r of assignedSubtaskRows.data ?? []) accessibleIds.add(r.project_id as string);
+
+    if (accessibleIds.size === 0) return { success: true, data: [] };
+
+    const idList = [...accessibleIds];
+
+    // Build master tasks query
+    let masterQuery = supabase
+      .from("tasks")
+      .select("id, title, notes, atlas_status, unified_task_type, domain, department, cover_color, icon_key, due_date, archived_at, created_by, created_at, updated_at")
+      .eq("unified_task_type", "master")
+      .in("id", idList)
+      .order("updated_at", { ascending: false });
+
+    if (filters?.archived) {
+      masterQuery = masterQuery.not("archived_at", "is", null);
+    } else {
+      masterQuery = masterQuery.is("archived_at", null);
+    }
+    if (filters?.department) {
+      masterQuery = masterQuery.eq("department", filters.department);
+    }
+
+    // Fetch master tasks, groups, subtasks, and members in one parallel round-trip
+    const [
+      { data: masterRows, error: masterErr },
+      { data: groupRows },
+      { data: subtaskRows },
+      { data: membershipRows },
+    ] = await Promise.all([
+      masterQuery,
+      supabase
+        .from("task_groups")
+        .select("id, project_id, title, description, status, position, due_date, created_by, created_at, updated_at")
+        .in("project_id", idList)
+        .order("position", { ascending: true }),
+      supabase
+        .from("tasks")
+        .select("id, project_id, group_id, parent_task_id, title, notes, atlas_status, priority, progress, due_date, assigned_to_users, estimated_minutes, actual_minutes, position, tags, created_by, created_at, updated_at, domain, department, master_task_id, imported_from, import_batch_id, unified_task_type")
+        .eq("unified_task_type", "subtask")
+        .in("project_id", idList)
+        .order("position", { ascending: true }),
+      supabase
+        .from("project_members")
+        .select("id, project_id, user_id, role, added_by, added_at, profile:profiles!user_id(id, full_name, role, job_title)")
+        .in("project_id", idList),
+    ]);
+
+    if (masterErr) return { success: false, error: "Failed to fetch tasks" };
+
+    const tasks = (masterRows ?? []) as unknown as MasterTask[];
+    if (tasks.length === 0) return { success: true, data: [] };
+
+    // Enrich subtasks with assignee profiles in one batch query
+    const allUserIds = new Set<string>();
+    for (const st of subtaskRows ?? []) {
+      for (const id of (st.assigned_to_users as string[] | null) ?? []) {
+        allUserIds.add(id);
+      }
+    }
+
+    let profileMap = new Map<string, { id: string; full_name: string; role: string; job_title: string | null }>();
+    if (allUserIds.size > 0) {
+      const { data: profileRows } = await supabase
+        .from("profiles")
+        .select("id, full_name, role, job_title")
+        .in("id", [...allUserIds]);
+      for (const p of profileRows ?? []) profileMap.set(p.id, p);
+    }
+
+    const enrichedSubtasks = (subtaskRows ?? []).map((st) => {
+      const userIds = (st.assigned_to_users as string[] | null) ?? [];
+      return {
+        ...st,
+        unified_task_type: "subtask" as const,
+        assigned_to_profiles: userIds.map((id) => profileMap.get(id)).filter(Boolean),
+      };
+    });
+
+    // Index groups and subtasks by project_id for O(1) lookup per task
+    const groupsByProject = new Map<string, typeof groupRows extends (infer T)[] | null ? T[] : never>();
+    for (const g of groupRows ?? []) {
+      const pid = g.project_id as string;
+      if (!groupsByProject.has(pid)) groupsByProject.set(pid, []);
+      groupsByProject.get(pid)!.push(g);
+    }
+
+    const subtasksByGroup = new Map<string, typeof enrichedSubtasks>();
+    const subtasksByProject = new Map<string, typeof enrichedSubtasks>();
+    for (const st of enrichedSubtasks) {
+      const pid = st.project_id as string;
+      if (!subtasksByProject.has(pid)) subtasksByProject.set(pid, []);
+      subtasksByProject.get(pid)!.push(st);
+
+      const gid = st.group_id as string | null;
+      if (gid) {
+        if (!subtasksByGroup.has(gid)) subtasksByGroup.set(gid, []);
+        subtasksByGroup.get(gid)!.push(st);
+      }
+    }
+
+    const membersByProject = new Map<string, typeof membershipRows extends (infer T)[] | null ? T[] : never>();
+    for (const m of membershipRows ?? []) {
+      const pid = m.project_id as string;
+      if (!membersByProject.has(pid)) membersByProject.set(pid, []);
+      membersByProject.get(pid)!.push(m);
+    }
+
+    // Assemble the final shape per task
+    const result = tasks.map((mt) => {
+      const projectGroups = groupsByProject.get(mt.id) ?? [];
+      const projectSubtasks = subtasksByProject.get(mt.id) ?? [];
+
+      const subtask_count = projectSubtasks.length;
+      const completed_subtask_count = projectSubtasks.filter(
+        (st) => (st.atlas_status as string) === "done",
+      ).length;
+
+      const taskGroups = projectGroups.map((g) => ({
+        ...g,
+        tasks: (subtasksByGroup.get(g.id as string) ?? []) as unknown as SubTask[],
+      }));
+
+      const members = (membersByProject.get(mt.id) ?? []) as unknown as MasterTaskMember[];
+
+      return {
+        masterTask: {
+          ...mt,
+          subtask_count,
+          completed_subtask_count,
+          members,
+        } as unknown as MasterTask,
+        taskGroups: taskGroups as unknown as (TaskGroup & { tasks: SubTask[] })[],
+      };
+    });
+
+    return { success: true, data: result };
+  } catch (err) {
+    console.error("[getMasterTasksWithDetail]", err);
     return { success: false, error: "An unexpected error occurred" };
   }
 }
@@ -1300,7 +1491,7 @@ export async function updateSubTaskStatus(
     const previousAttachments = task.attachments;
     const finalProgress = new_progress ?? (new_status === "done" ? 100 : currentProgress);
 
-    // Build task update — optionally include checklist in attachments
+    // Build task update -- optionally include checklist in attachments
     const taskUpdate: Record<string, unknown> = {
       atlas_status: new_status,
       progress:     finalProgress,
@@ -1412,7 +1603,7 @@ export async function updateSubTaskProgress(
   }
 }
 
-/** Project board / sheet — `(taskId, progress, note?)` for client components. */
+/** Project board / sheet -- `(taskId, progress, note?)` for client components. */
 export async function updateTaskProgress(
   taskId: string,
   newProgress: number,
@@ -1601,7 +1792,7 @@ export async function createPersonalTask(
         assigned_to_users: [assigneeId],
         domain:            persDomain,
         department:        persDepartment,
-        /** Assignee owns the row so “My tasks” / Daily SOP / RLS stay assignee-scoped; delegator in `delegated_by:` tag. */
+        /** Assignee owns the row so "My tasks" / Daily SOP / RLS stay assignee-scoped; delegator in `delegated_by:` tag. */
         created_by:        isDelegated ? assigneeId : user.id,
         status:            "pending",
         task_type:         "general_follow_up",
@@ -1641,7 +1832,7 @@ function canManageDailySOPs(role: string): boolean {
 }
 
 /**
- * Idempotent: for each self-tagged personal SOP template, inserts today’s instance
+ * Idempotent: for each self-tagged personal SOP template, inserts today's instance
  * if missing (mirrors spawn_daily_sop_instances for a single assignee).
  */
 async function ensurePersonalSelfSOPInstancesForToday(
@@ -2170,6 +2361,46 @@ export async function addMasterTaskMember(
   }
 }
 
+/** Batch version of addMasterTaskMember -- single auth round-trip, single upsert, one revalidation. */
+export async function addMasterTaskMembers(
+  masterTaskId: unknown,
+  profileIds: unknown,
+): Promise<ActionResult> {
+  const taskParsed    = uuidSchema.safeParse(masterTaskId);
+  const profilesParsed = uuidSchema.array().safeParse(profileIds);
+  if (!taskParsed.success || !profilesParsed.success)
+    return { success: false, error: "Invalid input" };
+  if (profilesParsed.data.length === 0) return { success: true };
+
+  try {
+    const { supabase, user, role } = await getAuthUser();
+    const hasAccess =
+      isPrivilegedRole(role) ||
+      (await assertMasterTaskAccess(supabase, taskParsed.data, user.id, role, ["owner", "manager"]));
+
+    if (!hasAccess) return { success: false, error: "Not authorized" };
+
+    const rows = profilesParsed.data.map((profileId) => ({
+      project_id: taskParsed.data,
+      user_id:    profileId,
+      role:       "member" as const,
+      added_by:   user.id,
+    }));
+
+    const { error } = await supabase
+      .from("project_members")
+      .upsert(rows, { onConflict: "project_id,user_id" });
+
+    if (error) return { success: false, error: "Failed to add members" };
+
+    revalidateAtlasTaskSurfaces(taskParsed.data);
+    return { success: true };
+  } catch (err) {
+    console.error("[addMasterTaskMembers]", err);
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
 export async function removeMasterTaskMember(
   masterTaskId: unknown,
   profileId: unknown,
@@ -2339,7 +2570,7 @@ export async function createImportBatch(
           }
         }
 
-        // Map status — spreadsheet may use legacy labels
+        // Map status -- spreadsheet may use legacy labels
         const raw = row.status?.trim().toLowerCase().replace(/\s+/g, "_") ?? "todo";
         const legacyToCanonical: Record<string, AtlasTaskStatus> = {
           in_review: "in_progress",
@@ -2576,7 +2807,7 @@ export async function searchProfilesForTasks(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CRM LEAD TASKS (`lead_id` set — not Atlas personal tasks)
+// CRM LEAD TASKS (`lead_id` set -- not Atlas personal tasks)
 // Used by LeadTaskWidget and LeadFollowUpAccordion. Discriminated by lead_id.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -2731,7 +2962,7 @@ export async function completeLeadTask(
 // BACKWARD-COMPAT STUBS
 // These aliases preserve the old lib/actions/tasks.ts API surface so existing
 // components that pre-date the Atlas Tasks migration continue to compile.
-// Do NOT use in new code — import the canonical functions directly.
+// Do NOT use in new code -- import the canonical functions directly.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** @deprecated Use completePersonalTask */
@@ -2787,7 +3018,7 @@ export async function addTaskProgress(
   if (!parsed.success) return { success: false, error: "Invalid task" };
   const trimmed = message?.trim();
   if (!trimmed || trimmed.length > 2000)
-    return { success: false, error: "Message must be 1–2000 characters" };
+    return { success: false, error: "Message must be 1-2000 characters" };
 
   try {
     const { supabase, user } = await getAuthUser();
@@ -2919,21 +3150,21 @@ export async function getAgentDailyRoster(
 
 // ── Reminder / alert stubs ───────────────────────────────────────────────────
 
-/** @deprecated Not implemented in Atlas Tasks — returns empty array */
+/** @deprecated Not implemented in Atlas Tasks -- returns empty array */
 export async function getTasksForReminders(): Promise<
   ActionResult<TaskWithLead[]>
 > {
   return { success: true, data: [] };
 }
 
-/** @deprecated Not implemented in Atlas Tasks — returns 0 */
+/** @deprecated Not implemented in Atlas Tasks -- returns 0 */
 export async function getMyOverdueTaskCount(): Promise<ActionResult<{ count: number }>> {
   return { success: true, data: { count: 0 } };
 }
 
 // ── FollowUp stubs (old lead follow-up workflow) ─────────────────────────────
 
-/** @deprecated Not implemented in Atlas Tasks — no-op stub */
+/** @deprecated Not implemented in Atlas Tasks -- no-op stub */
 export async function processFollowUpAttempted(
   _taskId: string,
   _note?: string,
@@ -2941,7 +3172,7 @@ export async function processFollowUpAttempted(
   return { success: false, error: "processFollowUpAttempted is deprecated. Use updateSubTaskStatus." };
 }
 
-/** @deprecated Not implemented in Atlas Tasks — no-op stub */
+/** @deprecated Not implemented in Atlas Tasks -- no-op stub */
 export async function processFollowUpNext(
   _taskId: string,
   _params: unknown,
@@ -2949,7 +3180,7 @@ export async function processFollowUpNext(
   return { success: false, error: "processFollowUpNext is deprecated. Use updateSubTaskStatus." };
 }
 
-/** @deprecated Not implemented in Atlas Tasks — no-op stub */
+/** @deprecated Not implemented in Atlas Tasks -- no-op stub */
 export async function processFollowUpDisposition(
   _taskId: string,
   _params: unknown,
@@ -2984,7 +3215,7 @@ export async function getTeamMembersForAdmin(): Promise<
   }
 }
 
-/** @deprecated Not implemented in Atlas Tasks — returns empty array */
+/** @deprecated Not implemented in Atlas Tasks -- returns empty array */
 export async function getLeadTasks(
   _leadId: string,
 ): Promise<ActionResult<TaskWithLead[]>> {
@@ -3090,7 +3321,7 @@ export async function getLeadsForTaskModal(opts?: {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Project board (CRM /projects) — `projects` table + task_comments + children
+// Project board (CRM /projects) -- `projects` table + task_comments + children
 // ─────────────────────────────────────────────────────────────────────────────
 
 function mapAtlasToProjectStatus(
@@ -3536,7 +3767,7 @@ export async function createProjectNestedSubTask(
 // Daily personal tasks (IST calendar)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Daily personal task — IST calendar date on daily_date. */
+/** Daily personal task -- IST calendar date on daily_date. */
 export async function createDailyPersonalTask(
   rawData: CreateDailyPersonalTaskInput,
 ): Promise<ActionResult<{ id: string }>> {

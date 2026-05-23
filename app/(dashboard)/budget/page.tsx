@@ -12,14 +12,11 @@ export default async function BudgetPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  // Profile + budget data in parallel — getAllBudgetData re-auths internally but
-  // Next.js dedupes the cookie read; the role check below gates access.
-  const [{ data: profile }, initialData] = await Promise.all([
-    supabase.from("profiles").select("role").eq("id", user.id).single(),
-    getAllBudgetData(),
-  ]);
+  // getAllBudgetData calls getAuthUser() internally (React.cache dedupes auth.getUser()).
+  // role comes back from the cached profile — no separate profiles query needed.
+  const initialData = await getAllBudgetData();
+  const { role } = initialData;
 
-  const role = (profile?.role as string) ?? "agent";
   if (!["founder", "admin", "super_admin"].includes(role)) redirect("/");
 
   return (

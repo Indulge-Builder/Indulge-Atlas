@@ -2,7 +2,6 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
 import { getAuthUser } from "@/lib/auth/getAuthUser";
 import type {
   BudgetDomain,
@@ -44,11 +43,12 @@ export async function getBudgetData(domain: BudgetDomain): Promise<{
 }
 
 export async function getAllBudgetData(): Promise<{
+  role: string;
   meta: { transactions: BudgetTransaction[]; deliverables: BudgetDeliverable[] };
   elia: { transactions: BudgetTransaction[]; deliverables: BudgetDeliverable[] };
   zoho: { transactions: BudgetTransaction[]; deliverables: BudgetDeliverable[] };
 }> {
-  const { supabase } = await getAuthUser();
+  const { supabase, role } = await getAuthUser();
 
   const [txResult, dlResult] = await Promise.all([
     supabase
@@ -70,7 +70,7 @@ export async function getAllBudgetData(): Promise<{
     deliverables: dls.filter((dl) => dl.domain === d),
   });
 
-  return { meta: group("meta"), elia: group("elia"), zoho: group("zoho") };
+  return { role, meta: group("meta"), elia: group("elia"), zoho: group("zoho") };
 }
 
 // ── TRANSACTIONS ──────────────────────────────────────────────────────────────
