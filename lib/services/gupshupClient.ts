@@ -87,6 +87,12 @@ export async function sendGupshupMessage(
   });
 
   try {
+    console.log("[gupshupClient:debug] apiKey prefix:", apiKey.slice(0, 8));
+    console.log("[gupshupClient:debug] appName:", appName);
+    console.log("[gupshupClient:debug] partnerNumber:", partnerNumber);
+    console.log("[gupshupClient:debug] url:", GUPSHUP_API_URL);
+    console.log("[gupshupClient:debug] body:", formBody.toString());
+
     const res = await fetch(GUPSHUP_API_URL, {
       method: "POST",
       headers: {
