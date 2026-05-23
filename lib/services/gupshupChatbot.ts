@@ -122,6 +122,7 @@ async function callClaude(
     return null;
   }
 
+  console.log('[chatbot:debug] step6.5 calling claude, api key prefix:', process.env.GUPSHUP_ANTHROPIC_API_KEY?.slice(0, 8) ?? 'MISSING')
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -146,6 +147,7 @@ async function callClaude(
     }
 
     const result = (await res.json()) as { content?: Array<{ type: string; text?: string }> };
+    console.log('[chatbot:debug] step7.5 claude raw response received, content blocks:', result?.content?.length ?? 'null')
     const raw = result.content?.find((b) => b.type === "text")?.text?.trim() ?? "";
     if (!raw) return null;
 
@@ -154,6 +156,7 @@ async function callClaude(
     return JSON.parse(cleaned) as BotClaudeResponse;
   } catch (err) {
     console.error("[gupshupChatbot] Claude call or JSON parse failed:", err);
+    console.error('[chatbot:debug] claude call failed:', err)
     return null;
   }
 }
