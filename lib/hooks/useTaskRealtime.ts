@@ -391,10 +391,17 @@ export function useMasterTasksIndexRealtime(masterTaskIds: string[]) {
   const supabase = useMemo(() => createClient(), []);
   const key = masterTaskIds.slice().sort().join(",");
 
-  useEffect(() => {
-    if (masterTaskIds.length === 0) return;
+  // Store router in a ref so the subscription effect never re-runs due to
+  // router reference changes (router.refresh() causes a new router object,
+  // which previously triggered teardown+resubscribe on every change event).
+  const routerRef = useRef(router);
+  routerRef.current = router;
 
-    const channels = masterTaskIds.map((id) =>
+  useEffect(() => {
+    if (!key) return;
+
+    const ids = key.split(",");
+    const channels = ids.map((id) =>
       supabase
         .channel(`tasks:index:${id}`)
         .on(
@@ -406,7 +413,7 @@ export function useMasterTasksIndexRealtime(masterTaskIds: string[]) {
             filter: `project_id=eq.${id}`,
           },
           () => {
-            router.refresh();
+            routerRef.current.refresh();
           },
         )
         .subscribe(),
@@ -417,8 +424,8 @@ export function useMasterTasksIndexRealtime(masterTaskIds: string[]) {
         supabase.removeChannel(ch);
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, router, supabase]);
+    // key is a stable string derived from sorted IDs — supabase instance is stable too
+  }, [key, supabase]);
 }
 
 /**

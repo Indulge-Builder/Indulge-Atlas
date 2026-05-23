@@ -267,7 +267,7 @@ export function GroupTasksCommandView({
             index={i}
             density={taskInsightsCardDensity(i)}
             showDepartmentBadge={showDepartmentBadge}
-            onOpenWorkspace={(task) => router.push(`/tasks/${task.id}`)}
+            onOpenWorkspace={(task) => router.push(`/tasks/${task.id}?from=task-insights`)}
           />
         </div>
       ))}

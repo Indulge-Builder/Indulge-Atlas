@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/auth/getAuthUser";
 import type {
   LeadStatus,
   LostReason,
@@ -20,24 +21,6 @@ interface ActionResult {
   showNurtureToast?: boolean;
 }
 
-async function getAuthUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-  if (error || !user) throw new Error("Unauthenticated");
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role, domain")
-    .eq("id", user.id)
-    .single();
-
-  const role = (profile as { role: string } | null)?.role ?? "agent";
-  const domain = (profile as { domain?: string } | null)?.domain ?? "indulge_concierge";
-  return { supabase, user, role, domain };
-}
 
 function isPrivilegedRole(role: string): boolean {
   return role === "admin" || role === "founder" || role === "manager";

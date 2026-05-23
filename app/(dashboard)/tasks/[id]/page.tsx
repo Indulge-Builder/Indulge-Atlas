@@ -9,30 +9,31 @@ export const dynamic = "force-dynamic";
 
 function DetailSkeleton() {
   return (
-    <div className="min-h-screen bg-[#F9F9F6] flex flex-col">
-      <div className="px-6 pt-6 max-w-7xl mx-auto w-full space-y-6 flex-1">
-        <Skeleton className="h-4 w-28" />
-        <div className="flex gap-4 items-start">
-          <Skeleton className="h-14 w-14 rounded-2xl shrink-0" />
-          <div className="space-y-2 flex-1">
-            <Skeleton className="h-3 w-24" />
-            <Skeleton className="h-9 w-full max-w-md" />
-            <Skeleton className="h-4 w-72" />
+    <div className="flex min-h-screen flex-col bg-[#F9F9F6]">
+      <div className="atlas-masthead-texture w-full max-w-7xl mx-auto px-6 pt-6 pb-0">
+        <Skeleton className="mb-5 h-4 w-28" />
+        <div className="mb-6 flex items-start gap-4">
+          <Skeleton className="h-14 w-14 shrink-0 rounded-2xl" />
+          <div className="flex-1 space-y-2 pt-1">
+            <Skeleton className="h-8 w-64 max-w-full" />
+            <Skeleton className="h-4 w-48 max-w-full" />
           </div>
         </div>
-        <Skeleton className="h-[52px] w-full rounded-2xl" />
-        <Skeleton className="h-11 w-full max-w-md" />
-        <div className="flex-1 min-h-[420px] w-full rounded-2xl border border-[#E5E4DF] bg-[#FAFAF8]/80 p-5">
-          <div className="flex gap-4 overflow-hidden">
-            {Array.from({ length: 3 }).map((_, col) => (
-              <div key={col} className="w-72 shrink-0 space-y-2">
-                <Skeleton className="h-5 w-28" />
-                <Skeleton className="h-24 w-full rounded-xl" />
-                <Skeleton className="h-24 w-full rounded-xl" />
-              </div>
+        <Skeleton className="mb-6 h-[52px] w-full rounded-2xl" />
+        <div className="flex gap-6 border-b border-[#E5E4DF]">
+          <Skeleton className="h-9 w-28 rounded-none" />
+          <Skeleton className="h-9 w-24 rounded-none" />
+        </div>
+      </div>
+      <div className="flex gap-4 overflow-x-auto px-6 pt-6 max-w-7xl mx-auto w-full pb-8">
+        {Array.from({ length: 3 }).map((_, col) => (
+          <div key={col} className="w-72 shrink-0 rounded-xl border border-[#E5E4DF] bg-[#FAFAF8] p-3 space-y-2.5">
+            <Skeleton className="h-5 w-32 mb-3" />
+            {Array.from({ length: 3 }).map((_, row) => (
+              <Skeleton key={row} className="h-20 w-full rounded-xl" />
             ))}
           </div>
-        </div>
+        ))}
       </div>
     </div>
   );
@@ -40,14 +41,17 @@ function DetailSkeleton() {
 
 interface PageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string }>;
 }
 
 async function DetailContent({
   taskId,
   userId,
+  backHref,
 }: {
   taskId: string;
   userId: string;
+  backHref: string;
 }) {
   const supabase = await createClient();
   const { data: profileRow } = await supabase
@@ -78,11 +82,12 @@ async function DetailContent({
       members={members}
       canDeleteMaster={canDeleteMaster}
       currentUser={currentUser}
+      backHref={backHref}
     />
   );
 }
 
-export default async function MasterTaskPage({ params }: PageProps) {
+export default async function MasterTaskPage({ params, searchParams }: PageProps) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -91,11 +96,13 @@ export default async function MasterTaskPage({ params }: PageProps) {
   if (!user) redirect("/login");
 
   const { id } = await params;
+  const { from } = await searchParams;
+  const backHref = from === "task-insights" ? "/task-insights" : "/tasks";
 
   return (
     <div className="min-h-screen bg-[#F9F9F6]">
       <Suspense fallback={<DetailSkeleton />}>
-        <DetailContent taskId={id} userId={user.id} />
+        <DetailContent taskId={id} userId={user.id} backHref={backHref} />
       </Suspense>
     </div>
   );

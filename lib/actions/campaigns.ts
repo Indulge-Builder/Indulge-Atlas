@@ -6,6 +6,23 @@ import type { CampaignTableRow } from "@/lib/types/campaigns";
 import { MOCK_CAMPAIGNS } from "@/lib/data/campaigns-mock";
 import { LEADS_TABLE_SELECT } from "@/lib/leads/leadsTableSelect";
 
+const ONBOARDING_DOMAIN = "indulge_concierge" as const;
+
+function leadMatchesCampaign(
+  lead: {
+    utm_campaign: string | null;
+    campaign_name: string | null;
+  },
+  campaignId: string,
+  campaignName: string,
+): boolean {
+  const utm = lead.utm_campaign?.trim();
+  const cname = lead.campaign_name?.trim();
+  if (utm && (utm === campaignId || utm === campaignName)) return true;
+  if (cname && cname === campaignName) return true;
+  return false;
+}
+
 // ── Auth guard ─────────────────────────────────────────────────────────────────
 async function requireManagerOrAdmin() {
   const supabase = await createClient();
@@ -49,46 +66,28 @@ export async function getCampaignsWithAttribution(): Promise<CampaignWithAttribu
   if (campaignsErr) throw new Error(campaignsErr.message);
   if (!campaigns?.length) return [];
 
-  // Fetch all leads with attribution in one query
-  const campaignIds = campaigns.map((c) => c.campaign_id);
+  const ninetyDaysAgo = new Date();
+  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
   const { data: leads, error: leadsErr } = await supabase
     .from("leads")
-    .select("utm_campaign, status, deal_value")
-    .in("utm_campaign", campaignIds);
+    .select("utm_campaign, campaign_name, status, deal_value, created_at")
+    .eq("domain", ONBOARDING_DOMAIN)
+    .gte("created_at", ninetyDaysAgo.toISOString());
 
   if (leadsErr) throw new Error(leadsErr.message);
 
-  // Build attribution map
-  const statsMap = new Map<
-    string,
-    { leads_count: number; won_count: number; revenue: number }
-  >();
-
-  for (const lead of leads ?? []) {
-    if (!lead.utm_campaign) continue;
-    const existing = statsMap.get(lead.utm_campaign) ?? {
-      leads_count: 0,
-      won_count: 0,
-      revenue: 0,
-    };
-    existing.leads_count += 1;
-    if (lead.status === "won") {
-      existing.won_count += 1;
-      existing.revenue += lead.deal_value ?? 0;
-    }
-    statsMap.set(lead.utm_campaign, existing);
-  }
-
   return campaigns.map((c) => {
-    const stats = statsMap.get(c.campaign_id) ?? {
-      leads_count: 0,
-      won_count: 0,
-      revenue: 0,
-    };
-    const cpl =
-      stats.leads_count > 0 ? c.amount_spent / stats.leads_count : 0;
-    return { ...c, ...stats, cpl };
+    const matched = (leads ?? []).filter((lead) =>
+      leadMatchesCampaign(lead, c.campaign_id, c.campaign_name),
+    );
+    const leads_count = matched.length;
+    const won_count = matched.filter((l) => l.status === "won").length;
+    const revenue = matched
+      .filter((l) => l.status === "won")
+      .reduce((sum, l) => sum + (l.deal_value ?? 0), 0);
+    const cpl = leads_count > 0 ? c.amount_spent / leads_count : 0;
+    return { ...c, leads_count, won_count, revenue, cpl };
   });
 }
 

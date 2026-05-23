@@ -61,6 +61,8 @@ interface MasterTaskDetailProps {
   canDeleteMaster?: boolean;
   /** Viewer profile — required for subtask modal (same as Group Tasks list). */
   currentUser: { id: string; full_name: string; job_title: string | null };
+  /** Where the back link navigates. Defaults to /tasks. */
+  backHref?: string;
 }
 
 export function MasterTaskDetail({
@@ -69,6 +71,7 @@ export function MasterTaskDetail({
   members,
   canDeleteMaster = false,
   currentUser,
+  backHref = "/tasks",
 }: MasterTaskDetailProps) {
   const router = useRouter();
   const { boardVersion } = useAtlasTaskRealtime({
@@ -146,11 +149,11 @@ export function MasterTaskDetail({
       {/* Masthead — matches /tasks Group Tasks shell */}
       <header className="atlas-masthead-texture w-full px-6 pt-6 pb-0 max-w-7xl mx-auto">
         <Link
-          href="/tasks"
+          href={backHref}
           className="inline-flex items-center gap-1.5 text-[13px] font-medium text-[#8A8A6E] hover:text-[#1A1A1A] transition-colors mb-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37] rounded"
         >
           <ChevronLeft className="h-4 w-4 shrink-0" />
-          Group Tasks
+          {backHref === "/task-insights" ? "Task Insights" : "Group Tasks"}
         </Link>
 
         <div className="mb-6 flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between lg:gap-10">

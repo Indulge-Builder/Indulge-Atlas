@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/auth/getAuthUser";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { TaskReminderProvider } from "@/components/task-reminder/TaskReminderProvider";
 import { TaskAlertProvider } from "@/components/providers/TaskAlertProvider";
@@ -16,21 +16,14 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
+  let user: Awaited<ReturnType<typeof getAuthUser>>["user"];
+  let profile: Awaited<ReturnType<typeof getAuthUser>>["profile"];
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) redirect("/login");
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select(
-      "id, full_name, email, role, domain, department, job_title, reports_to, is_active, created_at, updated_at",
-    )
-    .eq("id", user.id)
-    .single();
+  try {
+    ({ user, profile } = await getAuthUser());
+  } catch {
+    redirect("/login");
+  }
 
   if (!profile) redirect("/login");
 

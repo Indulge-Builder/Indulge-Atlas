@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/auth/getAuthUser";
 import { z } from "zod";
 import type { TaskType, TaskWithLead } from "@/lib/types/database";
 
@@ -10,15 +11,6 @@ const taskTypeSchema = z.enum([
   "campaign_review", "strategy_meeting", "budget_approval", "performance_analysis",
 ]);
 
-async function getAuthUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-  if (error || !user) throw new Error("Unauthenticated");
-  return { supabase, user };
-}
 
 export interface LeadMatch {
   id: string;

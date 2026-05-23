@@ -80,13 +80,9 @@ export function CampaignsTabs({
 
   return (
     <Tabs defaultValue="meta" className="w-full">
-      <TabsList className="bg-white border border-[#EAEAEA] p-1 rounded-xl mb-6 h-auto w-auto gap-1 flex-wrap">
+      <TabsList className="mb-6">
         {TABS.map((tab) => (
-          <TabsTrigger
-            key={tab.value}
-            value={tab.value}
-            className="rounded-lg px-5 py-2 text-sm font-medium text-[#9E9E9E] data-[state=active]:bg-[#0A0A0A] data-[state=active]:text-white data-[state=active]:shadow-none transition-all"
-          >
+          <TabsTrigger key={tab.value} value={tab.value}>
             <span className="flex items-center gap-2">
               <span
                 className="w-2 h-2 rounded-full shrink-0"

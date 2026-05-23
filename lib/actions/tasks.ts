@@ -17,6 +17,7 @@
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/auth/getAuthUser";
 import { getServiceSupabaseClient } from "@/lib/supabase/service";
 import { sanitizeText } from "@/lib/utils/sanitize";
 import { PERSONAL_SOP_SELF_TAG } from "@/lib/constants/personalTaskTags";
@@ -99,25 +100,6 @@ interface ActionResult<T = undefined> {
   error?: string;
 }
 
-// ── Auth helper ────────────────────────────────────────────
-
-async function getAuthUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-  if (error || !user) throw new Error("Unauthenticated");
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("id, full_name, role, domain, department")
-    .eq("id", user.id)
-    .single();
-  const role = profile?.role ?? "agent";
-  const domain = profile?.domain ?? "indulge_concierge";
-  const department = profile?.department ?? null;
-  return { supabase, user, role, domain, department, profile };
-}
 
 function isPrivilegedOrManager(role: string): boolean {
   return ["admin", "founder", "manager"].includes(role);

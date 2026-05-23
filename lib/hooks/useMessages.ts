@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { getConversationMessages } from "@/lib/actions/messages";
 import type { Message, MessageLeadPreview, LeadStatus, Profile } from "@/lib/types/database";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -23,8 +24,11 @@ type LeadRowForMessages = {
 interface UseMessagesReturn {
   messages:       Message[];
   loading:        boolean;
+  loadError:      string | null;
   bottomRef:      React.RefObject<HTMLDivElement | null>;
   scrollToBottom: () => void;
+  appendMessage:  (message: Message) => void;
+  refetch:        () => void;
 }
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
@@ -34,20 +38,67 @@ export function useMessages(conversationId: string | null): UseMessagesReturn {
   const [senderMap,   setSenderMap]   = useState<SenderMap>({});
   const [leadMap,     setLeadMap]     = useState<LeadMap>({});
   const [loading,     setLoading]     = useState(false);
+  const [loadError,   setLoadError]   = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const fetchedLeadIdsRef = useRef<Set<string>>(new Set());
   const supabase = useMemo(() => createClient(), []);
 
   const scrollToBottom = useCallback(() => {
     const el = bottomRef.current;
     if (!el) return;
-    // Scroll the overflow container, never the page
     const container = el.parentElement;
     if (container) {
       container.scrollTop = container.scrollHeight;
     }
   }, []);
 
-  // ── Build sender directory ────────────────────────────────────────────────
+  const applyServerMessages = useCallback((items: Message[]) => {
+    const senders: SenderMap = {};
+    const leads: LeadMap = {};
+    const raw: RawMessage[] = items.map((m) => {
+      if (m.sender) senders[m.sender_id] = m.sender;
+      if (m.lead && m.lead_id) leads[m.lead_id] = m.lead;
+      const { sender: _s, lead: _l, ...rest } = m;
+      return rest;
+    });
+    setSenderMap((prev) => ({ ...prev, ...senders }));
+    setLeadMap((prev) => ({ ...prev, ...leads }));
+    setRawMessages(raw);
+  }, []);
+
+  const fetchMessages = useCallback(async () => {
+    if (!conversationId) return;
+    setLoading(true);
+    setLoadError(null);
+
+    const { success, messages, error } = await getConversationMessages(conversationId);
+
+    if (!success) {
+      setLoadError(error ?? "Failed to load messages");
+      setRawMessages([]);
+      setLoading(false);
+      return;
+    }
+
+    applyServerMessages(messages);
+    setLoading(false);
+  }, [conversationId, applyServerMessages]);
+
+  const appendMessage = useCallback((message: Message) => {
+    const { sender, lead, ...raw } = message;
+    setRawMessages((prev) => {
+      if (prev.some((m) => m.id === raw.id)) return prev;
+      return [...prev, raw];
+    });
+    if (sender) {
+      setSenderMap((prev) => ({ ...prev, [sender.id]: sender }));
+    }
+    if (lead && raw.lead_id) {
+      setLeadMap((prev) => ({ ...prev, [raw.lead_id!]: lead }));
+    }
+  }, []);
+
+  // ── Sender directory (realtime enrichment for inbound messages) ───────────
   useEffect(() => {
     let cancelled = false;
 
@@ -62,7 +113,7 @@ export function useMessages(conversationId: string | null): UseMessagesReturn {
       const map: SenderMap = {};
       (directory ?? []).forEach((p: SenderInfo) => { map[p.id] = p; });
       (own       ?? []).forEach((p: SenderInfo) => { map[p.id] = p; });
-      setSenderMap(map);
+      setSenderMap((prev) => ({ ...prev, ...map }));
     }
 
     buildDirectory();
@@ -70,37 +121,21 @@ export function useMessages(conversationId: string | null): UseMessagesReturn {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Fetch historical messages ─────────────────────────────────────────────
-  const fetchedLeadIdsRef = useRef<Set<string>>(new Set());
+  // ── Load history via server action (cookie auth, not browser JWT) ─────────
   useEffect(() => {
     if (!conversationId) {
       setRawMessages([]);
       setLeadMap({});
+      setLoadError(null);
       fetchedLeadIdsRef.current.clear();
       return;
     }
 
     fetchedLeadIdsRef.current.clear();
-    let cancelled = false;
-    setLoading(true);
-
-    supabase
-      .from("messages")
-      .select("id, conversation_id, sender_id, content, lead_id, created_at")
-      .eq("conversation_id", conversationId)
-      .order("created_at", { ascending: true })
-      .then(({ data }: { data: RawMessage[] | null }) => {
-        if (!cancelled) {
-          setRawMessages(data ?? []);
-          setLoading(false);
-        }
-      });
-
-    return () => { cancelled = true; };
-  }, [conversationId]);
+    void fetchMessages();
+  }, [conversationId, fetchMessages]);
 
   // ── Fetch lead previews for any lead_id referenced in messages ────────────
-  // CRITICAL: Use ref to avoid re-fetch loop — leadMap must NOT be in deps
   useEffect(() => {
     const missingIds = rawMessages
       .filter((m) => m.lead_id && !fetchedLeadIdsRef.current.has(m.lead_id))
@@ -127,9 +162,9 @@ export function useMessages(conversationId: string | null): UseMessagesReturn {
         });
         setLeadMap((prev) => ({ ...prev, ...entries }));
       });
-  }, [rawMessages]);
+  }, [rawMessages, supabase]);
 
-  // ── Real-time subscription ────────────────────────────────────────────────
+  // ── Real-time subscription (inbound + cross-tab) ──────────────────────────
   useEffect(() => {
     if (!conversationId) return;
 
@@ -149,7 +184,7 @@ export function useMessages(conversationId: string | null): UseMessagesReturn {
             if (prev.some((m) => m.id === raw.id)) return prev;
             return [...prev, raw];
           });
-        }
+        },
       )
       .subscribe();
 
@@ -157,17 +192,23 @@ export function useMessages(conversationId: string | null): UseMessagesReturn {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId]);
 
-  // ── Enrich: merge senderMap + leadMap into final messages ─────────────────
   const messages: Message[] = rawMessages.map((m) => ({
     ...m,
     sender: senderMap[m.sender_id],
     lead:   m.lead_id ? (leadMap[m.lead_id] ?? null) : null,
   }));
 
-  // ── Auto-scroll on new message ────────────────────────────────────────────
   useEffect(() => {
     if (rawMessages.length > 0) scrollToBottom();
   }, [rawMessages, scrollToBottom]);
 
-  return { messages, loading, bottomRef, scrollToBottom };
+  return {
+    messages,
+    loading,
+    loadError,
+    bottomRef,
+    scrollToBottom,
+    appendMessage,
+    refetch: fetchMessages,
+  };
 }

@@ -3,6 +3,9 @@
 import { createClient } from "@/lib/supabase/server";
 import type { LeadStatus, Profile } from "@/lib/types/database";
 
+/** Concierge CRM pipeline — same scope as onboarding oversight dashboards. */
+const ONBOARDING_DOMAIN = "indulge_concierge" as const;
+
 async function requireManager() {
   const supabase = await createClient();
   const {
@@ -169,11 +172,10 @@ export async function getOnboardingAgentsWithStats(): Promise<
 > {
   const { supabase } = await requireManager();
 
-  // Include both agents and managers for founder oversight
   const { data: profiles } = await supabase
     .from("profiles")
     .select("*")
-    .in("role", ["agent", "manager", "founder"])
+    .in("role", ["agent", "manager"])
     .eq("is_active", true)
     .order("role")
     .order("full_name");
@@ -185,6 +187,7 @@ export async function getOnboardingAgentsWithStats(): Promise<
   const { data: allLeads } = await supabase
     .from("leads")
     .select("assigned_to, status, deal_value")
+    .eq("domain", ONBOARDING_DOMAIN)
     .in("assigned_to", memberIds);
 
   const leadMap = new Map<string, Array<{ status: string; deal_value: number | null }>>();
@@ -213,10 +216,12 @@ export async function getOnboardingAgentsWithStats(): Promise<
     { data: callActivities },
     { data: monthCallActivities },
     { data: lostLeads },
+    { data: todayWonRows },
   ] = await Promise.all([
     supabase
       .from("leads")
       .select("assigned_to")
+      .eq("domain", ONBOARDING_DOMAIN)
       .in("assigned_to", agentIds)
       .gte("assigned_at", todayStart)
       .lte("assigned_at", todayEnd),
@@ -237,9 +242,18 @@ export async function getOnboardingAgentsWithStats(): Promise<
     supabase
       .from("leads")
       .select("assigned_to, lost_reason")
+      .eq("domain", ONBOARDING_DOMAIN)
       .eq("status", "lost")
       .in("assigned_to", agentIds)
       .not("lost_reason", "is", null),
+    supabase
+      .from("leads")
+      .select("assigned_to")
+      .eq("domain", ONBOARDING_DOMAIN)
+      .eq("status", "won")
+      .in("assigned_to", agentIds)
+      .gte("updated_at", todayStart)
+      .lte("updated_at", todayEnd),
   ]);
 
   const todayLeadsMap = new Map<string, number>();
@@ -267,14 +281,6 @@ export async function getOnboardingAgentsWithStats(): Promise<
     agentMap.set(reason, (agentMap.get(reason) ?? 0) + 1);
     lostReasonsMap.set(row.assigned_to, agentMap);
   }
-
-  const { data: todayWonRows } = await supabase
-    .from("leads")
-    .select("assigned_to")
-    .eq("status", "won")
-    .in("assigned_to", agentIds)
-    .gte("updated_at", todayStart)
-    .lte("updated_at", todayEnd);
 
   const todayConvertedMap = new Map<string, number>();
   for (const row of todayWonRows ?? []) {
@@ -330,16 +336,18 @@ export async function getAgentPerformanceById(
       .from("profiles")
       .select("id, full_name, email, phone, dob, role, domain, is_active, created_at, updated_at")
       .eq("id", agentId)
-      .in("role", ["agent", "manager", "founder"])
+      .in("role", ["agent", "manager"])
       .eq("is_active", true)
       .single(),
     supabase
       .from("leads")
       .select("assigned_to, status, deal_value")
+      .eq("domain", ONBOARDING_DOMAIN)
       .eq("assigned_to", agentId),
     supabase
       .from("leads")
       .select("assigned_to")
+      .eq("domain", ONBOARDING_DOMAIN)
       .eq("assigned_to", agentId)
       .gte("assigned_at", todayStart)
       .lte("assigned_at", todayEnd),
@@ -360,12 +368,14 @@ export async function getAgentPerformanceById(
     supabase
       .from("leads")
       .select("assigned_to, lost_reason")
+      .eq("domain", ONBOARDING_DOMAIN)
       .eq("status", "lost")
       .eq("assigned_to", agentId)
       .not("lost_reason", "is", null),
     supabase
       .from("leads")
       .select("assigned_to")
+      .eq("domain", ONBOARDING_DOMAIN)
       .eq("status", "won")
       .eq("assigned_to", agentId)
       .gte("updated_at", todayStart)

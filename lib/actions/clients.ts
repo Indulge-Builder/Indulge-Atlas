@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/auth/getAuthUser";
+import type { SupabaseServerClient } from "@/lib/auth/getAuthUser";
 import { sanitizeText } from "@/lib/utils/sanitize";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import { canManageAnyClient } from "@/lib/types/database";
@@ -10,32 +12,6 @@ import { z } from "zod";
 
 const IST = SYSTEM_TIMEZONE;
 
-type AuthContext = {
-  supabase: Awaited<ReturnType<typeof createClient>>;
-  user: { id: string };
-  role: string;
-  domain: string;
-};
-
-async function getAuthUser(): Promise<AuthContext> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-  if (error || !user) throw new Error("Unauthenticated");
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role, domain")
-    .eq("id", user.id)
-    .single();
-
-  const role = (profile as { role: string } | null)?.role ?? "agent";
-  const domain =
-    (profile as { domain?: string } | null)?.domain ?? "indulge_concierge";
-  return { supabase, user, role, domain };
-}
 
 // ── JSON shapes (client_profiles JSONB) ─────────────────────
 
@@ -265,7 +241,7 @@ export interface ClientListFilters {
 }
 
 async function fetchClientsList(
-  supabase: AuthContext["supabase"],
+  supabase: SupabaseServerClient,
   filters: ClientListFilters = {},
 ) {
   const parsed = listFiltersSchema.safeParse(filters);
@@ -422,30 +398,31 @@ function startOfMonthISTUtc(): string {
 }
 
 async function fetchClientDirectoryStats(
-  supabase: AuthContext["supabase"],
+  supabase: SupabaseServerClient,
 ): Promise<ClientDirectoryStats> {
   const monthStart = startOfMonthISTUtc();
 
-  const [totalRes, activeRes, expiredRes, monthRes] = await Promise.all([
-    supabase.from("clients").select("id", { count: "exact", head: true }),
-    supabase
-      .from("clients")
-      .select("id", { count: "exact", head: true })
-      .eq("client_status", "active"),
-    supabase
-      .from("clients")
-      .select("id", { count: "exact", head: true })
-      .eq("client_status", "expired"),
+  // Two queries instead of four: one for status breakdown, one for month count.
+  const [statusRes, monthRes] = await Promise.all([
+    supabase.from("clients").select("client_status"),
     supabase
       .from("clients")
       .select("id", { count: "exact", head: true })
       .gte("created_at", monthStart),
   ]);
 
+  const rows = (statusRes.data ?? []) as { client_status: string }[];
+  let activeCount = 0;
+  let expiredCount = 0;
+  for (const r of rows) {
+    if (r.client_status === "active") activeCount++;
+    else if (r.client_status === "expired") expiredCount++;
+  }
+
   return {
-    totalMembers: totalRes.count ?? 0,
-    activeCount: activeRes.count ?? 0,
-    expiredCount: expiredRes.count ?? 0,
+    totalMembers: rows.length,
+    activeCount,
+    expiredCount,
     newThisMonthCount: monthRes.count ?? 0,
   };
 }
@@ -632,6 +609,44 @@ export async function getClientById(
     return { success: true, data: detail };
   } catch {
     return { success: false, error: "Failed to load client" };
+  }
+}
+
+export type ClientEliaProfileData = {
+  elia_profile: import("@/lib/types/database").EliaProfile | null;
+  elia_version: number;
+  elia_analyzed_at: string | null;
+  elia_messages_through: string | null;
+};
+
+/** Fetches only the Elia profile columns — much cheaper than a full getClientById. */
+export async function getClientEliaProfile(
+  clientId: string,
+): Promise<{ success: boolean; data?: ClientEliaProfileData; error?: string }> {
+  try {
+    const uuid = z.string().uuid().safeParse(clientId);
+    if (!uuid.success) return { success: false, error: "Invalid id" };
+
+    const { supabase } = await getAuthUser();
+    const { data, error } = await supabase
+      .from("client_profiles")
+      .select("elia_profile, elia_version, elia_analyzed_at, elia_messages_through")
+      .eq("client_id", clientId)
+      .maybeSingle();
+
+    if (error) return { success: false, error: "Failed to load Elia profile" };
+
+    return {
+      success: true,
+      data: {
+        elia_profile: (data?.elia_profile as import("@/lib/types/database").EliaProfile | null) ?? null,
+        elia_version: typeof data?.elia_version === "number" ? data.elia_version : 0,
+        elia_analyzed_at: (data?.elia_analyzed_at as string | null) ?? null,
+        elia_messages_through: (data?.elia_messages_through as string | null) ?? null,
+      },
+    };
+  } catch {
+    return { success: false, error: "Failed to load Elia profile" };
   }
 }
 

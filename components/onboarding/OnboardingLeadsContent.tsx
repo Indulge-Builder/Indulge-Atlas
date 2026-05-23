@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { LeadsTable } from "@/components/leads/LeadsTable";
 import { LEADS_TABLE_SELECT } from "@/lib/leads/leadsTableSelect";
+import { getDistinctUtmCampaigns } from "@/lib/actions/campaigns";
 import type { Lead, LeadStatus, UserRole } from "@/lib/types/database";
 
 export interface NextTask {
@@ -22,26 +23,30 @@ interface OnboardingLeadsContentProps {
     page?: string;
     tab?: string;
   };
+  /** Role pre-fetched by the page — avoids a redundant auth + profiles round-trip */
+  role?: UserRole;
 }
 
 export async function OnboardingLeadsContent({
   searchParams: params,
+  role,
 }: OnboardingLeadsContentProps) {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
+  // If role wasn't passed down, fall back to fetching it (defensive)
+  if (!role) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return null;
+    const { data: rawProfile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+    role = (rawProfile as { role: UserRole } | null)?.role ?? "manager";
+  }
 
-  const { data: rawProfile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  const profile = rawProfile as { role: UserRole } | null;
-  const userRole: UserRole = profile?.role ?? "manager";
   // Onboarding oversight: always manager-level view (full leads table)
   const effectiveRole: UserRole = "manager";
 
@@ -50,7 +55,8 @@ export async function OnboardingLeadsContent({
 
   let query = supabase
     .from("leads")
-    .select(LEADS_TABLE_SELECT, { count: "exact" });
+    .select(LEADS_TABLE_SELECT, { count: "exact" })
+    .eq("domain", "indulge_concierge");
 
   if (params.status && params.status !== "ALL") {
     query = query.eq("status", params.status as LeadStatus);
@@ -71,11 +77,19 @@ export async function OnboardingLeadsContent({
     query = query.eq("utm_campaign", params.campaign);
   }
 
-  const { data: rawLeads, count } = await query
-    .order("created_at", { ascending: false })
-    .range(offset, offset + PAGE_SIZE - 1);
+  const [{ data: rawLeads, count }, { data: agentsData }, campaigns] =
+    await Promise.all([
+      query.order("created_at", { ascending: false }).range(offset, offset + PAGE_SIZE - 1),
+      supabase
+        .from("profiles")
+        .select("id, full_name")
+        .eq("role", "agent")
+        .eq("is_active", true),
+      getDistinctUtmCampaigns(),
+    ]);
 
   const leads = (rawLeads ?? []) as unknown as Lead[];
+  const agents = (agentsData ?? []) as { id: string; full_name: string }[];
 
   const leadIds = leads.map((l) => l.id);
   let nextTaskMap: Record<string, NextTask> = {};
@@ -93,25 +107,6 @@ export async function OnboardingLeadsContent({
       }
     });
   }
-
-  const { data: agentsData } = await supabase
-    .from("profiles")
-    .select("id, full_name")
-    .eq("role", "agent")
-    .eq("is_active", true);
-  const agents = (agentsData ?? []) as { id: string; full_name: string }[];
-
-  const { data: campaignRows } = await supabase
-    .from("leads")
-    .select("utm_campaign")
-    .not("utm_campaign", "is", null)
-    .limit(500);
-
-  const campaigns = [
-    ...new Set(
-      (campaignRows ?? []).map((r) => r.utm_campaign).filter(Boolean) as string[]
-    ),
-  ].sort();
 
   return (
     <LeadsTable

@@ -25,6 +25,12 @@ import {
 } from "recharts";
 import { motion, AnimatePresence } from "framer-motion";
 import { surfaceCardVariants } from "@/components/ui/card";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { BudgetTransaction, BudgetDeliverable } from "@/lib/types/database";
@@ -39,11 +45,18 @@ import {
 // ── CONSTANTS ─────────────────────────────────────────────────────────────────
 
 const META_LIMIT = 700000;
-const CHART_GOLD  = "#5f5348";
-const CHART_TAUPE = "#b5a99a";
-const CHART_OLIVE = "#8a8a6e";
-const CHART_CREAM = "#d0c8be";
-const ACCENT_COLORS = [CHART_GOLD, CHART_TAUPE, CHART_OLIVE, CHART_CREAM, "#463d35"];
+
+// Bar / area charts — a warm sage that sits beautifully on cream without browning out
+const CHART_BAR = "#6b8f71";
+
+// Pie segments — five genuinely distinct hues, all muted/earthy, well-separated in hue space
+const ACCENT_COLORS = [
+  "#5f5348", // warm umber (brand-gold)
+  "#6b8f71", // sage green
+  "#7a8a9e", // dusty slate-blue
+  "#9e7b5e", // terracotta
+  "#8a6e9e", // soft mauve
+];
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 
@@ -78,14 +91,23 @@ function StatCard({
     neutral: "text-[#1a1a1a]",
   }[tone ?? "neutral"];
 
+  // Whisper-level tonal fill — pre-attentive signal before reading the number
+  const toneBg = {
+    success: "bg-success-light border-[#c8dfd1]",
+    warning: "bg-warning-light border-[#e8c96a]",
+    danger:  "bg-danger-light border-[#e8b5b0]",
+    neutral: "bg-white border-[#E5E4DF]",
+  }[tone ?? "neutral"];
+
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
-        surfaceCardVariants({ tone: "luxury", elevation: "sm" }),
+        "rounded-2xl border shadow-[0_1px_4px_0_rgb(0_0_0/0.04)]",
+        toneBg,
         "w-full p-5 text-left transition-all duration-150",
-        clickable && "hover:border-brand-gold/40 hover:shadow-[0_2px_12px_0_rgb(95_83_72/0.10)] cursor-pointer",
+        clickable && "hover:shadow-[0_2px_12px_0_rgb(95_83_72/0.10)] cursor-pointer",
         !clickable && "cursor-default",
       )}
     >
@@ -102,10 +124,11 @@ function StatCard({
 function BudgetBar({ spent, total }: { spent: number; total: number }) {
   const pct = Math.min((spent / total) * 100, 100);
   const tone = pct > 90 ? "danger" : pct > 75 ? "warning" : "success";
-  const barColor = { danger: "bg-[#c0392b]", warning: "bg-[#c5830a]", success: "bg-brand-gold" }[tone];
+  const barColor = { danger: "bg-[#c0392b]", warning: "bg-[#c5830a]", success: "bg-[#4a7c59]" }[tone];
+  const accentBorder = { danger: "border-l-[#c0392b]", warning: "border-l-[#c5830a]", success: "border-l-[#4a7c59]" }[tone];
 
   return (
-    <div className="space-y-2">
+    <div className={cn("space-y-2 border-l-2 pl-4 transition-all", accentBorder)}>
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold text-brand-gold uppercase tracking-widest">Budget utilisation</span>
         <span className={cn("text-xs font-semibold",
@@ -387,7 +410,7 @@ function DeliverableRow({
     <motion.div layout initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.15 }}
       className={cn("group flex items-start gap-3 rounded-xl px-3 py-2.5 transition-colors",
-        d.done ? "bg-[#F2F2EE]" : "bg-white border border-[#E5E4DF]",
+        d.done ? "bg-success-light border border-[#c8dfd1]" : "bg-white border border-[#E5E4DF]",
         pending && "opacity-60")}>
       <button onClick={() => startTransition(() => { void onToggle(d.id, !d.done); })}
         className="mt-0.5 shrink-0 transition-colors"
@@ -501,7 +524,7 @@ function MetaTab({ initial }: { initial: { transactions: BudgetTransaction[]; de
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard label="Total Spent (May)" value={fmtINR(total)}
           sub={`${txs.length} transactions across ${Object.keys(byAccount).length} accounts`}
-          tone={total / META_LIMIT > 0.9 ? "danger" : total / META_LIMIT > 0.75 ? "warning" : "neutral"}
+          tone="neutral"
           onClick={() => setModalOpen(true)} clickable />
         <StatCard label="Budget Remaining" value={fmtINR(left)}
           sub={`${((left / META_LIMIT) * 100).toFixed(1)}% of ₹7,00,000 left`}
@@ -522,15 +545,15 @@ function MetaTab({ initial }: { initial: { transactions: BudgetTransaction[]; de
             <AreaChart data={cumulativeData}>
               <defs>
                 <linearGradient id="cumGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={CHART_GOLD} stopOpacity={0.15} />
-                  <stop offset="100%" stopColor={CHART_GOLD} stopOpacity={0} />
+                  <stop offset="0%" stopColor={CHART_BAR} stopOpacity={0.15} />
+                  <stop offset="100%" stopColor={CHART_BAR} stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#E5E4DF" vertical={false} />
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#9e9e8e" }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 10, fill: "#9e9e8e" }} axisLine={false} tickLine={false} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
               <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E5E4DF", fontSize: 12 }} formatter={(v) => [fmtINR(Number(v ?? 0)), "Cumulative"]} />
-              <Area type="monotone" dataKey="cumulative" stroke={CHART_GOLD} strokeWidth={2} fill="url(#cumGrad)" dot={false} />
+              <Area type="monotone" dataKey="cumulative" stroke={CHART_BAR} strokeWidth={2} fill="url(#cumGrad)" dot={false} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -556,7 +579,7 @@ function MetaTab({ initial }: { initial: { transactions: BudgetTransaction[]; de
             <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#9e9e8e" }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fontSize: 10, fill: "#9e9e8e" }} axisLine={false} tickLine={false} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
             <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E5E4DF", fontSize: 12 }} formatter={(v) => [fmtINR(Number(v ?? 0)), "Spend"]} />
-            <Bar dataKey="amount" fill={CHART_GOLD} radius={[3, 3, 0, 0]} />
+            <Bar dataKey="amount" fill={CHART_BAR} radius={[3, 3, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -644,7 +667,7 @@ function EliaTab({ initial }: { initial: { transactions: BudgetTransaction[]; de
               <XAxis type="number" tick={{ fontSize: 10, fill: "#9e9e8e" }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${v}`} />
               <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "#6b6b6b" }} axisLine={false} tickLine={false} width={80} />
               <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E5E4DF", fontSize: 12 }} formatter={(v) => [fmtUSD(Number(v ?? 0))]} />
-              <Bar dataKey="value" fill={CHART_GOLD} radius={[0, 3, 3, 0]} />
+              <Bar dataKey="value" fill={CHART_BAR} radius={[0, 3, 3, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -745,7 +768,7 @@ function ZohoTab({ initial }: { initial: { transactions: BudgetTransaction[]; de
               <XAxis type="number" tick={{ fontSize: 10, fill: "#9e9e8e" }} axisLine={false} tickLine={false} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
               <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "#6b6b6b" }} axisLine={false} tickLine={false} width={100} />
               <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E5E4DF", fontSize: 12 }} formatter={(v) => [fmtINR(Number(v ?? 0))]} />
-              <Bar dataKey="value" fill={CHART_GOLD} radius={[0, 3, 3, 0]} />
+              <Bar dataKey="value" fill={CHART_BAR} radius={[0, 3, 3, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -781,40 +804,50 @@ function ZohoTab({ initial }: { initial: { transactions: BudgetTransaction[]; de
 // ── ROOT ──────────────────────────────────────────────────────────────────────
 
 export function BudgetClient({ initialData }: { initialData: BudgetInitialData }) {
-  const [activeTab, setActiveTab] = useState<TabId>("meta");
-
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="border-b border-[#E5E4DF] bg-white px-6 py-5">
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="font-playfair text-2xl font-semibold tracking-tight text-[#1a1a1a]">Budget</h1>
-            <p className="mt-1 text-sm text-[#6b6b6b]">Domain spend, budget utilisation, and deliverable tracking</p>
+      <Tabs
+        defaultValue="meta"
+        animatedContent={false}
+        className="flex min-h-0 flex-1 flex-col"
+      >
+        <div className="border-b border-[#E5E4DF] bg-white px-6 py-5">
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="font-playfair text-2xl font-semibold tracking-tight text-[#1a1a1a]">
+                Budget
+              </h1>
+              <p className="mt-1 text-sm text-[#6b6b6b]">
+                Domain spend, budget utilisation, and deliverable tracking
+              </p>
+            </div>
+            <span className="rounded-full bg-brand-gold px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-white">
+              May 2026
+            </span>
           </div>
-          <span className="rounded-full border border-[#E5E4DF] bg-[#F9F9F6] px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-brand-gold">
-            May 2026
-          </span>
+          <TabsList className="mt-4">
+            {TABS.map((tab) => (
+              <TabsTrigger key={tab.id} value={tab.id}>
+                {tab.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
         </div>
-        <div className="mt-4 flex items-center gap-1">
-          {TABS.map((tab) => (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={cn("rounded-lg px-4 py-2 text-sm font-medium transition-all duration-150",
-                activeTab === tab.id ? "bg-brand-gold text-white" : "text-[#6b6b6b] hover:bg-[#F2F2EE] hover:text-[#1a1a1a]")}>
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      </div>
 
-      <div className="flex-1 overflow-y-auto bg-[#F9F9F6] px-6 py-6">
-        <div className="mx-auto max-w-4xl">
-          <AnimatePresence mode="wait">
-            {activeTab === "meta" && <MetaTab key="meta" initial={initialData.meta} />}
-            {activeTab === "elia" && <EliaTab key="elia" initial={initialData.elia} />}
-            {activeTab === "zoho" && <ZohoTab key="zoho" initial={initialData.zoho} />}
-          </AnimatePresence>
+        <div className="flex-1 overflow-y-auto bg-[#F9F9F6] px-6 py-6">
+          <div className="mx-auto max-w-4xl">
+            <TabsContent value="meta" className="mt-0">
+              <MetaTab initial={initialData.meta} />
+            </TabsContent>
+            <TabsContent value="elia" className="mt-0">
+              <EliaTab initial={initialData.elia} />
+            </TabsContent>
+            <TabsContent value="zoho" className="mt-0">
+              <ZohoTab initial={initialData.zoho} />
+            </TabsContent>
+          </div>
         </div>
-      </div>
+      </Tabs>
     </div>
   );
 }

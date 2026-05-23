@@ -1,9 +1,14 @@
 "use client";
 
-import { useEffect, useState, useCallback, useTransition, useMemo } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { useEffect, useState, useCallback, useTransition, useMemo, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { surfaceCardVariants } from "@/components/ui/card";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import type {
   DepartmentTaskOverview,
   EmployeeDepartment,
@@ -20,16 +25,16 @@ import { toast } from "sonner";
 import { formatInTimeZone } from "date-fns-tz";
 import { Send } from "lucide-react";
 import { IndulgeButton } from "@/components/ui/indulge-button";
+import { TopBar } from "@/components/layout/TopBar";
 import { GroupTasksCommandView } from "./GroupTasksCommandView";
 import { DepartmentIndividualTasksView } from "./DepartmentIndividualTasksView";
 import { TaskInsightsDepartmentSelector } from "./TaskInsightsDepartmentSelector";
 import { AssignTaskModal } from "./AssignTaskModal";
 
-type TabKey = "workspaces" | "agents";
-
 interface TaskIntelligenceDashboardProps {
   initialOverview: DepartmentTaskOverview[];
   initialWorkspaces: TaskInsightsWorkspaceCard[];
+  initialAgents: TaskIntelligenceAgentSummary[];
   currentUser: { id: string; full_name: string; job_title: string | null; role: string };
   loadError?: string | null;
 }
@@ -37,17 +42,16 @@ interface TaskIntelligenceDashboardProps {
 export function TaskIntelligenceDashboard({
   initialOverview,
   initialWorkspaces,
+  initialAgents,
   currentUser,
   loadError = null,
 }: TaskIntelligenceDashboardProps) {
   const [rows, setRows] = useState<DepartmentTaskOverview[]>(initialOverview);
   const [workspaceTasks, setWorkspaceTasks] =
     useState<TaskInsightsWorkspaceCard[]>(initialWorkspaces);
-  const [activeTab, setActiveTab] = useState<TabKey>("agents");
-  const [individualAgents, setIndividualAgents] = useState<TaskIntelligenceAgentSummary[]>([]);
+  const [individualAgents, setIndividualAgents] = useState<TaskIntelligenceAgentSummary[]>(initialAgents);
   const [individualLoading, setIndividualLoading] = useState(false);
   const [, startTransition] = useTransition();
-  const refreshSignal = useTaskIntelligenceRealtime();
 
   const [filterDepartmentId, setFilterDepartmentId] = useState<string | null>(null);
   const [showAssignModal, setShowAssignModal] = useState(false);
@@ -65,6 +69,10 @@ export function TaskIntelligenceDashboard({
   useEffect(() => {
     setWorkspaceTasks(initialWorkspaces);
   }, [initialWorkspaces]);
+
+  // Derive visible dept IDs from the overview rows — used to scope realtime subscriptions.
+  const visibleDeptIds = useMemo(() => rows.map((r) => r.departmentId), [rows]);
+  const refreshSignal = useTaskIntelligenceRealtime(visibleDeptIds);
 
   const refetchAll = useCallback(() => {
     startTransition(() => {
@@ -107,14 +115,32 @@ export function TaskIntelligenceDashboard({
     );
   }, [workspaceTasks, filterDepartmentId]);
 
-  /** Prefetch agent summaries whenever scope changes so the Agents tab opens without waiting. */
+  // When the user applies a department filter, re-fetch only that dept's agents.
+  // On initial load filteredRows === rows (no filter), and initialAgents is already
+  // SSR'd, so we skip. We track the previous filter to detect real changes.
+  const prevFilterRef = useRef<string | null>(undefined as unknown as null);
   useEffect(() => {
+    const prev = prevFilterRef.current;
+    prevFilterRef.current = filterDepartmentId;
+
+    // Skip on first mount — SSR data is already in state.
+    if (prev === undefined) return;
+    // No change.
+    if (prev === filterDepartmentId) return;
+
     if (filteredRows.length === 0) {
       setIndividualAgents([]);
       setIndividualLoading(false);
       return;
     }
 
+    // Clearing a filter: restore the full SSR set rather than re-fetching.
+    if (filterDepartmentId === null) {
+      setIndividualAgents(initialAgents);
+      return;
+    }
+
+    // Filtered to a specific dept — fetch just that dept.
     let cancelled = false;
     setIndividualLoading(true);
     void (async () => {
@@ -124,7 +150,6 @@ export function TaskIntelligenceDashboard({
         ),
       );
       if (cancelled) return;
-
       const byId = new Map<string, TaskIntelligenceAgentSummary>();
       for (const res of results) {
         if (!res.success || !res.data) continue;
@@ -136,23 +161,19 @@ export function TaskIntelligenceDashboard({
       setIndividualLoading(false);
     })();
 
-    return () => {
-      cancelled = true;
-    };
-  }, [filteredRows]);
+    return () => { cancelled = true; };
+  // filteredRows identity changes on every render; key off filterDepartmentId instead.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterDepartmentId]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="mx-auto w-full max-w-5xl flex-1 px-5 pt-6 pb-10 sm:px-6 sm:pb-12">
-        <header className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-          <div className="min-w-0">
-            <h1 className="font-serif text-[30px] font-bold leading-[1.1] text-[#1A1A1A] sm:text-[32px]">
-              Task Insights
-            </h1>
-            <p className="mt-1.5 text-[13px] text-[#8A8A6E]">
-              {formatInTimeZone(new Date(), "Asia/Kolkata", "EEEE, d MMMM yyyy · 'IST'")}
-            </p>
-          </div>
+      <TopBar
+        title="Task Insights"
+        subtitle="Live workforce task overview across all departments"
+        hideDomainSwitcher
+        hideSearch
+        actions={
           <IndulgeButton
             type="button"
             variant="gold"
@@ -163,142 +184,92 @@ export function TaskIntelligenceDashboard({
           >
             Assign Task
           </IndulgeButton>
-        </header>
+        }
+      />
 
-        {!loadError && rows.length > 0 && (
-          <TaskInsightsDepartmentSelector
-            departments={departmentsWithTasks}
-            value={filterDepartmentId}
-            onChange={setFilterDepartmentId}
-          />
-        )}
+      <Tabs
+        defaultValue="agents"
+        indicatorLayoutId="ti-tab-indicator"
+        className="flex min-h-0 flex-1 flex-col"
+      >
+        {/* Sticky filter bar: department pills + tab switcher in one cohesive band */}
+        <div className="sticky top-[65px] z-20 border-b border-[#E5E4DF]/80 bg-[#F9F9F6]/95 px-4 py-4 backdrop-blur-md md:px-6 lg:px-8">
+          {loadError && (
+            <div
+              role="alert"
+              className={cn(
+                surfaceCardVariants({ tone: "luxury", elevation: "sm" }),
+                "mb-4 border-red-200/80 bg-linear-to-r from-red-50/90 to-amber-50/30 px-4 py-3 text-sm text-red-900",
+              )}
+            >
+              {loadError}
+            </div>
+          )}
 
-        {loadError && (
-          <div
-            role="alert"
-            className={cn(
-              surfaceCardVariants({ tone: "luxury", elevation: "sm" }),
-              "mb-6 border-red-200/80 bg-gradient-to-r from-red-50/90 to-amber-50/30 px-4 py-3.5 text-sm text-red-900",
-            )}
-          >
-            {loadError}
+          {!loadError && rows.length === 0 && (
+            <div
+              className={cn(
+                surfaceCardVariants({ tone: "stone", elevation: "xs" }),
+                "mb-4 px-4 py-3.5 text-[14px] leading-relaxed text-[#6B6B6B]",
+              )}
+            >
+              No department scope is available for your account. Ask an admin to set your{" "}
+              <span className="font-medium text-[#1A1A1A]">domain</span> to a valid value (e.g.
+              indulge_concierge or indulge_global), then reload.
+            </div>
+          )}
+
+          {!loadError && rows.length > 0 && (
+            <div className="mb-4">
+              <TaskInsightsDepartmentSelector
+                departments={departmentsWithTasks}
+                value={filterDepartmentId}
+                onChange={setFilterDepartmentId}
+              />
+            </div>
+          )}
+
+          <div className="flex justify-center">
+            <TabsList aria-label="Organization task views">
+              <TabsTrigger value="agents">Agents</TabsTrigger>
+              <TabsTrigger value="workspaces">All workspaces</TabsTrigger>
+            </TabsList>
           </div>
-        )}
+        </div>
 
-        {!loadError && rows.length === 0 && (
-          <div
-            className={cn(
-              surfaceCardVariants({ tone: "stone", elevation: "xs" }),
-              "mb-6 px-4 py-4 text-[14px] leading-relaxed text-[#6B6B6B]",
-            )}
-          >
-            No department scope is available for your account. Ask an admin to set your{" "}
-            <span className="font-medium text-[#1A1A1A]">domain</span> to a valid value (e.g.
-            indulge_concierge or indulge_global), then reload.
-          </div>
-        )}
-
-        <div
-          className="relative -mx-px flex items-stretch justify-center gap-0 border-t border-b border-[#E5E4DF]/80 bg-[#FAFAF8]/60 pt-4 pb-px sm:pt-[18px]"
-          role="tablist"
-          aria-label="Organization task views"
+        {/* Tab content */}
+        <TabsContent
+          value="agents"
+          className="mt-0 flex-1 px-4 pb-8 pt-6 md:px-6 lg:px-8"
         >
-          <button
-            id="ti-agents-tab"
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "agents"}
-            onClick={() => setActiveTab("agents")}
-            className={cn(
-              "relative min-w-[7rem] select-none px-5 py-3 text-[13px] font-medium tracking-wide transition-colors duration-200 sm:min-w-[7.5rem] sm:px-7 sm:text-[14px]",
-              activeTab === "agents"
-                ? "text-[#1A1A1A]"
-                : "text-[#9A9A82] hover:text-[#4A4844]",
-            )}
-          >
-            Agents
-            {activeTab === "agents" && (
-              <motion.div
-                layoutId="ti-tab-indicator"
-                className="absolute bottom-0 left-3 right-3 h-[2px] rounded-full bg-[#C5A572]"
-                transition={{ type: "spring", stiffness: 400, damping: 32 }}
-              />
-            )}
-          </button>
-          <button
-            id="ti-workspaces-tab"
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "workspaces"}
-            onClick={() => setActiveTab("workspaces")}
-            className={cn(
-              "relative min-w-[7rem] select-none px-5 py-3 text-[13px] font-medium tracking-wide transition-colors duration-200 sm:min-w-[7.5rem] sm:px-7 sm:text-[14px]",
-              activeTab === "workspaces"
-                ? "text-[#1A1A1A]"
-                : "text-[#9A9A82] hover:text-[#4A4844]",
-            )}
-          >
-            All workspaces
-            {activeTab === "workspaces" && (
-              <motion.div
-                layoutId="ti-tab-indicator"
-                className="absolute bottom-0 left-3 right-3 h-[2px] rounded-full bg-[#C5A572]"
-                transition={{ type: "spring", stiffness: 400, damping: 32 }}
-              />
-            )}
-          </button>
-        </div>
+          {individualLoading && individualAgents.length === 0 ? (
+            <p className="text-sm text-[#8A8A6E]">Loading agents…</p>
+          ) : individualAgents.length > 0 ? (
+            <DepartmentIndividualTasksView
+              agents={individualAgents}
+              departmentId={(filterDepartmentId as EmployeeDepartment | null) ?? null}
+              currentUser={currentUser}
+              returnToPath={
+                filterDepartmentId ? `/task-insights/${filterDepartmentId}` : null
+              }
+            />
+          ) : (
+            <p className="text-sm text-[#8A8A6E]">
+              No agents found in your visible departments.
+            </p>
+          )}
+        </TabsContent>
 
-        <div className="pt-6 pb-6 sm:pt-7 sm:pb-8">
-          <AnimatePresence mode="wait" initial={false}>
-            {activeTab === "agents" ? (
-              <motion.div
-                key="agents"
-                id="panel-agents"
-                role="tabpanel"
-                aria-labelledby="ti-agents-tab"
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -2 }}
-                transition={{ duration: 0.2 }}
-              >
-                {individualLoading && individualAgents.length === 0 ? (
-                  <p className="text-sm text-[#8A8A6E]">Loading agents…</p>
-                ) : individualAgents.length > 0 ? (
-                  <DepartmentIndividualTasksView
-                    agents={individualAgents}
-                    departmentId={(filterDepartmentId as EmployeeDepartment | null) ?? null}
-                    currentUser={currentUser}
-                    returnToPath={
-                      filterDepartmentId ? `/task-insights/${filterDepartmentId}` : null
-                    }
-                  />
-                ) : (
-                  <p className="text-sm text-[#8A8A6E]">
-                    No agents found in your visible departments.
-                  </p>
-                )}
-              </motion.div>
-            ) : (
-              <motion.div
-                key="workspaces"
-                id="panel-workspaces"
-                role="tabpanel"
-                aria-labelledby="ti-workspaces-tab"
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -2 }}
-                transition={{ duration: 0.2 }}
-              >
-                <GroupTasksCommandView
-                  items={filteredWorkspaceTasks}
-                  showDepartmentBadge={filterDepartmentId === null}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      </div>
+        <TabsContent
+          value="workspaces"
+          className="mt-0 flex-1 px-4 pb-8 pt-6 md:px-6 lg:px-8"
+        >
+          <GroupTasksCommandView
+            items={filteredWorkspaceTasks}
+            showDepartmentBadge={filterDepartmentId === null}
+          />
+        </TabsContent>
+      </Tabs>
 
       <AssignTaskModal open={showAssignModal} onClose={() => setShowAssignModal(false)} />
     </div>

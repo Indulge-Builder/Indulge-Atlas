@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/auth/getAuthUser";
 import type { Conversation, Message, MessageLeadPreview, LeadStatus, Profile } from "@/lib/types/database";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -19,17 +20,6 @@ const SendMessageSchema = z.object({
   leadId: z.string().uuid().nullish(),
 });
 
-// ── Auth helper ───────────────────────────────────────────────────────────────
-
-async function getAuthUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-  if (error || !user) throw new Error("Unauthenticated");
-  return { supabase, user };
-}
 
 // ── Messaging directory ───────────────────────────────────────────────────────
 // Internal helper: builds a userId → SenderInfo map via the SECURITY DEFINER
@@ -67,7 +57,7 @@ export async function sendMessage(
     return { success: false, error: parsed.error.issues[0]?.message };
   }
 
-  const { supabase, user } = await getAuthUser();
+  const { supabase, user, profile } = await getAuthUser();
 
   const { data: message, error: insertError } = await supabase
     .from("messages")
@@ -91,7 +81,94 @@ export async function sendMessage(
     .eq("conversation_id", conversationId)
     .eq("user_id", user.id);
 
-  return { success: true, message: message as Message };
+  const sender: SenderInfo = {
+    id:        user.id,
+    full_name: profile?.full_name ?? "You",
+    role:      (profile?.role ?? "agent") as SenderInfo["role"],
+  };
+
+  return {
+    success: true,
+    message: { ...(message as Message), sender },
+  };
+}
+
+// ── getConversationMessages ─────────────────────────────────────────────────────
+// Server-side fetch so thread history works even when the browser Supabase session
+// is stale (common without edge session refresh). Enriches sender + lead previews.
+
+export async function getConversationMessages(
+  conversationId: string,
+): Promise<{ success: boolean; messages: Message[]; error?: string }> {
+  const parsed = z.string().uuid().safeParse(conversationId);
+  if (!parsed.success) {
+    return { success: false, messages: [], error: "Invalid conversation" };
+  }
+
+  try {
+    const { supabase, user } = await getAuthUser();
+
+    const { data: participant } = await supabase
+      .from("conversation_participants")
+      .select("conversation_id")
+      .eq("conversation_id", parsed.data)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (!participant) {
+      return { success: false, messages: [], error: "Conversation not found" };
+    }
+
+    const { data: rows, error: fetchError } = await supabase
+      .from("messages")
+      .select("id, conversation_id, sender_id, content, lead_id, created_at")
+      .eq("conversation_id", parsed.data)
+      .order("created_at", { ascending: true });
+
+    if (fetchError) {
+      return { success: false, messages: [], error: fetchError.message };
+    }
+
+    const raw = rows ?? [];
+    if (raw.length === 0) {
+      return { success: true, messages: [] };
+    }
+
+    const senderMap = await buildSenderMap(supabase, user.id);
+
+    const leadIds = [
+      ...new Set(
+        raw.map((m) => m.lead_id).filter((id): id is string => Boolean(id)),
+      ),
+    ];
+
+    const leadMap: Record<string, MessageLeadPreview> = {};
+    if (leadIds.length > 0) {
+      const { data: leads } = await supabase
+        .from("leads")
+        .select("id, first_name, last_name, status, city")
+        .in("id", leadIds);
+
+      (leads ?? []).forEach((l) => {
+        leadMap[l.id] = {
+          id:        l.id,
+          full_name: [l.first_name, l.last_name].filter(Boolean).join(" "),
+          status:    l.status as LeadStatus,
+          city:      l.city,
+        };
+      });
+    }
+
+    const messages: Message[] = raw.map((m) => ({
+      ...(m as Message),
+      sender: senderMap[m.sender_id],
+      lead:   m.lead_id ? (leadMap[m.lead_id] ?? null) : null,
+    }));
+
+    return { success: true, messages };
+  } catch {
+    return { success: false, messages: [], error: "Unauthenticated" };
+  }
 }
 
 // ── searchLeadsForAttachment ───────────────────────────────────────────────────
@@ -222,14 +299,24 @@ export interface DirectConversationRow {
   unreadCount:    number;
 }
 
-export async function getMyDirectConversations(): Promise<DirectConversationRow[]> {
-  const { supabase } = await getAuthUser();
+export async function getMyDirectConversations(): Promise<{
+  conversations: DirectConversationRow[];
+  error?: string;
+}> {
+  try {
+    const { supabase } = await getAuthUser();
 
-  const { data, error } = await supabase.rpc("get_my_direct_conversations");
+    const { data, error } = await supabase.rpc("get_my_direct_conversations");
 
-  if (error || !data) return [];
+    if (error) {
+      return { conversations: [], error: error.message };
+    }
+    if (!data) {
+      return { conversations: [] };
+    }
 
-  return (data as {
+    return {
+      conversations: (data as {
     conversation_id: string;
     peer_id:         string;
     peer_name:       string;
@@ -237,17 +324,21 @@ export async function getMyDirectConversations(): Promise<DirectConversationRow[
     last_message:    string | null;
     last_message_at: string | null;
     unread_count:    number;
-  }[]).map((row) => ({
-    conversationId: row.conversation_id,
-    otherUser: {
-      id:        row.peer_id,
-      full_name: row.peer_name,
-      role:      row.peer_role as SenderInfo["role"],
-    },
-    lastMessage:   row.last_message,
-    lastMessageAt: row.last_message_at,
-    unreadCount:   Number(row.unread_count),
-  }));
+      }[]).map((row) => ({
+        conversationId: row.conversation_id,
+        otherUser: {
+          id:        row.peer_id,
+          full_name: row.peer_name,
+          role:      row.peer_role as SenderInfo["role"],
+        },
+        lastMessage:   row.last_message,
+        lastMessageAt: row.last_message_at,
+        unreadCount:   Number(row.unread_count),
+      })),
+    };
+  } catch {
+    return { conversations: [], error: "Unauthenticated" };
+  }
 }
 
 // ── getTeamMembers ────────────────────────────────────────────────────────────

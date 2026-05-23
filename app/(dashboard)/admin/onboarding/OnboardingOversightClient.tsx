@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useMemo } from "react";
 import type { AgentWithOnboardingStats } from "@/lib/actions/team-stats";
 import type { CampaignWithAttribution } from "@/lib/actions/campaigns";
 import {
@@ -14,10 +14,19 @@ import { TopBar } from "@/components/layout/TopBar";
 import { CampaignsTab } from "@/components/onboarding/CampaignsTab";
 import { TeamPerformanceTab } from "@/components/onboarding/TeamPerformanceTab";
 import { AddLeadModal } from "@/components/leads/AddLeadModal";
-import { cn } from "@/lib/utils";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import { OverviewDateFilter, presetBounds } from "@/components/onboarding/OverviewDateFilter";
+import type { DateRangeBounds } from "@/components/onboarding/OverviewDateFilter";
+import type { OnboardingOverviewData } from "@/lib/types/onboarding-overview";
+import { OnboardingOverviewTab } from "@/components/onboarding/OnboardingOverviewTab";
 
 const TABS = [
-  { id: "pulse", label: "Founder's Pulse", icon: LayoutDashboard },
+  { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "team", label: "Team Performance", icon: UsersRound },
   { id: "campaigns", label: "Running Campaigns", icon: Megaphone },
   { id: "leads", label: "Live Leads", icon: List },
@@ -28,24 +37,30 @@ type TabId = (typeof TABS)[number]["id"];
 interface OnboardingOversightClientProps {
   agents: AgentWithOnboardingStats[];
   campaigns: CampaignWithAttribution[];
-  /** Server-rendered Founder's Pulse dashboard */
-  pulseSlot: React.ReactNode;
+  initialOverviewData: OnboardingOverviewData;
   children: React.ReactNode;
 }
 
 export function OnboardingOversightClient({
   agents,
   campaigns,
-  pulseSlot,
+  initialOverviewData,
   children,
 }: OnboardingOversightClientProps) {
   const router = useRouter();
   const urlSearchParams = useSearchParams();
-  const tabFromUrl = (urlSearchParams.get("tab") as TabId) || "pulse";
-  const isValidTab = TABS.some((t) => t.id === tabFromUrl);
-  const activeTab: TabId = isValidTab ? tabFromUrl : "pulse";
+  const rawTab = urlSearchParams.get("tab");
+  const normalizedTab =
+    rawTab === "pulse" ? "overview" : (rawTab as TabId | null);
+  const isValidTab =
+    normalizedTab !== null && TABS.some((t) => t.id === normalizedTab);
+  const activeTab: TabId = isValidTab ? normalizedTab! : "overview";
 
-  const handleTabClick = (tabId: TabId) => {
+  const [dateRange, setDateRange] = useState<DateRangeBounds>(
+    () => presetBounds("this_month"),
+  );
+
+  const handleTabChange = (tabId: string) => {
     const next = new URLSearchParams(urlSearchParams.toString());
     next.set("tab", tabId);
     router.push(`/admin/onboarding?${next.toString()}`);
@@ -59,82 +74,43 @@ export function OnboardingOversightClient({
         actions={activeTab === "leads" ? <AddLeadModal /> : undefined}
       />
 
-      <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 space-y-4 md:space-y-6">
-        {/* Tab Navigation */}
-        <div className="flex gap-1 p-1 rounded-2xl bg-stone-200/40 backdrop-blur-md ring-1 ring-stone-300/40 shadow-sm w-fit">
-          {TABS.map((tab) => (
-            <motion.button
-              key={tab.id}
-              onClick={() => handleTabClick(tab.id)}
-              className={cn(
-                "relative px-5 py-2.5 rounded-xl text-sm font-medium transition-colors",
-                activeTab === tab.id
-                  ? "text-[#D4AF37]"
-                  : "text-stone-600 hover:text-stone-800",
-              )}
-            >
-              {activeTab === tab.id && (
-                <motion.span
-                  layoutId="onboarding-tab-indicator"
-                  className="absolute inset-0 rounded-xl bg-sidebar-active shadow-[0_2px_8px_rgb(0,0,0,0.15)] ring-1 ring-stone-800/30"
-                  transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
-                />
-              )}
-              <span className="relative flex items-center gap-2">
-                <tab.icon className="w-4 h-4" strokeWidth={1.5} />
-                {tab.label}
-              </span>
-            </motion.button>
-          ))}
-        </div>
+      <div className="px-4 md:px-6 lg:px-8 py-6 md:py-8 pb-10 md:pb-12">
+        <Tabs
+          value={activeTab}
+          onValueChange={handleTabChange}
+          indicatorLayoutId="onboarding-tab-indicator"
+        >
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <TabsList>
+              {TABS.map((tab) => (
+                <TabsTrigger key={tab.id} value={tab.id}>
+                  <tab.icon className="h-4 w-4" strokeWidth={1.5} />
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
 
-        {/* Tab Content */}
-        <AnimatePresence mode="wait">
-          {activeTab === "pulse" && (
-            <motion.div
-              key="pulse"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.25 }}
-            >
-              {pulseSlot}
-            </motion.div>
-          )}
-          {activeTab === "team" && (
-            <motion.div
-              key="team"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.25 }}
-            >
-              <TeamPerformanceTab agents={agents} />
-            </motion.div>
-          )}
-          {activeTab === "campaigns" && (
-            <motion.div
-              key="campaigns"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.25 }}
-            >
-              <CampaignsTab campaigns={campaigns} />
-            </motion.div>
-          )}
-          {activeTab === "leads" && (
-            <motion.div
-              key="leads"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.25 }}
-            >
-              {children}
-            </motion.div>
-          )}
-        </AnimatePresence>
+            {activeTab === "overview" && (
+              <OverviewDateFilter value={dateRange} onChange={setDateRange} />
+            )}
+          </div>
+
+          <TabsContent value="overview" className="mt-6">
+            <OnboardingOverviewTab
+              initialData={initialOverviewData}
+              dateRange={dateRange}
+            />
+          </TabsContent>
+          <TabsContent value="team">
+            <TeamPerformanceTab agents={agents} />
+          </TabsContent>
+          <TabsContent value="campaigns">
+            <CampaignsTab campaigns={campaigns} />
+          </TabsContent>
+          <TabsContent value="leads">
+            {children}
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

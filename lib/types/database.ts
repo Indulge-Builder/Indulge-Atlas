@@ -1458,3 +1458,52 @@ export interface BudgetDeliverable {
   created_at: string;
   updated_at: string;
 }
+
+// ── Gupshup WhatsApp bot (migration 094) ─────────────────────────────────────
+
+export type BotCatalogCategory = 'watches' | 'travel' | 'events' | 'sports' | 'art' | 'fashion';
+
+export interface BotCatalogItem {
+  id: string;
+  category: BotCatalogCategory;
+  name: string;
+  description: string;
+  image_url: string | null;
+  price_range: string | null;
+  tags: string[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export type BotSessionState =
+  | 'greeting'
+  | 'browsing'
+  | 'viewing_products'
+  | 'handoff_pending'
+  | 'handed_off';
+
+export interface BotSession {
+  id: string;
+  phone: string;
+  state: BotSessionState;
+  last_category: string | null;
+  last_message_at: string;
+  bot_turn_count: number;
+  lead_id: string | null;
+  context_jsonb: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Structured JSON Claude Haiku must return for each bot turn. */
+export interface BotClaudeResponse {
+  intent: 'greeting' | 'browsing' | 'product_inquiry' | 'interested' | 'out_of_scope' | 'handoff_request';
+  category: BotCatalogCategory | null;
+  reply_type: 'text' | 'image' | 'list';
+  text_reply: string;
+  image_reply: { product_id: string; caption: string } | null;
+  list_reply: { title: string; items: Array<{ title: string; description: string }> } | null;
+  should_handoff: boolean;
+  handoff_reason: string | null;
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -15,7 +15,11 @@ import {
   type DirectConversationRow,
 } from "@/lib/actions/messages";
 import { Avatar, PulseDot, timeAgo } from "./whisperUi";
-import type { ActiveThread, MemberInfo } from "./WhisperBoxHeavyPanels";
+import type {
+  ActiveThread,
+  MemberInfo,
+  WhisperThreadViewProps,
+} from "./WhisperBoxHeavyPanels";
 
 type WhisperView = "list" | "picker" | "thread";
 
@@ -33,7 +37,7 @@ const WhisperMemberPickerPanel = dynamic(
   },
 );
 
-const WhisperThreadPanel = dynamic(
+const WhisperThreadPanel = dynamic<WhisperThreadViewProps>(
   () =>
     import("./WhisperBoxHeavyPanels").then((m) => m.WhisperThreadView),
   {
@@ -212,9 +216,12 @@ export function WhisperBox({ currentUserId }: { currentUserId: string }) {
   const [openError, setOpenError] = useState<string | null>(null);
   const supabase = createClient();
 
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const loadConversations = useCallback(async () => {
-    const data = await getMyDirectConversations();
-    setConversations(data);
+    const { conversations, error } = await getMyDirectConversations();
+    setConversations(conversations);
+    if (error) setOpenError(error);
     setListLoading(false);
   }, []);
 
@@ -228,12 +235,18 @@ export function WhisperBox({ currentUserId }: { currentUserId: string }) {
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "messages" },
-        () => { loadConversations(); }
+        () => {
+          if (debounceRef.current) clearTimeout(debounceRef.current);
+          debounceRef.current = setTimeout(() => { loadConversations(); }, 800);
+        }
       )
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
-  }, []);
+    return () => {
+      supabase.removeChannel(channel);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [currentUserId, loadConversations]);
 
   const handleSelectConversation = useCallback((row: DirectConversationRow) => {
     setOpenError(null);
@@ -369,6 +382,7 @@ export function WhisperBox({ currentUserId }: { currentUserId: string }) {
                 thread={activeThread}
                 currentUserId={currentUserId}
                 onBack={handleBack}
+                onMessageSent={loadConversations}
               />
             </motion.div>
           )}

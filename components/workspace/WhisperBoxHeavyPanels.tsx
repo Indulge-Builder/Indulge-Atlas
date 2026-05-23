@@ -39,18 +39,25 @@ export interface ActiveThread {
   peer: MemberInfo;
 }
 
+export interface WhisperThreadViewProps {
+  thread: ActiveThread;
+  currentUserId: string;
+  onBack: () => void;
+  onMessageSent?: () => void;
+}
+
 export function WhisperThreadView({
   thread,
   currentUserId,
   onBack,
-}: {
-  thread: ActiveThread;
-  currentUserId: string;
-  onBack: () => void;
-}) {
-  const { messages, loading, bottomRef } = useMessages(thread.conversationId);
+  onMessageSent,
+}: WhisperThreadViewProps) {
+  const { messages, loading, loadError, bottomRef, appendMessage } = useMessages(
+    thread.conversationId,
+  );
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
   const [attachedLead, setAttachedLead] = useState<MessageLeadPreview | null>(null);
   const [showLeadPicker, setShowLeadPicker] = useState(false);
   const [leadQuery, setLeadQuery] = useState("");
@@ -91,14 +98,40 @@ export function WhisperThreadView({
     const content = draft.trim();
     if (!content || sending) return;
     setSending(true);
+    setSendError(null);
     setDraft("");
     const leadId = attachedLead?.id ?? null;
+    const attached = attachedLead;
     setAttachedLead(null);
     setShowLeadPicker(false);
-    await sendMessage(thread.conversationId, content, leadId);
+
+    const result = await sendMessage(thread.conversationId, content, leadId);
+
+    if (!result.success || !result.message) {
+      setSendError(result.error ?? "Failed to send message");
+      setDraft(content);
+      if (attached) setAttachedLead(attached);
+      setSending(false);
+      textareaRef.current?.focus();
+      return;
+    }
+
+    const enriched = {
+      ...result.message,
+      lead: attached ?? null,
+    };
+    appendMessage(enriched);
+    onMessageSent?.();
     setSending(false);
     textareaRef.current?.focus();
-  }, [draft, sending, attachedLead, thread.conversationId]);
+  }, [
+    draft,
+    sending,
+    attachedLead,
+    thread.conversationId,
+    appendMessage,
+    onMessageSent,
+  ]);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -139,7 +172,11 @@ export function WhisperThreadView({
                    [&::-webkit-scrollbar-thumb]:bg-black/[0.08]
                    [&::-webkit-scrollbar-track]:bg-transparent"
       >
-        {loading ? (
+        {loadError ? (
+          <div className="flex flex-col items-center justify-center h-32 gap-2 px-6 text-center">
+            <p className="text-[12px] text-red-600 leading-relaxed">{loadError}</p>
+          </div>
+        ) : loading ? (
           <div className="flex justify-center items-center h-32">
             <Loader2 className="w-4 h-4 text-[#C0BDB5] animate-spin" />
           </div>
@@ -207,6 +244,9 @@ export function WhisperThreadView({
       </div>
 
       <div className="border-t border-black/[0.05] px-4 pt-3 pb-4 shrink-0">
+        {sendError && (
+          <p className="text-[11px] text-red-600 mb-2 px-1 leading-relaxed">{sendError}</p>
+        )}
         <AnimatePresence>
           {showLeadPicker && (
             <motion.div

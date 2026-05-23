@@ -3,14 +3,11 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getOnboardingAgentsWithStats } from "@/lib/actions/team-stats";
 import { getCampaignsWithAttribution } from "@/lib/actions/campaigns";
-import { getOnboardingPulse } from "@/lib/actions/dashboards";
+import { getOnboardingOverview } from "@/lib/actions/dashboards";
 import { OnboardingOversightClient } from "./OnboardingOversightClient";
 import { OnboardingLeadsContent } from "@/components/onboarding/OnboardingLeadsContent";
 import { LeadsTableSkeleton } from "@/components/leads/LeadsTable";
-import {
-  OnboardingDashboardTab,
-  OnboardingDashboardSkeleton,
-} from "@/components/onboarding/OnboardingDashboardTab";
+import type { UserRole } from "@/lib/types/database";
 
 export const dynamic = "force-dynamic";
 
@@ -33,13 +30,16 @@ export default async function OnboardingOversightPage(props: PageProps) {
   if (!user) redirect("/login");
 
   const searchParams = await props.searchParams;
+  const rawTab = searchParams.tab ?? "overview";
+  const activeTab = rawTab === "pulse" ? "overview" : rawTab;
 
-  // Profile + agents + campaigns all in parallel after the single auth above
-  const [{ data: profile }, agents, campaigns] = await Promise.all([
-    supabase.from("profiles").select("role").eq("id", user.id).single(),
-    getOnboardingAgentsWithStats(),
-    getCampaignsWithAttribution(),
-  ]);
+  const [{ data: profile }, agents, campaigns, initialOverviewData] =
+    await Promise.all([
+      supabase.from("profiles").select("role").eq("id", user.id).single(),
+      getOnboardingAgentsWithStats(),
+      getCampaignsWithAttribution(),
+      getOnboardingOverview(), // defaults to this month
+    ]);
 
   if (
     !profile?.role ||
@@ -48,24 +48,25 @@ export default async function OnboardingOversightPage(props: PageProps) {
     redirect("/");
   }
 
+  const leadsSlot =
+    activeTab === "leads" ? (
+      <Suspense fallback={<LeadsTableSkeleton />}>
+        <OnboardingLeadsContent
+          searchParams={searchParams}
+          role={profile?.role as UserRole}
+        />
+      </Suspense>
+    ) : (
+      <LeadsTableSkeleton />
+    );
+
   return (
     <OnboardingOversightClient
       agents={agents}
       campaigns={campaigns}
-      pulseSlot={
-        <Suspense fallback={<OnboardingDashboardSkeleton />}>
-          <OnboardingPulseSection />
-        </Suspense>
-      }
+      initialOverviewData={initialOverviewData}
     >
-      <Suspense fallback={<LeadsTableSkeleton />}>
-        <OnboardingLeadsContent searchParams={searchParams} />
-      </Suspense>
+      {leadsSlot}
     </OnboardingOversightClient>
   );
-}
-
-async function OnboardingPulseSection() {
-  const data = await getOnboardingPulse();
-  return <OnboardingDashboardTab data={data} />;
 }

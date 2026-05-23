@@ -6,7 +6,6 @@ import { useEffect, useRef, useState } from "react";
 import { ClientOverviewTab } from "@/components/clients/overview/ClientOverviewTab";
 import { ClientProfileFields } from "@/components/clients/profile/ClientProfileFields";
 import { ClientMembershipTab } from "@/components/clients/membership/ClientMembershipTab";
-import type { ClientFreshdeskMetricsData } from "@/lib/actions/freshdesk";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const FreshdeskTab = dynamic(
@@ -44,6 +43,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   getClientById,
+  getClientEliaProfile,
   updateClientNotes,
   type ClientDetail,
 } from "@/lib/actions/clients";
@@ -59,7 +59,6 @@ import { toast } from "sonner";
 
 interface ClientDetailViewProps {
   initialDetail: ClientDetail;
-  initialFreshdeskMetrics?: ClientFreshdeskMetricsData;
 }
 
 function np(value: string | null | undefined): string {
@@ -94,10 +93,7 @@ function membershipBadgeClass(type: string | null): string {
   return "border bg-[#F4F1EA] text-stone-600 border-[#E5E4DF]";
 }
 
-export function ClientDetailView({
-  initialDetail,
-  initialFreshdeskMetrics,
-}: ClientDetailViewProps) {
+export function ClientDetailView({ initialDetail }: ClientDetailViewProps) {
   const [detail, setDetail] = useState(initialDetail);
   const [activeTab, setActiveTab] = useState("overview");
   const [notesLocal, setNotesLocal] = useState(initialDetail.notes ?? "");
@@ -132,7 +128,7 @@ export function ClientDetailView({
     let cancelled = false;
     setEliaProfileLoading(true);
     void (async () => {
-      const res = await getClientById(id, { includeEliaProfile: true });
+      const res = await getClientEliaProfile(id);
       if (cancelled) return;
       setEliaProfileLoading(false);
       if (res.success && res.data) {
@@ -255,7 +251,7 @@ export function ClientDetailView({
         className="flex min-h-0 flex-1 flex-col bg-[#F9F9F6]"
       >
         <div className="shrink-0 overflow-x-auto border-b border-[#E5E4DF]/80 bg-[#F9F9F6] px-8 pt-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <TabsList className="w-max min-w-full justify-start bg-[#F2F2EE] sm:min-w-0 sm:w-auto">
+          <TabsList className="w-max min-w-full justify-start sm:min-w-0 sm:w-auto">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="profile">Profile</TabsTrigger>
             <TabsTrigger value="notes">Notes</TabsTrigger>
@@ -282,7 +278,6 @@ export function ClientDetailView({
               clientId={clientId}
               detail={d}
               isActive={activeTab === "overview"}
-              initialFreshdeskMetrics={initialFreshdeskMetrics}
             />
           </TabsContent>
 

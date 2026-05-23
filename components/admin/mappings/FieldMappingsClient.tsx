@@ -182,13 +182,9 @@ export function FieldMappingsClient() {
         onValueChange={(v) => setChannel(v as Channel)}
         className="mb-6"
       >
-        <TabsList className="h-auto flex-wrap gap-1 bg-[#F2F2EE] p-1.5">
+        <TabsList>
           {(["meta", "google", "website"] as const).map((ch) => (
-            <TabsTrigger
-              key={ch}
-              value={ch}
-              className="rounded-md px-4 py-2 data-[state=active]:shadow-sm"
-            >
+            <TabsTrigger key={ch} value={ch}>
               {CHANNEL_LABELS[ch]}
             </TabsTrigger>
           ))}

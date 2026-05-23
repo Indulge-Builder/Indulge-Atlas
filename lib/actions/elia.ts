@@ -8,6 +8,7 @@ import {
   listTicketsForRequester,
 } from "@/lib/freshdesk/client";
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/auth/getAuthUser";
 import { isPrivilegedRole } from "@/lib/types/database";
 import { runEliaWhatsAppAnalysis } from "@/lib/services/eliaProfileAnalysis";
 import type {
@@ -445,27 +446,6 @@ export async function getEliaActiveMemberCount(): Promise<number> {
   return count ?? 0;
 }
 
-// ── Auth helper (module-private) ─────────────────────────────────────────────
-
-async function getAuthUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-  if (error || !user) throw new Error("Unauthenticated");
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role, domain")
-    .eq("id", user.id)
-    .single();
-
-  const role = (profile as { role: string } | null)?.role ?? "agent";
-  const domain =
-    (profile as { domain?: string } | null)?.domain ?? "indulge_concierge";
-  return { supabase, user, role, domain };
-}
 
 // ── Server Action: manual WhatsApp profile analysis trigger ──────────────────
 

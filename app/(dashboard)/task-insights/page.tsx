@@ -4,6 +4,7 @@ import { TaskIntelligenceDashboard } from "@/components/task-intelligence/TaskIn
 import {
   getDepartmentTaskOverview,
   getMasterWorkspacesForDashboard,
+  getAllAgentSummaries,
 } from "@/lib/actions/task-intelligence";
 
 export const dynamic = "force-dynamic";
@@ -45,14 +46,16 @@ export default async function TaskInsightsPage({ searchParams }: TaskInsightsPag
     role:      role,
   };
 
-  const [overview, workspaces] = await Promise.all([
+  const [overview, workspaces, agentSummaries] = await Promise.all([
     getDepartmentTaskOverview(),
     getMasterWorkspacesForDashboard(),
+    getAllAgentSummaries(),
   ]);
 
   const rows = overview.success ? (overview.data ?? []) : [];
   const loadError = overview.success ? null : (overview.error ?? "Could not load Task Insights.");
   const workspaceItems = workspaces.success && workspaces.data ? workspaces.data : [];
+  const initialAgents = agentSummaries.success && agentSummaries.data ? agentSummaries.data.agents : [];
 
   if (rawDeptQuery && rows.some((r) => r.departmentId === rawDeptQuery)) {
     redirect(`/task-insights/${rawDeptQuery}`);
@@ -63,6 +66,7 @@ export default async function TaskInsightsPage({ searchParams }: TaskInsightsPag
       <TaskIntelligenceDashboard
         initialOverview={rows}
         initialWorkspaces={workspaceItems}
+        initialAgents={initialAgents}
         currentUser={currentUser}
         loadError={loadError}
       />

@@ -38,7 +38,9 @@ function getInitials(name: string): string {
 export function TeamPerformanceTab({ agents }: TeamPerformanceTabProps) {
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
 
-  if (agents.length === 0) {
+  const agentsWithLeads = agents.filter((a) => a.stats.totalLeads > 0);
+
+  if (agentsWithLeads.length === 0) {
     return (
       <div
         className={cn(
@@ -48,14 +50,14 @@ export function TeamPerformanceTab({ agents }: TeamPerformanceTabProps) {
           "shadow-[0_8px_30px_rgb(0,0,0,0.02)]"
         )}
       >
-        <p className="text-stone-500 text-sm">No active sales agents found.</p>
+        <p className="text-stone-500 text-sm">No active agents with concierge leads.</p>
       </div>
     );
   }
 
   return (
     <>
-      <div className="flex items-center justify-between mb-5">
+      <div className="flex items-center justify-between mb-6">
         <h2
           className="text-lg font-semibold text-stone-800"
           style={{ fontFamily: "var(--font-playfair)" }}
@@ -66,7 +68,7 @@ export function TeamPerformanceTab({ agents }: TeamPerformanceTabProps) {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
-        {agents.map((agent, i) => {
+        {agentsWithLeads.map((agent, i) => {
           const won = agent.stats.byStatus["won"] ?? 0;
           return (
             <motion.button

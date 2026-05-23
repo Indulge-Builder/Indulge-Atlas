@@ -2,16 +2,15 @@
 
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
 import { ArrowLeft } from "lucide-react";
 import * as LucideIcons from "lucide-react";
 import { cn } from "@/lib/utils";
-import { surfaceCardVariants } from "@/components/ui/card";
 import { toast } from "sonner";
 import type { DepartmentTaskOverview, EmployeeDepartment } from "@/lib/types/database";
 import { getDepartmentGroupTasks, getDepartmentIndividualTasks } from "@/lib/actions/task-intelligence";
 import type { DepartmentGroupTaskBundle } from "@/lib/actions/task-intelligence";
 import type { TaskIntelligenceAgentSummary } from "@/lib/types/database";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DepartmentModalSkeleton } from "./DepartmentModalSkeleton";
 import { DepartmentGroupTasksView } from "./DepartmentGroupTasksView";
 import { DepartmentIndividualTasksView } from "./DepartmentIndividualTasksView";
@@ -28,8 +27,6 @@ const BADGE_LABEL = {
   healthy: "On Track",
 } as const;
 
-type TabKey = "group" | "agents";
-
 function getLucideIcon(name: string) {
   const icons = LucideIcons as unknown as Record<
     string,
@@ -45,161 +42,158 @@ interface DepartmentDetailViewProps {
 
 export function DepartmentDetailView({ overview, currentUser }: DepartmentDetailViewProps) {
   const [tab, setTab] = useState<TabKey>("group");
-  const [loading, setLoading] = useState(false);
+  const [groupLoading, setGroupLoading] = useState(false);
+  const [agentsLoading, setAgentsLoading] = useState(false);
   const [bundles, setBundles] = useState<DepartmentGroupTaskBundle[]>([]);
   const [agents, setAgents] = useState<TaskIntelligenceAgentSummary[]>([]);
+  // Track whether the agents tab has ever been opened — gate its first fetch.
+  const [agentsTabOpened, setAgentsTabOpened] = useState(false);
   const [, startTransition] = useTransition();
 
+  // Fetch group tasks eagerly — it's the default visible tab.
   useEffect(() => {
     setTab("group");
-    setLoading(true);
+    setAgentsTabOpened(false);
+    setBundles([]);
+    setAgents([]);
+    setGroupLoading(true);
     const dept = overview.departmentId;
     startTransition(() => {
       void (async () => {
-        const [g, i] = await Promise.all([
-          getDepartmentGroupTasks({ departmentId: dept }),
-          getDepartmentIndividualTasks({ departmentId: dept }),
-        ]);
+        const g = await getDepartmentGroupTasks({ departmentId: dept });
         if (!g.success) toast.error(g.error ?? "Could not load group tasks.");
         else setBundles(g.data ?? []);
-        if (!i.success) toast.error(i.error ?? "Could not load agents.");
-        else setAgents(i.data?.agents ?? []);
-        setLoading(false);
+        setGroupLoading(false);
       })();
     });
   }, [overview.departmentId]);
 
+  // Fetch agents only when their tab is first activated.
+  useEffect(() => {
+    if (!agentsTabOpened) return;
+    setAgentsLoading(true);
+    const dept = overview.departmentId;
+    startTransition(() => {
+      void (async () => {
+        const i = await getDepartmentIndividualTasks({ departmentId: dept });
+        if (!i.success) toast.error(i.error ?? "Could not load agents.");
+        else setAgents(i.data?.agents ?? []);
+        setAgentsLoading(false);
+      })();
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentsTabOpened]);
+
+  function handleTabChange(key: string) {
+    setTab(key as "group" | "agents");
+    if (key === "agents" && !agentsTabOpened) setAgentsTabOpened(true);
+  }
+
   const Icon = getLucideIcon(overview.icon);
-  const noGroupTasks = overview.activeMasterTaskCount === 0;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="shrink-0 border-b border-[#E5E4DF] bg-[#F9F9F6] px-5 py-4 sm:px-6">
-        <Link
-          href="/task-insights"
-          className="inline-flex items-center gap-2 text-sm font-medium text-stone-600 transition-colors hover:text-stone-900"
-        >
-          <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden />
-          Back to Task Insights
-        </Link>
-      </div>
+      {/* Top bar: back link + department identity */}
+      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-black/5 bg-[#F9F9F6]/80 px-4 py-4 backdrop-blur-xl md:px-6 lg:px-8">
+        <div className="flex min-w-0 items-center gap-4">
+          <Link
+            href="/task-insights"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-[#9E9E9E] transition-colors hover:bg-black/4 hover:text-[#1A1A1A]"
+            aria-label="Back to Task Insights"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
 
-      <div className="mx-auto w-full max-w-5xl flex-1 px-5 py-6 sm:px-6 sm:py-8">
-        <div
-          className={cn(
-            "flex min-h-[min(92vh,880px)] flex-col overflow-hidden",
-            surfaceCardVariants({ tone: "luxury", elevation: "md", overflow: "hidden" }),
-            noGroupTasks && "brightness-[0.97] saturate-[0.92]",
-          )}
-        >
-          <header className="shrink-0 border-b border-[#E5E4DF] px-5 py-4 sm:px-6">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="flex min-w-0 items-start gap-3">
-                <div
-                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
-                  style={{ backgroundColor: `${overview.accentColor}20` }}
-                >
-                  <Icon className="h-6 w-6" style={{ color: overview.accentColor }} />
-                </div>
-                <div className="min-w-0">
-                  <h1 className="truncate font-serif text-2xl font-semibold text-[#1A1A1A]">
-                    {overview.label}
-                  </h1>
-                  <div className="mt-3 flex flex-wrap gap-3 text-[13px] text-[#6B6B6B]">
-                    <span>
-                      <strong className="text-[#1A1A1A]">{overview.activeMasterTaskCount}</strong>{" "}
-                      group
-                    </span>
-                    <span className="text-[#E5E4DF]">|</span>
-                    <span>
-                      <strong className="text-[#1A1A1A]">{overview.groupSubtaskCompletionPct}%</strong>{" "}
-                      completion
-                    </span>
-                    <span className="text-[#E5E4DF]">|</span>
-                    <span
-                      className={cn(overview.overdueSubtaskCount > 0 ? "font-medium text-[#C0392B]" : "")}
-                    >
-                      <strong>{overview.overdueSubtaskCount}</strong> overdue
-                    </span>
-                    <span className="text-[#E5E4DF]">|</span>
-                    <span>
-                      <strong className="text-[#1A1A1A]">{overview.todaySopCompletionPct}%</strong> SOPs
-                      today
-                    </span>
-                  </div>
-                </div>
-              </div>
-              <span
-                className={cn(
-                  "hidden rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide sm:inline",
-                  BADGE[overview.healthSignal],
-                )}
-              >
-                {BADGE_LABEL[overview.healthSignal]}
-              </span>
-            </div>
-
+          <div className="flex min-w-0 items-center gap-3">
             <div
-              role="tablist"
-              aria-label="Department detail"
-              className="mt-5 flex gap-8 border-b border-[#E5E4DF]"
-              onKeyDown={(e) => {
-                if (e.key === "ArrowRight") {
-                  e.preventDefault();
-                  setTab("agents");
-                }
-                if (e.key === "ArrowLeft") {
-                  e.preventDefault();
-                  setTab("group");
-                }
-              }}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+              style={{ backgroundColor: `${overview.accentColor}20` }}
             >
-              {(["group", "agents"] as const).map((key) => (
-                <button
-                  key={key}
-                  type="button"
-                  role="tab"
-                  aria-selected={tab === key}
-                  tabIndex={tab === key ? 0 : -1}
-                  onClick={() => setTab(key)}
-                  className={cn(
-                    "relative pb-2.5 text-[13px] font-medium transition-colors",
-                    tab === key ? "text-[#1A1A1A]" : "text-[#8A8A6E] hover:text-[#1A1A1A]",
-                  )}
-                >
-                  {key === "group" ? "Group Tasks" : "Agents"}
-                  {tab === key && (
-                    <motion.span
-                      layoutId="ti-dept-tab-underline"
-                      className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#D4AF37]"
-                      transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                    />
-                  )}
-                </button>
-              ))}
+              <Icon className="h-[18px] w-[18px]" style={{ color: overview.accentColor }} />
             </div>
-          </header>
-
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
-            {loading ? (
-              <DepartmentModalSkeleton />
-            ) : tab === "group" ? (
-              <DepartmentGroupTasksView
-                departmentId={overview.departmentId as EmployeeDepartment}
-                initialBundles={bundles}
-                currentUser={currentUser}
-              />
-            ) : (
-              <DepartmentIndividualTasksView
-                agents={agents}
-                departmentId={overview.departmentId}
-                currentUser={currentUser}
-                returnToPath={`/task-insights/${overview.departmentId}`}
-              />
-            )}
+            <div className="min-w-0">
+              <h1
+                className="truncate text-2xl font-semibold leading-tight tracking-tight text-[#1A1A1A] md:text-3xl"
+                style={{ fontFamily: "var(--font-playfair)" }}
+              >
+                {overview.label}
+              </h1>
+            </div>
           </div>
         </div>
-      </div>
+
+        <span
+          className={cn(
+            "hidden rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide sm:inline",
+            BADGE[overview.healthSignal],
+          )}
+        >
+          {BADGE_LABEL[overview.healthSignal]}
+        </span>
+      </header>
+
+      <Tabs
+        value={tab}
+        onValueChange={handleTabChange}
+        indicatorLayoutId="ti-dept-tab-indicator"
+        className="flex min-h-0 flex-1 flex-col"
+      >
+        {/* Stats + tab switcher — sticky sub-bar */}
+        <div className="sticky top-[65px] z-20 border-b border-[#E5E4DF]/80 bg-[#F9F9F6]/95 px-4 backdrop-blur-md md:px-6 lg:px-8">
+          {/* Stats row */}
+          <div className="flex flex-wrap gap-4 py-3 text-[13px] text-[#6B6B6B]">
+            <span>
+              <strong className="text-[#1A1A1A]">{overview.activeMasterTaskCount}</strong> group
+            </span>
+            <span className="text-[#D5D3CE]">·</span>
+            <span>
+              <strong className="text-[#1A1A1A]">{overview.groupSubtaskCompletionPct}%</strong> completion
+            </span>
+            <span className="text-[#D5D3CE]">·</span>
+            <span className={cn(overview.overdueSubtaskCount > 0 ? "font-medium text-[#C0392B]" : "")}>
+              <strong>{overview.overdueSubtaskCount}</strong> overdue
+            </span>
+            <span className="text-[#D5D3CE]">·</span>
+            <span>
+              <strong className="text-[#1A1A1A]">{overview.todaySopCompletionPct}%</strong> SOPs today
+            </span>
+          </div>
+
+          {/* Tab switcher */}
+          <div className="flex justify-center pb-4">
+            <TabsList aria-label="Department detail views">
+              <TabsTrigger value="group">Group Tasks</TabsTrigger>
+              <TabsTrigger value="agents">Agents</TabsTrigger>
+            </TabsList>
+          </div>
+        </div>
+
+        {/* Tab content */}
+        <TabsContent value="group" className="mt-0 flex-1 px-4 pb-8 pt-6 md:px-6 lg:px-8">
+          {groupLoading ? (
+            <DepartmentModalSkeleton />
+          ) : (
+            <DepartmentGroupTasksView
+              departmentId={overview.departmentId as EmployeeDepartment}
+              initialBundles={bundles}
+              currentUser={currentUser}
+            />
+          )}
+        </TabsContent>
+
+        <TabsContent value="agents" className="mt-0 flex-1 px-4 pb-8 pt-6 md:px-6 lg:px-8">
+          {agentsLoading ? (
+            <DepartmentModalSkeleton />
+          ) : (
+            <DepartmentIndividualTasksView
+              agents={agents}
+              departmentId={overview.departmentId}
+              currentUser={currentUser}
+              returnToPath={`/task-insights/${overview.departmentId}`}
+            />
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

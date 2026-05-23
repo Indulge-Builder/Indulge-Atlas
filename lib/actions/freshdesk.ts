@@ -3,6 +3,7 @@
 import { unstable_cache } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/auth/getAuthUser";
 import {
   findFreshdeskContactForClient,
   getTicketConversations,
@@ -37,15 +38,6 @@ type FreshdeskLoadResult =
       stats: ClientFreshdeskTicketStats;
     };
 
-async function getAuthUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-  if (error || !user) throw new Error("Unauthenticated");
-  return { supabase, user };
-}
 
 function computeTicketStats(
   tickets: FreshdeskTicket[],

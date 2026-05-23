@@ -62,24 +62,21 @@ export interface ClientOverviewTabProps {
   clientId: string;
   detail: ClientDetail;
   isActive: boolean;
-  /** SSR metrics — avoids Freshdesk round-trip on first paint. */
-  initialFreshdeskMetrics?: ClientFreshdeskMetricsData;
 }
 
 export function ClientOverviewTab({
   clientId,
   detail,
   isActive,
-  initialFreshdeskMetrics,
 }: ClientOverviewTabProps) {
   const [summary, setSummary] = useState("");
   const [summaryPhase, setSummaryPhase] =
     useState<ClientSummaryPhase>("idle");
   const summaryGenRef = useRef(0);
   const [freshdesk, setFreshdesk] = useState<ClientFreshdeskMetricState>(() =>
-    metricsToPillState(initialFreshdeskMetrics, !initialFreshdeskMetrics, false),
+    metricsToPillState(undefined, true, false),
   );
-  const freshdeskHydratedRef = useRef(!!initialFreshdeskMetrics);
+  const freshdeskHydratedRef = useRef(false);
 
   useEffect(() => {
     summaryGenRef.current += 1;
@@ -104,10 +101,8 @@ export function ClientOverviewTab({
 
   useEffect(() => {
     freshdeskHydratedRef.current = false;
-    setFreshdesk(
-      metricsToPillState(initialFreshdeskMetrics, !initialFreshdeskMetrics, false),
-    );
-  }, [clientId, initialFreshdeskMetrics]);
+    setFreshdesk(metricsToPillState(undefined, true, false));
+  }, [clientId]);
 
   useEffect(() => {
     if (!isActive || freshdeskHydratedRef.current) return;

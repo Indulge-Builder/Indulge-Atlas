@@ -260,7 +260,7 @@ export function DepartmentGroupTasksView({
   useMasterBoardsRealtime(masterIds, refetch);
 
   return (
-    <div className="space-y-3 max-h-[min(60vh,520px)] overflow-y-auto pr-1">
+    <div className="space-y-3">
       {bundles.length === 0 ? (
         <p className="text-[13px] text-[#8A8A6E] py-8 text-center">No active group tasks in this department.</p>
       ) : (

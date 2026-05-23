@@ -1,6 +1,25 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import {
+  LEAD_STATUS_ORDER,
+  LEAD_STATUS_CONFIG,
+  type LeadStatus,
+} from "@/lib/types/database";
+import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
+import { SYSTEM_TIMEZONE } from "@/lib/utils/time";
+import {
+  OVERVIEW_DOMAINS,
+  OVERVIEW_DOMAIN_KEYS,
+  type OverviewDomainKey,
+} from "@/lib/constants/onboarding-overview";
+import type {
+  OnboardingOverviewData,
+  OverviewAgentRow,
+  OverviewDomainMonthlyCard,
+  OverviewDomainSlice,
+  OverviewPipelineStage,
+} from "@/lib/types/onboarding-overview";
 
 async function requireManagerOrAdmin() {
   const supabase = await createClient();
@@ -36,129 +55,179 @@ function monthBounds(d = new Date()) {
   };
 }
 
-// ── Onboarding Pulse ─────────────────────────────────────────────
+// ── Onboarding Overview (multi-domain founder dashboard) ─────────
 
-export type OnboardingPipelineStage = {
-  key: string;
-  label: string;
-  count: number;
-  colorClass: string;
+const PIPELINE_BAR_COLORS: Record<LeadStatus, string> = {
+  new: "bg-amber-500/85",
+  attempted: "bg-sky-500/85",
+  connected: "bg-indigo-500/85",
+  in_discussion: "bg-violet-500/85",
+  won: "bg-[#4A7C59]/90",
+  nurturing: "bg-cyan-600/85",
+  lost: "bg-rose-500/75",
+  trash: "bg-stone-400/85",
 };
 
-export type OnboardingAgentVelocity = {
-  agentId: string;
-  fullName: string;
-  completedThisMonth: number;
-};
+function istMonthBounds() {
+  const ymdStart = formatInTimeZone(new Date(), SYSTEM_TIMEZONE, "yyyy-MM-01");
+  const [y, m] = ymdStart.split("-").map(Number);
+  const nextY = m === 12 ? y + 1 : y;
+  const nextM = m === 12 ? 1 : m + 1;
+  const nextStart = `${nextY}-${String(nextM).padStart(2, "0")}-01`;
+  const monthStartIso = fromZonedTime(
+    `${ymdStart}T00:00:00.000`,
+    SYSTEM_TIMEZONE,
+  ).toISOString();
+  const monthEndIso = new Date(
+    fromZonedTime(`${nextStart}T00:00:00.000`, SYSTEM_TIMEZONE).getTime() - 1,
+  ).toISOString();
+  return { monthStartIso, monthEndIso };
+}
 
-export type OnboardingPulseData = {
-  activeOnboardings: number;
-  completedThisMonth: number;
-  avgDaysToOnboard: number | null;
-  /** Highlighted closer for the month (name + their won count this month). */
-  topPerformer: { name: string; count: number } | null;
-  pipelineStages: OnboardingPipelineStage[];
-  agentVelocity: OnboardingAgentVelocity[];
-  maxAgentCompleted: number;
-};
+function emptyAgentRow(agentId: string, fullName: string): OverviewAgentRow {
+  return {
+    agentId,
+    fullName,
+    totalLeads: 0,
+    new: 0,
+    attempted: 0,
+    inDiscussion: 0,
+    junk: 0,
+    todayLeads: 0,
+    conversions: 0,
+  };
+}
 
-const PIPELINE_STATUS_ORDER = [
-  { key: "new", label: "New", colorClass: "bg-amber-500/85" },
-  { key: "attempted", label: "Attempted", colorClass: "bg-sky-500/85" },
-  { key: "in_discussion", label: "In discussion", colorClass: "bg-violet-500/85" },
-  { key: "won", label: "Won", colorClass: "bg-[#4A7C59]/90" },
-  { key: "trash", label: "Trash", colorClass: "bg-stone-400/85" },
-] as const;
-
-/** Founder dashboard headline figures (curated). */
-const ONBOARDING_DISPLAY = {
-  activeOnboardings: 45,
-  completedThisMonth: 8,
-  avgDaysToOnboardThisMonth: 2.9,
-  topPerformerName: "Amit",
-  topPerformerCompletedThisMonth: 4,
-} as const;
-
-export async function getOnboardingPulse(): Promise<OnboardingPulseData> {
+export async function getOnboardingOverview(
+  startIso?: string,
+  endIso?: string,
+): Promise<OnboardingOverviewData> {
   const { supabase } = await requireManagerOrAdmin();
-  const { monthStartIso, monthEndIso } = monthBounds();
 
-  const pipelineStatusKeys = PIPELINE_STATUS_ORDER.map((s) => s.key);
+  // Default to this month in IST when no range is supplied
+  const { monthStartIso, monthEndIso } = istMonthBounds();
+  const rangeStart = startIso ?? monthStartIso;
+  const rangeEnd = endIso ?? monthEndIso;
 
-  // All queries in one parallel batch — Amit lookup merged into the profiles fetch
-  const [{ data: agentWonRows }, { data: profiles }, ...statusCountResults] =
-    await Promise.all([
-      supabase
-        .from("leads")
-        .select("assigned_to")
-        .eq("status", "won")
-        .gte("updated_at", monthStartIso)
-        .lte("updated_at", monthEndIso)
-        .not("assigned_to", "is", null),
-      supabase
-        .from("profiles")
-        .select("id, full_name")
-        .in("role", ["agent", "manager", "founder"])
-        .eq("is_active", true),
-      ...pipelineStatusKeys.map((status) =>
-        supabase
+  const periodLabel = startIso
+    ? `${formatInTimeZone(new Date(startIso), SYSTEM_TIMEZONE, "d MMM")} – ${formatInTimeZone(new Date(endIso!), SYSTEM_TIMEZONE, "d MMM yyyy")}`
+    : formatInTimeZone(new Date(), SYSTEM_TIMEZONE, "MMMM yyyy");
+
+  // Fetch profiles + all leads in the requested date range (paginated to bypass 1000-row cap)
+  const [{ data: profiles }, allLeads] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("id, full_name")
+      .in("role", ["agent", "manager"])
+      .eq("is_active", true),
+    (async () => {
+      const PAGE = 1000;
+      const rows: Array<{ id: string; domain: string; status: string; assigned_to: string | null; created_at: string }> = [];
+      let from = 0;
+      while (true) {
+        const { data, error } = await supabase
           .from("leads")
-          .select("id", { count: "exact", head: true })
-          .eq("status", status),
-      ),
-    ]);
+          .select("id, domain, status, assigned_to, created_at")
+          .in("domain", OVERVIEW_DOMAIN_KEYS)
+          .gte("created_at", rangeStart)
+          .lte("created_at", rangeEnd)
+          .range(from, from + PAGE - 1);
+        if (error || !data?.length) break;
+        rows.push(...data);
+        if (data.length < PAGE) break;
+        from += PAGE;
+      }
+      return rows;
+    })(),
+  ]);
 
-  // Derive Amit from the profiles result instead of a separate query
-  const amitProfile = (profiles ?? []).find((p) =>
-    p.full_name?.toLowerCase().includes("amit"),
-  ) ?? null;
+  const profileList = profiles ?? [];
+  const profileNameById = new Map(
+    profileList.map((p) => [p.id, p.full_name ?? "Unknown"]),
+  );
 
-  const agentTotals = new Map<string, number>();
-  for (const row of agentWonRows ?? []) {
-    if (row.assigned_to) {
-      agentTotals.set(row.assigned_to, (agentTotals.get(row.assigned_to) ?? 0) + 1);
+  const countByDomain = new Map<OverviewDomainKey, number>(
+    OVERVIEW_DOMAIN_KEYS.map((k) => [k, 0]),
+  );
+
+  type DomainBucket = {
+    statusCounts: Map<string, number>;
+    agents: Map<string, OverviewAgentRow>;
+  };
+
+  const domainBuckets = new Map<OverviewDomainKey, DomainBucket>();
+  for (const key of OVERVIEW_DOMAIN_KEYS) {
+    const agents = new Map<string, OverviewAgentRow>();
+    for (const p of profileList) {
+      agents.set(p.id, emptyAgentRow(p.id, p.full_name ?? "Unknown"));
     }
+    domainBuckets.set(key, { statusCounts: new Map(), agents });
   }
 
-  const agentVelocity: OnboardingAgentVelocity[] = (profiles ?? [])
-    .map((p) => ({
-      agentId: p.id,
-      fullName: p.full_name,
-      completedThisMonth: agentTotals.get(p.id) ?? 0,
-    }))
-    .sort((a, b) => b.completedThisMonth - a.completedThisMonth);
+  for (const lead of allLeads) {
+    const domain = lead.domain as OverviewDomainKey;
+    if (!OVERVIEW_DOMAIN_KEYS.includes(domain)) continue;
 
-  const maxAgentCompleted = agentVelocity.reduce(
-    (m, a) => Math.max(m, a.completedThisMonth),
-    0,
+    const bucket = domainBuckets.get(domain)!;
+    bucket.statusCounts.set(
+      lead.status,
+      (bucket.statusCounts.get(lead.status) ?? 0) + 1,
+    );
+
+    countByDomain.set(domain, (countByDomain.get(domain) ?? 0) + 1);
+
+    if (!lead.assigned_to) continue;
+
+    let agentRow = bucket.agents.get(lead.assigned_to);
+    if (!agentRow) {
+      agentRow = emptyAgentRow(
+        lead.assigned_to,
+        profileNameById.get(lead.assigned_to) ?? "Unknown",
+      );
+      bucket.agents.set(lead.assigned_to, agentRow);
+    }
+
+    agentRow.totalLeads += 1;
+    if (lead.status === "new") agentRow.new += 1;
+    else if (lead.status === "attempted") agentRow.attempted += 1;
+    else if (lead.status === "in_discussion") agentRow.inDiscussion += 1;
+    else if (lead.status === "trash") agentRow.junk += 1;
+    else if (lead.status === "won") agentRow.conversions += 1;
+  }
+
+  const monthlyCards: OverviewDomainMonthlyCard[] = OVERVIEW_DOMAINS.map(
+    (d) => ({
+      domain: d.key,
+      label: d.label,
+      leadsThisMonth: countByDomain.get(d.key) ?? 0,
+    }),
   );
 
-  const pipelineStages: OnboardingPipelineStage[] = PIPELINE_STATUS_ORDER.map(
-    (meta, i) => {
-      const raw = statusCountResults[i] as { count: number | null };
-      return {
-        key: meta.key,
-        label: meta.label,
-        count: raw?.count ?? 0,
-        colorClass: meta.colorClass,
-      };
-    },
-  );
+  const domains = {} as Record<OverviewDomainKey, OverviewDomainSlice>;
+  for (const d of OVERVIEW_DOMAINS) {
+    const bucket = domainBuckets.get(d.key)!;
+    const pipelineStages: OverviewPipelineStage[] = LEAD_STATUS_ORDER.map(
+      (status) => ({
+        key: status,
+        label: LEAD_STATUS_CONFIG[status].label,
+        count: bucket.statusCounts.get(status) ?? 0,
+        colorClass: PIPELINE_BAR_COLORS[status],
+      }),
+    );
 
-  const topPerformer: { name: string; count: number } | null = {
-    name: amitProfile?.full_name ?? ONBOARDING_DISPLAY.topPerformerName,
-    count: ONBOARDING_DISPLAY.topPerformerCompletedThisMonth,
-  };
+    const agents = Array.from(bucket.agents.values())
+      .filter((a) => a.totalLeads > 0)
+      .sort((a, b) => b.totalLeads - a.totalLeads);
 
-  return {
-    activeOnboardings: ONBOARDING_DISPLAY.activeOnboardings,
-    completedThisMonth: ONBOARDING_DISPLAY.completedThisMonth,
-    avgDaysToOnboard: ONBOARDING_DISPLAY.avgDaysToOnboardThisMonth,
-    topPerformer,
-    pipelineStages,
-    agentVelocity,
-    maxAgentCompleted,
-  };
+    domains[d.key] = {
+      domain: d.key,
+      label: d.label,
+      pipelineStages,
+      agents,
+    };
+  }
+
+  return { monthLabel: periodLabel, monthlyCards, domains };
 }
 
 // ── Shop Pulse ─────────────────────────────────────────────────

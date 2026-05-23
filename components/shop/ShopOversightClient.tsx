@@ -2,7 +2,13 @@
 
 import { useState, useMemo, type ReactNode } from "react";
 import dynamic from "next/dynamic";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import {
   Package,
   ChevronDown,
@@ -38,8 +44,6 @@ const TABS = [
   { id: "orders", label: "Ongoing Orders", icon: Package },
   { id: "leads", label: "Shop Leads", icon: List },
 ] as const;
-
-type TabId = (typeof TABS)[number]["id"];
 
 // ── Timeframe options ───────────────────────────────────────
 const TIMEFRAMES = [
@@ -199,7 +203,6 @@ function getInitials(name: string): string {
 }
 
 export function ShopOversightClient({ pulseSlot }: { pulseSlot: ReactNode }) {
-  const [activeTab, setActiveTab] = useState<TabId>("pulse");
   const [timeframe, setTimeframe] = useState<(typeof TIMEFRAMES)[number]>(
     TIMEFRAMES[1],
   );
@@ -287,58 +290,28 @@ export function ShopOversightClient({ pulseSlot }: { pulseSlot: ReactNode }) {
       />
 
       <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 space-y-4 md:space-y-6">
-        {/* Tab Navigation — scrollable on mobile if tabs overflow */}
-        <div className="overflow-x-auto hidden-scrollbar whitespace-nowrap -mx-1">
-          <div className="flex gap-1 p-1 rounded-2xl bg-stone-200/40 backdrop-blur-md ring-1 ring-stone-300/40 shadow-sm w-fit inline-flex">
-          {TABS.map((tab) => (
-            <motion.button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={cn(
-                "relative px-5 py-2.5 rounded-xl text-sm font-medium transition-colors",
-                activeTab === tab.id
-                  ? "text-[#D4AF37]"
-                  : "text-stone-600 hover:text-stone-800",
-              )}
-            >
-              {activeTab === tab.id && (
-                <motion.span
-                  layoutId="shop-tab-indicator"
-                  className="absolute inset-0 rounded-xl bg-sidebar-active shadow-[0_2px_8px_rgb(0,0,0,0.15)] ring-1 ring-stone-800/30"
-                  transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
-                />
-              )}
-              <span className="relative flex items-center gap-2">
-                <tab.icon className="w-4 h-4" strokeWidth={1.5} />
-                {tab.label}
-              </span>
-            </motion.button>
-          ))}
+        <Tabs
+          defaultValue="pulse"
+          indicatorLayoutId="shop-tab-indicator"
+          className="space-y-4 md:space-y-6"
+        >
+          <div className="overflow-x-auto hidden-scrollbar -mx-1 whitespace-nowrap">
+            <TabsList>
+              {TABS.map((tab) => (
+                <TabsTrigger key={tab.id} value={tab.id}>
+                  <tab.icon className="h-4 w-4" strokeWidth={1.5} />
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
           </div>
-        </div>
 
-        {/* Phase 4–6: Tab Content */}
-        <AnimatePresence mode="wait">
-          {activeTab === "pulse" && (
-            <motion.div
-              key="pulse"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.25 }}
-            >
-              {pulseSlot}
-            </motion.div>
-          )}
-          {activeTab === "orders" && (
-            <motion.div
-              key="orders"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.25 }}
-              className={cn("rounded-2xl overflow-hidden", PILLOWY_CARD)}
-            >
+          <TabsContent value="pulse" className="mt-0">
+            {pulseSlot}
+          </TabsContent>
+
+          <TabsContent value="orders" className="mt-0">
+            <div className={cn("rounded-2xl overflow-hidden", PILLOWY_CARD)}>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm" style={{ minWidth: "720px" }}>
                   <thead>
@@ -396,18 +369,10 @@ export function ShopOversightClient({ pulseSlot }: { pulseSlot: ReactNode }) {
                   </tbody>
                 </table>
               </div>
-            </motion.div>
-          )}
+            </div>
+          </TabsContent>
 
-          {activeTab === "leads" && (
-            <motion.div
-              key="leads"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.25 }}
-              className="space-y-4"
-            >
+          <TabsContent value="leads" className="mt-0 space-y-4">
               <div className="relative flex-1 min-w-[260px] max-w-md">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
                 <Input
@@ -477,18 +442,9 @@ export function ShopOversightClient({ pulseSlot }: { pulseSlot: ReactNode }) {
                   </table>
                 </div>
               </div>
-            </motion.div>
-          )}
+          </TabsContent>
 
-          {activeTab === "team" && (
-            <motion.div
-              key="team"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.25 }}
-              className="space-y-5"
-            >
+          <TabsContent value="team" className="mt-0 space-y-5">
               <div className="flex items-center justify-between">
                 <h2
                   className="text-lg font-semibold text-stone-800"
@@ -548,9 +504,8 @@ export function ShopOversightClient({ pulseSlot }: { pulseSlot: ReactNode }) {
                   </motion.button>
                 ))}
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+          </TabsContent>
+        </Tabs>
       </div>
 
       <AgentPerformanceModal

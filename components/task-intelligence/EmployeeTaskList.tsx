@@ -1,10 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { format } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 import { Circle, Inbox, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import {
   ATLAS_TASK_STATUS_COLORS,
   ATLAS_TASK_STATUS_LABELS,
@@ -53,8 +59,6 @@ export interface EmployeeTaskListProps {
   onOpenPersonalTask: (taskId: string) => void;
 }
 
-type TabKey = "personal" | "workspace";
-
 type PersonalSectionKey =
   | "dailySop"
   | "pendingToday"
@@ -68,8 +72,6 @@ export function EmployeeTaskList({
   onOpenWorkspaceSubtask,
   onOpenPersonalTask,
 }: EmployeeTaskListProps) {
-  const [tab, setTab] = useState<TabKey>("personal");
-
   const safePersonal = useMemo(() => {
     const pt = personalTasks as EmployeeDossierPayload["personalTasks"] & {
       overdue?: PersonalTask[];
@@ -128,44 +130,31 @@ export function EmployeeTaskList({
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-white">
-      <div
-        className="flex shrink-0 gap-1 border-b border-[#E5E4DF] bg-[#F2F2EE] p-1.5"
-        role="tablist"
-        aria-label="Task source"
+      <Tabs
+        defaultValue="personal"
+        indicatorLayoutId="employee-dossier-task-tabs"
+        animatedContent={false}
+        className="flex h-full min-h-0 flex-col"
       >
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === "personal"}
-          onClick={() => setTab("personal")}
-          className={cn(
-            "flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-            tab === "personal"
-              ? "bg-white text-stone-900 shadow-sm ring-1 ring-[#E5E4DF]/80"
-              : "text-stone-600 hover:bg-white/60 hover:text-stone-900",
-          )}
-        >
-          Personal tasks
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === "workspace"}
-          onClick={() => setTab("workspace")}
-          className={cn(
-            "flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-            tab === "workspace"
-              ? "bg-white text-stone-900 shadow-sm ring-1 ring-[#E5E4DF]/80"
-              : "text-stone-600 hover:bg-white/60 hover:text-stone-900",
-          )}
-        >
-          Workspace tasks
-        </button>
-      </div>
+        <div className="shrink-0 border-b border-[#E5E4DF] bg-[#F2F2EE]/80 px-2 py-2">
+          <TabsList
+            aria-label="Task source"
+            className="w-full gap-1 bg-stone-200/50 ring-stone-300/30"
+          >
+            <TabsTrigger value="personal" className="flex-1 px-3 py-2">
+              Personal tasks
+            </TabsTrigger>
+            <TabsTrigger value="workspace" className="flex-1 px-3 py-2">
+              Workspace tasks
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
-      <div className="flex-1 overflow-y-auto">
-        {tab === "personal" && (
-          <>
+        <TabsContent
+          value="personal"
+          className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden focus-visible:outline-none"
+        >
+          <div className="min-h-0 flex-1 overflow-y-auto">
             <div className="sticky top-0 z-10 border-b border-[#E5E4DF] bg-[#FAFAF8]/95 px-5 py-2.5 backdrop-blur-sm">
               <p className="text-[11px] leading-relaxed text-stone-600">
                 Personal and group-assigned tasks for{" "}
@@ -302,11 +291,14 @@ export function EmployeeTaskList({
                 );
               })
             )}
-          </>
-        )}
+          </div>
+        </TabsContent>
 
-        {tab === "workspace" && (
-          <>
+        <TabsContent
+          value="workspace"
+          className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden focus-visible:outline-none"
+        >
+          <div className="min-h-0 flex-1 overflow-y-auto">
             <p className="border-b border-[#E5E4DF]/80 px-5 pb-2.5 pt-4 text-xs text-stone-600">
               Master workspace assignments for{" "}
               <span className="font-medium text-stone-800">{agentName}</span>
@@ -394,9 +386,9 @@ export function EmployeeTaskList({
                 })}
               </ul>
             )}
-          </>
-        )}
-      </div>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

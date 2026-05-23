@@ -1,10 +1,14 @@
 "use client";
 
-import { useState } from "react";
 import dynamic from "next/dynamic";
-import { motion, AnimatePresence } from "framer-motion";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { TopBar } from "@/components/layout/TopBar";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 
 const viewLoading = () => (
   <div className="mx-auto h-80 w-full max-w-6xl animate-pulse rounded-2xl bg-stone-100/50" />
@@ -59,9 +63,6 @@ const VIEW_MAP: Record<PillId, React.ComponentType> = {
 };
 
 export default function IndulgeWorldPage() {
-  const [activePill, setActivePill] = useState<PillId>("client-journey");
-  const ActiveView = VIEW_MAP[activePill];
-
   return (
     <div className="min-h-screen bg-[#F9F9F6]">
       <TopBar
@@ -70,58 +71,40 @@ export default function IndulgeWorldPage() {
         variant="default"
       />
 
-      {/* Pill navigation — horizontally scrolling, swipeable on mobile */}
-      <div className="sticky top-[65px] z-20 px-4 md:px-6 lg:px-8 py-4 bg-[#F9F9F6]/95 backdrop-blur-md border-b border-stone-200/80">
-        <div className="flex justify-center overflow-x-auto hidden-scrollbar whitespace-nowrap -mx-1">
-          <div className="flex items-center gap-1.5 py-1.5 px-2 rounded-2xl bg-stone-200/40 backdrop-blur-md ring-1 ring-stone-300/40 shadow-sm inline-flex">
-            {PILLS.map((pill) => (
-              <button
-                key={pill.id}
-                onClick={() => setActivePill(pill.id)}
-                className="relative px-5 py-2.5 rounded-xl text-sm font-medium transition-colors duration-300 min-w-fit"
-              >
-                {activePill === pill.id && (
-                  <motion.span
-                    layoutId="indulge-world-pill"
-                    className="absolute inset-0 rounded-xl bg-sidebar-active shadow-[0_2px_8px_rgb(0,0,0,0.15)] ring-1 ring-stone-800/30"
-                    transition={{
-                      type: "spring",
-                      bounce: 0.2,
-                      duration: 0.4,
-                    }}
-                  />
-                )}
-                <span
-                  className={`relative z-10 ${
-                    activePill === pill.id
-                      ? "text-[#D4AF37] font-semibold"
-                      : "text-stone-600 hover:text-stone-800"
-                  }`}
-                >
+      <Tabs
+        defaultValue="client-journey"
+        indicatorLayoutId="indulge-world-pill"
+        className="w-full"
+      >
+        <div className="sticky top-[65px] z-20 border-b border-stone-200/80 bg-[#F9F9F6]/95 px-4 py-4 backdrop-blur-md md:px-6 lg:px-8">
+          <div className="mx-auto flex justify-center overflow-x-auto hidden-scrollbar -mx-1 whitespace-nowrap">
+            <TabsList>
+              {PILLS.map((pill) => (
+                <TabsTrigger key={pill.id} value={pill.id} className="min-w-fit">
                   {pill.label}
-                </span>
-              </button>
-            ))}
+                </TabsTrigger>
+              ))}
+            </TabsList>
           </div>
         </div>
-      </div>
 
-      {/* Content area — centrally aligned, fluid padding */}
-      <div className="px-4 md:px-6 lg:px-8 py-6 md:py-8 flex flex-col items-center">
-        <TooltipProvider delayDuration={200}>
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activePill}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-            >
-              <ActiveView />
-            </motion.div>
-          </AnimatePresence>
-        </TooltipProvider>
-      </div>
+        <div className="flex flex-col items-center px-4 py-6 md:px-6 md:py-8 lg:px-8">
+          <TooltipProvider delayDuration={200}>
+            {PILLS.map((pill) => {
+              const View = VIEW_MAP[pill.id];
+              return (
+                <TabsContent
+                  key={pill.id}
+                  value={pill.id}
+                  className="mt-0 w-full max-w-6xl"
+                >
+                  <View />
+                </TabsContent>
+              );
+            })}
+          </TooltipProvider>
+        </div>
+      </Tabs>
     </div>
   );
 }

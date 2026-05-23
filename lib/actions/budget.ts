@@ -3,29 +3,13 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/auth/getAuthUser";
 import type {
   BudgetDomain,
   BudgetTransaction,
   BudgetDeliverable,
 } from "@/lib/types/database";
 
-// ── Auth helper ───────────────────────────────────────────────────────────────
-
-async function getAuthUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-  if (error || !user) throw new Error("Unauthenticated");
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-  const role = (profile?.role as string) ?? "agent";
-  return { supabase, user, role };
-}
 
 function isPrivileged(role: string) {
   return ["founder", "admin", "super_admin"].includes(role);

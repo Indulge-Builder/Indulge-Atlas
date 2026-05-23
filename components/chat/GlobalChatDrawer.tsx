@@ -303,7 +303,9 @@ function ChatThread({
   peerRole:       string;
   onBack:         () => void;
 }) {
-  const { messages, loading, bottomRef } = useMessages(conversationId);
+  const { messages, loading, loadError, bottomRef, appendMessage } =
+    useMessages(conversationId);
+  const [sendError, setSendError] = useState<string | null>(null);
   const [draft,          setDraft]          = useState("");
   const [sending,        setSending]        = useState(false);
   const [attachedLead,   setAttachedLead]   = useState<MessageLeadPreview | null>(null);
@@ -347,14 +349,28 @@ function ChatThread({
     const trimmed = draft.trim();
     if (!trimmed || sending) return;
     setSending(true);
+    setSendError(null);
     setDraft("");
     const leadId = attachedLead?.id ?? null;
+    const attached = attachedLead;
     setAttachedLead(null);
     setShowLeadPicker(false);
-    await sendMessage(conversationId, trimmed, leadId);
+
+    const result = await sendMessage(conversationId, trimmed, leadId);
+
+    if (!result.success || !result.message) {
+      setSendError(result.error ?? "Failed to send message");
+      setDraft(trimmed);
+      if (attached) setAttachedLead(attached);
+      setSending(false);
+      textareaRef.current?.focus();
+      return;
+    }
+
+    appendMessage({ ...result.message, lead: attached ?? null });
     setSending(false);
     textareaRef.current?.focus();
-  }, [draft, sending, attachedLead, conversationId]);
+  }, [draft, sending, attachedLead, conversationId, appendMessage]);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
@@ -376,7 +392,11 @@ function ChatThread({
 
       {/* Message history */}
       <div className="flex-1 overflow-y-auto scrollbar-none px-4 py-4 space-y-3">
-        {loading ? (
+        {loadError ? (
+          <div className="flex flex-col items-center justify-center h-full gap-2 text-center px-4">
+            <p className="text-[12px] text-red-400 leading-relaxed">{loadError}</p>
+          </div>
+        ) : loading ? (
           <div className="flex flex-col gap-3 animate-pulse">
             {[...Array(5)].map((_, i) => (
               <div key={i} className={`flex ${i % 2 === 0 ? "justify-start" : "justify-end"}`}>
@@ -426,6 +446,9 @@ function ChatThread({
 
       {/* Compose area */}
       <div className="px-3 py-3 border-t border-white/5 shrink-0">
+        {sendError && (
+          <p className="text-[11px] text-red-400 mb-2 px-1">{sendError}</p>
+        )}
 
         {/* Lead picker */}
         <AnimatePresence>
@@ -580,8 +603,8 @@ export function GlobalChatDrawer({
 
   const loadConversations = useCallback(async () => {
     setListLoading(true);
-    const data = await getMyDirectConversations();
-    setConversations(data);
+    const { conversations: rows } = await getMyDirectConversations();
+    setConversations(rows);
     setListLoading(false);
   }, []);
 

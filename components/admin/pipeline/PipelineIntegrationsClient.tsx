@@ -51,13 +51,9 @@ export function PipelineIntegrationsClient() {
         onValueChange={(v) => setTab(v as PipelineChannel)}
         className="w-full"
       >
-        <TabsList className="mb-2 h-auto w-full flex-wrap justify-start gap-1 bg-[#F2F2EE] p-1.5 sm:inline-flex">
+        <TabsList className="mb-2 w-full justify-start sm:inline-flex">
           {(["meta", "google", "website"] as const).map((key) => (
-            <TabsTrigger
-              key={key}
-              value={key}
-              className="rounded-md px-4 py-2 data-[state=active]:shadow-sm"
-            >
+            <TabsTrigger key={key} value={key}>
               {PIPELINE_TAB_LABELS[key].title}
             </TabsTrigger>
           ))}

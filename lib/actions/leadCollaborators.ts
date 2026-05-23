@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/auth/getAuthUser";
 import { z } from "zod";
 import type { LeadCollaborator, UserRole } from "@/lib/types/database";
 
@@ -12,25 +13,6 @@ export interface LeadCollaboratorActionResult {
   error?: string;
 }
 
-async function getAuthUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-  if (error || !user) throw new Error("Unauthenticated");
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role, domain")
-    .eq("id", user.id)
-    .single();
-
-  const role = ((profile as { role: string } | null)?.role ?? "agent") as UserRole;
-  const domain =
-    (profile as { domain?: string } | null)?.domain ?? "indulge_concierge";
-  return { supabase, user, role, domain };
-}
 
 function canManageCollaboratorsOnLead(params: {
   role: UserRole;
@@ -126,7 +108,8 @@ export async function addLeadCollaborator(
       return { success: false, error: "Invalid id" };
     }
 
-    const { supabase, user, role, domain } = await getAuthUser();
+    const { supabase, user, role: roleStr, domain } = await getAuthUser();
+    const role = roleStr as UserRole;
 
     const { data: lead, error: leadErr } = await supabase
       .from("leads")
@@ -188,7 +171,8 @@ export async function removeLeadCollaborator(
       return { success: false, error: "Invalid id" };
     }
 
-    const { supabase, user, role, domain } = await getAuthUser();
+    const { supabase, user, role: roleStr, domain } = await getAuthUser();
+    const role = roleStr as UserRole;
 
     const { data: lead, error: leadErr } = await supabase
       .from("leads")

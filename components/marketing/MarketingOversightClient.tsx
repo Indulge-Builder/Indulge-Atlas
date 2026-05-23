@@ -149,24 +149,15 @@ function CommunityGrowthCard() {
 
 // ── Main client ───────────────────────────────────────────────
 
-const marketingTabTriggerClass =
-  "rounded-xl px-5 py-2.5 text-sm font-medium text-stone-600 transition-colors " +
-  "data-[state=active]:bg-[#1e1a0a] data-[state=active]:text-[#D4AF37] data-[state=active]:shadow-[0_2px_8px_rgb(0,0,0,0.15)] " +
-  "data-[state=active]:ring-1 data-[state=active]:ring-stone-800/30";
-
 export function MarketingOversightClient({ pulseSlot }: { pulseSlot: ReactNode }) {
   const [selectedAgent, setSelectedAgent] = useState<(typeof MOCK_MARKETING_TEAM)[number] | null>(null);
 
   return (
     <Tabs defaultValue="pulse" className="w-full">
       <div className="overflow-x-auto hidden-scrollbar -mx-1">
-        <TabsList className="inline-flex h-auto w-fit min-w-0 gap-1 rounded-2xl bg-stone-200/40 p-1 ring-1 ring-stone-300/40">
-          <TabsTrigger value="pulse" className={marketingTabTriggerClass}>
-            Founder's Pulse
-          </TabsTrigger>
-          <TabsTrigger value="studio" className={marketingTabTriggerClass}>
-            Studio &amp; Team
-          </TabsTrigger>
+        <TabsList>
+          <TabsTrigger value="pulse">Founder&apos;s Pulse</TabsTrigger>
+          <TabsTrigger value="studio">Studio &amp; Team</TabsTrigger>
         </TabsList>
       </div>
 

@@ -18,6 +18,8 @@ interface TopBarProps {
   variant?: "default" | "dark";
   /** When true, hides the domain / workspace dropdown (e.g. on personal Workspace). */
   hideDomainSwitcher?: boolean;
+  /** When true, hides the search shortcut hint. */
+  hideSearch?: boolean;
 }
 
 function ChatTriggerButton({ dark }: { dark?: boolean }) {
@@ -109,6 +111,7 @@ export function TopBar({
   actions,
   variant = "default",
   hideDomainSwitcher = false,
+  hideSearch = false,
 }: TopBarProps) {
   const profile = useProfile();
   const showSLA =
@@ -176,7 +179,7 @@ export function TopBar({
 
       {/* Right: search hint + domain switcher (scout/admin) + actions + chat + notification + SLA */}
       <div className="flex items-center gap-3">
-        <SearchShortcutHint dark={isDark} />
+        {!hideSearch && <SearchShortcutHint dark={isDark} />}
         {!hideDomainSwitcher && (
           <Suspense fallback={null}>
             <DomainSwitcher variant={variant} />

@@ -90,8 +90,8 @@ export function EmployeeDossierView({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-[#F9F9F6]">
-      <div className="shrink-0 border-b border-[#E5E4DF] bg-[#F9F9F6] px-5 py-4 sm:px-6">
-        <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4">
+      <div className="shrink-0 border-b border-[#E5E4DF] bg-[#F9F9F6] px-8 py-4">
+        <div className="flex w-full items-center justify-between gap-4">
           <Link
             href={backHref}
             className="inline-flex items-center gap-2 text-sm font-medium text-stone-600 transition-colors hover:text-stone-900"
@@ -122,7 +122,8 @@ export function EmployeeDossierView({
         </div>
       </div>
 
-      <div className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col overflow-hidden border-x border-[#E5E4DF] bg-white shadow-sm md:flex-row">
+      <div className="flex min-h-0 flex-1 flex-col px-8 pb-8">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[#E5E4DF] bg-white shadow-sm md:flex-row">
         <aside className="w-full shrink-0 overflow-y-auto border-b border-[#E5E4DF] bg-[#F9F9F6] md:w-[300px] md:border-b-0 md:border-r">
           {loading && !dossier ? (
             <div className="flex flex-col gap-4 p-6">
@@ -174,6 +175,7 @@ export function EmployeeDossierView({
               onOpenPersonalTask={(id) => setDetailTaskId(id)}
             />
           ) : null}
+        </div>
         </div>
       </div>
 
