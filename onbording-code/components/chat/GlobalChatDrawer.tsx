@@ -581,7 +581,7 @@ export function GlobalChatDrawer({
   const loadConversations = useCallback(async () => {
     setListLoading(true);
     const data = await getMyDirectConversations();
-    setConversations(data);
+    setConversations(data.conversations ?? []);
     setListLoading(false);
   }, []);
 
