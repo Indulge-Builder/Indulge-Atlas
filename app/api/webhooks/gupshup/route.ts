@@ -94,6 +94,12 @@ async function logAndProcess(rawBody: string): Promise<void> {
     return;
   }
 
+  console.log(
+    "[webhook:debug] raw payload type:", (payload as Record<string, unknown>)?.type,
+    "inner type:", (payload as { payload?: { type?: string } })?.payload?.type,
+    "text:", (payload as { payload?: { payload?: { text?: string } } })?.payload?.payload?.text?.slice(0, 30),
+  );
+
   const fields = extractMessageFields(payload);
   if (!fields) return; // not a text message event; silently ignore
 

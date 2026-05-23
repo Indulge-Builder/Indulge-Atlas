@@ -12,11 +12,11 @@ interface ConversationListProps {
 }
 
 const STATE_BADGE: Record<BotSessionState, { label: string; className: string }> = {
-  greeting:         { label: "Greeting",   className: "bg-white/10 text-white/50" },
-  browsing:         { label: "Browsing",   className: "bg-blue-500/20 text-blue-300" },
-  viewing_products: { label: "Viewing",    className: "bg-amber-500/20 text-amber-300" },
-  handoff_pending:  { label: "Pending",    className: "bg-orange-500/20 text-orange-300" },
-  handed_off:       { label: "Handed off", className: "bg-green-500/20 text-green-300" },
+  greeting:         { label: "Greeting",   className: "bg-brand-gold/10 text-brand-gold" },
+  browsing:         { label: "Browsing",   className: "bg-info/10 text-info" },
+  viewing_products: { label: "Viewing",    className: "bg-warning/10 text-warning" },
+  handoff_pending:  { label: "Pending",    className: "bg-warning/15 text-warning" },
+  handed_off:       { label: "Handed off", className: "bg-success/10 text-success" },
 };
 
 function formatPhone(phone: string): string {
@@ -48,26 +48,25 @@ export function ConversationList({ sessions, selectedId, onSelect }: Conversatio
   );
 
   return (
-    <div className="flex flex-col h-full" style={{ background: "var(--color-background-secondary, #1A1814)" }}>
+    <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="px-4 pt-5 pb-3 flex-shrink-0">
-        <div className="flex items-center gap-2 mb-4">
-          <span className="text-white font-semibold text-[15px] tracking-tight">WA Business</span>
-          <span className="w-2 h-2 rounded-full bg-[#25D366] shadow-[0_0_6px_#25D366]" />
+      <div className="border-b border-surface-border px-4 py-4 shrink-0">
+        <p className="text-sm font-semibold text-foreground font-serif mb-3">Conversations</p>
+        <div className="flex items-center gap-2 rounded-xl border border-surface-border bg-white px-3 py-2 shadow-[0_1px_2px_0_rgb(0_0_0/0.03)]">
+          <input
+            type="text"
+            placeholder="Search by phone…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="flex-1 text-[13px] bg-transparent text-foreground placeholder-taupe outline-none"
+          />
         </div>
-        <input
-          type="text"
-          placeholder="Search by phone…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          className="w-full px-3 py-2 rounded-lg text-[13px] bg-white/[0.06] border border-white/[0.08] text-white placeholder-white/30 outline-none focus:border-white/20 transition-colors"
-        />
       </div>
 
       {/* List */}
-      <div className="flex-1 overflow-y-auto px-2 pb-3 space-y-1">
+      <div className="flex-1 overflow-y-auto px-2 py-2 space-y-0.5">
         {filtered.length === 0 && (
-          <p className="text-center text-white/30 text-[13px] mt-8">No conversations found</p>
+          <p className="text-center text-taupe text-[13px] mt-8">No conversations found</p>
         )}
         {filtered.map((session) => {
           const badge = STATE_BADGE[session.state] ?? STATE_BADGE.greeting;
@@ -77,30 +76,30 @@ export function ConversationList({ sessions, selectedId, onSelect }: Conversatio
               key={session.id}
               onClick={() => onSelect(session)}
               className={cn(
-                "w-full text-left px-3 py-3 rounded-2xl transition-colors duration-150",
+                "w-full text-left px-3 py-3 rounded-xl transition-colors duration-150",
                 isActive
-                  ? "bg-white/[0.10] border border-white/[0.12]"
-                  : "hover:bg-white/[0.05]",
+                  ? "bg-brand-gold/8 border border-brand-gold/20"
+                  : "hover:bg-surface-subtle border border-transparent",
               )}
             >
-              <div className="flex items-start justify-between gap-2 mb-1.5">
-                <span className="text-white/90 text-[13px] font-medium truncate">
+              <div className="flex items-start justify-between gap-2 mb-1">
+                <span className="text-foreground text-[13px] font-medium truncate">
                   {formatPhone(session.phone)}
                 </span>
-                <div className="flex items-center gap-1.5 flex-shrink-0">
-                  <span className="text-white/30 text-[10px]">
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="text-taupe-light text-[10px]">
                     {formatDistanceToNow(new Date(session.last_message_at), { addSuffix: false })}
                   </span>
-                  <span className="text-white/40 text-[10px] bg-white/[0.08] rounded-full px-1.5 py-0.5">
-                    {session.bot_turn_count}
+                  <span className="text-taupe text-[10px] bg-surface-subtle rounded-full px-1.5 py-0.5">
+                    {session.bot_turn_count}t
                   </span>
                 </div>
               </div>
               <div className="flex items-center justify-between gap-2">
-                <span className="text-white/40 text-[12px] truncate flex-1">
+                <span className="text-taupe text-[12px] truncate flex-1">
                   {getLastMessagePreview(session)}
                 </span>
-                <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0 font-medium", badge.className)}>
+                <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full shrink-0 font-medium", badge.className)}>
                   {badge.label}
                 </span>
               </div>

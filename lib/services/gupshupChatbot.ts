@@ -112,9 +112,25 @@ async function loadOrCreateSession(
   return created as BotSession;
 }
 
+type ConversationTurn = { in: string; out: string };
+
+function buildConversationMessages(
+  lastTurns: ConversationTurn[],
+  currentMessage: string,
+): Array<{ role: "user" | "assistant"; content: string }> {
+  const messages: Array<{ role: "user" | "assistant"; content: string }> = [];
+  for (const turn of lastTurns) {
+    messages.push({ role: "user", content: turn.in });
+    messages.push({ role: "assistant", content: turn.out });
+  }
+  messages.push({ role: "user", content: currentMessage });
+  return messages;
+}
+
 async function callClaude(
   systemPrompt: string,
   userMessage: string,
+  lastTurns: ConversationTurn[],
 ): Promise<BotClaudeResponse | null> {
   const apiKey = process.env.GUPSHUP_ANTHROPIC_API_KEY?.trim();
   if (!apiKey) {
@@ -122,7 +138,8 @@ async function callClaude(
     return null;
   }
 
-  console.log('[chatbot:debug] step6.5 calling claude, api key prefix:', process.env.GUPSHUP_ANTHROPIC_API_KEY?.slice(0, 8) ?? 'MISSING')
+  const messages = buildConversationMessages(lastTurns, userMessage);
+
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -133,10 +150,10 @@ async function callClaude(
       },
       body: JSON.stringify({
         model: MODEL,
-        max_tokens: 1024,
+        max_tokens: 512,
         stream: false,
         system: systemPrompt,
-        messages: [{ role: "user", content: userMessage }],
+        messages,
       }),
     });
 
@@ -147,7 +164,6 @@ async function callClaude(
     }
 
     const result = (await res.json()) as { content?: Array<{ type: string; text?: string }> };
-    console.log('[chatbot:debug] step7.5 claude raw response received, content blocks:', result?.content?.length ?? 'null')
     const raw = result.content?.find((b) => b.type === "text")?.text?.trim() ?? "";
     if (!raw) return null;
 
@@ -156,7 +172,6 @@ async function callClaude(
     return JSON.parse(cleaned) as BotClaudeResponse;
   } catch (err) {
     console.error("[gupshupChatbot] Claude call or JSON parse failed:", err);
-    console.error('[chatbot:debug] claude call failed:', err)
     return null;
   }
 }
@@ -194,7 +209,13 @@ export async function processBotTurn(
     console.warn("[gupshupChatbot] Could not normalize phone:", phone);
     return;
   }
-  console.log('[chatbot:debug] step1 normalized phone:', normalizedPhone)
+
+  console.log(
+    "[gupshupChatbot] processBotTurn started, phone suffix:",
+    normalizedPhone.slice(-4),
+    "text preview:",
+    incomingText.slice(0, 20),
+  );
 
   const supabase = getServiceSupabaseClient();
 
@@ -205,7 +226,6 @@ export async function processBotTurn(
     console.error("[gupshupChatbot] Session load/create error:", err);
     return;
   }
-  console.log('[chatbot:debug] step3 session state:', session.state, 'turns:', session.bot_turn_count)
 
   // Agent has taken over — stay silent
   if (session.state === "handed_off") return;
@@ -220,13 +240,16 @@ export async function processBotTurn(
   }
 
   const catalog = await fetchActiveCatalog(supabase);
-  console.log('[chatbot:debug] step6 catalog items:', catalog.length)
   const systemPrompt = buildSystemPrompt(catalog);
 
-  const parsed = await callClaude(systemPrompt, incomingText);
-  console.log('[chatbot:debug] step7 claude response received')
+  // Pass conversation history so Claude has context from prior turns
+  const lastTurns = (
+    (session.context_jsonb?.last_turns as ConversationTurn[] | undefined) ?? []
+  ).slice(-4);
 
-  // Fallback on parse/call failure
+  const parsed = await callClaude(systemPrompt, incomingText, lastTurns);
+
+  // On Claude failure, send fallback text and increment turn count — do NOT hand off immediately
   if (!parsed) {
     await sendGupshupMessage(normalizedPhone, { type: "text", text: FALLBACK_REPLY });
     await logBotMessage(supabase, session.id, normalizedPhone, "assistant", FALLBACK_REPLY);
@@ -235,20 +258,14 @@ export async function processBotTurn(
       .update({
         bot_turn_count: session.bot_turn_count + 1,
         last_message_at: new Date().toISOString(),
-        state: "handoff_pending",
       } as never)
       .eq("id", session.id);
-    await triggerHandoff(supabase, normalizedPhone, {
-      ...session,
-      bot_turn_count: session.bot_turn_count + 1,
-      state: "handoff_pending",
-    });
     return;
   }
 
   // Send reply based on reply_type
   let sentText = parsed.text_reply;
-  console.log('[chatbot:debug] step8 sending reply type:', parsed.reply_type)
+  let replyType = parsed.reply_type;
   try {
     if (parsed.reply_type === "image" && parsed.image_reply) {
       const product = catalog.find((c) => c.id === parsed.image_reply!.product_id);
@@ -262,6 +279,7 @@ export async function processBotTurn(
       } else {
         // Fall back to text if product not found or has no image
         await sendGupshupMessage(normalizedPhone, { type: "text", text: parsed.text_reply });
+        replyType = "text";
       }
     } else if (parsed.reply_type === "list" && parsed.list_reply) {
       await sendGupshupMessage(normalizedPhone, {
@@ -272,30 +290,41 @@ export async function processBotTurn(
       sentText = `[List] ${parsed.list_reply.title}: ${parsed.list_reply.items.map((i) => i.title).join(", ")}`;
     } else {
       await sendGupshupMessage(normalizedPhone, { type: "text", text: parsed.text_reply });
+      replyType = "text";
     }
   } catch (err) {
     console.error("[gupshupChatbot] Message send error:", err);
   }
-  console.log('[chatbot:debug] step9 reply sent')
+
+  console.log(
+    "[gupshupChatbot] reply sent successfully, type:",
+    replyType,
+    "turn:",
+    session.bot_turn_count + 1,
+  );
+
   await logBotMessage(supabase, session.id, normalizedPhone, "assistant", sentText);
 
-  // Build updated context — track last shown product ids
+  // Build updated context — track last shown product ids and conversation history
   const shownProductIds: string[] = [];
   if (parsed.image_reply?.product_id) shownProductIds.push(parsed.image_reply.product_id);
-  if (parsed.list_reply) {
-    // Items don't carry ids but we store what was shown for the transcript
-  }
+
   const prevContext = session.context_jsonb ?? {};
   const updatedContext: Record<string, unknown> = {
     ...prevContext,
     last_shown_products: shownProductIds,
     last_intent: parsed.intent,
     last_turns: [
-      ...((prevContext.last_turns as Array<{ in: string; out: string }> | undefined) ?? []).slice(-4),
+      ...lastTurns,
       { in: incomingText.slice(0, 200), out: parsed.text_reply.slice(0, 200) },
     ],
   };
 
+  // State transitions:
+  // greeting → browsing (first substantive message, no category yet)
+  // greeting/browsing → viewing_products (when Claude identifies a category)
+  // any → handoff_pending (when Claude signals handoff)
+  // handed_off is terminal and handled above
   const newState =
     parsed.should_handoff
       ? "handoff_pending"
