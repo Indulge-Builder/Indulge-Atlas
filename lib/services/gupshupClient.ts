@@ -111,6 +111,8 @@ export async function sendGupshupMessage(
   }
 
   try {
+    console.log('[gupshupClient:debug] form body string:',
+      formBody.toString().slice(0, 500))
     const res = await fetch(GUPSHUP_API_URL, {
       method: "POST",
       headers: {
