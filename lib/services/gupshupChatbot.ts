@@ -6,7 +6,7 @@
  */
 
 import { getServiceSupabaseClient } from "@/lib/supabase/service";
-import { normalizeToE164 } from "@/lib/utils/phone";
+import { normalizeToE164, e164LookupVariants } from "@/lib/utils/phone";
 import { sanitizeText } from "@/lib/utils/sanitize";
 import { sendGupshupMessage, sendTypingIndicator } from "@/lib/services/gupshupClient";
 import { processAndInsertLead } from "@/lib/services/leadIngestion";
@@ -214,11 +214,12 @@ async function maybeCreateLeadFromWhatsApp(
   incomingText: string,
 ): Promise<void> {
   try {
-    // Check if a lead already exists for this number
+    // Check if a lead already exists for this number — use all variants to handle storage format differences
+    const variants = e164LookupVariants(normalizedPhone);
     const { data: existing } = await supabase
       .from("leads")
       .select("id")
-      .eq("phone_number", normalizedPhone)
+      .in("phone_number", variants)
       .maybeSingle();
 
     if (existing) return;
