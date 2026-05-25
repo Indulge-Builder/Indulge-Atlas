@@ -212,6 +212,7 @@ async function maybeCreateLeadFromWhatsApp(
   supabase: ReturnType<typeof getServiceSupabaseClient>,
   normalizedPhone: string,
   incomingText: string,
+  senderName?: string,
 ): Promise<void> {
   try {
     // Check if a lead already exists for this number — use all variants to handle storage format differences
@@ -224,8 +225,14 @@ async function maybeCreateLeadFromWhatsApp(
 
     if (existing) return;
 
+    const nameParts = senderName?.trim()
+      ? senderName.trim().split(/\s+/)
+      : null;
+
     const result = await processAndInsertLead(
       {
+        first_name: nameParts?.[0] ?? undefined,
+        last_name: nameParts?.slice(1).join(" ") || undefined,
         phone_number: normalizedPhone,
         utm_source: "whatsapp",
         utm_medium: "whatsapp_gupshup",
@@ -248,6 +255,7 @@ async function maybeCreateLeadFromWhatsApp(
 export async function processBotTurn(
   phone: string,
   incomingText: string,
+  senderName?: string,
 ): Promise<void> {
   if (!process.env.GUPSHUP_ANTHROPIC_API_KEY?.trim()) {
     console.error("[gupshupChatbot] GUPSHUP_ANTHROPIC_API_KEY is not configured");
@@ -285,7 +293,7 @@ export async function processBotTurn(
   }
 
   // Create a lead if this is a new number — fire-and-forget, never blocks bot
-  await maybeCreateLeadFromWhatsApp(supabase, normalizedPhone, incomingText);
+  await maybeCreateLeadFromWhatsApp(supabase, normalizedPhone, incomingText, senderName);
 
   let session: BotSession;
   try {

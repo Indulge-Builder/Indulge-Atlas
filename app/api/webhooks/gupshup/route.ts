@@ -77,6 +77,7 @@ function extractMessageFields(body: unknown): {
   messageId: string;
   phone: string;
   text: string;
+  senderName: string | null;
 } | null {
   if (!body || typeof body !== "object") return null;
   const raw = body as MetaV3Entry & GupshupV2Payload;
@@ -116,8 +117,11 @@ function extractMessageFields(body: unknown): {
 
     if (!text) return null;
 
+    const contacts = metaValue.contacts ?? [];
+    const senderName = contacts[0]?.profile?.name?.trim() || null;
+
     console.log("[webhook] parsed message, format: meta_v3, type:", msgType, "phone suffix:", rawPhone.slice(-4));
-    return { messageId, phone, text };
+    return { messageId, phone, text, senderName };
   }
 
   // ── Gupshup v2 fallback (status events + legacy format) ───────────────
@@ -130,8 +134,10 @@ function extractMessageFields(body: unknown): {
   const text = outer.payload?.text?.trim();
   if (!messageId || !rawPhone || !text) return null;
 
+  const senderName = outer.sender?.name?.trim() || null;
+
   console.log("[webhook] parsed message, format: gupshup_v2, type: text, phone suffix:", rawPhone.slice(-4));
-  return { messageId, phone: `+${rawPhone}`, text };
+  return { messageId, phone: `+${rawPhone}`, text, senderName };
 }
 
 async function isDuplicate(messageId: string): Promise<boolean> {
@@ -189,7 +195,7 @@ async function logAndProcess(rawBody: string): Promise<void> {
   if (!safeText.trim()) return;
 
   try {
-    await processBotTurn(fields.phone, safeText);
+    await processBotTurn(fields.phone, safeText, fields.senderName ?? undefined);
   } catch (err) {
     console.error("[webhooks/gupshup] processBotTurn error:", err);
   }
