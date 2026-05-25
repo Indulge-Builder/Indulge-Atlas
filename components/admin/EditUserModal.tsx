@@ -19,6 +19,7 @@ import {
   Crown,
   Check,
   Mail,
+  Phone,
   Info,
   type LucideIcon,
 } from "lucide-react";
@@ -121,6 +122,7 @@ interface EditUserModalProps {
 export function EditUserModal({ open, onClose, onSuccess, profile }: EditUserModalProps) {
   const [fullName, setFullName] = useState(profile.full_name);
   const [jobTitle, setJobTitle] = useState(profile.job_title ?? "");
+  const [phone, setPhone] = useState(profile.phone ?? "");
   const [employeeDepartment, setEmployeeDepartment] = useState<EmployeeDepartment | null>(
     profile.department ?? null
   );
@@ -140,6 +142,7 @@ export function EditUserModal({ open, onClose, onSuccess, profile }: EditUserMod
     skipNextDomainAutosync.current = true;
     setFullName(profile.full_name);
     setJobTitle(profile.job_title ?? "");
+    setPhone(profile.phone ?? "");
     setEmployeeDepartment(profile.department ?? null);
     setDomain(domainFromProfile(profile));
     setRole(profile.role);
@@ -209,6 +212,7 @@ export function EditUserModal({ open, onClose, onSuccess, profile }: EditUserMod
     const parsed = updateUserProfileSchema.safeParse({
       full_name: fullName.trim(),
       job_title: jobTitle.trim() === "" ? null : jobTitle.trim(),
+      phone: phone.trim() === "" ? null : phone.trim(),
       role,
       domain,
       department: employeeDepartment,
@@ -271,6 +275,22 @@ export function EditUserModal({ open, onClose, onSuccess, profile }: EditUserMod
                   required
                   placeholder="e.g. Senior Concierge"
                 />
+              </IndulgeField>
+              <IndulgeField
+                label="WhatsApp number"
+                hint="Used for lead assignment notifications"
+                className="col-span-2 sm:col-span-1"
+              >
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#B5A99A] pointer-events-none" />
+                  <Input
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="+919876543210"
+                    autoComplete="tel"
+                    className="pl-9"
+                  />
+                </div>
               </IndulgeField>
             </div>
           </div>

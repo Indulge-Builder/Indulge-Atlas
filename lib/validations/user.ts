@@ -102,6 +102,15 @@ export const updateUserProfileSchema = z.object({
     .transform((v) => v.trim())
     .optional()
     .nullable(),
+  phone: z
+    .string()
+    .trim()
+    .regex(/^\+?[0-9\s\-().]{7,20}$/, "Enter a valid phone number")
+    .transform((v) => v.replace(/\s/g, ""))
+    .optional()
+    .nullable()
+    .or(z.literal("")
+      .transform(() => null)),
   role: userRoleSchema.optional(),
   domain: indulgeDomainSchema.optional(),
   department: employeeDepartmentSchema.nullable().optional(),

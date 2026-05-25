@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getAuthUser } from "@/lib/auth/getAuthUser";
+import { sendLeadAssignmentNotification } from "@/lib/services/gupshupClient";
 import type {
   LeadStatus,
   LostReason,
@@ -911,7 +912,7 @@ export async function reassignLead(
 
     const { data: leadBefore, error: leadBeforeError } = await supabase
       .from("leads")
-      .select("assigned_to, status")
+      .select("assigned_to, status, first_name, last_name, phone_number")
       .eq("id", leadId)
       .single();
 
@@ -977,6 +978,18 @@ export async function reassignLead(
     revalidatePath(`/leads/${leadId}`);
     revalidatePath("/leads");
     revalidatePath("/");
+
+    // Fire-and-forget WhatsApp notification to newly assigned agent
+    const leadDisplayName = [leadBefore.first_name, leadBefore.last_name]
+      .filter(Boolean)
+      .join(" ");
+    void sendLeadAssignmentNotification(
+      newAgentId,
+      leadDisplayName,
+      leadBefore.phone_number ?? "",
+    ).catch((err) => {
+      console.error("[reassignLead] Notification failed (non-fatal):", err);
+    });
 
     return { success: true };
   } catch {

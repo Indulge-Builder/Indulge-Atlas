@@ -369,6 +369,7 @@ export async function updateUserProfile(
   updates: {
     full_name?: string;
     job_title?: string | null;
+    phone?: string | null;
     role?: UserRole;
     domain?: IndulgeDomain;
     department?: EmployeeDepartment | null;
