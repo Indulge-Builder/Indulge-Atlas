@@ -7,7 +7,7 @@
 
 import { getServiceSupabaseClient } from "@/lib/supabase/service";
 import { normalizeToE164 } from "@/lib/utils/phone";
-import { sendGupshupMessage } from "@/lib/services/gupshupClient";
+import { sendGupshupMessage, sendTypingIndicator } from "@/lib/services/gupshupClient";
 import type { BotCatalogItem, BotClaudeResponse, BotSession } from "@/lib/types/database";
 
 const MODEL = "claude-haiku-4-5-20251001";
@@ -62,7 +62,8 @@ RULES:
 - Button titles must be max 20 chars. List row titles must be max 24 chars. List row descriptions must be max 72 chars.
 - Do not invent products not in the catalog.
 - Match client interests using Tags (brands, locations, experience types) before recommending.
-- For out-of-scope queries, politely redirect to one of the six luxury categories: watches, travel, events, sports, art, fashion.`;
+- For out-of-scope queries, politely redirect to one of the six luxury categories: watches, travel, events, sports, art, fashion.
+- When reply_type is image, always populate image_reply with the product_id and a caption that includes the product name, one compelling sentence about it, and the price range. Format: "[Name] — [one sentence]. [Price range]"`;
 }
 
 async function logBotMessage(
@@ -237,6 +238,34 @@ export async function processBotTurn(
     return;
   }
 
+  // Auto-reset stale sessions after 24h inactivity
+  const hoursSinceLastMessage = session.last_message_at
+    ? (Date.now() - new Date(session.last_message_at).getTime()) / (1000 * 60 * 60)
+    : 0;
+
+  if (hoursSinceLastMessage > 24) {
+    if (session.state === "handed_off") {
+      await supabase
+        .from("bot_sessions")
+        .update({
+          state: "greeting",
+          bot_turn_count: 0,
+          context_jsonb: {},
+          last_message_at: new Date().toISOString(),
+        } as never)
+        .eq("id", session.id);
+      session = { ...session, state: "greeting", bot_turn_count: 0, context_jsonb: {} };
+      console.log("[gupshupChatbot] Session auto-reset after 24h inactivity, phone suffix:", normalizedPhone.slice(-4));
+    } else {
+      await supabase
+        .from("bot_sessions")
+        .update({ bot_turn_count: 0, context_jsonb: {} } as never)
+        .eq("id", session.id);
+      session = { ...session, bot_turn_count: 0, context_jsonb: {} };
+      console.log("[gupshupChatbot] Context cleared after 24h inactivity, phone suffix:", normalizedPhone.slice(-4));
+    }
+  }
+
   // Agent has taken over — stay silent
   if (session.state === "handed_off") return;
 
@@ -247,6 +276,12 @@ export async function processBotTurn(
   if (session.bot_turn_count >= BOT_TURN_LIMIT) {
     await triggerHandoff(supabase, normalizedPhone, session);
     return;
+  }
+
+  try {
+    await sendTypingIndicator(normalizedPhone);
+  } catch (err) {
+    console.error("[gupshupChatbot] Typing indicator error:", err);
   }
 
   const catalog = await fetchActiveCatalog(supabase);
@@ -286,6 +321,9 @@ export async function processBotTurn(
           caption: parsed.image_reply.caption,
         });
         sentText = parsed.image_reply.caption;
+        const followUpText =
+          "Would you like to know more or speak with our concierge team?\n\n1. Tell me more\n2. I'm interested\n3. Show other watches";
+        await sendGupshupMessage(normalizedPhone, { type: "text", text: followUpText });
       } else {
         // Fall back to text if product not found or has no image
         await sendGupshupMessage(normalizedPhone, { type: "text", text: parsed.text_reply });

@@ -85,6 +85,57 @@ function buildMessageBody(payload: GupshupOutboundPayload): string {
   });
 }
 
+export async function markMessageAsRead(messageId: string): Promise<void> {
+  const apiKey = process.env.GUPSHUP_API_KEY?.trim();
+  const partnerNumber = process.env.GUPSHUP_PARTNER_NUMBER?.trim();
+  if (!apiKey || !partnerNumber) return;
+
+  try {
+    const params = new URLSearchParams({
+      channel: "whatsapp",
+      source: partnerNumber.replace(/^\+/, ""),
+      messageId,
+    });
+    await fetch("https://api.gupshup.io/wa/api/v1/msg/read", {
+      method: "POST",
+      headers: {
+        apikey: apiKey,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: params.toString(),
+    });
+  } catch (err) {
+    console.error("[gupshupClient] markAsRead failed:", err);
+  }
+}
+
+export async function sendTypingIndicator(phone: string): Promise<void> {
+  const apiKey = process.env.GUPSHUP_API_KEY?.trim();
+  const appName = process.env.GUPSHUP_APP_NAME?.trim();
+  const partnerNumber = process.env.GUPSHUP_PARTNER_NUMBER?.trim();
+  if (!apiKey || !appName || !partnerNumber) return;
+
+  try {
+    const params = new URLSearchParams({
+      channel: "whatsapp",
+      source: partnerNumber.replace(/^\+/, ""),
+      destination: phone.replace(/^\+/, ""),
+      "src.name": appName,
+      message: JSON.stringify({ type: "action", action: "typing" }),
+    });
+    await fetch(GUPSHUP_API_URL, {
+      method: "POST",
+      headers: {
+        apikey: apiKey,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: params.toString(),
+    });
+  } catch (err) {
+    console.error("[gupshupClient] typing indicator failed:", err);
+  }
+}
+
 export async function sendGupshupMessage(
   phone: string,
   payload: GupshupOutboundPayload,
@@ -111,15 +162,6 @@ export async function sendGupshupMessage(
   }
 
   try {
-    console.log('[gupshupClient:debug] sending type:', payload.type)
-    console.log('[gupshupClient:debug] params keys:',
-      Array.from(formBody.keys()).join(', '))
-    console.log('[gupshupClient:debug] message field:',
-      formBody.get('message')?.slice(0, 200))
-    console.log('[gupshupClient:debug] encode field:',
-      formBody.get('encode'))
-    console.log('[gupshupClient:debug] form body string:',
-      formBody.toString().slice(0, 500))
     const res = await fetch(GUPSHUP_API_URL, {
       method: "POST",
       headers: {

@@ -27,6 +27,8 @@ import {
   Route,
   Workflow,
   Brain,
+  Users2,
+  Clock,
   Activity,
   ClipboardList,
   Table2,
@@ -101,6 +103,8 @@ const FOUNDER_SIDEBAR_PREFIXES = [
   "/task-insights",
   "/budget",
   "/elia-preview",
+  "/admin/assignment",
+  "/admin/shifts",
 ] as const;
 
 function hrefMatchesFounderNav(href: string): boolean {
@@ -138,6 +142,10 @@ const FOUNDER_NAV_SECTIONS: { label: string; hrefs: readonly string[] }[] = [
   {
     label: "Insights & AI",
     hrefs: ["/task-insights", "/budget", "/elia-preview"],
+  },
+  {
+    label: "Platform & control",
+    hrefs: ["/admin/assignment", "/admin/shifts"],
   },
 ];
 
@@ -392,6 +400,24 @@ const navItems: NavItemDef[] = [
     href: "/admin/routing",
     label: "Lead routing",
     icon: Route,
+    roles: ["admin", "founder", "super_admin", "manager"],
+    section: "admin",
+    navGroup: "platform",
+    exact: true,
+  },
+  {
+    href: "/admin/assignment",
+    label: "Agent assignment",
+    icon: Users2,
+    roles: ["admin", "founder", "super_admin", "manager"],
+    section: "admin",
+    navGroup: "platform",
+    exact: true,
+  },
+  {
+    href: "/admin/shifts",
+    label: "Shift schedule",
+    icon: Clock,
     roles: ["admin", "founder", "super_admin", "manager"],
     section: "admin",
     navGroup: "platform",

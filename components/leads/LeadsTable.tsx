@@ -159,10 +159,10 @@ export function LeadsTable({
   ];
 
   // ── Column definitions ────────────────────────────────────────────────────
-  // Agent:        Client · Contact · Status · Next Action · Added           (5)
-  // Scout/Admin:  Client · Contact · Status · Source · Notes · Campaign · Agent · Added (8)
+  // Agent:        Client · Contact · Status · Next Action · Added · Updated           (6)
+  // Scout/Admin:  Client · Contact · Status · Source · Notes · Campaign · Agent · Added · Updated (9)
 
-  const totalColCount = isScout ? 8 : 5;
+  const totalColCount = isScout ? 9 : 6;
 
   /** line-clamp on SelectTrigger's [&>span] breaks icon+label flex rows — see `leadsFilterTriggerVariants`. */
   return (
@@ -343,6 +343,7 @@ export function LeadsTable({
                 )}
 
                 <Th align="right">Added</Th>
+                <Th align="right">Updated</Th>
               </tr>
             </thead>
 
@@ -558,9 +559,14 @@ function LeadRow({
         </td>
       )}
 
-      {/* ── Added (date + time, hours & minutes) ───────────────────── */}
+      {/* ── Added ───────────────────────────────────────────────────── */}
       <td className="px-6 py-4 text-xs text-[#B5A99A] text-right whitespace-nowrap">
         {formatLeadCreatedAt(lead.created_at)}
+      </td>
+
+      {/* ── Updated ─────────────────────────────────────────────────── */}
+      <td className="px-6 py-4 text-xs text-[#B5A99A] text-right whitespace-nowrap">
+        {lead.updated_at ? formatLeadCreatedAt(lead.updated_at) : "—"}
       </td>
     </tr>
   );

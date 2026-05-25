@@ -5,6 +5,7 @@ import { checkWebhookRateLimit } from "@/lib/utils/rateLimit";
 import { sanitizeText } from "@/lib/utils/sanitize";
 import { getServiceSupabaseClient } from "@/lib/supabase/service";
 import { processBotTurn } from "@/lib/services/gupshupChatbot";
+import { markMessageAsRead } from "@/lib/services/gupshupClient";
 
 /**
  * GET  — Gupshup endpoint verification (returns 200 OK).
@@ -177,6 +178,12 @@ async function logAndProcess(rawBody: string): Promise<void> {
     .then(({ error }) => {
       if (error) console.error("[webhooks/gupshup] webhook_logs insert failed:", error.message);
     });
+
+  try {
+    await markMessageAsRead(fields.messageId);
+  } catch (err) {
+    console.error("[webhooks/gupshup] markMessageAsRead error:", err);
+  }
 
   const safeText = sanitizeText(fields.text);
   if (!safeText.trim()) return;

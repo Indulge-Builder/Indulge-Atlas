@@ -13,9 +13,10 @@ import {
   parseTimestamptz,
 } from "@/lib/utils/time";
 
-/** Lead Added column — same clock as Supabase (`2026-05-20 23:55:10`), no IST shift. */
+/** Lead Added column — IST wall clock (Asia/Kolkata). */
 export function formatLeadCreatedAt(utcString: string): string {
-  return formatSupabaseTimestamptz(utcString);
+  if (!utcString?.trim()) return "—";
+  return formatIST(utcString, "dd MMM yyyy, h:mm a");
 }
 
 /** Atlas business timezone (Asia/Kolkata) for operational timestamps. */

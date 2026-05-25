@@ -14,5 +14,6 @@ export const LEADS_TABLE_SELECT = [
   "utm_campaign",
   "notes",
   "created_at",
+  "updated_at",
   "assigned_agent:profiles!assigned_to(id, full_name, email)",
 ].join(", ");

@@ -126,6 +126,24 @@ const VALID_DOMAINS = [
   "indulge_legacy",
 ] as const;
 
+// Campaign prefix → domain. Checked case-insensitively against campaign_name.
+// Order matters: first match wins. Default fallback is indulge_concierge.
+const CAMPAIGN_DOMAIN_RULES: { prefix: string; domain: (typeof VALID_DOMAINS)[number] }[] = [
+  { prefix: "tg_shop",   domain: "indulge_shop"      },
+  { prefix: "tg_legacy", domain: "indulge_legacy"    },
+  { prefix: "tg_house",  domain: "indulge_house"     },
+  { prefix: "tg_global", domain: "indulge_concierge" },
+];
+
+function resolveDomainFromCampaign(campaignName: string | null | undefined): (typeof VALID_DOMAINS)[number] {
+  if (!campaignName) return "indulge_concierge";
+  const lower = campaignName.trim().toLowerCase();
+  for (const rule of CAMPAIGN_DOMAIN_RULES) {
+    if (lower.startsWith(rule.prefix)) return rule.domain;
+  }
+  return "indulge_concierge";
+}
+
 /**
  * Get current hour in IST (Asia/Kolkata).
  */
@@ -403,6 +421,10 @@ export async function processAndInsertLead(
   const phoneRaw =
     typeof data.phone_number === "string" ? data.phone_number.trim() : "";
   const phone_number = normalizeToE164(phoneRaw);
+
+  // Resolve domain from campaign name prefix (TG_Shop → indulge_shop, etc.)
+  // Payload domain is overridden — Pabbly should not set domain; we derive it here.
+  data.domain = resolveDomainFromCampaign(data.campaign_name);
 
   const assignedAgentId = await resolveAssignedAgent(data, payload);
   const isOffDuty = isOffDutyInsertion();
