@@ -122,13 +122,39 @@ function extractMessageBody(m: Record<string, unknown>): string | null {
   return null;
 }
 
+type AdReferral = {
+  source_url: string | null;
+  source_type: string | null;
+  source_id: string | null;   // ad ID
+  headline: string | null;
+  body: string | null;
+  ctwa_clid: string | null;   // click-to-WhatsApp click ID
+  media_type: string | null;
+};
+
 type IncomingChat = {
   waDigits: string;
   waIdRaw: string;
   messageId: string;
   bodyText: string;
   profileName: string | null;
+  referral: AdReferral | null;
 };
+
+function extractReferral(m: Record<string, unknown>): AdReferral | null {
+  if (!m.referral || typeof m.referral !== "object") return null;
+  const r = m.referral as Record<string, unknown>;
+  const str = (v: unknown) => (v != null && String(v).trim() ? String(v).trim() : null);
+  return {
+    source_url: str(r.source_url),
+    source_type: str(r.source_type),
+    source_id:   str(r.source_id),
+    headline:    str(r.headline),
+    body:        str(r.body),
+    ctwa_clid:   str(r.ctwa_clid),
+    media_type:  str(r.media_type),
+  };
+}
 
 function extractIncomingChats(payload: unknown): IncomingChat[] {
   const out: IncomingChat[] = [];
@@ -174,6 +200,7 @@ function extractIncomingChats(payload: unknown): IncomingChat[] {
         if (String(bodyText).trim() === "") continue;
 
         const profileName = resolveProfileName(contacts, from);
+        const referral = extractReferral(m);
 
         out.push({
           waDigits,
@@ -181,6 +208,7 @@ function extractIncomingChats(payload: unknown): IncomingChat[] {
           messageId: id,
           bodyText,
           profileName,
+          referral,
         });
       }
     }
@@ -243,21 +271,42 @@ async function processIncomingChatItem(item: IncomingChat): Promise<void> {
     ? splitDisplayName(sanitizeText(item.profileName))
     : { first_name: "WhatsApp Lead", last_name: null };
 
+  const ref = item.referral;
+
   const result = await processAndInsertLead(
     {
       first_name: names.first_name,
       last_name: names.last_name,
       phone_number: normalizeToE164(item.waIdRaw, "IN"),
       utm_source: "whatsapp",
-      utm_medium: "whatsapp_cloud",
+      utm_medium: ref?.source_type === "ad" ? "click_to_whatsapp" : "whatsapp_cloud",
+      utm_campaign: ref?.headline ?? null,
+      campaign_id: ref?.source_id ?? null,
+      campaign_name: ref?.headline ?? null,
       message: safeContent,
       form_data: {
         whatsapp_wa_id: item.waIdRaw,
         whatsapp_message_id: item.messageId,
+        ...(ref ? {
+          ad_source_id: ref.source_id,
+          ad_source_url: ref.source_url,
+          ad_headline: ref.headline,
+          ad_body: ref.body,
+          ctwa_clid: ref.ctwa_clid,
+          ad_media_type: ref.media_type,
+        } : {}),
       },
     },
     "meta",
   );
+
+  if (ref?.source_id) {
+    console.log(
+      "[webhooks/whatsapp] Ad referral detected — source_id:", ref.source_id,
+      "headline:", ref.headline,
+      "ctwa_clid:", ref.ctwa_clid,
+    );
+  }
 
   if (!result.success) {
     console.error("[webhooks/whatsapp] New lead failed:", result.error);
