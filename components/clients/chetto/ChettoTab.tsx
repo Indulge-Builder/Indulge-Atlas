@@ -5,7 +5,7 @@ import { JOKER_PHONE_NUMBERS } from "@/lib/constants/chetto-jokers";
 import { formatIST, isSameCalendarDayIST } from "@/lib/utils/time";
 import { cn } from "@/lib/utils";
 import { parseISO } from "date-fns";
-import { Loader2, MessageCircle } from "lucide-react";
+import { Download, Loader2, MessageCircle } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 function stripEmojiAndConciergeTitle(raw: string | null): string {
@@ -110,6 +110,7 @@ export function ChettoTab({
   const [timelineNotAvailable, setTimelineNotAvailable] = useState(false);
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [loadMoreLoading, setLoadMoreLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const didInitialScroll = useRef(false);
@@ -410,6 +411,49 @@ export function ChettoTab({
 
   const title = stripEmojiAndConciergeTitle(group.group_name);
 
+  async function exportAllMessages() {
+    const gid = (mappedId || group?.group_id)?.trim();
+    if (!gid || exporting) return;
+    setExporting(true);
+    try {
+      const all: ChettoMessage[] = [...messages];
+      let cursor: string | null = nextCursor;
+      // fetch all remaining pages
+      while (cursor) {
+        const tr = await fetch(
+          `/api/chetto/timeline?groupId=${encodeURIComponent(gid)}&limit=200&offsetId=${encodeURIComponent(cursor)}`,
+        );
+        if (!tr.ok) break;
+        const tj = (await tr.json()) as { messages?: ChettoMessage[]; nextCursor?: string | null };
+        const batch = tj.messages ?? [];
+        all.push(...batch);
+        cursor = typeof tj.nextCursor === "string" && tj.nextCursor.length > 0 ? tj.nextCursor : null;
+      }
+      const sorted = sortMessages(all);
+      const lines = sorted.map((m) => {
+        const d = parseMessageDate(m.timestamp);
+        const ts = d ? formatIST(d, "yyyy-MM-dd HH:mm:ss") : "unknown";
+        const sender = m.from_me
+          ? "Agent"
+          : m.phone_no
+            ? `+${normalizePhoneDigits(m.phone_no)}`
+            : "Unknown";
+        const text = m.text?.trim() || "[Media]";
+        return `[${ts}] ${sender}: ${text}`;
+      });
+      const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const safeName = title.replace(/[^a-z0-9]/gi, "_").toLowerCase();
+      a.download = `${safeName}_chat_export.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       {/* Section 1 — header */}
@@ -438,7 +482,7 @@ export function ChettoTab({
             </p>
           </div>
         </div>
-        <div className="flex shrink-0 flex-row flex-wrap items-center justify-end gap-x-3 gap-y-1 sm:flex-col sm:items-end">
+        <div className="flex shrink-0 flex-row flex-wrap items-center justify-end gap-x-2 gap-y-1 sm:flex-col sm:items-end">
           <span
             className={cn(
               "rounded-full border px-2 py-0.5 text-xs",
@@ -449,6 +493,21 @@ export function ChettoTab({
           >
             {group.valid === true ? "Active" : "Inactive"}
           </span>
+          {messages.length > 0 ? (
+            <button
+              onClick={() => void exportAllMessages()}
+              disabled={exporting}
+              className="flex items-center gap-1 rounded-full border border-stone-200 bg-white/80 px-2.5 py-0.5 text-xs text-stone-600 shadow-sm transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60"
+              title="Export full chat history as .txt"
+            >
+              {exporting ? (
+                <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+              ) : (
+                <Download className="h-3 w-3" aria-hidden />
+              )}
+              {exporting ? "Exporting…" : "Export"}
+            </button>
+          ) : null}
         </div>
       </div>
 

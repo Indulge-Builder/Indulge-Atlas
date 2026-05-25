@@ -17,6 +17,7 @@ import type {
   FreshdeskTicket,
 } from "@/lib/freshdesk/types";
 import { mapPriority, mapStatus } from "@/lib/freshdesk/types";
+import { canManageAnyClient } from "@/lib/types/database";
 
 export type ClientFreshdeskMetricsData = {
   found: boolean;
@@ -415,6 +416,150 @@ export async function getTicketAISummary(
       success: false,
       error: "Elia couldn't analyse these tickets right now.",
     };
+  }
+}
+
+// ── Freshdesk unmapped clients ────────────────────────────────
+
+export type FreshdeskClientCheckRow = {
+  id: string;
+  first_name: string;
+  last_name: string | null;
+  phone_number: string | null;
+  queendom: string | null;
+  membership_type: string | null;
+  client_status: string;
+};
+
+const freshdeskPageSchema = z.object({
+  page: z.number().int().min(1).default(1),
+  pageSize: z.number().int().min(1).max(30).default(20),
+  search: z.string().max(120).optional(),
+});
+
+/**
+ * Returns a paginated list of clients that have a phone number but no
+ * matching Freshdesk contact. Each call probes Freshdesk for the batch
+ * of clients on the requested page.
+ *
+ * Restricted to admin / founder / super_admin / manager.
+ */
+export async function getFreshdeskUnmappedClients(
+  raw: Partial<z.infer<typeof freshdeskPageSchema>> = {},
+): Promise<{
+  success: boolean;
+  clients: FreshdeskClientCheckRow[];
+  checkedCount: number;
+  totalWithPhone: number;
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
+  error?: string;
+}> {
+  const EMPTY = {
+    success: false,
+    clients: [],
+    checkedCount: 0,
+    totalWithPhone: 0,
+    page: 1,
+    pageSize: 20,
+    hasMore: false,
+  };
+
+  try {
+    const parsed = freshdeskPageSchema.safeParse(raw);
+    const f = parsed.success ? parsed.data : { page: 1, pageSize: 20 };
+    const { page, pageSize } = f;
+
+    let supabase: Awaited<ReturnType<typeof createClient>>;
+    let role: string;
+    try {
+      const auth = await getAuthUser();
+      supabase = auth.supabase;
+      role = auth.role;
+    } catch {
+      return { ...EMPTY, error: "Unauthenticated" };
+    }
+
+    if (!canManageAnyClient(role)) {
+      return { ...EMPTY, error: "Unauthorised" };
+    }
+
+    // Fetch clients that have a phone number (only these can be checked against Freshdesk)
+    let query = supabase
+      .from("clients")
+      .select(
+        "id, first_name, last_name, phone_number, queendom, membership_type, client_status",
+        { count: "exact" },
+      )
+      .not("phone_number", "is", null)
+      .neq("phone_number", "");
+
+    if (f.search && f.search.trim() !== "") {
+      const q = f.search.replace(/[(),'"%_]/g, "").trim();
+      if (q) {
+        const like = `%${q}%`;
+        query = query.or(
+          `first_name.ilike.${like},last_name.ilike.${like},phone_number.ilike.${like}`,
+        );
+      }
+    }
+
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    const { data, error, count } = await query
+      .order("first_name", { ascending: true })
+      .range(from, to);
+
+    if (error) {
+      return { ...EMPTY, error: "Failed to load clients" };
+    }
+
+    const rows = (data ?? []) as Record<string, unknown>[];
+    const totalWithPhone = count ?? 0;
+
+    // Probe Freshdesk for each client in this page batch (parallel, capped)
+    const results = await Promise.allSettled(
+      rows.map(async (row) => {
+        const clientRow: FreshdeskClientRow = {
+          phone_number: (row.phone_number as string | null) ?? null,
+          first_name: (row.first_name as string | null) ?? null,
+          last_name: (row.last_name as string | null) ?? null,
+        };
+        const res = await loadFreshdeskFromRow(clientRow);
+        return { row, found: res.ok && res.data.found };
+      }),
+    );
+
+    const unmapped: FreshdeskClientCheckRow[] = [];
+    for (const settled of results) {
+      if (settled.status === "fulfilled" && !settled.value.found) {
+        const row = settled.value.row;
+        unmapped.push({
+          id: String(row.id),
+          first_name: String(row.first_name ?? ""),
+          last_name: (row.last_name as string | null) ?? null,
+          phone_number: (row.phone_number as string | null) ?? null,
+          queendom: (row.queendom as string | null) ?? null,
+          membership_type: (row.membership_type as string | null) ?? null,
+          client_status: String(row.client_status ?? "unknown"),
+        });
+      }
+    }
+
+    return {
+      success: true,
+      clients: unmapped,
+      checkedCount: rows.length,
+      totalWithPhone,
+      page,
+      pageSize,
+      hasMore: to < totalWithPhone - 1,
+    };
+  } catch (e) {
+    console.error("getFreshdeskUnmappedClients", e);
+    return { ...EMPTY, error: "Unexpected error" };
   }
 }
 

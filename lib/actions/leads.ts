@@ -1070,6 +1070,177 @@ export async function closeWonDeal(
   }
 }
 
+// ── Add Lead Call Note (Called modal — append-only) ──────────────────────────
+
+export type CallOutcome = 'rnr' | 'switched_off' | 'wrong_number' | 'conversing' | 'other';
+
+const VALID_CALL_OUTCOMES: CallOutcome[] = [
+  'rnr',
+  'switched_off',
+  'wrong_number',
+  'conversing',
+  'other',
+];
+
+const addCallNoteSchema = z.object({
+  leadId:      z.string().uuid(),
+  content:     z.string().min(1).max(5000),
+  callOutcome: z.enum(['rnr', 'switched_off', 'wrong_number', 'conversing', 'other']).optional(),
+});
+
+export async function addLeadCallNote(
+  leadId:      string,
+  content:     string,
+  callOutcome?: CallOutcome,
+): Promise<ActionResult> {
+  try {
+    const parsed = addCallNoteSchema.safeParse({ leadId, content, callOutcome });
+    if (!parsed.success) {
+      return { success: false, error: parsed.error.issues[0]?.message ?? 'Invalid input' };
+    }
+
+    const { supabase, user, role } = await getAuthUser();
+
+    const { data: lead, error: fetchError } = await supabase
+      .from('leads')
+      .select('assigned_to, status, call_count')
+      .eq('id', leadId)
+      .single();
+
+    if (fetchError || !lead) return { success: false, error: 'Lead not found' };
+
+    const typedLead = lead as { assigned_to: string | null; status: string; call_count?: number | null };
+
+    if (!isPrivilegedRole(role) && typedLead.assigned_to !== user.id) {
+      // Also allow collaborators
+      const { data: collab } = await supabase
+        .from('lead_collaborators')
+        .select('id')
+        .eq('lead_id', leadId)
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (!collab) return { success: false, error: 'Unauthorised' };
+    }
+
+    const { error: insertError } = await supabase.from('lead_notes').insert({
+      lead_id:      leadId,
+      created_by:   user.id,
+      content:      parsed.data.content.trim(),
+      call_outcome: callOutcome ?? null,
+    });
+
+    if (insertError) return { success: false, error: 'Failed to save note' };
+
+    // Update denormalised call_count + last_call_outcome if this came from the Called modal
+    if (callOutcome && VALID_CALL_OUTCOMES.includes(callOutcome)) {
+      const leadUpdate: Record<string, unknown> = {
+        call_count:        (typedLead.call_count ?? 0) + 1,
+        last_call_outcome: callOutcome,
+      };
+      // Auto-advance status from "new" → "attempted" on first call
+      const promoted = typedLead.status === 'new';
+      if (promoted) {
+        leadUpdate.status = 'attempted';
+        leadUpdate.attempt_count = 1;
+      }
+      await supabase.from('leads').update(leadUpdate).eq('id', leadId);
+      if (promoted) {
+        await logLeadActivity(supabase, {
+          leadId,
+          actorId:    user.id,
+          actionType: 'status_changed',
+          details:    { old_status: 'new', new_status: 'attempted', note: 'Auto-advanced on first call' },
+        });
+      }
+    }
+
+    await logLeadActivity(supabase, {
+      leadId,
+      actorId:    user.id,
+      actionType: 'note_added',
+      details: {
+        note:         parsed.data.content.trim(),
+        call_outcome: callOutcome ?? null,
+        source:       callOutcome ? 'called_modal' : 'manual',
+      },
+    });
+
+    revalidatePath(`/leads/${leadId}`);
+    return { success: true };
+  } catch {
+    return { success: false, error: 'An unexpected error occurred' };
+  }
+}
+
+// ── Fetch Lead Notes ──────────────────────────────────────────────────────────
+
+export interface LeadNote {
+  id:           string;
+  lead_id:      string;
+  content:      string;
+  call_outcome: CallOutcome | null;
+  created_at:   string;
+  creator:      { id: string; full_name: string } | null;
+}
+
+export async function getLeadNotes(leadId: string): Promise<LeadNote[]> {
+  const { supabase } = await getAuthUser();
+
+  const { data, error } = await supabase
+    .from('lead_notes')
+    .select('id, lead_id, content, call_outcome, created_at, creator:created_by(id, full_name)')
+    .eq('lead_id', leadId)
+    .order('created_at', { ascending: false });
+
+  if (error) return [];
+  return (data ?? []) as unknown as LeadNote[];
+}
+
+// ── Update Lead Intent ────────────────────────────────────────────────────────
+
+const updateLeadIntentSchema = z.object({
+  leadId: z.string().uuid(),
+  intent: z.enum(['hot', 'cold']).nullable(),
+});
+
+export async function updateLeadIntent(
+  leadId: string,
+  intent: 'hot' | 'cold' | null,
+): Promise<ActionResult> {
+  try {
+    const parsed = updateLeadIntentSchema.safeParse({ leadId, intent });
+    if (!parsed.success) {
+      return { success: false, error: parsed.error.issues[0]?.message ?? 'Invalid input' };
+    }
+
+    const { supabase, user, role } = await getAuthUser();
+
+    const { data: lead, error: fetchError } = await supabase
+      .from('leads')
+      .select('assigned_to')
+      .eq('id', leadId)
+      .single();
+
+    if (fetchError || !lead) return { success: false, error: 'Lead not found' };
+
+    if (!isPrivilegedRole(role) && lead.assigned_to !== user.id) {
+      return { success: false, error: 'Unauthorised' };
+    }
+
+    const { error } = await supabase
+      .from('leads')
+      .update({ lead_intent: intent })
+      .eq('id', leadId);
+
+    if (error) return { success: false, error: 'Failed to update intent' };
+
+    revalidatePath(`/leads/${leadId}`);
+    return { success: true };
+  } catch {
+    return { success: false, error: 'An unexpected error occurred' };
+  }
+}
+
 // ── Fetch Dashboard Data ───────────────────────────────────
 
 export async function getDashboardData() {

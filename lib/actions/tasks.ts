@@ -3217,9 +3217,41 @@ export async function getTeamMembersForAdmin(): Promise<
 
 /** @deprecated Not implemented in Atlas Tasks -- returns empty array */
 export async function getLeadTasks(
-  _leadId: string,
+  leadId: string,
 ): Promise<ActionResult<TaskWithLead[]>> {
-  return { success: true, data: [] };
+  try {
+    const { supabase, user, role } = await getAuthUser();
+
+    const idParse = uuidSchema.safeParse(leadId);
+    if (!idParse.success) return { success: false, error: "Invalid lead ID" };
+
+    // Agents may only see tasks for their own leads
+    if (!isPrivilegedRole(role) && role !== "manager") {
+      const { data: lead } = await supabase
+        .from("leads")
+        .select("assigned_to")
+        .eq("id", leadId)
+        .single();
+      if (!lead || lead.assigned_to !== user.id) {
+        return { success: false, error: "Not authorised" };
+      }
+    }
+
+    const { data, error } = await supabase
+      .from("tasks")
+      .select(
+        "id, lead_id, assigned_to_users, created_by, title, task_type, status, due_date, " +
+        "notes, progress_updates, follow_up_step, follow_up_history, created_at, updated_at",
+      )
+      .eq("lead_id", leadId)
+      .order("due_date", { ascending: true });
+
+    if (error) return { success: false, error: error.message };
+
+    return { success: true, data: (data ?? []) as unknown as TaskWithLead[] };
+  } catch {
+    return { success: false, error: "An unexpected error occurred" };
+  }
 }
 
 // ── Legacy helpers (used by the "My Tasks" personal dashboard) ────────────────

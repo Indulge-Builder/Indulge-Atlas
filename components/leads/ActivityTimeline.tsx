@@ -114,13 +114,18 @@ export function ActivityTimeline({ activities }: ActivityTimelineProps) {
   }
 
   return (
-    <div className="border-l border-stone-200 pl-4 space-y-5">
+    <div className="space-y-5">
       {activities.map((activity) => (
-        <div key={activity.id} className="relative">
-          <span
-            className={`absolute -left-4.5 top-1 h-2.5 w-2.5 rounded-full ${DOT_STYLES[activity.action_type] ?? "bg-stone-300"}`}
-          />
-          <div className="space-y-1">
+        <div key={activity.id} className="flex gap-3">
+          {/* Dot + line column */}
+          <div className="flex flex-col items-center">
+            <span
+              className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${DOT_STYLES[activity.action_type] ?? "bg-stone-300"}`}
+            />
+            <div className="mt-1.5 w-px flex-1 bg-stone-200" />
+          </div>
+          {/* Content */}
+          <div className="pb-5 space-y-1 min-w-0 flex-1">
             {renderActivityText(activity)}
             <p className="text-xs text-stone-500">
               {formatIST(activity.created_at, "MMM d 'at' h:mm a")}
