@@ -7,7 +7,9 @@
 
 import { getServiceSupabaseClient } from "@/lib/supabase/service";
 import { normalizeToE164 } from "@/lib/utils/phone";
+import { sanitizeText } from "@/lib/utils/sanitize";
 import { sendGupshupMessage, sendTypingIndicator } from "@/lib/services/gupshupClient";
+import { processAndInsertLead } from "@/lib/services/leadIngestion";
 import type { BotCatalogItem, BotClaudeResponse, BotSession } from "@/lib/types/database";
 
 const MODEL = "claude-haiku-4-5-20251001";
@@ -206,6 +208,42 @@ async function triggerHandoff(
   console.log("[gupshupChatbot] Conversation handed off, phone:", phone);
 }
 
+async function maybeCreateLeadFromWhatsApp(
+  supabase: ReturnType<typeof getServiceSupabaseClient>,
+  normalizedPhone: string,
+  incomingText: string,
+): Promise<void> {
+  try {
+    // Check if a lead already exists for this number
+    const { data: existing } = await supabase
+      .from("leads")
+      .select("id")
+      .eq("phone_number", normalizedPhone)
+      .maybeSingle();
+
+    if (existing) return;
+
+    const result = await processAndInsertLead(
+      {
+        phone_number: normalizedPhone,
+        utm_source: "whatsapp",
+        utm_medium: "whatsapp_gupshup",
+        message: sanitizeText(incomingText),
+        form_data: { whatsapp_wa_id: normalizedPhone },
+      },
+      "website",
+    );
+
+    if (result.success) {
+      console.log("[gupshupChatbot] New lead created from WhatsApp, phone suffix:", normalizedPhone.slice(-4));
+    } else {
+      console.error("[gupshupChatbot] Lead creation failed:", result.error);
+    }
+  } catch (err) {
+    console.error("[gupshupChatbot] maybeCreateLeadFromWhatsApp error (non-fatal):", err);
+  }
+}
+
 export async function processBotTurn(
   phone: string,
   incomingText: string,
@@ -244,6 +282,9 @@ export async function processBotTurn(
   } catch (err) {
     console.error("[gupshupChatbot] Staff guard check failed (proceeding):", err);
   }
+
+  // Create a lead if this is a new number — fire-and-forget, never blocks bot
+  await maybeCreateLeadFromWhatsApp(supabase, normalizedPhone, incomingText);
 
   let session: BotSession;
   try {
