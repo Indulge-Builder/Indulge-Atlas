@@ -130,7 +130,7 @@ export function CalledModal({ open, onClose, leadId, onSuccess }: CalledModalPro
                           key={o.value}
                           onClick={() => setSelected(o.value)}
                           className={`
-                            flex items-center gap-1.5 rounded-full border px-3 py-1.5
+                            rounded-full border px-3 py-1.5
                             text-[12px] font-medium transition-all duration-150
                             ${isSelected
                               ? `${colors.pillActive} shadow-sm ring-2 ${colors.ring}`
@@ -138,7 +138,6 @@ export function CalledModal({ open, onClose, leadId, onSuccess }: CalledModalPro
                             }
                           `}
                         >
-                          <span className="text-[13px]">{o.emoji}</span>
                           {o.label}
                         </button>
                       );

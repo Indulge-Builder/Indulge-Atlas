@@ -230,6 +230,21 @@ export async function processBotTurn(
 
   const supabase = getServiceSupabaseClient();
 
+  // Staff guard — silently ignore messages from internal agents/staff
+  try {
+    const { data: staffRow } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("phone", normalizedPhone)
+      .maybeSingle();
+    if (staffRow) {
+      console.log("[gupshupChatbot] Inbound from staff number — skipping bot, phone suffix:", normalizedPhone.slice(-4));
+      return;
+    }
+  } catch (err) {
+    console.error("[gupshupChatbot] Staff guard check failed (proceeding):", err);
+  }
+
   let session: BotSession;
   try {
     session = await loadOrCreateSession(supabase, normalizedPhone);

@@ -4,7 +4,6 @@ import type {
   FreshdeskConversation,
   FreshdeskTicket,
 } from "@/lib/freshdesk/types";
-import { formatPhoneForFreshdeskLookup } from "@/lib/utils/phone";
 
 const FRESHDESK_BASE = "https://indulge.freshdesk.com/api/v2";
 
@@ -183,44 +182,66 @@ async function freshdeskGet(path: string, query: Record<string, string>) {
   return { ok: res.ok, status: res.status, json };
 }
 
-/** List contacts filtered by phone (Freshdesk `phone` field). */
-export async function searchContactsByPhone(
-  phone: string,
-): Promise<FreshdeskContact[]> {
-  const { ok, json } = await freshdeskGet("/contacts", {
-    phone,
-    per_page: "10",
-  });
+/** Filter contacts by phone field (Freshdesk `?phone=` param). */
+async function filterByPhone(phone: string): Promise<FreshdeskContact[]> {
+  const { ok, json } = await freshdeskGet("/contacts", { phone, per_page: "10" });
   if (!ok) return [];
   return parseContactList(json);
 }
 
-/** List contacts filtered by mobile. */
-export async function searchContactsByMobile(
-  mobile: string,
-): Promise<FreshdeskContact[]> {
-  const { ok, json } = await freshdeskGet("/contacts", {
-    mobile,
-    per_page: "10",
-  });
+/** Filter contacts by mobile field (Freshdesk `?mobile=` param). */
+async function filterByMobile(mobile: string): Promise<FreshdeskContact[]> {
+  const { ok, json } = await freshdeskGet("/contacts", { mobile, per_page: "10" });
   if (!ok) return [];
   return parseContactList(json);
 }
 
 /**
- * Name search via Freshdesk contacts query string.
+ * Search contacts via the beta search API (`/api/v2/search/contacts`).
+ * Supports `phone:'value'` and `mobile:'value'` query syntax.
+ * This handles special characters like `+` better than the filter params.
  */
+async function searchByPhoneQuery(phone: string): Promise<FreshdeskContact[]> {
+  const safe = phone.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+  // Try phone field first, then mobile field — both in one OR query
+  const query = `(phone:'${safe}' OR mobile:'${safe}')`;
+  const url = new URL(`${FRESHDESK_BASE}/search/contacts`);
+  url.searchParams.set("query", `"${query}"`);
+  const res = await fetch(url.toString(), {
+    method: "GET",
+    headers: { Authorization: getBasicAuthHeader(), Accept: "application/json" },
+    cache: "no-store",
+  });
+  if (!res.ok) return [];
+  let json: unknown = null;
+  try { json = await res.json(); } catch { return []; }
+  // Search API returns { total: number, results: [...] }
+  const results = (json as Record<string, unknown>)?.results;
+  return parseContactList(results);
+}
+
+/** Name search via Freshdesk contacts query string. */
 export async function searchContactsByName(
   fullName: string,
 ): Promise<FreshdeskContact[]> {
   const safe = fullName.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
   const query = `name:'${safe}'`;
-  const { ok, json } = await freshdeskGet("/contacts", {
-    query,
-    per_page: "10",
-  });
+  const { ok, json } = await freshdeskGet("/contacts", { query, per_page: "10" });
   if (!ok) return [];
   return parseContactList(json);
+}
+
+/** Build phone number variants to try (with and without +91 prefix). */
+function phoneVariants(phone: string): string[] {
+  const variants: string[] = [phone];
+  if (phone.startsWith("+91") && phone.length > 3) {
+    variants.push(phone.slice(3)); // national: 9876543210
+    variants.push("0" + phone.slice(3)); // with leading 0: 09876543210
+  } else if (/^\d{10}$/.test(phone)) {
+    variants.push("+91" + phone); // add +91
+    variants.push("0" + phone);   // add leading 0
+  }
+  return [...new Set(variants)];
 }
 
 export async function listTicketsForRequester(
@@ -267,22 +288,36 @@ export async function findFreshdeskContactForClient(params: {
   firstName: string | null;
   lastName: string | null;
 }): Promise<FreshdeskContact | null> {
-  const rawPhone = params.phone?.trim() ?? "";
-  const phone = rawPhone ? formatPhoneForFreshdeskLookup(rawPhone) : "";
+  const phone = params.phone?.trim() ?? "";
+
   if (phone) {
-    const byPhone = await searchContactsByPhone(phone);
-    if (byPhone.length) return byPhone[0];
-    const byMobile = await searchContactsByMobile(phone);
-    if (byMobile.length) return byMobile[0];
+    const variants = phoneVariants(phone);
+
+    // 1. Try the beta search API first — handles `+` correctly and checks both phone + mobile fields
+    for (const variant of variants) {
+      const found = await searchByPhoneQuery(variant);
+      if (found.length) return found[0]!;
+    }
+
+    // 2. Fall back to the simpler ?phone= and ?mobile= filter params for each variant
+    for (const variant of variants) {
+      const byPhone = await filterByPhone(variant);
+      if (byPhone.length) return byPhone[0]!;
+      const byMobile = await filterByMobile(variant);
+      if (byMobile.length) return byMobile[0]!;
+    }
   }
+
+  // 3. Last resort: name lookup
   const fullName = [params.firstName, params.lastName]
     .filter((s) => s && String(s).trim() !== "")
     .map((s) => String(s).trim())
     .join(" ");
   if (fullName.trim()) {
     const byName = await searchContactsByName(fullName);
-    if (byName.length) return byName[0];
+    if (byName.length) return byName[0]!;
   }
+
   return null;
 }
 

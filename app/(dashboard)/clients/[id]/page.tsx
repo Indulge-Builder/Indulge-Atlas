@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getClientById } from "@/lib/actions/clients";
-import { ClientDetailView } from "@/components/clients/ClientDetailView";
+import { ClientDetailViewLoader } from "@/components/clients/ClientDetailViewLoader";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +17,7 @@ export default async function ClientDetailPage({ params }: PageProps) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <ClientDetailView initialDetail={clientRes.data} />
+      <ClientDetailViewLoader initialDetail={clientRes.data} />
     </div>
   );
 }

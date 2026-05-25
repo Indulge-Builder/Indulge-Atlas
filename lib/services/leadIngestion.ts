@@ -14,6 +14,7 @@ import { evaluateRulesAgainstLead } from "@/lib/services/evaluateRoutingRules";
 import { getActiveAgentConfig } from "@/lib/services/agentRoutingConfig";
 import { normalizeToE164 } from "@/lib/utils/phone";
 import { sanitizeFormData, sanitizeText } from "@/lib/utils/sanitize";
+import { sendLeadAssignmentNotification } from "@/lib/services/gupshupClient";
 
 const supabase = getServiceSupabaseClient();
 
@@ -516,6 +517,18 @@ export async function processAndInsertLead(
   console.info(
     `[leadIngestion] Lead ${leadId} created. Source: ${sourceTag}. Agent: ${assignedAgentId ?? "unassigned"}`,
   );
+
+  // Fire-and-forget WhatsApp notification to assigned agent
+  if (assignedAgentId) {
+    const leadDisplayName = [first_name, last_name].filter(Boolean).join(" ");
+    void sendLeadAssignmentNotification(
+      assignedAgentId,
+      leadDisplayName,
+      dbPayload.phone_number,
+    ).catch((err) => {
+      console.error("[leadIngestion] Lead assignment notification failed (non-fatal):", err);
+    });
+  }
 
   return {
     success: true,

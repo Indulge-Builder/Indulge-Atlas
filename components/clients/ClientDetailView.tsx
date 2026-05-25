@@ -14,6 +14,7 @@ const FreshdeskTab = dynamic(
       default: m.FreshdeskTab,
     })),
   {
+    ssr: false,
     loading: () => (
       <div className="mt-2 space-y-3">
         <Skeleton className="h-14 w-full rounded-full" />
@@ -29,6 +30,7 @@ const ChettoTab = dynamic(
       default: m.ChettoTab,
     })),
   {
+    ssr: false,
     loading: () => (
       <div className="flex flex-1 items-center justify-center p-8">
         <Skeleton className="h-8 w-48" />

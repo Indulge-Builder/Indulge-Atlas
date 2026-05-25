@@ -177,10 +177,12 @@ async function loadFreshdeskFromRow(
     tickets = await listTicketsForRequester(contact.id, {
       includeRequester: true,
     });
-  } catch {
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[Freshdesk] tickets fetch failed:", msg);
     return {
       ok: false,
-      error: "Could not load tickets from Freshdesk. Try again later.",
+      error: `Could not load tickets from Freshdesk: ${msg}`,
     };
   }
 
@@ -197,6 +199,34 @@ function getCachedFreshdeskLoad(clientId: string, row: FreshdeskClientRow) {
     ["freshdesk-client-v1", clientId],
     { revalidate: 120, tags: [`freshdesk-${clientId}`] },
   );
+}
+
+/** Force-bypass the cache and reload Freshdesk data for a client. */
+export async function reloadFreshdeskForClient(clientId: string): Promise<{
+  success: boolean;
+  data?: ClientFreshdeskTicketsData;
+  error?: string;
+}> {
+  const parsedId = clientIdSchema.safeParse(clientId);
+  if (!parsedId.success) return { success: false, error: "Invalid client" };
+
+  let supabase: Awaited<ReturnType<typeof createClient>>;
+  try {
+    const auth = await getAuthUser();
+    supabase = auth.supabase;
+  } catch {
+    return { success: false, error: "Unauthenticated" };
+  }
+
+  const rowRes = await getClientRowForFreshdesk(supabase, clientId);
+  if (!rowRes.ok) return { success: false, error: rowRes.error };
+
+  const loaded = await loadFreshdeskFromRow(rowRes.row);
+  if (!loaded.ok) return { success: false, error: loaded.error };
+  if (!loaded.data.found) return { success: true, data: { found: false, tickets: [] } };
+
+  const { contact, tickets, stats } = loaded.data;
+  return { success: true, data: { found: true, contact, tickets, stats } };
 }
 
 async function getClientRowForFreshdesk(

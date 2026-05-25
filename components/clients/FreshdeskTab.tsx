@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
 import { Download, Loader2, Sparkles, Ticket } from "lucide-react";
-import { getClientFreshdeskTickets, getTicketConversationsAction } from "@/lib/actions/freshdesk";
+import { getClientFreshdeskTickets, getTicketConversationsAction, reloadFreshdeskForClient } from "@/lib/actions/freshdesk";
 import type { ClientFreshdeskTicketsData, FreshdeskContact, FreshdeskConversation, FreshdeskTicket } from "@/lib/freshdesk/types";
 import { mapConversationSource, mapPriority, mapStatus } from "@/lib/freshdesk/types";
 import { IndulgeButton } from "@/components/ui/indulge-button";
@@ -366,14 +366,13 @@ export function FreshdeskTab({
           variant="outline"
           className="mt-4"
           onClick={() => {
-            hasLoadedRef.current = false;
+            hasLoadedRef.current = true;
             setError(null);
             setData(null);
             setIsLoading(true);
             void (async () => {
-              const res = await getClientFreshdeskTickets(clientId);
+              const res = await reloadFreshdeskForClient(clientId);
               setIsLoading(false);
-              hasLoadedRef.current = true;
               if (res.success && res.data) setData(res.data);
               else setError(res.error ?? "Could not load service history");
             })();
