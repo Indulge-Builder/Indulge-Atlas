@@ -237,11 +237,30 @@ async function fetchActiveRoutingRules(): Promise<LeadRoutingRule[]> {
  * Step 2 — DB Agent Config waterfall: fetch agent_routing_config, filter by shift window
  *   and daily cap, pass eligible UUIDs to the Postgres round-robin function.
  */
+// TEMPORARY OVERRIDE (added 2026-05-26) — remove after ~5–6 days
+// All inbound leads are force-assigned to Advita Bihani until this block is deleted.
+// Her UUID is resolved live from profiles so there's no hardcoded ID here.
+async function getAdvitaOverrideId(): Promise<string | null> {
+  const { data } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("email", "advita@indulge.global")
+    .single();
+  return data?.id ?? null;
+}
+
 async function resolveAssignedAgent(
   lead: LeadPayload,
   /** Original adapter payload — merged under parsed `lead` so extra keys (e.g. `source`) still match rules. */
   rawPayload?: Record<string, unknown>,
 ): Promise<string | null> {
+  // TEMPORARY: force all leads to Advita — delete the next 6 lines to restore normal routing
+  const advitaId = await getAdvitaOverrideId();
+  if (advitaId) {
+    console.info("[leadIngestion] TEMP OVERRIDE: assigning lead to Advita Bihani:", advitaId);
+    return advitaId;
+  }
+
   let workingDomain = lead.domain ?? "indulge_concierge";
 
   const evaluationPayload: Record<string, unknown> =
