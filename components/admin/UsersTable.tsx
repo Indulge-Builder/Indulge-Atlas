@@ -374,6 +374,7 @@ export function UsersTable({
                               variant="ghost"
                               size="icon-sm"
                               className="text-[#B5A99A]"
+                              id={`user-menu-${profile.id}`}
                             >
                               <MoreHorizontal className="w-4 h-4" />
                             </Button>

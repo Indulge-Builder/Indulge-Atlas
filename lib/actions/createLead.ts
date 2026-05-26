@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { addLeadSchema, type AddLeadFormValues } from "@/lib/schemas/lead";
+import { sendLeadAssignmentNotification } from "@/lib/services/gupshupClient";
 
 interface ActionResult {
   success: boolean;
@@ -162,6 +163,14 @@ export async function createLead(input: AddLeadFormValues): Promise<ActionResult
 
     revalidatePath("/leads");
     revalidatePath("/");
+
+    void sendLeadAssignmentNotification(
+      assignedTo,
+      `${firstName}${lastName ? ` ${lastName}` : ""}`,
+      input.phone.trim(),
+    ).catch((err) => {
+      console.error("[createLead] Notification failed (non-fatal):", err);
+    });
 
     return { success: true, leadId: lead.id };
   } catch (e) {
