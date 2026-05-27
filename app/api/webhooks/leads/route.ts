@@ -5,6 +5,7 @@ import { processAndInsertLead } from "@/lib/services/leadIngestion";
 import { enqueueWebhookLog } from "@/lib/services/webhookLog";
 import { normalizeMeta, normalizeGoogle, normalizeWebsite } from "@/lib/leads/adapters";
 import { sendLeadAssignmentNotification } from "@/lib/services/gupshupClient";
+import { logLeadReceived } from "@/lib/services/leadNotificationLog";
 
 type LeadSource = "meta" | "google" | "website";
 
@@ -59,12 +60,21 @@ export async function POST(request: NextRequest) {
     const result = await processAndInsertLead(payload, source);
 
     if (result.success) {
-      if (result.assigned_to && result.lead_name && result.lead_phone !== undefined) {
+      logLeadReceived({
+        leadId: result.lead_id,
+        agentId: result.assigned_to,
+        leadName: result.lead_name,
+        leadPhone: result.lead_phone,
+        source,
+      });
+
+      if (result.assigned_to) {
         after(async () => {
           await sendLeadAssignmentNotification(
             result.assigned_to!,
-            result.lead_name!,
-            result.lead_phone!,
+            result.lead_name,
+            result.lead_phone,
+            result.lead_id,
           ).catch((err) => {
             console.error("[webhooks/leads] Lead assignment notification failed:", err);
           });

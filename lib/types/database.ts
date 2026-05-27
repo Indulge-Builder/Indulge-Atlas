@@ -1055,6 +1055,49 @@ export interface Database {
         }>;
         Relationships: [];
       };
+      lead_notification_logs: {
+        Row: {
+          id: string;
+          lead_id: string | null;
+          agent_id: string | null;
+          event_type: "lead_received" | "notification_sent" | "notification_failed";
+          gupshup_status: number | null;
+          gupshup_body: string | null;
+          delivered: boolean | null;
+          lead_name: string | null;
+          lead_phone: string | null;
+          agent_phone: string | null;
+          source: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          lead_id?: string | null;
+          agent_id?: string | null;
+          event_type: "lead_received" | "notification_sent" | "notification_failed";
+          gupshup_status?: number | null;
+          gupshup_body?: string | null;
+          delivered?: boolean | null;
+          lead_name?: string | null;
+          lead_phone?: string | null;
+          agent_phone?: string | null;
+          source?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<{
+          lead_id: string | null;
+          agent_id: string | null;
+          event_type: "lead_received" | "notification_sent" | "notification_failed";
+          gupshup_status: number | null;
+          gupshup_body: string | null;
+          delivered: boolean | null;
+          lead_name: string | null;
+          lead_phone: string | null;
+          agent_phone: string | null;
+          source: string | null;
+        }>;
+        Relationships: [];
+      };
       onboarding_leads: {
         Row: {
           id: string;
