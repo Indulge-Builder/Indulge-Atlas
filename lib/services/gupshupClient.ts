@@ -246,9 +246,9 @@ export async function sendLeadAssignmentNotification(
     if (!res.ok) {
       const text = await res.text().catch(() => "(unreadable body)");
       console.error(`[gupshupClient] Template send failed (${res.status}): ${text}`);
+    } else {
+      console.log("[gupshupClient] Lead assignment notification sent, agent:", agentId, "phone suffix:", agentPhone.slice(-4));
     }
-
-    console.log("[gupshupClient] Lead assignment notification sent, agent:", agentId, "phone suffix:", agentPhone.slice(-4));
   } catch (err) {
     console.error("[gupshupClient] sendLeadAssignmentNotification failed (non-fatal):", err);
   }

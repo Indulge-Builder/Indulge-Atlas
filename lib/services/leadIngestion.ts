@@ -14,7 +14,6 @@ import { evaluateRulesAgainstLead } from "@/lib/services/evaluateRoutingRules";
 import { getActiveAgentConfig } from "@/lib/services/agentRoutingConfig";
 import { normalizeToE164 } from "@/lib/utils/phone";
 import { sanitizeFormData, sanitizeText } from "@/lib/utils/sanitize";
-import { sendLeadAssignmentNotification } from "@/lib/services/gupshupClient";
 
 const supabase = getServiceSupabaseClient();
 
@@ -389,6 +388,8 @@ export type ProcessLeadResult = {
   lead_id: string;
   assigned_to: string | null;
   utm_campaign: string | null;
+  lead_name: string;
+  lead_phone: string;
 };
 
 export type ProcessLeadError = {
@@ -537,22 +538,14 @@ export async function processAndInsertLead(
     `[leadIngestion] Lead ${leadId} created. Source: ${sourceTag}. Agent: ${assignedAgentId ?? "unassigned"}`,
   );
 
-  // Fire-and-forget WhatsApp notification to assigned agent
-  if (assignedAgentId) {
-    const leadDisplayName = [first_name, last_name].filter(Boolean).join(" ");
-    void sendLeadAssignmentNotification(
-      assignedAgentId,
-      leadDisplayName,
-      dbPayload.phone_number,
-    ).catch((err) => {
-      console.error("[leadIngestion] Lead assignment notification failed (non-fatal):", err);
-    });
-  }
+  const leadDisplayName = [first_name, last_name].filter(Boolean).join(" ");
 
   return {
     success: true,
     lead_id: leadId,
     assigned_to: assignedAgentId,
     utm_campaign: data.utm_campaign ?? null,
+    lead_name: leadDisplayName,
+    lead_phone: dbPayload.phone_number,
   };
 }

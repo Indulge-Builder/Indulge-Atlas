@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { verifyBearerSecret } from "@/lib/utils/webhook";
 import { checkWebhookRateLimit } from "@/lib/utils/rateLimit";
 import { processAndInsertLead } from "@/lib/services/leadIngestion";
 import { enqueueWebhookLog } from "@/lib/services/webhookLog";
 import { normalizeMeta, normalizeGoogle, normalizeWebsite } from "@/lib/leads/adapters";
+import { sendLeadAssignmentNotification } from "@/lib/services/gupshupClient";
 
 type LeadSource = "meta" | "google" | "website";
 
@@ -58,6 +59,17 @@ export async function POST(request: NextRequest) {
     const result = await processAndInsertLead(payload, source);
 
     if (result.success) {
+      if (result.assigned_to && result.lead_name && result.lead_phone !== undefined) {
+        after(async () => {
+          await sendLeadAssignmentNotification(
+            result.assigned_to!,
+            result.lead_name!,
+            result.lead_phone!,
+          ).catch((err) => {
+            console.error("[webhooks/leads] Lead assignment notification failed:", err);
+          });
+        });
+      }
       return NextResponse.json(
         { success: true, lead_id: result.lead_id, assigned_to: result.assigned_to },
         { status: 200 },
