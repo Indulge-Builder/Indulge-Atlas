@@ -192,7 +192,7 @@ export async function sendLeadAssignmentNotification(
   agentId: string,
   leadName: string,
   leadPhone: string,
-  leadId?: string,
+  leadId: string,
 ): Promise<void> {
   try {
     const supabase = getServiceSupabaseClient();
@@ -204,36 +204,32 @@ export async function sendLeadAssignmentNotification(
 
     if (error || !profile) {
       console.warn("[gupshupClient] sendLeadAssignmentNotification: could not fetch agent profile for", agentId);
-      if (leadId) {
-        logNotificationAttempt({
-          leadId,
-          agentId,
-          leadName,
-          leadPhone,
-          agentPhoneSuffix: "unknown",
-          gupshupStatus: 0,
-          gupshupBody: `Profile fetch failed: ${error?.message ?? "no profile"}`,
-          delivered: false,
-        });
-      }
+      logNotificationAttempt({
+        leadId,
+        agentId,
+        leadName,
+        leadPhone,
+        agentPhoneSuffix: "unknown",
+        gupshupStatus: 0,
+        gupshupBody: `Profile fetch failed: ${error?.message ?? "no profile"}`,
+        delivered: false,
+      });
       return;
     }
 
     const agentPhone = profile.phone as string | null;
     if (!agentPhone) {
       console.warn("[gupshupClient] sendLeadAssignmentNotification: agent has no phone number, skipping. agent:", agentId);
-      if (leadId) {
-        logNotificationAttempt({
-          leadId,
-          agentId,
-          leadName,
-          leadPhone,
-          agentPhoneSuffix: "no-phone",
-          gupshupStatus: 0,
-          gupshupBody: "Agent has no phone number on profile",
-          delivered: false,
-        });
-      }
+      logNotificationAttempt({
+        leadId,
+        agentId,
+        leadName,
+        leadPhone,
+        agentPhoneSuffix: "no-phone",
+        gupshupStatus: 0,
+        gupshupBody: "Agent has no phone number on profile",
+        delivered: false,
+      });
       return;
     }
 
@@ -242,18 +238,16 @@ export async function sendLeadAssignmentNotification(
     const partnerNumber = process.env.GUPSHUP_PARTNER_NUMBER?.trim();
     if (!apiKey || !appName || !partnerNumber) {
       console.error("[gupshupClient] sendLeadAssignmentNotification: missing Gupshup env vars");
-      if (leadId) {
-        logNotificationAttempt({
-          leadId,
-          agentId,
-          leadName,
-          leadPhone,
-          agentPhoneSuffix: agentPhone.slice(-4),
-          gupshupStatus: 0,
-          gupshupBody: "Missing GUPSHUP_API_KEY / GUPSHUP_APP_NAME / GUPSHUP_PARTNER_NUMBER env vars",
-          delivered: false,
-        });
-      }
+      logNotificationAttempt({
+        leadId,
+        agentId,
+        leadName,
+        leadPhone,
+        agentPhoneSuffix: agentPhone.slice(-4),
+        gupshupStatus: 0,
+        gupshupBody: "Missing GUPSHUP_API_KEY / GUPSHUP_APP_NAME / GUPSHUP_PARTNER_NUMBER env vars",
+        delivered: false,
+      });
       return;
     }
 
@@ -290,18 +284,16 @@ export async function sendLeadAssignmentNotification(
       console.log("[gupshupClient] Lead assignment notification sent, agent:", agentId, "phone suffix:", agentPhone.slice(-4));
     }
 
-    if (leadId) {
-      logNotificationAttempt({
-        leadId,
-        agentId,
-        leadName,
-        leadPhone,
-        agentPhoneSuffix: agentPhone.slice(-4),
-        gupshupStatus: res.status,
-        gupshupBody: responseBody,
-        delivered: res.ok,
-      });
-    }
+    logNotificationAttempt({
+      leadId,
+      agentId,
+      leadName,
+      leadPhone,
+      agentPhoneSuffix: agentPhone.slice(-4),
+      gupshupStatus: res.status,
+      gupshupBody: responseBody,
+      delivered: res.ok,
+    });
   } catch (err) {
     console.error("[gupshupClient] sendLeadAssignmentNotification failed (non-fatal):", err);
   }

@@ -987,6 +987,7 @@ export async function reassignLead(
       newAgentId,
       leadDisplayName,
       leadBefore.phone_number ?? "",
+      leadId,
     ).catch((err) => {
       console.error("[reassignLead] Notification failed (non-fatal):", err);
     });

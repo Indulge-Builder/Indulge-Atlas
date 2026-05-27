@@ -168,6 +168,7 @@ export async function createLead(input: AddLeadFormValues): Promise<ActionResult
       assignedTo,
       `${firstName}${lastName ? ` ${lastName}` : ""}`,
       input.phone.trim(),
+      lead.id,
     ).catch((err) => {
       console.error("[createLead] Notification failed (non-fatal):", err);
     });
