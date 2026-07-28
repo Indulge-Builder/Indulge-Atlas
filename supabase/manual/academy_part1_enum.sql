@@ -1,0 +1,33 @@
+-- ===========================================================================
+-- ACADEMY PART 1 of 3 - department enum
+-- ===========================================================================
+--
+-- HOW TO RUN
+--   Supabase dashboard -> SQL Editor -> New query.
+--   Select ALL of this file (Ctrl+A in the editor after pasting) and Run.
+--   IMPORTANT: the Supabase SQL editor runs only the HIGHLIGHTED text when a
+--   selection exists. If part of the file is selected you will get errors
+--   like `relation "our" does not exist` - that is a half-pasted string
+--   literal, not a real missing table. Clear the selection / select all.
+--
+--   Run this FIRST, on its own. It is tiny (one statement).
+--   Safe to re-run (IF NOT EXISTS).
+--
+-- Source: supabase/migrations/124_academy_department_enum.sql
+-- Generated 2026-07-27
+-- ===========================================================================
+
+-- Migration 124: Academy — add the `academy` department enum value.
+--
+-- Academy is the intern training simulator. "Trainers" (who read every session
+-- and author the scenario seed library) are identified by department='academy'
+-- OR a privileged role (admin/founder/super_admin) — see migration 121's
+-- `is_academy_trainer()` helper.
+--
+-- This MUST be its own migration: PostgreSQL forbids using a newly added enum
+-- value in the same transaction that adds it, and migration 125 defines
+-- functions/policies that reference 'academy'. Adding the value here (a separate,
+-- committed migration) guarantees it exists before 125 runs.
+-- (Same pattern as 122_employee_department_watcher.sql.)
+
+ALTER TYPE public.employee_department ADD VALUE IF NOT EXISTS 'academy';

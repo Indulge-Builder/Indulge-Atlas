@@ -1,0 +1,319 @@
+{
+  "source": "Indulge — Retail Training · Task Register",
+  "period": "4–27 July 2026",
+  "tasks_logged": 176,
+  "training_days": 17,
+  "messages_reviewed": 2079,
+  "note": "Every request issued to the trainee concierge team in the WhatsApp retail training group. Requesters (Advita, Anishqa, Ananyshree, Syndia, Savio, Vikram) were role-playing as members. 'Team' = thrown to the group rather than named. This file is the auditable source for the Academy curriculum (migration 130).",
+  "standing_rules": [
+    { "rule": "Response time", "detail": "Under a minute. If you say 'shortly', define it — 5 minutes, 50 minutes or 5 hours." },
+    { "rule": "Sound human", "detail": "Communication like a human, not a bot and not GPT. No empty acknowledgements — 'noted', 'checking' — with nothing behind them." },
+    { "rule": "Recommend, don't dump", "detail": "The member has the best tools already. Find the data and then help them decide. Do not send five options and ask which one." },
+    { "rule": "Anticipate the next question", "detail": "Cost, location, distance, ETA, link and menu should be in the first message. Never make the member ask twice." },
+    { "rule": "Read the backend first", "detail": "Check history, cuisine preference, veg/non-veg, past orders and budget before recommending. If the team already has the detail, do not ask for it." },
+    { "rule": "One message, not ten", "detail": "Consolidate. Fragmented messages across a thread read as disorganised." },
+    { "rule": "Always attach an ETA", "detail": "Every response carries the time by when a revert will come, and the commitment is kept." },
+    { "rule": "Own the follow-up", "detail": "Track orders and deliveries yourself. If the member has to follow up, they do not need a concierge." },
+    { "rule": "Formatting discipline", "detail": "Use INR where relevant, keep a consistent decimal format, name files cleanly, and always include the link." },
+    { "rule": "Verify before sending", "detail": "Check the restaurant is open, the queue time, whether the size exists, whether the dimensions match. Check first, send second." },
+    { "rule": "Composure under pressure", "detail": "Clean but not fake communication even when the member is agitated. Never respond selectively or go silent." },
+    { "rule": "Log everything in Freshdesk", "detail": "Every task goes into FD so status is visible without anyone asking." }
+  ],
+  "days": [
+    {
+      "day": 1,
+      "date": "2026-07-04",
+      "label": "Day 1 — group opens for retail training",
+      "tasks": [
+        { "n": 1, "time": "10:44 AM", "title": "Xiaomi Smart Camera C500 Pro — 1 pc", "detail": "Check availability in India and Bangkok, confirm pricing in both, share best sourcing option (retail + online), delivery timeline, warranty differences, fastest option and real-time images. Follow-up: check the Xiaomi store in Bangkok for cost and availability.", "raised_by": "Anishqa", "owner": "Arun, Marlene" },
+        { "n": 2, "time": "11:05 AM", "title": "Stress-test the trainees", "detail": "Queens, Vikram and Savio to each throw 10–20 requests at the group to gauge how ready every trainee is.", "raised_by": "Advita", "owner": "Queens, Vikram, Savio" },
+        { "n": 3, "time": "1:11 PM", "title": "Four luxury watches for a repeat buyer", "detail": "Patek Philippe Nautilus 5712R-001; AP Code 11.59 26393NR.OO.A002KB.01; AP Code 11.59 26394OR.OO.D027KB.01; AP Code 11.59 Chronograph 26393OR.OO.A028CR.01. For each: reference number, cost, delivery time, year of billing, warranty validity, mode of payment and payment timeline. Brand new unused pieces only, with all papers and box.", "raised_by": "Vikram", "owner": "Arun G, Simran, Marlene" },
+        { "n": 4, "time": "2:36 PM", "title": "Vietnam family group tour — draft itinerary", "detail": "12 adults + 1 child (7 yrs). Hanoi 2 nights plus a second location for 2 nights, 4 nights total. Travel date 15 October.", "raised_by": "Anishqa", "owner": "Simran" },
+        { "n": 5, "time": "4:15 PM", "title": "Adopt client-grade communication", "detail": "Share details the way you would with a client: shorten links, bold key words, add emojis. Proactively review other concierge managers' conversations to learn tone and approach.", "raised_by": "Savio", "owner": "All trainees" }
+      ]
+    },
+    {
+      "day": 2,
+      "date": "2026-07-06",
+      "label": "Mock drills and the first live-style drops",
+      "tasks": [
+        { "n": 6, "time": "11:09 AM", "title": "Goa lunch restaurant recommendations — today", "detail": "3 pax, table needed by 1:00 PM, around Assagao (not Panjim). Share links, images, distance from location and menu. Verify the restaurant is actually open.", "raised_by": "Savio", "owner": "Simran, team" },
+        { "n": 7, "time": "1:10 PM", "title": "Finish mock drills by 3:00 PM", "detail": "After that, Advita, Ananyshree and Anishqa will all drop requests and grade on Freshdesk usage, quality of response, resolution and behaviour under 10 simultaneous requests.", "raised_by": "Advita", "owner": "Savio" },
+        { "n": 8, "time": "1:20 PM", "title": "Flight — Goa to Hyderabad, 15 July", "detail": "Morning departures, non-stop only, with fare.", "raised_by": "Savio", "owner": "Team" },
+        { "n": 9, "time": "2:20 PM", "title": "London countryside stay — one night", "detail": "A beautiful old castle in the countryside, hotel price around £100 max. Share room photos and Google Maps link.", "raised_by": "Anishqa", "owner": "Marlene" },
+        { "n": 10, "time": "3:40 PM", "title": "Porter pickup and drop — Mumbai", "detail": "Pickup: C wing, Flat 404, Shalom Paradise, Mira Road East 401107. Drop: Flat 602, Wing A, Sandhu Palace, Nargis Dutt Road, Pali Hill, Bandra West 400050. Confirm cost and ETA, use the correct location.", "raised_by": "Savio", "owner": "Arun" },
+        { "n": 11, "time": "4:11 PM", "title": "Jasprit's sportswear — standby suppliers", "detail": "Standby cricket goods suppliers in India and the UK (spikes, shoes, socks) and anywhere he travels, for same-day / next-morning turnaround. Confirm the exact Adidas bowling spikes model via photo before sourcing. EU and UK sizes to come from Megh.", "raised_by": "Anishqa", "owner": "Marlene, Simran" },
+        { "n": 12, "time": "5:01 PM", "title": "Where to eat after the Argentina–Egypt match", "detail": "Must be mapped to the member's known taste — check the backend for cuisine preference and veg/non-veg before recommending. Include location and distance.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 13, "time": "5:02 PM", "title": "Braille tutor — home visit", "detail": "Member wants to learn braille; find a tutor who can come home.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 14, "time": "5:02 PM", "title": "Laptop upgrade advice", "detail": "Long-time Mac user. Explain the new AI-chip devices, whether it is worth waiting, and the difference versus the latest Mac. End with a clear recommendation, not options.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 15, "time": "5:03 PM", "title": "Source a Whoop charger", "detail": "Source a Whoop charger.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 16, "time": "5:04 PM", "title": "Convenient 3-day international trip", "detail": "Simple and convenient; give suggestions with cost per head.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 17, "time": "5:04 PM", "title": "Gift for brother's birthday — 27 July", "detail": "Something cool; budget and profile to be established by the team, not asked repeatedly.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 18, "time": "5:59 PM", "title": "Two wine chillers with lock — Kolkata", "detail": "Must fit the space marked in the cabinet drawing (PDF shared) — can be smaller but not a snug fit. Lock is mandatory. Later refined: only a 15-bottle unit fits, two units needed, dimensions to be confirmed. Share vendor details.", "raised_by": "Anishqa", "owner": "Simran, Marlene" },
+        { "n": 19, "time": "7:32 PM", "title": "Log all tasks in Freshdesk", "detail": "Add the tasks into FD so the team knows what to do and how to check status.", "raised_by": "Advita", "owner": "Savio" }
+      ]
+    },
+    {
+      "day": 3,
+      "date": "2026-07-07",
+      "label": "Consolidation and sourcing depth",
+      "tasks": [
+        { "n": 20, "time": "9:56 AM", "title": "Consolidated PDF of yesterday's requests", "detail": "One document covering every request from the previous day so a decision can be taken.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 21, "time": "9:56 AM", "title": "Cost of a Rolex 'Panda'", "detail": "Later extended: can the team get a Rolex from the store at MRP.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 22, "time": "9:57 AM", "title": "Olympics athletics schedule + visa", "detail": "When the athletics events are happening, and the document list required from the member for the travel visa.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 23, "time": "9:57 AM", "title": "Airport book recommendation", "detail": "A good book to pick up at the airport, with purchase link. Member confirmed the order and asked for a reminder at 6:00 PM.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 24, "time": "10:25 AM", "title": "Ratnagiri road trip this weekend", "detail": "Driving time from Goa, plus good temples to visit — specifically the ones in water and beautiful during monsoon. Share location links.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 25, "time": "10:27 AM", "title": "Airport meet & greet — cost in India", "detail": "Typical pricing and what the package includes; clarify what 'customs assistance' actually means.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 26, "time": "10:52 AM", "title": "Property search — South Coorg (near Virajpet)", "detail": "Buyer wants a home near his coffee estate. Reference: ~75 cents (3/4 acre), ~4,000 sq ft, modern bungalow style. No old or run-down properties — must be move-in ready as a holiday base. The reference property sold; keep watching for similar. Building on his existing estate is not ruled out. Connect with a few real estate agents and share agent details.", "raised_by": "Anishqa", "owner": "Simran" },
+        { "n": 27, "time": "10:55 AM", "title": "Quick-commerce onboarding partner", "detail": "An agency or freelancer with strong connects across Blinkit, Zepto and Flipkart Minutes who can help with listings and onboarding for one of our brands. Warm intro preferred.", "raised_by": "Anishqa", "owner": "Marlene" },
+        { "n": 28, "time": "10:57 AM", "title": "Source product (image shared) — 2 boxes to Delhi", "detail": "Usually available in Thailand, Singapore or Australia. Confirm whether the supplier genuinely handles customs.", "raised_by": "Anishqa", "owner": "Arun G" },
+        { "n": 29, "time": "11:01 AM", "title": "Attach ETAs to every request", "detail": "Every response must carry an ETA — by when a revert can be expected and how much time the team needs.", "raised_by": "Anishqa", "owner": "All trainees" },
+        { "n": 30, "time": "12:56 PM", "title": "5 boxes of mini waffles to the office", "detail": "Ordered on confirmation; communicate once placed.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 31, "time": "1:16 PM", "title": "Australia 14-day trip for 2 friends", "detail": "Sydney 3N, Hobart (Tasmania) 2N, Melbourne 3N, Fiji 3N (optional — replace if flights are too costly), Brisbane 2N. Travel Aug/Sept, dates unconfirmed. Hotels, where to eat, activities. Avant-garde suggestions only. Compile into a single PDF or PPT and give an ETA.", "raised_by": "Ananyshree", "owner": "Team" }
+      ]
+    },
+    {
+      "day": 4,
+      "date": "2026-07-08",
+      "label": "Final round of training — graded on speed, taste and recovery",
+      "tasks": [
+        { "n": 32, "time": "9:32 AM", "title": "Read Periscope chats until 10:30 AM", "detail": "Study how the senior team communicates with members before the round starts. Speak to Ethan if you do not have Periscope access.", "raised_by": "Advita", "owner": "All trainees" },
+        { "n": 33, "time": "10:41 AM", "title": "Doctor for a persistent sore throat — Goa", "detail": "Over a week, already seen one doctor with no resolution. Who else can be consulted.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 34, "time": "10:41 AM", "title": "Temple suggestion in Surat for Karan", "detail": "Temple suggestion in Surat for Karan.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 35, "time": "10:41 AM", "title": "Rolex to gift brother on his birthday", "detail": "Team is expected to already know the date, budget and delivery location rather than asking. Confirm unused, tax position, viewing before payment and delivery date. Viewing offered against a non-refundable ₹1L advance token.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 36, "time": "10:42 AM", "title": "Gift for Rohit Sharma", "detail": "40-year-old recipient, budget up to ₹2 lakh. Team to call Good Earth / an alcohol store for real photos of stock rather than sending generic research. Savio to verify the alcohol pick is good enough.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 37, "time": "10:42 AM", "title": "US visa", "detail": "Process, cost, and whether the visa can be guaranteed — member is happy to pay more.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 38, "time": "10:42 AM", "title": "Work wardrobe — stylist ideas", "detail": "Work wardrobe — stylist ideas.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 39, "time": "10:42 AM", "title": "Cook for home — share profiles", "detail": "Send the standard house-staff PDF; Savio to make sure the team knows which document to send.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 40, "time": "12:33 PM", "title": "Live-in physiotherapist + yoga instructor — Vijayapura, Karnataka", "detail": "Full-time, live-in, permanent position at a private residence. Must be qualified in both physiotherapy and yoga, able to run daily sessions for health, mobility, flexibility and wellness. Accommodation, meals and essentials provided. Share profiles, qualifications, experience, expected salary and availability at the earliest.", "raised_by": "Anishqa", "owner": "Marlene" },
+        { "n": 41, "time": "2:49 PM", "title": "Female speech therapist — Gurgaon", "detail": "Child aged 3, Sector 58 Gurgaon, home sessions, 1 hour, evening preferred, starting today or tomorrow. Female therapist only, experienced with young children. Share profiles, credentials, experience and session charges.", "raised_by": "Anishqa", "owner": "Marlene" },
+        { "n": 42, "time": "1:13 PM", "title": "Table for 2 at Naru — 8:00 PM today", "detail": "Table for 2 at Naru — 8:00 PM today.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 43, "time": "3:34 PM", "title": "Mini Kelly and Birkin — options", "detail": "Mini Kelly and Birkin — options.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 44, "time": "3:34 PM", "title": "Dinner in Baku tonight", "detail": "2 people. Confirm halal menu availability, cuisine and menu. Also: what is the party scene in Baku tonight.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 45, "time": "3:34 PM", "title": "Order a decaf coffee", "detail": "Order a decaf coffee.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 46, "time": "3:36 PM", "title": "Morning flight to Ahmednagar — Sunday", "detail": "Never send a layover flight. Check history — do Goa–Pune and the member takes a cab onward.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 47, "time": "6:37 PM", "title": "Close every open task on a call", "detail": "One person to call and close out all tasks one after another. Outcomes, not reports.", "raised_by": "Advita", "owner": "Team" }
+      ]
+    },
+    {
+      "day": 5,
+      "date": "2026-07-09",
+      "label": "Second shift joins — Meher and Edwin",
+      "tasks": [
+        { "n": 48, "time": "8:29 AM", "title": "Chennai weather update for today", "detail": "Chennai weather update for today.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 49, "time": "8:40 AM", "title": "Sunday plan in Goa", "detail": "Good lunch places plus a Bollywood or jive workshop for Sunday. Single member attending.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 50, "time": "9:45 AM", "title": "Quirky gift — 22–23 year old woman", "detail": "Fun-loving, watches K-drama, into fashion, likes to party. Needs to feel very thoughtful. In Goa, under ₹5,000, by Saturday.", "raised_by": "Ananyshree", "owner": "Team" },
+        { "n": 51, "time": "10:05 AM", "title": "Car tyre pressure check", "detail": "Car is at the office.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 52, "time": "10:30 AM", "title": "Order items from photos — 3 of one, 1 of the other", "detail": "Needed within the hour.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 53, "time": "11:51 AM", "title": "Financial statement / ledger", "detail": "Financial statement / ledger.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 54, "time": "12:23 PM", "title": "Burger King mutton Whopper", "detail": "Discontinued in Goa. Source it from anywhere in the country and get it delivered to Goa. Burger King only — no substitutes.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 55, "time": "3:53 PM", "title": "Gastro doctor in Goa", "detail": "Gastro doctor in Goa.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 56, "time": "3:53 PM", "title": "Quirky rakhis for brothers", "detail": "First round rejected as not quirky.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 57, "time": "3:53 PM", "title": "Diwali hampers — ₹50k to ₹1L", "detail": "Very tasteful and bespoke. Nothing generic, no boring food, no nets. First rounds rejected as AI-generated and not worth the budget.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 58, "time": "7:21 PM", "title": "Japan — 10-day itinerary, August, 2 people", "detail": "Include flights, 2 activities per day, intercity transport, lunch and dinner options, laid out day by day. Also: what to bring back for family; Hermès appointment in Tokyo on 17 Aug; Rolex appointment on 18 Aug; can a Rolex Datejust 41 be purchased and at what cost.", "raised_by": "Ananyshree", "owner": "Team" },
+        { "n": 59, "time": "3:46 PM", "title": "Handover of all open tasks", "detail": "Give members a full update on every task before handing over to the second shift.", "raised_by": "Advita", "owner": "Simran, Marlene, Arun" }
+      ]
+    },
+    {
+      "day": 6,
+      "date": "2026-07-10",
+      "label": "Sourcing breadth and event planning",
+      "tasks": [
+        { "n": 60, "time": "9:25 AM", "title": "Same-day return flights Goa–Bangalore", "detail": "For tomorrow, out and back the same day.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 61, "time": "9:25 AM", "title": "Russia visa process", "detail": "Russia visa process.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 62, "time": "9:31 AM", "title": "Consolidated status update", "detail": "One update covering every request raised so far.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 63, "time": "11:34 AM", "title": "Valmiki Ramayana by a local artist — Delhi", "detail": "Hand-made, mounted in a wooden frame. Budget ₹15–20k. Reference image shared. Confirm whether it can be carried on a flight.", "raised_by": "Ananyshree", "owner": "Team" },
+        { "n": 64, "time": "1:21 PM", "title": "Turner Swim Dublin, The Marker Hotel", "detail": "Check whether they have opened their private female swimming sessions.", "raised_by": "Ananyshree", "owner": "Team" },
+        { "n": 65, "time": "1:20 PM", "title": "Seradhura to the office by 3:00 PM", "detail": "Quantity 5.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 66, "time": "4:15 PM", "title": "150-person birthday party — August, Mumbai", "detail": "Restaurant like Bastian by the Beach or similar; no five-star hotels. Call Soraia Bombay, MERCII Mumbai, Milagro Mumbai, Scarlett House and Otra Mumbai. Understand what each can offer for 150 people and build a full end-to-end plan with images, accommodation and meals. Guest age group 25–40. Confirm capacity and food menu. Dinner date: 29 July.", "raised_by": "Anishqa", "owner": "Meher" },
+        { "n": 67, "time": "5:47 PM", "title": "Order Kitkat waffles to the office", "detail": "3 Kitkat, 4 Nutella.", "raised_by": "Anishqa", "owner": "Team" },
+        { "n": 68, "time": "6:40 PM", "title": "Hotel options — Tokyo, Kyoto, Osaka, Mt Fuji", "detail": "Still outstanding at end of day; give an ETA and never leave without an update.", "raised_by": "Savio", "owner": "Edwin, Meher" },
+        { "n": 69, "time": "7:28 PM", "title": "App review — 5 star, urgent", "detail": "Everyone on the group to leave a 5-star review on the Travel Info app on Play Store and send a screenshot.", "raised_by": "Ananyshree", "owner": "All" }
+      ]
+    },
+    {
+      "day": 7,
+      "date": "2026-07-11",
+      "label": "Status discipline and high-value sourcing",
+      "tasks": [
+        { "n": 70, "time": "10:17 AM", "title": "Two-day request rundown", "detail": "Status of every request made in the last two days, and clarity on where the member has to give input versus what the team owns.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 71, "time": "11:35 AM", "title": "Best deals in Singapore", "detail": "ON shoes, DJI drone, LV beauty products, Hermès sneakers, Lego.", "raised_by": "Ananyshree", "owner": "Team" },
+        { "n": 72, "time": "1:55 PM", "title": "Watch for a 21-year-old starting a business", "detail": "Budget ₹2–3 lakh.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 73, "time": "3:51 PM", "title": "75th birthday heritage gift for father-in-law", "detail": "Unique piece, budget ~₹1 lakh, delivery in Mumbai by 23 July. Check AstaGuru Auction House (Verma Chambers), Pundole's, Todywalla Auctions and Bombay Auctions.", "raised_by": "Anishqa", "owner": "Edwin" }
+      ]
+    },
+    {
+      "day": 8,
+      "date": "2026-07-13",
+      "label": "Bespoke amenities and international delivery",
+      "tasks": [
+        { "n": 74, "time": "12:12 PM", "title": "Cake for Anshika — today", "detail": "Cake for Anshika — today.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 75, "time": "2:35 PM", "title": "Print the Indulge One Strategy Note", "detail": "Document shared in chat.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 76, "time": "3:56 PM", "title": "Speakeasy options — Japan and Dubai", "detail": "Japan next week, Dubai on the 28th.", "raised_by": "Savio", "owner": "Meher" },
+        { "n": 77, "time": "3:59 PM", "title": "Sulphate-free and paraben-free shampoo base", "detail": "Good vendors, 5 kg, delivery in Hyderabad, as soon as possible.", "raised_by": "Savio", "owner": "Meher" },
+        { "n": 78, "time": "4:13 PM", "title": "Chase the refund", "detail": "Marked important; escalate through the platform's chat support if that is quicker.", "raised_by": "Savio", "owner": "Edwin" },
+        { "n": 79, "time": "4:15 PM", "title": "Order LMNT and AG1 to Delhi", "detail": "Order LMNT and AG1 to Delhi.", "raised_by": "Savio", "owner": "Team" },
+        { "n": 80, "time": "4:16 PM", "title": "Where to go in August — India, close to Goa", "detail": "Where to go in August — India, close to Goa.", "raised_by": "Savio", "owner": "Team" },
+        { "n": 81, "time": "4:23 PM", "title": "Mounjaro 5 mg to Goa — tomorrow", "detail": "5 mg specifically, not 7.5 mg.", "raised_by": "Savio", "owner": "Team" },
+        { "n": 82, "time": "4:26 PM", "title": "Rajgarh Palace Explorer Kit — luxury welcome amenity", "detail": "For an EO retreat at Oberoi Rajgarh, Khajuraho, 9–11 October. Move away from a gift hamper towards an Aman/Oberoi-style welcome amenity where every item is good enough to keep using. Small wildlife travel pouch containing: luxury safari hat (sized), premium neck gaiter, luxury sunscreen, luxury hand cream, mouth freshener, luxury water bottle, premium binoculars, and a welcome letter printed on textured cotton paper with deckled edges, tied with silk ribbon or wax sealed. Not handed over in a gift bag — placed in every room before arrival.", "raised_by": "Anishqa", "owner": "One person, assigned by Savio" },
+        { "n": 83, "time": "4:26 PM", "title": "Task list with live status", "detail": "A list of every task currently being worked on and where each one stands.", "raised_by": "Savio", "owner": "Team" },
+        { "n": 84, "time": "5:31 PM", "title": "Birthday gift delivery to Los Gatos, USA", "detail": "Delivery date 20 July to California, USA. Budget open, but the gift should be well above expectations.", "raised_by": "Anishqa", "owner": "Edwin" }
+      ]
+    },
+    {
+      "day": 9,
+      "date": "2026-07-14",
+      "label": "Verification before sending",
+      "tasks": [
+        { "n": 85, "time": "9:53 AM", "title": "Thailand visa process", "detail": "Thailand visa process.", "raised_by": "Savio", "owner": "Team" },
+        { "n": 86, "time": "10:33 AM", "title": "Gentle Monster Orora", "detail": "Call the store and verify the price is correct.", "raised_by": "Savio", "owner": "Meher" },
+        { "n": 87, "time": "1:09 PM", "title": "Kalaripayattu teacher in Goa", "detail": "For a member and his son, one session, someone good who can also explain the history. Need quotes, better images, which days of the week, distance from Azara, whether they can come home and teach 3 students, and a website or videos for pre-reading. All in one message.", "raised_by": "Ananyshree", "owner": "Team" },
+        { "n": 88, "time": "1:39 PM", "title": "New Rolex summer collection", "detail": "Find it in France, Monaco or Italy.", "raised_by": "Ananyshree", "owner": "Team" },
+        { "n": 89, "time": "1:54 PM", "title": "Mini waffles to the office", "detail": "Same as last time, 4 boxes.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 90, "time": "3:35 PM", "title": "Vietnam — lunch and dinner in Ho Chi Minh", "detail": "Good veg and non-veg options, group split 50/50. Also a good sit-down place; course-meal dinners work. Menus to be attached.", "raised_by": "Ananyshree", "owner": "Team" },
+        { "n": 91, "time": "4:25 PM", "title": "Waterproofing and painting — Surat", "detail": "Local vendor only; Dr Fixit has declined. Address in Surat, Gujarat.", "raised_by": "Anishqa", "owner": "Meher" }
+      ]
+    },
+    {
+      "day": 10,
+      "date": "2026-07-15",
+      "label": "Own the follow-up",
+      "tasks": [
+        { "n": 92, "time": "9:54 AM", "title": "Something light to eat — suggestion", "detail": "Something light to eat — suggestion.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 93, "time": "9:55 AM", "title": "Parents visiting Goa around 25 July", "detail": "Vegetarian, prefer simple food. Where to take them to eat and what activities they can do.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 94, "time": "9:56 AM", "title": "Full-time caretaker / chef for Goa home", "detail": "All-rounder who cooks and cleans. Budget ₹15–20k initially, later clarified around ₹40k per person. Explain the split in one go rather than in fragments.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 95, "time": "9:56 AM", "title": "At-home allergy tests", "detail": "Whether any exist and which ones.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 96, "time": "2:28 PM", "title": "Radiologist appointment for ultrasound", "detail": "Today, before 4:00 PM, at the shared location. Attach written confirmation and confirm the name the appointment is under. Later: postpone to tomorrow.", "raised_by": "Savio", "owner": "Simran" },
+        { "n": 97, "time": "4:10 PM", "title": "Track the decaf coffee order", "detail": "Was due yesterday. It is an Amazon order — the team should be tracking it without the member following up.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 98, "time": "11:49 AM", "title": "Staffing expectations briefing", "detail": "Work through staffing expectations with the team on joining.", "raised_by": "Advita", "owner": "Savio" }
+      ]
+    },
+    {
+      "day": 11,
+      "date": "2026-07-16",
+      "label": "Same-day luxury under deadline",
+      "tasks": [
+        { "n": 99, "time": "9:35 AM", "title": "US visa — timeline and cost", "detail": "Including whether the visa can be guaranteed.", "raised_by": "Savio", "owner": "Aditya" },
+        { "n": 100, "time": "9:37 AM", "title": "Watches around ₹3,00,000 — Raipur", "detail": "Delivery in Raipur, needed today.", "raised_by": "Savio", "owner": "Simran" },
+        { "n": 101, "time": "9:37 AM", "title": "₹1 lakh hamper for a newly-wed — Mumbai", "detail": "Share the item list first. Direction given: Jo Malone candles, 2 shawls from Paul Smith or Emporio Armani, his-and-hers Swarovski bracelets, a quirky Paul Smith money clip or cardholder, and a passport holder from Hugo Boss or Salvatore Ferragamo. Everything needed by 4:00 PM — the party is at 8:00 PM.", "raised_by": "Savio", "owner": "Meher" },
+        { "n": 102, "time": "10:12 AM", "title": "Exotic destinations close to India", "detail": "Excluding the obvious — Sri Lanka, Indonesia, Philippines.", "raised_by": "Savio", "owner": "Edwin" },
+        { "n": 103, "time": "9:49 AM", "title": "Post-wedding gift hamper — up to ₹10 lakh", "detail": "Needed in Mumbai by month end. More options than just bags, compiled into one PDF.", "raised_by": "Ananyshree", "owner": "Team" },
+        { "n": 104, "time": "10:22 AM", "title": "NYC tonight — restaurant and match-day bar", "detail": "Party of 7, tastes run to Semma and Ambassadors. Check availability at top restaurants for tonight, then a match-day bar — confirm which ones are actually screening the match and whether tables are available today.", "raised_by": "Ananyshree", "owner": "Team" },
+        { "n": 105, "time": "2:21 PM", "title": "Rakhi gifting in Dubai", "detail": "Recipient loves cooking including Indian food, travels internationally more often now, buying a new home in Dubai and may move this year, and recently bought a Mercedes GLE 450.", "raised_by": "Ananyshree", "owner": "Team" },
+        { "n": 106, "time": "11:35 AM", "title": "Something mind-blowing this weekend", "detail": "Anywhere in the country — the member just wants to be wowed. For the shortlisted option: VIP ticket cost and whether it is cancelled if it rains.", "raised_by": "Advita", "owner": "All trainees" },
+        { "n": 107, "time": "2:38 PM", "title": "What is open and what is carried forward", "detail": "Full list of tasks in progress, including anything carried over from the previous day.", "raised_by": "Advita", "owner": "Team" }
+      ]
+    },
+    {
+      "day": 12,
+      "date": "2026-07-17",
+      "label": "Everything below was due before 1:00 PM the same day",
+      "tasks": [
+        { "n": 108, "time": "9:57 AM", "title": "Worli, Bombay — recommendations", "detail": "Nothing generic.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 109, "time": "9:57 AM", "title": "Dubai itinerary for a couple", "detail": "Dubai itinerary for a couple.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 110, "time": "9:57 AM", "title": "Gift for a 60-year-old male — around ₹1 lakh", "detail": "Gift for a 60-year-old male — around ₹1 lakh.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 111, "time": "9:58 AM", "title": "Eco-friendly Rakhi hampers", "detail": "Very classy. Nothing basic, nothing 'aunty types with nets'.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 112, "time": "9:59 AM", "title": "Perfume recommendations", "detail": "Citrus and fresh scents that work in Goa. EDP only.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 113, "time": "9:59 AM", "title": "Fountain pens for everyday use", "detail": "Member already owns the obvious ones — wants something heavy, in the league of Montblanc and LV. 'Like a Sailor but not a Sailor'.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 114, "time": "10:00 AM", "title": "Short courses at the linked academy", "detail": "Non-residential — something the member can attend a couple of times a week, before or after office. Confirm cost and what outfit is required. Options landed on Pekiti Tirsia and possibly Muay Thai.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 115, "time": "10:03 AM", "title": "Linen work wear and linen blazers for Goa", "detail": "Linen work wear and linen blazers for Goa.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 116, "time": "10:03 AM", "title": "Platter options for hosting at home on Sunday", "detail": "Platter options for hosting at home on Sunday.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 117, "time": "10:03 AM", "title": "Ceramic serving bowls", "detail": "Must be modern — the first set was rejected as not modern enough.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 118, "time": "10:03 AM", "title": "Swatch gold watch — just launched", "detail": "At what cost can it be sourced, and by when.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 119, "time": "10:03 AM", "title": "Vegan and gluten-free snacks", "detail": "Vegan and gluten-free snacks.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 120, "time": "10:04 AM", "title": "Something to ease work stress", "detail": "Any medication or remedy that would help.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 121, "time": "10:06 AM", "title": "Gift for an 84-year-old grandmother", "detail": "Something cute that says 'I love you'.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 122, "time": "10:06 AM", "title": "Freelance developers for a new project", "detail": "Freelance developers for a new project.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 123, "time": "10:06 AM", "title": "Oura Ring vs Ultrahuman — help pick one", "detail": "Member already knows Oura is not sold directly in India, which is exactly why they asked — check with the retail team instead of returning Google results. Also address whether data is a concern with Oura. Money is not a problem.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 124, "time": "10:06 AM", "title": "Office bag", "detail": "Office bag.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 125, "time": "9:57 AM", "title": "Scotland after Wimbledon", "detail": "Member and two friends. Ideas for enjoying Edinburgh, Glasgow and the Isle of Skye better.", "raised_by": "Ananyshree", "owner": "Team" },
+        { "n": 126, "time": "9:55 AM", "title": "Kids activities in Baku", "detail": "Kids activities in Baku.", "raised_by": "Savio", "owner": "Meher" },
+        { "n": 127, "time": "9:57 AM", "title": "Table near the stadium for the finals on the 19th", "detail": "Table near the stadium for the finals on the 19th.", "raised_by": "Savio", "owner": "Team" },
+        { "n": 128, "time": "9:47 PM", "title": "South Goa activities — 9 September", "detail": "Group of 7 staying in Varka; half in their late 20s, half in their late 50s. Need 5–7 activities, South Goa only. Includes a yacht for everyone plus others such as tile painting.", "raised_by": "Advita", "owner": "Team" }
+      ]
+    },
+    {
+      "day": 13,
+      "date": "2026-07-18",
+      "label": "Final day of the training round",
+      "tasks": [
+        { "n": 129, "time": "9:59 AM", "title": "Last reservation booked through the team", "detail": "When was it and what was it.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 130, "time": "9:59 AM", "title": "SIR form filling process", "detail": "The process the government has just launched.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 131, "time": "9:59 AM", "title": "FIFA World Cup final — Trophy Lounge tickets", "detail": "Where to park, which entry gate to use, and what documents to carry. Member has American Dream parking.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 132, "time": "10:01 AM", "title": "Gift hamper for a baby girl born in Mumbai", "detail": "Something that can go out tomorrow.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 133, "time": "10:02 AM", "title": "Access to the 15 August parade", "detail": "Access to the 15 August parade.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 134, "time": "10:02 AM", "title": "NLP coaching + meeting with a public figure", "detail": "Find NLP coaching, and arrange the meeting.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 135, "time": "10:03 AM", "title": "At-home allergy tests — follow up", "detail": "Asked a while back and still open.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 136, "time": "10:03 AM", "title": "Cake options for tonight", "detail": "It is someone's birthday.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 137, "time": "10:05 AM", "title": "Member ledger", "detail": "Member ledger.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 138, "time": "3:46 PM", "title": "Updated Goa itinerary", "detail": "Updated Goa itinerary.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 139, "time": "10:18 AM", "title": "Greece itinerary", "detail": "Started as a one-day itinerary, extended to 12 days covering islands including Mykonos and Santorini.", "raised_by": "Ananyshree", "owner": "Team" },
+        { "n": 140, "time": "11:24 AM", "title": "Table for 4 in Bangalore — 8:00 PM", "detail": "'Middle room vibes'. Confirm availability for tonight.", "raised_by": "Ananyshree", "owner": "Team" },
+        { "n": 141, "time": "1:38 PM", "title": "Voter ID card process in Delhi", "detail": "Member does not have one. Process plus a contact who can help.", "raised_by": "Ananyshree", "owner": "Team" },
+        { "n": 142, "time": "3:14 PM", "title": "Quirky family activities in Bangalore for tomorrow", "detail": "Horse riding already done today. Children aged 4 and 6 — confirm what they can join.", "raised_by": "Ananyshree", "owner": "Team" }
+      ]
+    },
+    {
+      "day": 14,
+      "date": "2026-07-20",
+      "label": "Breadth of request types",
+      "tasks": [
+        { "n": 143, "time": "11:10 AM", "title": "Rolex Panda at retail", "detail": "Rolex Panda at retail.", "raised_by": "Advita", "owner": "Aditya" },
+        { "n": 144, "time": "11:10 AM", "title": "Reshare the Varka document", "detail": "Reshare the Varka document.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 145, "time": "11:10 AM", "title": "Defence and ammunition magazines", "detail": "Hard copy subscriptions.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 146, "time": "11:11 AM", "title": "Is it safe to travel to Delhi today", "detail": "Is it safe to travel to Delhi today.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 147, "time": "11:11 AM", "title": "Train journey recommendations in India", "detail": "Around a 4-day trip.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 148, "time": "11:12 AM", "title": "Home-visit physiotherapist in Ahmednagar", "detail": "Must be able to come to the house. Confirm distance from home and that they do home visits.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 149, "time": "11:12 AM", "title": "Hotel booking perks in France", "detail": "What perks does the member get by booking through Indulge.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 150, "time": "11:12 AM", "title": "Best mental health professional in India", "detail": "Best mental health professional in India.", "raised_by": "Advita", "owner": "Team" },
+        { "n": 151, "time": "1:50 PM", "title": "Birthday cake to the office", "detail": "1 kg chocolate cake, to reach around 4:00 PM.", "raised_by": "Syndia", "owner": "Edwin" }
+      ]
+    },
+    {
+      "day": 15,
+      "date": "2026-07-23",
+      "label": "Repeat asks — the team is expected to remember",
+      "tasks": [
+        { "n": 152, "time": "1:15 PM", "title": "Top 5 nanny agencies in Delhi NCR", "detail": "Must be top-notch, cater to UHNIs, with proven results — the best in the country. Shortlist 5 and share; the member will then go and meet them.", "raised_by": "Syndia", "owner": "Sihab" },
+        { "n": 153, "time": "1:16 PM", "title": "₹1 lakh hamper for a newly-wed — Mumbai", "detail": "Share exactly what will go into it.", "raised_by": "Syndia", "owner": "Sihab" },
+        { "n": 154, "time": "1:17 PM", "title": "Something mind-blowing this weekend", "detail": "Anywhere in the country.", "raised_by": "Syndia", "owner": "Sihab" },
+        { "n": 155, "time": "1:18 PM", "title": "Restaurant recommendations for tonight — Worli", "detail": "Restaurant recommendations for tonight — Worli.", "raised_by": "Syndia", "owner": "Sihab" },
+        { "n": 156, "time": "1:20 PM", "title": "Vietnam — lunch and dinner in Ho Chi Minh", "detail": "Group split 50/50 veg and non-veg. Also a good sit-down place; course meals work.", "raised_by": "Syndia", "owner": "Sihab" },
+        { "n": 157, "time": "4:10 PM", "title": "Task shared as an image", "detail": "Needed by 5:00 PM the same day.", "raised_by": "Anishqa", "owner": "Sihab" },
+        { "n": 158, "time": "4:17 PM", "title": "Medical health concierge for the family", "detail": "Find a service offering annual family membership: immediate doctor appointments anywhere in India, all diagnostics, paperwork and registration at clinics and hospitals, admissions, a dedicated family GP, in-house paramedics and diagnostics, and a dedicated relationship manager. Speak to them and confirm who genuinely fulfils this. Get the annual family membership charges.", "raised_by": "Anishqa", "owner": "Sihab" }
+      ]
+    },
+    {
+      "day": 16,
+      "date": "2026-07-25",
+      "label": "Precision on detail and ETAs",
+      "tasks": [
+        { "n": 159, "time": "9:56 AM", "title": "USA tourist visa details + offbeat Malaysia", "detail": "Visa details for tourist purpose, plus the best offbeat places to visit in Malaysia next month, including what the climate is like — rain, humidity.", "raised_by": "Savio", "owner": "Sihab" },
+        { "n": 160, "time": "9:58 AM", "title": "Table at Naru Noodle Bar — tomorrow, 8:00 PM", "detail": "Bookings open every Monday for the week; propose an alternative date or venue if closed.", "raised_by": "Savio", "owner": "Sihab" },
+        { "n": 161, "time": "11:58 AM", "title": "Watch gifting options in Indore — ₹5 lakh", "detail": "Mechanical only.", "raised_by": "Savio", "owner": "Sihab" },
+        { "n": 162, "time": "11:59 AM", "title": "Flowers in Hyderabad — ₹6,000", "detail": "Share options.", "raised_by": "Savio", "owner": "Sihab" },
+        { "n": 163, "time": "12:00 PM", "title": "SUV car options in Mumbai", "detail": "Landing at 4:00 PM today.", "raised_by": "Savio", "owner": "Sihab" },
+        { "n": 164, "time": "3:42 PM", "title": "One crate of beer to a Bangalore resort", "detail": "ASAP, with a specific delivery time — an ETA means the actual time.", "raised_by": "Savio", "owner": "Sihab" },
+        { "n": 165, "time": "12:58 PM", "title": "Coffee machine retailers in Indore", "detail": "Smeg, De'Longhi, Jura, Nespresso and similar. Are any at Phoenix Citadel mall, and which machines will Croma carry.", "raised_by": "Ananyshree", "owner": "Sihab" },
+        { "n": 166, "time": "12:58 PM", "title": "Khandala resort & spa — research", "detail": "Weekend getaway with Mumbai friends. Types of stays, amenities, things to do, pool, spa, games. Then: are any rooms or suites large enough for 4–5 people, images if so; confirm the spa and share images; images of the pool; images of the property exterior and view; details and condition of the board games and game zone.", "raised_by": "Ananyshree", "owner": "Sihab" },
+        { "n": 167, "time": "1:00 PM", "title": "Goa villa for a 12-person party — 14–16 August", "detail": "8 to 10 rooms, a pool, a lawn for stouts and barbecue if the weather permits, breakfast available. Share options.", "raised_by": "Ananyshree", "owner": "Sihab" }
+      ]
+    },
+    {
+      "day": 17,
+      "date": "2026-07-27",
+      "label": "Closing standards — warmth, ownership and recall",
+      "tasks": [
+        { "n": 168, "time": "9:46 AM", "title": "List of pending tasks", "detail": "List of pending tasks.", "raised_by": "Savio", "owner": "Sihab" },
+        { "n": 169, "time": "9:47 AM", "title": "US visa details — re-ask", "detail": "Had been asked earlier and was still open.", "raised_by": "Savio", "owner": "Sihab" },
+        { "n": 170, "time": "9:50 AM", "title": "Sneakers for brother — ₹15,000", "detail": "He does not like bold branding.", "raised_by": "Savio", "owner": "Sihab" },
+        { "n": 171, "time": "9:51 AM", "title": "Alcohol delivery to the hotel", "detail": "Confirm whether it was delivered; follow up with the person who was handling it.", "raised_by": "Savio", "owner": "Sihab" },
+        { "n": 172, "time": "10:11 AM", "title": "Vietnam — best time to visit and climate", "detail": "Plus check Kala Ghoda.", "raised_by": "Savio", "owner": "Sihab" },
+        { "n": 173, "time": "10:52 AM", "title": "Sporting events and major concerts this year", "detail": "Full list of both.", "raised_by": "Savio", "owner": "Sihab" },
+        { "n": 174, "time": "2:12 PM", "title": "Ralph Lauren shirt — call and check", "detail": "Check whether the shirt in the image is available in size M, and confirm the delivery date.", "raised_by": "Savio", "owner": "Sihab" },
+        { "n": 175, "time": "5:17 PM", "title": "More unique flower options", "detail": "The first set was rejected.", "raised_by": "Advita", "owner": "Sihab" },
+        { "n": 176, "time": "4:03 PM", "title": "More flair in member communication", "detail": "Talk to members with more warmth and engagement rather than working through a checklist.", "raised_by": "Advita", "owner": "Sihab" }
+      ]
+    }
+  ]
+}

@@ -6,9 +6,12 @@
  *
  * Requires:
  *   CHETTO_API_KEY
- *   CHETTO_ORG_ID   (or pass `--org-id=<uuid>` once)
  *   NEXT_PUBLIC_SUPABASE_URL
  *   SUPABASE_SERVICE_ROLE_KEY
+ *
+ * Recommended:
+ *   CHETTO_ORG_ID   (parent org — unioned with queendom sub-orgs in lib/actions/chetto.ts)
+ *   or pass `--org-id=<uuid>` once
  *
  * Usage:
  *   npx tsx scripts/map-chetto-groups.ts --dry-run
@@ -16,7 +19,7 @@
  *   npx tsx scripts/map-chetto-groups.ts           # fill only rows where chetto_group_id IS NULL
  *   npx tsx scripts/map-chetto-groups.ts --overwrite
  *
- * Unmatched clients: phone not found in any group’s `access_members` (wrong number,
+ * Unmatched clients: phone not found in any group's `access_members` (wrong number,
  * guest not added to WA group yet, or Chetto metadata missing members for that group).
  * Review on /clients/chetto-mapping.
  */
@@ -24,8 +27,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import * as fs from "fs";
 import * as path from "path";
-
-const CHETTO_BASE = "https://apiv2.chetto.ai/joule";
+import { fetchGroupMetadata, listAllGroupIds } from "../lib/actions/chetto";
 
 function applyEnvFile(filePath: string): void {
   if (!fs.existsSync(filePath)) return;
@@ -52,8 +54,13 @@ function loadDotEnvFiles(): void {
   const root = process.cwd();
   applyEnvFile(path.join(root, ".env"));
   applyEnvFile(path.join(root, ".env.local"));
-  if (!fs.existsSync(path.join(root, ".env")) && !fs.existsSync(path.join(root, ".env.local"))) {
-    console.warn("Warning: no .env or .env.local in cwd — using process.env only.");
+  if (
+    !fs.existsSync(path.join(root, ".env")) &&
+    !fs.existsSync(path.join(root, ".env.local"))
+  ) {
+    console.warn(
+      "Warning: no .env or .env.local in cwd — using process.env only.",
+    );
   }
 }
 
@@ -112,67 +119,10 @@ function chettoLookupKeyVariants(normalizedDigits: string): string[] {
   return out;
 }
 
-async function chettoFetch(
-  apiKey: string,
-  pathWithQuery: string,
-): Promise<Response> {
-  return fetch(`${CHETTO_BASE}${pathWithQuery}`, {
-    headers: { "x-api-key": apiKey },
-  });
-}
-
 type GroupMeta = {
   group_id: string;
   access_members: string[];
 };
-
-function parseGroupMeta(raw: unknown): GroupMeta | null {
-  if (!raw || typeof raw !== "object") return null;
-  const o = raw as Record<string, unknown>;
-  const group_id = o.group_id;
-  if (typeof group_id !== "string" || !group_id) return null;
-  const access = o.access_members;
-  const access_members = Array.isArray(access)
-    ? access.filter((x): x is string => typeof x === "string")
-    : [];
-  return { group_id, access_members };
-}
-
-async function listGroupIds(apiKey: string, orgId: string): Promise<string[]> {
-  const res = await chettoFetch(
-    apiKey,
-    `/v1/groups?${new URLSearchParams({ org_id: orgId }).toString()}`,
-  );
-  if (!res.ok) {
-    const t = await res.text();
-    throw new Error(`List groups failed ${res.status}: ${t.slice(0, 200)}`);
-  }
-  const json = (await res.json()) as unknown;
-  if (!Array.isArray(json)) return [];
-  const ids: string[] = [];
-  for (const item of json) {
-    if (item && typeof item === "object" && "group_id" in item) {
-      const gid = (item as { group_id: unknown }).group_id;
-      if (typeof gid === "string" && gid.length > 0) ids.push(gid);
-    }
-  }
-  return ids;
-}
-
-async function fetchGroupMeta(
-  apiKey: string,
-  orgId: string,
-  groupId: string,
-): Promise<GroupMeta | null> {
-  const qs = new URLSearchParams({ org_id: orgId }).toString();
-  const res = await chettoFetch(
-    apiKey,
-    `/v1/groups/${encodeURIComponent(groupId)}?${qs}`,
-  );
-  if (!res.ok) return null;
-  const json = (await res.json().catch(() => null)) as unknown;
-  return parseGroupMeta(json);
-}
 
 type DbClient = {
   id: string;
@@ -185,24 +135,22 @@ async function main(): Promise<void> {
   const dryRun = process.argv.includes("--dry-run");
   const overwrite = process.argv.includes("--overwrite");
 
-  const apiKey = process.env.CHETTO_API_KEY?.trim();
   const orgFromArg = parseOrgIdFromArgv();
-  const orgId = (orgFromArg ?? process.env.CHETTO_ORG_ID)?.trim();
+  if (orgFromArg) {
+    process.env.CHETTO_ORG_ID = orgFromArg;
+    console.log(
+      "Using --org-id from argv (overrides CHETTO_ORG_ID for this run).\n",
+    );
+  } else if (!process.env.CHETTO_ORG_ID?.trim()) {
+    console.warn(
+      "CHETTO_ORG_ID not set — listing queendom sub-orgs + static fallback only.\n",
+    );
+  }
 
-  if (!apiKey) {
+  if (!process.env.CHETTO_API_KEY?.trim()) {
     throw new Error(
       "CHETTO_API_KEY is missing. Add it to .env.local (or .env) in the project root, or export it in the shell.",
     );
-  }
-  if (!orgId) {
-    throw new Error(
-      "Chetto org id is missing. Set CHETTO_ORG_ID in .env.local, or run with:\n" +
-        "  npx tsx scripts/map-chetto-groups.ts --dry-run --org-id=YOUR_ORG_UUID\n" +
-        "Run the command from the Indulge-Atlas repo root so .env files load.",
-    );
-  }
-  if (orgFromArg) {
-    console.log("Using --org-id from argv (overrides CHETTO_ORG_ID for this run).\n");
   }
 
   const supabase = getServiceClient();
@@ -222,8 +170,10 @@ async function main(): Promise<void> {
     `Clients to process: ${list.length} (${overwrite ? "overwrite on" : "only unmapped"})`,
   );
 
-  const groupIds = await listGroupIds(apiKey, orgId);
-  console.log(`Chetto groups in org: ${groupIds.length}`);
+  const groupIds = await listAllGroupIds();
+  console.log(
+    `Chetto groups (parent org + sub-orgs + static fallback): ${groupIds.length}`,
+  );
 
   const chunkSize = 12;
   const groupMetaById = new Map<string, GroupMeta>();
@@ -231,12 +181,19 @@ async function main(): Promise<void> {
   for (let i = 0; i < groupIds.length; i += chunkSize) {
     const chunk = groupIds.slice(i, i + chunkSize);
     const metas = await Promise.all(
-      chunk.map((gid) => fetchGroupMeta(apiKey, orgId, gid)),
+      chunk.map((gid) => fetchGroupMetadata(gid)),
     );
     for (const m of metas) {
-      if (m?.group_id) groupMetaById.set(m.group_id, m);
+      if (m?.group_id) {
+        groupMetaById.set(m.group_id, {
+          group_id: m.group_id,
+          access_members: m.access_members,
+        });
+      }
     }
-    console.log(`  … metadata ${Math.min(i + chunkSize, groupIds.length)} / ${groupIds.length}`);
+    console.log(
+      `  … metadata ${Math.min(i + chunkSize, groupIds.length)} / ${groupIds.length}`,
+    );
   }
 
   /** phone variant → first group_id whose members list includes it */

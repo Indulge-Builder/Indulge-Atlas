@@ -6,19 +6,25 @@ import { formatIST, isSameCalendarDayIST } from "@/lib/utils/time";
 import { cn } from "@/lib/utils";
 import { parseISO } from "date-fns";
 import { Download, Loader2, MessageCircle } from "lucide-react";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 function stripEmojiAndConciergeTitle(raw: string | null): string {
   if (!raw) return "Member";
   const noEmoji = raw
-    .replace(/[\u{1F300}-\u{1FFFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\uFE00-\uFE0F\u200D]/gu, "")
+    .replace(
+      /[\u{1F300}-\u{1FFFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\uFE00-\uFE0F\u200D]/gu,
+      "",
+    )
     .replace(/\uFE0F/g, "")
     .trim();
-  return (
-    noEmoji
-      .replace(/\s*(?:Pre\s+)?Concierge\s*$/i, "")
-      .trim() || "Member"
-  );
+  return noEmoji.replace(/\s*(?:Pre\s+)?Concierge\s*$/i, "").trim() || "Member";
 }
 
 function normalizePhoneDigits(phone: string | null): string {
@@ -62,7 +68,8 @@ function dateSeparatorLabel(d: Date): string {
 function senderColor(phone: string | null): string {
   const p = normalizePhoneDigits(phone);
   let h = 0;
-  for (let i = 0; i < p.length; i++) h = (h + p.charCodeAt(i) * (i + 1)) % 100000;
+  for (let i = 0; i < p.length; i++)
+    h = (h + p.charCodeAt(i) * (i + 1)) % 100000;
   const palette = ["#E91E63", "#9C27B0", "#3F51B5", "#009688", "#FF5722"];
   return palette[Math.abs(h) % 5];
 }
@@ -75,7 +82,10 @@ function sortMessages(list: ChettoMessage[]): ChettoMessage[] {
   });
 }
 
-function mergeMessages(prev: ChettoMessage[], older: ChettoMessage[]): ChettoMessage[] {
+function mergeMessages(
+  prev: ChettoMessage[],
+  older: ChettoMessage[],
+): ChettoMessage[] {
   const seen = new Set<string>();
   const out: ChettoMessage[] = [];
   for (const m of [...older, ...prev]) {
@@ -115,7 +125,10 @@ export function ChettoTab({
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const didInitialScroll = useRef(false);
   /** After prepending older messages, restore viewport so content under finger stays put. */
-  const pendingScrollRestoreRef = useRef<{ scrollHeight: number; scrollTop: number } | null>(null);
+  const pendingScrollRestoreRef = useRef<{
+    scrollHeight: number;
+    scrollTop: number;
+  } | null>(null);
   const loadMoreLoadingRef = useRef(false);
 
   const mappedId = chettoGroupId?.trim() ?? "";
@@ -235,7 +248,9 @@ export function ChettoTab({
           setTimelineNotAvailable(Boolean(tj.timelineNotAvailable));
           setMessages(sortMessages(tj.messages ?? []));
           setNextCursor(
-            typeof tj.nextCursor === "string" && tj.nextCursor.length > 0 ? tj.nextCursor : null,
+            typeof tj.nextCursor === "string" && tj.nextCursor.length > 0
+              ? tj.nextCursor
+              : null,
           );
         } finally {
           if (!cancelled) setTimelineLoading(false);
@@ -255,7 +270,13 @@ export function ChettoTab({
 
   useEffect(() => {
     const el = scrollRef.current;
-    if (!el || timelineLoading || messages.length === 0 || didInitialScroll.current) return;
+    if (
+      !el ||
+      timelineLoading ||
+      messages.length === 0 ||
+      didInitialScroll.current
+    )
+      return;
     el.scrollTop = el.scrollHeight;
     didInitialScroll.current = true;
   }, [group?.group_id, messages.length, timelineLoading]);
@@ -321,7 +342,9 @@ export function ChettoTab({
       const older = tj.messages ?? [];
       setMessages((prev) => mergeMessages(prev, older));
       setNextCursor(
-        typeof tj.nextCursor === "string" && tj.nextCursor.length > 0 ? tj.nextCursor : null,
+        typeof tj.nextCursor === "string" && tj.nextCursor.length > 0
+          ? tj.nextCursor
+          : null,
       );
     } catch {
       pendingScrollRestoreRef.current = null;
@@ -354,7 +377,8 @@ export function ChettoTab({
       <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-2 overflow-hidden px-4 py-8 text-center sm:px-6 sm:py-12">
         <MessageCircle className="h-8 w-8 text-stone-300" aria-hidden />
         <p className="text-sm text-stone-500">
-          Add a phone number on this client, or link a Chetto group id on the mapping page.
+          Add a phone number on this client, or link a Chetto group id on the
+          mapping page.
         </p>
       </div>
     );
@@ -364,10 +388,11 @@ export function ChettoTab({
     return (
       <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden px-3 py-4 sm:px-4">
         <div className="flex flex-col items-center gap-2 pb-2 text-center">
-          <Loader2 className="h-5 w-5 animate-spin text-emerald-600" aria-hidden />
-          <p className="text-xs text-stone-600">
-            Loading Chetto group…
-          </p>
+          <Loader2
+            className="h-5 w-5 animate-spin text-emerald-600"
+            aria-hidden
+          />
+          <p className="text-xs text-stone-600">Loading Chetto group…</p>
         </div>
         {[40, 65, 30, 55, 70, 45].map((w, i) => (
           <div
@@ -395,13 +420,16 @@ export function ChettoTab({
           {mapped ? (
             <>
               Check the saved group id on{" "}
-              <span className="font-mono text-[11px]">/clients/chetto-mapping</span> or in
-              Chetto — the API returned no metadata for this id.
+              <span className="font-mono text-[11px]">
+                /clients/chetto-mapping
+              </span>{" "}
+              or in Chetto — the API returned no metadata for this id.
             </>
           ) : (
             <>
-              Chetto did not match a concierge group for this number in {queendom || "Unassigned"}.
-              Set an explicit group id on the mapping page for a reliable link.
+              Chetto did not match a concierge group for this number in{" "}
+              {queendom || "Unassigned"}. Set an explicit group id on the
+              mapping page for a reliable link.
             </>
           )}
         </p>
@@ -424,10 +452,16 @@ export function ChettoTab({
           `/api/chetto/timeline?groupId=${encodeURIComponent(gid)}&limit=200&offsetId=${encodeURIComponent(cursor)}`,
         );
         if (!tr.ok) break;
-        const tj = (await tr.json()) as { messages?: ChettoMessage[]; nextCursor?: string | null };
+        const tj = (await tr.json()) as {
+          messages?: ChettoMessage[];
+          nextCursor?: string | null;
+        };
         const batch = tj.messages ?? [];
         all.push(...batch);
-        cursor = typeof tj.nextCursor === "string" && tj.nextCursor.length > 0 ? tj.nextCursor : null;
+        cursor =
+          typeof tj.nextCursor === "string" && tj.nextCursor.length > 0
+            ? tj.nextCursor
+            : null;
       }
       const sorted = sortMessages(all);
       const lines = sorted.map((m) => {
@@ -441,7 +475,9 @@ export function ChettoTab({
         const text = m.text?.trim() || "[Media]";
         return `[${ts}] ${sender}: ${text}`;
       });
-      const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
+      const blob = new Blob([lines.join("\n")], {
+        type: "text/plain;charset=utf-8",
+      });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -471,7 +507,9 @@ export function ChettoTab({
             <MessageCircle className="h-5 w-5" style={{ color: "#25D366" }} />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="wrap-break-word text-sm font-semibold leading-snug text-stone-800">{title}</p>
+            <p className="wrap-break-word text-sm font-semibold leading-snug text-stone-800">
+              {title}
+            </p>
             {mappedId ? (
               <p className="mt-0.5 wrap-break-word font-mono text-[10px] text-stone-500">
                 Linked · {mappedId}
@@ -518,145 +556,171 @@ export function ChettoTab({
           className="h-full min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain px-4 py-3 [scrollbar-width:thin] [scrollbar-color:rgb(120_113_108/0.35)_transparent]"
           style={{ backgroundColor: "#E5DDD5" }}
         >
-        {timelineLoading ? (
-          <div className="flex min-h-[min(320px,50dvh)] flex-col gap-2 py-2">
-            {[40, 65, 30, 55, 70, 45].map((w, i) => (
-              <div
-                key={i}
-                className={cn(
-                  "h-10 animate-pulse rounded-lg bg-stone-200/90",
-                  i % 2 === 0 ? "mr-auto" : "ml-auto",
-                )}
-                style={{ width: `${w}%` }}
-              />
-            ))}
-          </div>
-        ) : (
-          <>
-            {nextCursor ? (
-              <div className="flex flex-col items-center gap-1 pb-1">
+          {timelineLoading ? (
+            <div className="flex min-h-[min(320px,50dvh)] flex-col gap-2 py-2">
+              {[40, 65, 30, 55, 70, 45].map((w, i) => (
                 <div
-                  ref={topSentinelRef}
-                  className="pointer-events-none h-1 w-full shrink-0"
-                  aria-hidden
+                  key={i}
+                  className={cn(
+                    "h-10 animate-pulse rounded-lg bg-stone-200/90",
+                    i % 2 === 0 ? "mr-auto" : "ml-auto",
+                  )}
+                  style={{ width: `${w}%` }}
                 />
-                {loadMoreLoading ? (
+              ))}
+            </div>
+          ) : (
+            <>
+              {nextCursor ? (
+                <div className="flex flex-col items-center gap-1 pb-1">
                   <div
-                    className="flex items-center gap-2 rounded-full bg-white/90 px-3 py-1.5 text-[11px] text-stone-500 shadow-sm backdrop-blur-sm"
-                    role="status"
-                    aria-live="polite"
-                  >
-                    <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-stone-500" aria-hidden />
-                    Loading older…
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
+                    ref={topSentinelRef}
+                    className="pointer-events-none h-1 w-full shrink-0"
+                    aria-hidden
+                  />
+                  {loadMoreLoading ? (
+                    <div
+                      className="flex items-center gap-2 rounded-full bg-white/90 px-3 py-1.5 text-[11px] text-stone-500 shadow-sm backdrop-blur-sm"
+                      role="status"
+                      aria-live="polite"
+                    >
+                      <Loader2
+                        className="h-3.5 w-3.5 shrink-0 animate-spin text-stone-500"
+                        aria-hidden
+                      />
+                      Loading older…
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
 
-            {messages.length === 0 ? (
-              <div className="flex max-h-full min-h-48 w-full flex-col items-center justify-center gap-3 overflow-y-auto px-4 py-10 text-center">
-                <MessageCircle className="h-8 w-8 shrink-0 text-stone-300" aria-hidden />
-                {timelineNotAvailable ? (
-                  <>
-                    <p className="w-full wrap-break-word text-sm font-medium text-stone-600">
-                      Chat timeline isn&apos;t available via Chetto&apos;s API yet
-                    </p>
-                    <p className="w-full max-w-lg wrap-break-word text-xs leading-relaxed text-stone-400">
-                      The group exists (same id as on app.chetto.ai), but{" "}
-                      <span className="font-mono text-[11px]">GET .../timeline</span> returns 404 /
-                      &quot;No groups found&quot; — so there&apos;s nothing for Atlas to render. That
-                      usually means message indexing for this group isn&apos;t wired to the Joule API;
-                      it&apos;s not an Atlas bug.
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <p className="w-full wrap-break-word text-sm text-stone-500">
-                      No messages returned for this group yet
-                    </p>
-                    <p className="w-full max-w-lg wrap-break-word text-xs leading-relaxed text-stone-400">
-                      If chat history exists, confirm <span className="font-mono">CHETTO_ORG_ID</span>{" "}
-                      matches your workspace. Chetto may still be indexing — try again later.
-                    </p>
-                  </>
-                )}
-              </div>
-            ) : (
-              <div className="flex flex-col gap-1">
-                {datedRows.map((row, i) => {
-                  if (row.kind === "sep") {
+              {messages.length === 0 ? (
+                <div className="flex max-h-full min-h-48 w-full flex-col items-center justify-center gap-3 overflow-y-auto px-4 py-10 text-center">
+                  <MessageCircle
+                    className="h-8 w-8 shrink-0 text-stone-300"
+                    aria-hidden
+                  />
+                  {timelineNotAvailable ? (
+                    <>
+                      <p className="w-full wrap-break-word text-sm font-medium text-stone-600">
+                        Chat timeline isn&apos;t available via Chetto&apos;s API
+                        yet
+                      </p>
+                      <p className="w-full max-w-lg wrap-break-word text-xs leading-relaxed text-stone-400">
+                        The group exists (same id as on app.chetto.ai), but{" "}
+                        <span className="font-mono text-[11px]">
+                          GET .../timeline
+                        </span>{" "}
+                        returns 404 / &quot;No groups found&quot; — so
+                        there&apos;s nothing for Atlas to render. That usually
+                        means message indexing for this group isn&apos;t wired
+                        to the Joule API; it&apos;s not an Atlas bug.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="w-full wrap-break-word text-sm text-stone-500">
+                        No messages returned for this group yet
+                      </p>
+                      <p className="w-full max-w-lg wrap-break-word text-xs leading-relaxed text-stone-400">
+                        If chat history exists, confirm{" "}
+                        <span className="font-mono">CHETTO_ORG_ID</span> matches
+                        your workspace. Chetto may still be indexing — try again
+                        later.
+                      </p>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-1">
+                  {datedRows.map((row, i) => {
+                    if (row.kind === "sep") {
+                      return (
+                        <div
+                          key={`sep-${row.label}-${i}`}
+                          className="flex justify-center py-2"
+                        >
+                          <span className="rounded-full bg-white/80 px-3 py-1 text-[11px] text-stone-500 backdrop-blur-sm">
+                            {row.label}
+                          </span>
+                        </div>
+                      );
+                    }
+                    const { m } = row;
+                    const d = parseMessageDate(m.timestamp);
+                    const prev = messages[row.idx - 1];
+                    const prevPhone = normalizePhoneDigits(prev?.phone_no);
+                    const curPhone = normalizePhoneDigits(m.phone_no);
+                    const showSenderLabel =
+                      !m.from_me &&
+                      (!prev ||
+                        prev.from_me !== false ||
+                        prevPhone !== curPhone);
+
+                    const isJoker =
+                      m.from_me &&
+                      curPhone &&
+                      JOKER_PHONE_NUMBERS.has(curPhone);
+
                     return (
-                      <div key={`sep-${row.label}-${i}`} className="flex justify-center py-2">
-                        <span className="rounded-full bg-white/80 px-3 py-1 text-[11px] text-stone-500 backdrop-blur-sm">
-                          {row.label}
-                        </span>
+                      <div
+                        key={`${m.id ?? row.idx}-${row.idx}`}
+                        className={cn(
+                          "flex",
+                          m.from_me ? "justify-end" : "justify-start",
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            "min-w-0 max-w-[75%] rounded-[12px] px-3 py-2 shadow-sm",
+                            m.from_me
+                              ? "rounded-br-[4px] bg-[#DCF8C6]"
+                              : "rounded-bl-[4px] bg-white",
+                          )}
+                          style={{ boxShadow: "0 1px 2px rgba(0,0,0,0.1)" }}
+                        >
+                          {isJoker ? (
+                            <p
+                              className="mb-0.5 text-[10px] font-medium"
+                              style={{ color: "#25D366" }}
+                            >
+                              Joker ✨
+                            </p>
+                          ) : null}
+                          {!m.from_me &&
+                          showSenderLabel &&
+                          curPhone.length >= 4 ? (
+                            <p
+                              className="mb-0.5 text-[10px] font-medium"
+                              style={{ color: senderColor(m.phone_no) }}
+                            >
+                              ····{curPhone.slice(-4)}
+                            </p>
+                          ) : null}
+                          <p className="wrap-break-word text-[13.5px] leading-relaxed text-[#111827]">
+                            {m.text?.trim() ? (
+                              m.text
+                            ) : (
+                              <span className="italic text-stone-400">
+                                [Media]
+                              </span>
+                            )}
+                          </p>
+                          {d ? (
+                            <p className="mt-1 text-right text-[10px] text-[#6B7280]">
+                              {messageTimeLabel(d)} ✓
+                            </p>
+                          ) : null}
+                        </div>
                       </div>
                     );
-                  }
-                  const { m } = row;
-                  const d = parseMessageDate(m.timestamp);
-                  const prev = messages[row.idx - 1];
-                  const prevPhone = normalizePhoneDigits(prev?.phone_no);
-                  const curPhone = normalizePhoneDigits(m.phone_no);
-                  const showSenderLabel =
-                    !m.from_me &&
-                    (!prev || prev.from_me !== false || prevPhone !== curPhone);
-
-                  const isJoker =
-                    m.from_me &&
-                    curPhone &&
-                    JOKER_PHONE_NUMBERS.has(curPhone);
-
-                  return (
-                    <div
-                      key={`${m.id ?? row.idx}-${row.idx}`}
-                      className={cn("flex", m.from_me ? "justify-end" : "justify-start")}
-                    >
-                      <div
-                        className={cn(
-                          "min-w-0 max-w-[75%] rounded-[12px] px-3 py-2 shadow-sm",
-                          m.from_me
-                            ? "rounded-br-[4px] bg-[#DCF8C6]"
-                            : "rounded-bl-[4px] bg-white",
-                        )}
-                        style={{ boxShadow: "0 1px 2px rgba(0,0,0,0.1)" }}
-                      >
-                        {isJoker ? (
-                          <p className="mb-0.5 text-[10px] font-medium" style={{ color: "#25D366" }}>
-                            Joker ✨
-                          </p>
-                        ) : null}
-                        {!m.from_me && showSenderLabel && curPhone.length >= 4 ? (
-                          <p
-                            className="mb-0.5 text-[10px] font-medium"
-                            style={{ color: senderColor(m.phone_no) }}
-                          >
-                            ····{curPhone.slice(-4)}
-                          </p>
-                        ) : null}
-                        <p className="wrap-break-word text-[13.5px] leading-relaxed text-[#111827]">
-                          {m.text?.trim() ? (
-                            m.text
-                          ) : (
-                            <span className="italic text-stone-400">[Media]</span>
-                          )}
-                        </p>
-                        {d ? (
-                          <p className="mt-1 text-right text-[10px] text-[#6B7280]">
-                            {messageTimeLabel(d)} ✓
-                          </p>
-                        ) : null}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </>
-        )}
+                  })}
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
-
     </div>
   );
 }

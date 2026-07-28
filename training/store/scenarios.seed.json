@@ -1,0 +1,415 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-25T00:00:00.000Z",
+  "source": "synthetic-seed",
+  "scenarios": [
+    {
+      "schemaVersion": 1,
+      "id": "scn_484e7195fc96",
+      "title": "Car booking from Coral Bay Hotel to airport — 12th Aug",
+      "category": "Travel",
+      "subcategory": "Ground Transport",
+      "subcategoryBackfillNeeded": false,
+      "priority": "medium",
+      "openingMessage": "Hi, Sedan from Coral Bay Hotel to the international airport, from Coral Bay Hotel to International Airport, for 12 Aug at 6:30 AM, for 2 guests. Can you help?",
+      "requestFields": [
+        {
+          "label": "Request",
+          "value": "Sedan from Coral Bay Hotel to the international airport"
+        },
+        {
+          "label": "From",
+          "value": "Coral Bay Hotel"
+        },
+        {
+          "label": "To",
+          "value": "International Airport"
+        },
+        {
+          "label": "Date",
+          "value": "12 Aug"
+        },
+        {
+          "label": "Time",
+          "value": "6:30 AM"
+        },
+        {
+          "label": "Guests",
+          "value": "2"
+        }
+      ],
+      "slaFirstResponseMinutes": 60,
+      "slaResolutionMinutes": 1440,
+      "events": [
+        {
+          "offsetMs": 0,
+          "kind": "member_opened",
+          "label": "Member's request arrives"
+        },
+        {
+          "offsetMs": 1320000,
+          "kind": "agent_first_response",
+          "label": "Genie's first response"
+        },
+        {
+          "offsetMs": 18600000,
+          "kind": "resolved",
+          "label": "Resolved",
+          "status": "resolved"
+        }
+      ],
+      "groundTruth": {
+        "firstResponseOffsetMs": 1320000,
+        "resolutionOffsetMs": 18600000,
+        "closedOffsetMs": null,
+        "escalated": false,
+        "escalatedOffsetMs": null,
+        "finalStatus": "resolved",
+        "expectedPath": [
+          "open",
+          "pending",
+          "resolved"
+        ]
+      },
+      "redactionCount": 0
+    },
+    {
+      "schemaVersion": 1,
+      "id": "scn_e3301fcefbac",
+      "title": "Urgent: pharmacy delivery to Marisol Suites by 3 PM",
+      "category": "Lifestyle",
+      "subcategory": "Medical / Pharmacy",
+      "subcategoryBackfillNeeded": false,
+      "priority": "urgent",
+      "openingMessage": "Hi, One pack of paracetamol and rehydration salts delivered to the room, in Marisol Suites, Room 214, for today at before 3 PM. Can you help?",
+      "requestFields": [
+        {
+          "label": "Request",
+          "value": "One pack of paracetamol and rehydration salts delivered to the room"
+        },
+        {
+          "label": "Date",
+          "value": "today"
+        },
+        {
+          "label": "Time",
+          "value": "before 3 PM"
+        },
+        {
+          "label": "Location",
+          "value": "Marisol Suites, Room 214"
+        }
+      ],
+      "slaFirstResponseMinutes": 60,
+      "slaResolutionMinutes": 1440,
+      "events": [
+        {
+          "offsetMs": 0,
+          "kind": "member_opened",
+          "label": "Member's request arrives"
+        },
+        {
+          "offsetMs": 480000,
+          "kind": "agent_first_response",
+          "label": "Genie's first response"
+        },
+        {
+          "offsetMs": 9600000,
+          "kind": "resolved",
+          "label": "Resolved",
+          "status": "resolved"
+        }
+      ],
+      "groundTruth": {
+        "firstResponseOffsetMs": 480000,
+        "resolutionOffsetMs": 9600000,
+        "closedOffsetMs": null,
+        "escalated": false,
+        "escalatedOffsetMs": null,
+        "finalStatus": "resolved",
+        "expectedPath": [
+          "open",
+          "pending",
+          "resolved"
+        ]
+      },
+      "redactionCount": 0
+    },
+    {
+      "schemaVersion": 1,
+      "id": "scn_a5e6bb704586",
+      "title": "4 twin rooms near Lakeview Lodge, 27–31 Aug",
+      "category": "Travel",
+      "subcategory": null,
+      "subcategoryBackfillNeeded": true,
+      "priority": "low",
+      "openingMessage": "Hi, Four twin-sharing rooms near Lakeview Lodge for four nights, in Lakeview Lodge area, for 27–31 Aug, for 8 guests, budget under 90k total. Can you help?",
+      "requestFields": [
+        {
+          "label": "Request",
+          "value": "Four twin-sharing rooms near Lakeview Lodge for four nights"
+        },
+        {
+          "label": "Date",
+          "value": "27–31 Aug"
+        },
+        {
+          "label": "Guests",
+          "value": "8"
+        },
+        {
+          "label": "Budget",
+          "value": "under 90k total"
+        },
+        {
+          "label": "Location",
+          "value": "Lakeview Lodge area"
+        }
+      ],
+      "slaFirstResponseMinutes": 60,
+      "slaResolutionMinutes": 1440,
+      "events": [
+        {
+          "offsetMs": 0,
+          "kind": "member_opened",
+          "label": "Member's request arrives"
+        },
+        {
+          "offsetMs": 48600000,
+          "kind": "agent_first_response",
+          "label": "Genie's first response"
+        },
+        {
+          "offsetMs": 48600000,
+          "kind": "escalated",
+          "label": "Escalated"
+        },
+        {
+          "offsetMs": 432000000,
+          "kind": "resolved",
+          "label": "Resolved",
+          "status": "resolved"
+        },
+        {
+          "offsetMs": 518400000,
+          "kind": "closed",
+          "label": "Closed",
+          "status": "closed"
+        }
+      ],
+      "groundTruth": {
+        "firstResponseOffsetMs": 48600000,
+        "resolutionOffsetMs": 432000000,
+        "closedOffsetMs": 518400000,
+        "escalated": true,
+        "escalatedOffsetMs": null,
+        "finalStatus": "closed",
+        "expectedPath": [
+          "open",
+          "pending",
+          "resolved",
+          "closed"
+        ]
+      },
+      "redactionCount": 0
+    },
+    {
+      "schemaVersion": 1,
+      "id": "scn_f2ceb3619137",
+      "title": "Anniversary dinner reservation for two, rooftop preferred",
+      "category": "Dining",
+      "subcategory": "Restaurant Reservation",
+      "subcategoryBackfillNeeded": false,
+      "priority": "medium",
+      "openingMessage": "Hi, Rooftop table for two for an anniversary, sunset slot, for 19 Aug at 7:30 PM, for 2 guests. Can you help?",
+      "requestFields": [
+        {
+          "label": "Request",
+          "value": "Rooftop table for two for an anniversary, sunset slot"
+        },
+        {
+          "label": "Date",
+          "value": "19 Aug"
+        },
+        {
+          "label": "Time",
+          "value": "7:30 PM"
+        },
+        {
+          "label": "Guests",
+          "value": "2"
+        }
+      ],
+      "slaFirstResponseMinutes": 60,
+      "slaResolutionMinutes": 1440,
+      "events": [
+        {
+          "offsetMs": 0,
+          "kind": "member_opened",
+          "label": "Member's request arrives"
+        },
+        {
+          "offsetMs": 2100000,
+          "kind": "agent_first_response",
+          "label": "Genie's first response"
+        },
+        {
+          "offsetMs": 18000000,
+          "kind": "resolved",
+          "label": "Resolved",
+          "status": "resolved"
+        }
+      ],
+      "groundTruth": {
+        "firstResponseOffsetMs": 2100000,
+        "resolutionOffsetMs": 18000000,
+        "closedOffsetMs": null,
+        "escalated": false,
+        "escalatedOffsetMs": null,
+        "finalStatus": "resolved",
+        "expectedPath": [
+          "open",
+          "pending",
+          "resolved"
+        ]
+      },
+      "redactionCount": 0
+    },
+    {
+      "schemaVersion": 1,
+      "id": "scn_173087f33c92",
+      "title": "Birthday gift sourcing — limited-edition fountain pen",
+      "category": "Shopping",
+      "subcategory": "Gifting",
+      "subcategoryBackfillNeeded": false,
+      "priority": "urgent",
+      "openingMessage": "Hi, Source a limited-edition fountain pen as a birthday gift, for by 25 Aug, budget up to 40k. Can you help?",
+      "requestFields": [
+        {
+          "label": "Request",
+          "value": "Source a limited-edition fountain pen as a birthday gift"
+        },
+        {
+          "label": "Date",
+          "value": "by 25 Aug"
+        },
+        {
+          "label": "Budget",
+          "value": "up to 40k"
+        },
+        {
+          "label": "Gift Details",
+          "value": "navy barrel, medium nib, gift-wrapped"
+        }
+      ],
+      "slaFirstResponseMinutes": 60,
+      "slaResolutionMinutes": 1440,
+      "events": [
+        {
+          "offsetMs": 0,
+          "kind": "member_opened",
+          "label": "Member's request arrives"
+        },
+        {
+          "offsetMs": 3000000,
+          "kind": "agent_first_response",
+          "label": "Genie's first response"
+        },
+        {
+          "offsetMs": 356400000,
+          "kind": "resolved",
+          "label": "Resolved",
+          "status": "resolved"
+        }
+      ],
+      "groundTruth": {
+        "firstResponseOffsetMs": 3000000,
+        "resolutionOffsetMs": 356400000,
+        "closedOffsetMs": null,
+        "escalated": false,
+        "escalatedOffsetMs": null,
+        "finalStatus": "resolved",
+        "expectedPath": [
+          "open",
+          "pending",
+          "resolved"
+        ]
+      },
+      "redactionCount": 0
+    },
+    {
+      "schemaVersion": 1,
+      "id": "scn_e24fdc4619f8",
+      "title": "Yacht charter enquiry for a day trip, 6 guests",
+      "category": "Experiences",
+      "subcategory": null,
+      "subcategoryBackfillNeeded": true,
+      "priority": "urgent",
+      "openingMessage": "Hi, Half-day yacht charter for six guests with catering, for 2 Sep, for 6 guests, budget premium, flexible. Can you help?",
+      "requestFields": [
+        {
+          "label": "Request",
+          "value": "Half-day yacht charter for six guests with catering"
+        },
+        {
+          "label": "Date",
+          "value": "2 Sep"
+        },
+        {
+          "label": "Guests",
+          "value": "6"
+        },
+        {
+          "label": "Budget",
+          "value": "premium, flexible"
+        }
+      ],
+      "slaFirstResponseMinutes": 60,
+      "slaResolutionMinutes": 1440,
+      "events": [
+        {
+          "offsetMs": 0,
+          "kind": "member_opened",
+          "label": "Member's request arrives"
+        },
+        {
+          "offsetMs": 39600000,
+          "kind": "agent_first_response",
+          "label": "Genie's first response"
+        },
+        {
+          "offsetMs": 39600000,
+          "kind": "escalated",
+          "label": "Escalated"
+        },
+        {
+          "offsetMs": 280800000,
+          "kind": "resolved",
+          "label": "Resolved",
+          "status": "resolved"
+        },
+        {
+          "offsetMs": 367200000,
+          "kind": "closed",
+          "label": "Closed",
+          "status": "closed"
+        }
+      ],
+      "groundTruth": {
+        "firstResponseOffsetMs": 39600000,
+        "resolutionOffsetMs": 280800000,
+        "closedOffsetMs": 367200000,
+        "escalated": true,
+        "escalatedOffsetMs": null,
+        "finalStatus": "closed",
+        "expectedPath": [
+          "open",
+          "pending",
+          "resolved",
+          "closed"
+        ]
+      },
+      "redactionCount": 0
+    }
+  ]
+}
