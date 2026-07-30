@@ -16,14 +16,20 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as {
     groupId?: string;
     question?: string;
+    queendom?: string;
   } | null;
 
   const groupId = body?.groupId?.trim();
   const question = body?.question?.trim();
+  const queendom = body?.queendom?.trim();
   if (!groupId || !question) {
     return Response.json({ error: "groupId and question are required" }, { status: 400 });
   }
 
-  const result = await askChettoInsights(groupId, question);
+  const result = await askChettoInsights(
+    groupId,
+    question,
+    queendom ? { queendom } : undefined,
+  );
   return Response.json(result);
 }

@@ -1,0 +1,103 @@
+Chetto unmapped clients (92)
+Generated: 2026-07-02T11:23:51.822Z
+Reason: no_name_match (name could not be matched to Chetto group title)
+
+# | Client name | Queendom | Client ID | Atlas URL
+--|-------------|----------|-----------|----------
+1 | Aakash Anand | Unassigned | a1652f52-44b7-4306-9765-3adcb5d826f4 | /clients/a1652f52-44b7-4306-9765-3adcb5d826f4
+2 | Abhishek Garg | Unassigned | 572411ec-9e62-49ff-aa69-88a16de7b077 | /clients/572411ec-9e62-49ff-aa69-88a16de7b077
+3 | Abhishek Goyal | Ananyshree Queendom | ed5ee480-fa52-45b6-a186-bf638ff06f09 | /clients/ed5ee480-fa52-45b6-a186-bf638ff06f09
+4 | Abhishek Mohan Gupta (Abhishek & Akansha) | Ananyshree Queendom | 7040eb0d-c75f-4229-98bb-89a63d8bb3a1 | /clients/7040eb0d-c75f-4229-98bb-89a63d8bb3a1
+5 | Adarsh N R | Unassigned | 7075e6d1-bb8e-4f78-a56e-b7bd7f9901dc | /clients/7075e6d1-bb8e-4f78-a56e-b7bd7f9901dc
+6 | Adhiraj S. Agarwal (Swarup's Concierge) | Ananyshree Queendom | b1a4e02f-3599-4018-b174-d2065b002d48 | /clients/b1a4e02f-3599-4018-b174-d2065b002d48
+7 | Aditya Agrawal | Unassigned | 49e9f949-ba39-4bd8-a190-2ac97dc02a25 | /clients/49e9f949-ba39-4bd8-a190-2ac97dc02a25
+8 | Aditya Prasad (Mr. Aditya) | Ananyshree Queendom | 99928477-0343-4c75-8723-da9cb91fea04 | /clients/99928477-0343-4c75-8723-da9cb91fea04
+9 | Akshay Bardiya | Unassigned | babadee0-d58f-498b-b313-1cff2bdfc44d | /clients/babadee0-d58f-498b-b313-1cff2bdfc44d
+10 | Aman Agrawal | Unassigned | 5405a345-ea14-430c-8523-cd566a6f0033 | /clients/5405a345-ea14-430c-8523-cd566a6f0033
+11 | Amarjot Mokha | Ananyshree Queendom | 6b5d66a2-abd8-4058-be5c-5de9f7b0cdbe | /clients/6b5d66a2-abd8-4058-be5c-5de9f7b0cdbe
+12 | Amit's Concierge (Amit Sadana) | Ananyshree Queendom | 3cce1321-bd73-403a-8530-fbbfffcf5bb6 | /clients/3cce1321-bd73-403a-8530-fbbfffcf5bb6
+13 | Anant Sarda | Unassigned | bdedfae9-ca16-4361-add6-7ad63bb7e51b | /clients/bdedfae9-ca16-4361-add6-7ad63bb7e51b
+14 | Anay Chowdhary | Unassigned | 43e99f30-2a16-4adb-9961-bf3c9899d410 | /clients/43e99f30-2a16-4adb-9961-bf3c9899d410
+15 | Aniket Bharadia | Ananyshree Queendom | d5e39c7e-a07d-4c31-8b84-bf6ce6d50556 | /clients/d5e39c7e-a07d-4c31-8b84-bf6ce6d50556
+16 | Ankit Agrawal | Ananyshree Queendom | d537a78f-1018-4bef-a4b2-8f73fc1a5264 | /clients/d537a78f-1018-4bef-a4b2-8f73fc1a5264
+17 | Ankit Jain | Unassigned | e6abbffc-4467-4e04-95cc-42f6b9d56047 | /clients/e6abbffc-4467-4e04-95cc-42f6b9d56047
+18 | Ankit Kedia | Unassigned | 7b4ea0b6-c459-4064-8492-5b93c48aa90f | /clients/7b4ea0b6-c459-4064-8492-5b93c48aa90f
+19 | Annusaya Ripesh Bera | Unassigned | 3901a97e-f6f2-4841-be3d-327f7c1bf468 | /clients/3901a97e-f6f2-4841-be3d-327f7c1bf468
+20 | Anshul & Varsha | Unassigned | a9ff3031-2f9c-4e21-bf78-c5d43f27ea73 | /clients/a9ff3031-2f9c-4e21-bf78-c5d43f27ea73
+21 | Anshul Jindal | Unassigned | ce5931e0-a292-4fb4-ab5e-bfb45a8f3e3d | /clients/ce5931e0-a292-4fb4-ab5e-bfb45a8f3e3d
+22 | Anshul Mengi | Unassigned | f63b67a5-93ba-4ef1-b346-565947b25aea | /clients/f63b67a5-93ba-4ef1-b346-565947b25aea
+23 | Anu Mehta | Ananyshree Queendom | 12f56fcb-d80a-4c8c-9e56-339894d4c5ca | /clients/12f56fcb-d80a-4c8c-9e56-339894d4c5ca
+24 | Arnav Agrawal | Unassigned | 601d2bb9-c172-42c1-8640-361b66b9fc51 | /clients/601d2bb9-c172-42c1-8640-361b66b9fc51
+25 | Arpit Agrawal | Unassigned | b3c768cb-e8d6-4d12-8447-366665e8e722 | /clients/b3c768cb-e8d6-4d12-8447-366665e8e722
+26 | Arpit Parakh | Unassigned | ae085ed9-4a1a-4616-810e-9057d4d87898 | /clients/ae085ed9-4a1a-4616-810e-9057d4d87898
+27 | Ashish Singhania | Unassigned | f2d3e3e8-e00c-43ca-8784-41cf748705c0 | /clients/f2d3e3e8-e00c-43ca-8784-41cf748705c0
+28 | Atul Chordia | Ananyshree Queendom | 62272db5-2174-4686-81a3-8b528e915a56 | /clients/62272db5-2174-4686-81a3-8b528e915a56
+29 | Azara - Arjun Finance | Unassigned | 6e2da7ff-44d9-4466-90c3-e2024d1b3379 | /clients/6e2da7ff-44d9-4466-90c3-e2024d1b3379
+30 | Chandershekhar Chaurasia | Unassigned | cf066ad6-8d6f-40d6-b908-721a86526592 | /clients/cf066ad6-8d6f-40d6-b908-721a86526592
+31 | Debanshu's Concierge | Unassigned | 60af1138-5d52-4c9e-a704-7cac3d942830 | /clients/60af1138-5d52-4c9e-a704-7cac3d942830
+32 | Deepshikha Yadugiri | Ananyshree Queendom | 39e65c5c-1574-4331-8019-0efbab29b1fc | /clients/39e65c5c-1574-4331-8019-0efbab29b1fc
+33 | Dimpy Kaur | Unassigned | 0b952c98-13fd-4e3c-9237-23d86897069a | /clients/0b952c98-13fd-4e3c-9237-23d86897069a
+34 | Gail CEO Jio Mall | Unassigned | aeb196e9-0252-4465-b709-595119f97a82 | /clients/aeb196e9-0252-4465-b709-595119f97a82
+35 | Gursimran Singh Kochhar | Anishqa Queendom | af20b70c-c813-4b3d-b301-436e54284f19 | /clients/af20b70c-c813-4b3d-b301-436e54284f19
+36 | Harsh Binani | Unassigned | b77246eb-2501-478e-bc71-0e23972f6656 | /clients/b77246eb-2501-478e-bc71-0e23972f6656
+37 | Harsh Jain | Unassigned | ec502e03-37f1-4cd4-a831-47df8fe7dc32 | /clients/ec502e03-37f1-4cd4-a831-47df8fe7dc32
+38 | Indulge Hassan Ahmad's Concierge | Ananyshree Queendom | 1b0f4107-1265-47b8-b982-0311282183b3 | /clients/1b0f4107-1265-47b8-b982-0311282183b3
+39 | Ishaan Verma | Unassigned | 6f3a1d58-03e8-4ac8-b7ef-6c1a6b245afa | /clients/6f3a1d58-03e8-4ac8-b7ef-6c1a6b245afa
+40 | Jagdish Ladi | Ananyshree Queendom | 42d6b9fc-a8be-49e5-89af-e37a2870345f | /clients/42d6b9fc-a8be-49e5-89af-e37a2870345f
+41 | Jeet Chandan | Ananyshree Queendom | 91008b74-d5cf-4475-b271-282e0923a6de | /clients/91008b74-d5cf-4475-b271-282e0923a6de
+42 | Joseph Korah | Unassigned | 96945770-30c9-4e39-94d6-13bfae83200d | /clients/96945770-30c9-4e39-94d6-13bfae83200d
+43 | Joti Kaur | Anishqa Queendom | 390d5925-a91e-47aa-937a-bdd3b0217614 | /clients/390d5925-a91e-47aa-937a-bdd3b0217614
+44 | Karan Chopra (Chopra's Concierge) | Anishqa Queendom | caf34ecc-3c1b-419d-ab45-372dbf5618e4 | /clients/caf34ecc-3c1b-419d-ab45-372dbf5618e4
+45 | Karan Chopra Personal Concierge | Anishqa Queendom | 5208ec13-c6fa-4128-829f-2ee7455ff8ea | /clients/5208ec13-c6fa-4128-829f-2ee7455ff8ea
+46 | Kumar Manglam Singhania | Anishqa Queendom | 557d0621-58b1-4d48-9f9b-f6c8a7a6b088 | /clients/557d0621-58b1-4d48-9f9b-f6c8a7a6b088
+47 | Lakshay & Alia | Anishqa Queendom | 805c324e-8b61-4d5f-a2f4-b30a434894ff | /clients/805c324e-8b61-4d5f-a2f4-b30a434894ff
+48 | Madhu | Unassigned | 25c0c85b-4aef-4622-8682-b6656a4ce4cd | /clients/25c0c85b-4aef-4622-8682-b6656a4ce4cd
+49 | Madhu Varun | Unassigned | bc05dbc6-b51b-46da-97a7-c61a557275bd | /clients/bc05dbc6-b51b-46da-97a7-c61a557275bd
+50 | Mahesh Deshpande | Anishqa Queendom | 7829c2a5-d4de-4295-b162-2d9ce5ed2125 | /clients/7829c2a5-d4de-4295-b162-2d9ce5ed2125
+51 | Manish Shahra | Unassigned | c51bf672-39a6-4a98-af3c-739d29396eb2 | /clients/c51bf672-39a6-4a98-af3c-739d29396eb2
+52 | Mansi Dixit (Gunjesh Jain) | Ananyshree Queendom | 0a7aed2e-07dc-45c7-9a65-2104f667574b | /clients/0a7aed2e-07dc-45c7-9a65-2104f667574b
+53 | Manty | Unassigned | 1373db4d-e49b-4148-9ef3-e7fe3a9ccbf0 | /clients/1373db4d-e49b-4148-9ef3-e7fe3a9ccbf0
+54 | Manushi Chillar | Unassigned | 72a3d397-2a2f-4ba0-b361-761f4e664b1c | /clients/72a3d397-2a2f-4ba0-b361-761f4e664b1c
+55 | Mayur Kumar Jain | Anishqa Queendom | 8063823e-812d-4f73-abfc-c904b6442c51 | /clients/8063823e-812d-4f73-abfc-c904b6442c51
+56 | Mitesh & Rebecca | Unassigned | 87c0c543-5212-4091-98fb-242d9e861c55 | /clients/87c0c543-5212-4091-98fb-242d9e861c55
+57 | Mr Satish Naidu | Unassigned | 5b8d0d12-369b-4f5e-b637-8674496b1e2c | /clients/5b8d0d12-369b-4f5e-b637-8674496b1e2c
+58 | Mr Shreevardhan Khaitan | Unassigned | 07bc5228-4a99-493b-b4eb-7b0d1debf8b2 | /clients/07bc5228-4a99-493b-b4eb-7b0d1debf8b2
+59 | Mrinal Golechha | Unassigned | 700789ee-9c6a-4db4-8668-72fe41805b74 | /clients/700789ee-9c6a-4db4-8668-72fe41805b74
+60 | Ms. Chandana Penmatcha | Unassigned | 06374c6b-aaa7-4f58-a1d1-469f7e38fea5 | /clients/06374c6b-aaa7-4f58-a1d1-469f7e38fea5
+61 | Neha Rohit | Ananyshree Queendom | fbfe3a6f-f23c-41d3-a051-cec18a5d9e91 | /clients/fbfe3a6f-f23c-41d3-a051-cec18a5d9e91
+62 | Nikhil Verma and Shaila | Ananyshree Queendom | 962a1d88-9817-4c87-bc6c-05c3dcf0c137 | /clients/962a1d88-9817-4c87-bc6c-05c3dcf0c137
+63 | Nipun Agrawal | Unassigned | 30419c1d-228e-45da-960a-bd5a8113242d | /clients/30419c1d-228e-45da-960a-bd5a8113242d
+64 | Nishant Khetan | Unassigned | dcb91195-a1f0-4aea-9646-1477f1f39427 | /clients/dcb91195-a1f0-4aea-9646-1477f1f39427
+65 | Nitika Gupta | Unassigned | 3d429641-adf4-498a-880c-c98469391a3b | /clients/3d429641-adf4-498a-880c-c98469391a3b
+66 | Pooja Reddy | Unassigned | bd47ef4b-9da4-487e-bfe0-19f095504b5f | /clients/bd47ef4b-9da4-487e-bfe0-19f095504b5f
+67 | Pooja Sardana | Unassigned | d0ba5fe8-20f3-4cb2-bcaf-07b22205b9e7 | /clients/d0ba5fe8-20f3-4cb2-bcaf-07b22205b9e7
+68 | Prabhtej Bhatia | Unassigned | 6b1da5f9-f2c4-4a9a-b251-fef5ed20edc2 | /clients/6b1da5f9-f2c4-4a9a-b251-fef5ed20edc2
+69 | Pratiyancha Agarwal | Unassigned | 62dde6e2-0c73-4e69-8c54-0e16de05a352 | /clients/62dde6e2-0c73-4e69-8c54-0e16de05a352
+70 | Priyanka | Unassigned | 979ed252-71d2-4002-938a-c15e20b24edd | /clients/979ed252-71d2-4002-938a-c15e20b24edd
+71 | Rahul's Concierge | Unassigned | 841b7120-dcb2-48a7-9631-c3770950fe46 | /clients/841b7120-dcb2-48a7-9631-c3770950fe46
+72 | Rajat Bhalla | Ananyshree Queendom | 5068042b-c934-4ff8-8a6c-d2b0de950a15 | /clients/5068042b-c934-4ff8-8a6c-d2b0de950a15
+73 | Ramakrishna B K | Ananyshree Queendom | 6421f7c6-dde2-44ec-97df-e7f11b5bae2b | /clients/6421f7c6-dde2-44ec-97df-e7f11b5bae2b
+74 | Ravina & Riddhi 's Concierge | Unassigned | 8cbfde84-ae89-4ce2-b95f-87dd0c141c5b | /clients/8cbfde84-ae89-4ce2-b95f-87dd0c141c5b
+75 | Rishi Kajaria | Unassigned | 558ce67a-2c4a-489c-8c1c-43d8579c8988 | /clients/558ce67a-2c4a-489c-8c1c-43d8579c8988
+76 | Ruchir Jajoo | Unassigned | 60085ca1-8352-4dd1-851c-5a14ae7c62ed | /clients/60085ca1-8352-4dd1-851c-5a14ae7c62ed
+77 | Rupesh Kuche | Ananyshree Queendom | 722b3e42-156f-45b6-9e4d-8fe827d8961f | /clients/722b3e42-156f-45b6-9e4d-8fe827d8961f
+78 | Sailesh Dalmia | Ananyshree Queendom | 98b8168a-0621-484f-af29-e3bf42c4d99e | /clients/98b8168a-0621-484f-af29-e3bf42c4d99e
+79 | Sakshi Singh | Unassigned | 6789d555-b9b6-4cae-8b41-c6661dc2b245 | /clients/6789d555-b9b6-4cae-8b41-c6661dc2b245
+80 | Sanna Sarin | Unassigned | d1c3f280-343f-498d-9499-30cc4b4e88a0 | /clients/d1c3f280-343f-498d-9499-30cc4b4e88a0
+81 | Saurabh Agrawal | Unassigned | 9915a598-005f-4331-b992-0abb6850e7c2 | /clients/9915a598-005f-4331-b992-0abb6850e7c2
+82 | Saurabh Gulechha | Unassigned | 9faed0e2-cbe0-4493-afba-8b470c6dedf3 | /clients/9faed0e2-cbe0-4493-afba-8b470c6dedf3
+83 | Sharad Goyal | Unassigned | e3939e3d-16cc-4e52-944a-8cbb142da97e | /clients/e3939e3d-16cc-4e52-944a-8cbb142da97e
+84 | Shrenik Parakh | Unassigned | d91f4689-735f-4843-a736-60bc007e2571 | /clients/d91f4689-735f-4843-a736-60bc007e2571
+85 | Sidharth Menda | Unassigned | 42e49ddc-1201-4bd0-9ea6-b6fa66ef0357 | /clients/42e49ddc-1201-4bd0-9ea6-b6fa66ef0357
+86 | Srilakshmi Reddy | Ananyshree Queendom | 083e4133-bf09-43f8-bb75-4ec015795a78 | /clients/083e4133-bf09-43f8-bb75-4ec015795a78
+87 | Supal Doshi | Anishqa Queendom | 36730177-0e8a-4269-8bf4-1688fbd32136 | /clients/36730177-0e8a-4269-8bf4-1688fbd32136
+88 | Suraj Nambiar | Unassigned | 30f23232-9ae9-423d-ae7b-12facb9d047e | /clients/30f23232-9ae9-423d-ae7b-12facb9d047e
+89 | Vaibhav Goyal | Unassigned | 8837cab7-79de-4d59-8efd-50639e09e26b | /clients/8837cab7-79de-4d59-8efd-50639e09e26b
+90 | Varun Mehta (Mr. Mehta) | Ananyshree Queendom | 3e885e63-b8ea-4057-8f96-55d990f7f997 | /clients/3e885e63-b8ea-4057-8f96-55d990f7f997
+91 | Veda Krishnamurthy | Unassigned | 1b9811ae-ac87-4ed7-9574-b7d9a0a150e6 | /clients/1b9811ae-ac87-4ed7-9574-b7d9a0a150e6
+92 | Vidit | Unassigned | c28673a2-599c-4303-a15f-b53834dd470e | /clients/c28673a2-599c-4303-a15f-b53834dd470e
+
+--- By queendom ---
+Unassigned: 60
+Ananyshree Queendom: 23
+Anishqa Queendom: 9

@@ -12,6 +12,7 @@ export default async function WaBusinessPage() {
       <TopBar
         title="WA Business"
         subtitle="Gupshup bot conversations · read-only monitor"
+        hideDomainSwitcher
       />
       <div className="flex-1 min-h-0">
         <WaBusinessClient sessions={sessions} />

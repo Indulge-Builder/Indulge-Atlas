@@ -386,7 +386,12 @@ export function UnmappedMappingClient({
                           aria-hidden
                         />
                         <div className="min-w-0">
-                          <p className="font-medium text-stone-800">{name || "—"}</p>
+                          <Link
+                            href={`/clients/${c.id}`}
+                            className="font-medium text-stone-800 underline-offset-2 hover:underline"
+                          >
+                            {name || "—"}
+                          </Link>
                           {c.membership_type && (
                             <p className="text-[11px] text-stone-400">{c.membership_type}</p>
                           )}

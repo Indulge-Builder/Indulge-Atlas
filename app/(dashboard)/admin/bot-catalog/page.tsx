@@ -19,6 +19,7 @@ export default async function AdminBotCatalogPage() {
       <TopBar
         title="WhatsApp bot catalog"
         subtitle="Gupshup Elia recommendations — active items only reach live chats"
+        hideDomainSwitcher
       />
 
       <div className="mx-auto max-w-7xl px-4 py-4 md:px-6 md:py-8 lg:px-8">

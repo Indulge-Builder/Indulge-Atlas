@@ -22,6 +22,8 @@ const EMPLOYEE_DEPARTMENTS: EmployeeDepartment[] = [
   "legacy",
   "marketing",
   "onboarding",
+  "watcher",
+  "academy",
 ];
 
 export const indulgeDomainSchema = z.enum(

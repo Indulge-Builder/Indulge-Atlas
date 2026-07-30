@@ -1,0 +1,4451 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "joule",
+    "description": "Public API for the Chetto conversational intelligence platform.\n\n## Rate Limits\n\nAll endpoints are rate-limited to **60 requests per minute** per API key and endpoint.\nRequests exceeding this limit will receive a `429 Too Many Requests` response.\n",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "/joule"
+    }
+  ],
+  "paths": {
+    "/v1/groups/{group_id}/timeline": {
+      "get": {
+        "tags": [
+          "joule",
+          "Groups"
+        ],
+        "summary": "Get group timeline",
+        "description": "Returns a chronological message timeline for a specific group. Reactions and poll votes are aggregated onto their target message.Cursor-paginated via offset_id",
+        "operationId": "get_group_timeline_v1_groups__group_id__timeline_get",
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Group Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Max messages to return",
+              "default": 20,
+              "title": "Limit"
+            },
+            "description": "Max messages to return"
+          },
+          {
+            "name": "offset_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Cursor for pagination",
+              "title": "Offset Id"
+            },
+            "description": "Cursor for pagination"
+          },
+          {
+            "name": "org_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Org Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimelineResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/escalations": {
+      "get": {
+        "tags": [
+          "joule",
+          "Projections"
+        ],
+        "summary": "List escalations",
+        "description": "List escalation projections. Filter by organization, sub-organizations, or specific groups. Supports cursor-based pagination via offset_id.",
+        "operationId": "get_escalations_v1_escalations_get",
+        "parameters": [
+          {
+            "name": "group_ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by group IDs",
+              "title": "Group Ids"
+            },
+            "description": "Filter by group IDs"
+          },
+          {
+            "name": "org_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Organization ID for access control",
+              "title": "Org Id"
+            },
+            "description": "Organization ID for access control"
+          },
+          {
+            "name": "sub_org_ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Sub-organization IDs",
+              "title": "Sub Org Ids"
+            },
+            "description": "Sub-organization IDs"
+          },
+          {
+            "name": "from_ts",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Start timestamp (UTC)",
+              "title": "From Ts"
+            },
+            "description": "Start timestamp (UTC)"
+          },
+          {
+            "name": "to_ts",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "End timestamp (UTC)",
+              "title": "To Ts"
+            },
+            "description": "End timestamp (UTC)"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "description": "Max results per page",
+              "default": 1000,
+              "title": "Limit"
+            },
+            "description": "Max results per page"
+          },
+          {
+            "name": "offset_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Cursor from previous page (pid of last item)",
+              "title": "Offset Id"
+            },
+            "description": "Cursor from previous page (pid of last item)"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by status (e.g. Open, Acknowledged, Completed)",
+              "title": "Status"
+            },
+            "description": "Filter by status (e.g. Open, Acknowledged, Completed)"
+          },
+          {
+            "name": "label",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by escalation label (e.g. AtRisk, NotAtRisk)",
+              "title": "Label"
+            },
+            "description": "Filter by escalation label (e.g. AtRisk, NotAtRisk)"
+          },
+          {
+            "name": "include_summary",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Include conversation summary for each escalation",
+              "default": false,
+              "title": "Include Summary"
+            },
+            "description": "Include conversation summary for each escalation"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EscalationListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/agents": {
+      "get": {
+        "tags": [
+          "joule",
+          "Custom Agents"
+        ],
+        "summary": "List agents",
+        "description": "List custom agents accessible to the authenticated user.",
+        "operationId": "get_custom_agents_v1_agents_get",
+        "parameters": [
+          {
+            "name": "org_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Org Id"
+            }
+          },
+          {
+            "name": "sub_org_ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sub Org Ids"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": "active",
+              "title": "Status"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AgentSummary"
+                  },
+                  "title": "Response Get Custom Agents V1 Agents Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/agents/{agent_id}/projections": {
+      "get": {
+        "tags": [
+          "joule",
+          "Custom Agents"
+        ],
+        "summary": "List agent projections",
+        "description": "List projections extracted by a custom agent. Supports cursor-based pagination via offset_id.",
+        "operationId": "get_custom_agent_projections_v1_agents__agent_id__projections_get",
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Agent Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "description": "Max results per page",
+              "default": 1000,
+              "title": "Limit"
+            },
+            "description": "Max results per page"
+          },
+          {
+            "name": "offset_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Cursor from previous page (pid of last item)",
+              "title": "Offset Id"
+            },
+            "description": "Cursor from previous page (pid of last item)"
+          },
+          {
+            "name": "org_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Org Id"
+            }
+          },
+          {
+            "name": "sub_org_ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sub Org Ids"
+            }
+          },
+          {
+            "name": "group_ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Group Ids"
+            }
+          },
+          {
+            "name": "from_ts",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter: start timestamp (UTC)",
+              "title": "From Ts"
+            },
+            "description": "Filter: start timestamp (UTC)"
+          },
+          {
+            "name": "to_ts",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter: end timestamp (UTC)",
+              "title": "To Ts"
+            },
+            "description": "Filter: end timestamp (UTC)"
+          },
+          {
+            "name": "order_by",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Field to order by",
+              "default": "updated_at",
+              "title": "Order By"
+            },
+            "description": "Field to order by"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentProjectionListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/groups": {
+      "get": {
+        "tags": [
+          "joule",
+          "Groups"
+        ],
+        "summary": "List groups",
+        "description": "List all messaging groups accessible to the caller. Optionally scope to an organization with the org_id query parameter.",
+        "operationId": "get_all_groups_v1_groups_get",
+        "parameters": [
+          {
+            "name": "org_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Optional organization ID for access control",
+              "title": "Org Id"
+            },
+            "description": "Optional organization ID for access control"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GroupSummary"
+                  },
+                  "title": "Response Get All Groups V1 Groups Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/groups/{group_id}": {
+      "get": {
+        "tags": [
+          "joule",
+          "Groups"
+        ],
+        "summary": "Get group",
+        "description": "Get metadata for a specific messaging group.",
+        "operationId": "get_group_v1_groups__group_id__get",
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Group Id"
+            }
+          },
+          {
+            "name": "org_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Org Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/client": {
+      "get": {
+        "tags": [
+          "joule",
+          "Client"
+        ],
+        "summary": "Get client profile",
+        "description": "Retrieve the authenticated client's profile information.",
+        "operationId": "get_client_v2_client_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/insights/chat": {
+      "get": {
+        "tags": [
+          "joule",
+          "Chat"
+        ],
+        "summary": "List recent chats",
+        "description": "Retrieve recent chat sessions for the authenticated client, with cursor-based pagination.",
+        "operationId": "get_recent_chats_v1_insights_chat_get",
+        "parameters": [
+          {
+            "name": "last_chat_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Last chat ID for pagination",
+              "title": "Last Chat Id"
+            },
+            "description": "Last chat ID for pagination"
+          },
+          {
+            "name": "org_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Organization ID for access control",
+              "title": "Org Id"
+            },
+            "description": "Organization ID for access control"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ChatSummaryResponse"
+                  },
+                  "title": "Response Get Recent Chats V1 Insights Chat Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "joule",
+          "Chat"
+        ],
+        "summary": "Ask Chetto",
+        "description": "Send a message and receive streaming AI-generated insights based on your group conversations. The response is an NDJSON stream (`application/x-ndjson`) where each line is a JSON object.",
+        "operationId": "chat_endpoint_v1_insights_chat_post",
+        "parameters": [
+          {
+            "name": "org_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Optional organization ID for access control",
+              "title": "Org Id"
+            },
+            "description": "Optional organization ID for access control"
+          },
+          {
+            "name": "sub_org_ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Optional list of sub-organization IDs for access control",
+              "title": "Sub Org Ids"
+            },
+            "description": "Optional list of sub-organization IDs for access control"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "NDJSON stream. Each line is a JSON object with a `type` discriminator: `message` (progress), `done` (final result), or `error`.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "application/x-ndjson": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "additionalProperties": true,
+                      "properties": {
+                        "type": {
+                          "const": "message",
+                          "default": "message",
+                          "title": "Type",
+                          "type": "string"
+                        },
+                        "data": {
+                          "additionalProperties": true,
+                          "title": "Data",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "data"
+                      ],
+                      "title": "ChatStreamMessageLine",
+                      "type": "object"
+                    },
+                    {
+                      "$defs": {
+                        "ChatDoneData": {
+                          "additionalProperties": true,
+                          "properties": {
+                            "chat_id": {
+                              "title": "Chat Id",
+                              "type": "string"
+                            },
+                            "message_id": {
+                              "title": "Message Id",
+                              "type": "string"
+                            },
+                            "reply": {
+                              "title": "Reply",
+                              "type": "string"
+                            },
+                            "media": {
+                              "default": [],
+                              "items": {
+                                "additionalProperties": true,
+                                "type": "object"
+                              },
+                              "title": "Media",
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "chat_id",
+                            "message_id",
+                            "reply"
+                          ],
+                          "title": "ChatDoneData",
+                          "type": "object"
+                        }
+                      },
+                      "additionalProperties": true,
+                      "properties": {
+                        "type": {
+                          "const": "done",
+                          "default": "done",
+                          "title": "Type",
+                          "type": "string"
+                        },
+                        "data": {
+                          "$ref": "#/$defs/ChatDoneData"
+                        }
+                      },
+                      "required": [
+                        "data"
+                      ],
+                      "title": "ChatStreamDoneLine",
+                      "type": "object"
+                    },
+                    {
+                      "$defs": {
+                        "ChatErrorData": {
+                          "additionalProperties": true,
+                          "properties": {
+                            "status_code": {
+                              "title": "Status Code",
+                              "type": "integer"
+                            },
+                            "detail": {
+                              "title": "Detail",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "status_code",
+                            "detail"
+                          ],
+                          "title": "ChatErrorData",
+                          "type": "object"
+                        }
+                      },
+                      "additionalProperties": true,
+                      "properties": {
+                        "type": {
+                          "const": "error",
+                          "default": "error",
+                          "title": "Type",
+                          "type": "string"
+                        },
+                        "data": {
+                          "$ref": "#/$defs/ChatErrorData"
+                        }
+                      },
+                      "required": [
+                        "data"
+                      ],
+                      "title": "ChatStreamErrorLine",
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/insights/chat/{chat_id}": {
+      "get": {
+        "tags": [
+          "joule",
+          "Chat"
+        ],
+        "summary": "Get chat by ID",
+        "description": "Retrieve a single chat session by its ID, including the full message history.",
+        "operationId": "get_chat_by_id_v1_insights_chat__chat_id__get",
+        "parameters": [
+          {
+            "name": "chat_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Chat Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatDetailResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/organizations/": {
+      "get": {
+        "tags": [
+          "joule",
+          "Organizations"
+        ],
+        "summary": "List organizations",
+        "description": "List all organizations the authenticated user is a member of.",
+        "operationId": "get_organizations_v1_organizations__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/OrganizationResponse"
+                  },
+                  "type": "array",
+                  "title": "Response Get Organizations V1 Organizations  Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/organizations/{org_id}": {
+      "get": {
+        "tags": [
+          "joule",
+          "Organizations"
+        ],
+        "summary": "Get organization",
+        "description": "Get organization details by ID. Requires membership.",
+        "operationId": "get_organization_v1_organizations__org_id__get",
+        "parameters": [
+          {
+            "name": "org_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Org Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/stage-tracker/schedule": {
+      "get": {
+        "tags": [
+          "stage-tracker",
+          "Stage Tracker"
+        ],
+        "summary": "Get stage tracker workflow",
+        "description": "Get the active Stage Tracker workflow (schedule) for an organization — the ordered stages and substages a subject progresses through.",
+        "operationId": "get_schedule_v1_stage_tracker_schedule_get",
+        "parameters": [
+          {
+            "name": "org_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Organization ID",
+              "title": "Org Id"
+            },
+            "description": "Organization ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StageTrackerSchedule"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/stage-tracker/subjects": {
+      "get": {
+        "tags": [
+          "stage-tracker",
+          "Stage Tracker"
+        ],
+        "summary": "List tracked subjects",
+        "description": "List Stage Tracker subjects and their current progress for an organization, scoped to the groups accessible to the caller.",
+        "operationId": "list_subjects_v1_stage_tracker_subjects_get",
+        "parameters": [
+          {
+            "name": "org_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Organization ID",
+              "title": "Org Id"
+            },
+            "description": "Organization ID"
+          },
+          {
+            "name": "schedule_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by schedule",
+              "title": "Schedule Id"
+            },
+            "description": "Filter by schedule"
+          },
+          {
+            "name": "group_ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter to specific group IDs; omit to use all accessible groups",
+              "title": "Group Ids"
+            },
+            "description": "Filter to specific group IDs; omit to use all accessible groups"
+          },
+          {
+            "name": "sub_org_ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter to groups belonging to these sub-org IDs",
+              "title": "Sub Org Ids"
+            },
+            "description": "Filter to groups belonging to these sub-org IDs"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SubjectView"
+                  },
+                  "title": "Response List Subjects V1 Stage Tracker Subjects Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/stage-tracker/subjects/{subject_id}": {
+      "get": {
+        "tags": [
+          "stage-tracker",
+          "Stage Tracker"
+        ],
+        "summary": "Get subject progress",
+        "description": "Get a single Stage Tracker subject's current progress, including its fired-substage history and risk signals.",
+        "operationId": "get_subject_v1_stage_tracker_subjects__subject_id__get",
+        "parameters": [
+          {
+            "name": "subject_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Subject Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubjectView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/packs": {
+      "get": {
+        "tags": [
+          "Packs"
+        ],
+        "summary": "List Packs",
+        "operationId": "list_packs_v1_packs_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PackSummary"
+                  },
+                  "type": "array",
+                  "title": "Response List Packs V1 Packs Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/packs/{pack_id}": {
+      "get": {
+        "tags": [
+          "Packs"
+        ],
+        "summary": "Get Pack",
+        "operationId": "get_pack_v1_packs__pack_id__get",
+        "parameters": [
+          {
+            "name": "pack_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pack Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/packs/{pack_id}/skills/{skill_name}": {
+      "get": {
+        "tags": [
+          "Packs"
+        ],
+        "summary": "Get Skill",
+        "operationId": "get_skill_v1_packs__pack_id__skills__skill_name__get",
+        "parameters": [
+          {
+            "name": "pack_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pack Id"
+            }
+          },
+          {
+            "name": "skill_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Skill Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillContent"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/packs/{pack_id}/install": {
+      "post": {
+        "tags": [
+          "Packs"
+        ],
+        "summary": "Install Pack",
+        "operationId": "install_pack_v1_packs__pack_id__install_post",
+        "parameters": [
+          {
+            "name": "pack_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pack Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackInstallResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/packs/{pack_id}/uninstall": {
+      "post": {
+        "tags": [
+          "Packs"
+        ],
+        "summary": "Uninstall Pack",
+        "operationId": "uninstall_pack_v1_packs__pack_id__uninstall_post",
+        "parameters": [
+          {
+            "name": "pack_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pack Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackUninstallResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/role-requests": {
+      "post": {
+        "tags": [
+          "role-requests",
+          "Role Requests"
+        ],
+        "summary": "Request a role",
+        "description": "Request access to an additional platform role for the authenticated client. Currently the only requestable role is `agent`. Returns 409 if a pending request already exists or the client already has the role.",
+        "operationId": "create_role_request_v1_role_requests_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRoleRequestBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleRequestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AgentProjection": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Unique projection ID"
+          },
+          "agent_id": {
+            "type": "string",
+            "title": "Agent Id",
+            "description": "Agent ID that generated this projection"
+          },
+          "group_id": {
+            "type": "string",
+            "title": "Group Id",
+            "description": "Group ID"
+          },
+          "group_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Name",
+            "description": "Group display name"
+          },
+          "group_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Type",
+            "description": "Group type (e.g., 'group', 'channel')"
+          },
+          "projection": {
+            "title": "Projection",
+            "description": "Agent-specific projection data. Schema varies by agent"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At",
+            "description": "UTC timestamp of creation"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At",
+            "description": "UTC timestamp of last update"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "agent_id",
+          "group_id",
+          "projection"
+        ],
+        "title": "AgentProjection",
+        "description": "Public API response shape for a custom agent projection."
+      },
+      "AgentProjectionListResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/AgentProjection"
+            },
+            "type": "array",
+            "title": "Data",
+            "description": "List of projections"
+          },
+          "next_offset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Offset Id",
+            "description": "Cursor for next page (projection ID)"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "AgentProjectionListResponse",
+        "description": "Response for listing custom agent projections."
+      },
+      "AgentSummary": {
+        "properties": {
+          "agent_id": {
+            "type": "string",
+            "title": "Agent Id",
+            "description": "Unique agent ID"
+          },
+          "gid": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gid",
+            "description": "Group IDs the agent monitors"
+          },
+          "agent_display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Display Name",
+            "description": "Display name of the agent"
+          },
+          "agent_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Status",
+            "description": "Agent status (active, inactive, etc.)"
+          },
+          "group_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Name",
+            "description": "Comma-separated names of monitored groups"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "agent_id"
+        ],
+        "title": "AgentSummary",
+        "description": "Public API response shape for a custom agent."
+      },
+      "ChatDetailResponse": {
+        "properties": {
+          "chat_id": {
+            "type": "string",
+            "title": "Chat Id"
+          },
+          "phone_number": {
+            "type": "string",
+            "title": "Phone Number"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id"
+          },
+          "chat": {
+            "items": {
+              "$ref": "#/components/schemas/MessageResponse"
+            },
+            "type": "array",
+            "title": "Chat"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "g_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "G Ids",
+            "default": []
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "default": "web"
+          },
+          "organization_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organization Id"
+          },
+          "sub_org_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sub Org Ids"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "chat_id",
+          "phone_number",
+          "chat"
+        ],
+        "title": "ChatDetailResponse"
+      },
+      "ChatRequest": {
+        "properties": {
+          "new_message": {
+            "type": "string",
+            "title": "New Message"
+          },
+          "chat_id": {
+            "type": "string",
+            "title": "Chat Id"
+          },
+          "group_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Group Ids",
+            "default": []
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Id"
+          },
+          "initial_context": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Initial Context",
+            "default": []
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "new_message"
+        ],
+        "title": "ChatRequest"
+      },
+      "ChatSummaryResponse": {
+        "properties": {
+          "chat_id": {
+            "type": "string",
+            "title": "Chat Id"
+          },
+          "organization_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organization Id"
+          },
+          "sub_org_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sub Org Ids"
+          },
+          "g_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "G Ids",
+            "default": []
+          },
+          "first_user_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First User Message"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "chat_id"
+        ],
+        "title": "ChatSummaryResponse"
+      },
+      "ClientResponse": {
+        "properties": {
+          "client_id": {
+            "type": "string",
+            "title": "Client Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "phone_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone Number"
+          },
+          "active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "client_id"
+        ],
+        "title": "ClientResponse"
+      },
+      "CompletionMode": {
+        "type": "string",
+        "enum": [
+          "all",
+          "any"
+        ],
+        "title": "CompletionMode",
+        "description": "How a stage decides it is complete."
+      },
+      "CreateRoleRequestBody": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "title": "Role"
+          }
+        },
+        "type": "object",
+        "required": [
+          "role"
+        ],
+        "title": "CreateRoleRequestBody"
+      },
+      "CustomFieldDef": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "$ref": "#/components/schemas/CustomFieldType"
+          },
+          "required": {
+            "type": "boolean",
+            "title": "Required",
+            "default": false
+          },
+          "options": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Options"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "type"
+        ],
+        "title": "CustomFieldDef",
+        "description": "A configurable field that's captured either on the subject (at creation)\nor on a substage fire (at event time)."
+      },
+      "CustomFieldType": {
+        "type": "string",
+        "enum": [
+          "text",
+          "number",
+          "date",
+          "single_select",
+          "multi_select",
+          "url",
+          "boolean"
+        ],
+        "title": "CustomFieldType"
+      },
+      "DetectionMethod": {
+        "type": "string",
+        "enum": [
+          "llm_event_type",
+          "keyword",
+          "regex",
+          "manual"
+        ],
+        "title": "DetectionMethod",
+        "description": "How the system identifies that a substage has fired from incoming signals."
+      },
+      "DetectionRule": {
+        "properties": {
+          "method": {
+            "$ref": "#/components/schemas/DetectionMethod"
+          },
+          "pattern": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pattern"
+          },
+          "case_sensitive": {
+            "type": "boolean",
+            "title": "Case Sensitive",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "method"
+        ],
+        "title": "DetectionRule",
+        "description": "One rule for detecting a substage. A substage may have multiple rules\n(treated as OR — any match fires the substage)."
+      },
+      "EscalationListResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/EscalationSummary"
+            },
+            "type": "array",
+            "title": "Data",
+            "description": "List of escalations"
+          },
+          "next_offset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Offset Id",
+            "description": "Cursor for next page (projection ID)"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "EscalationListResponse",
+        "description": "Response for listing escalations."
+      },
+      "EscalationSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Unique escalation ID"
+          },
+          "group_id": {
+            "type": "string",
+            "title": "Group Id",
+            "description": "Group ID"
+          },
+          "group_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Name",
+            "description": "Group display name"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "Escalation classification: 'AtRisk' or 'NotAtRisk'"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title",
+            "description": "Short title describing the escalation"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "Detailed explanation of why this is an escalation"
+          },
+          "signals": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signals",
+            "description": "Trigger signals (e.g., service_failure_framing, explicit_dissatisfaction)"
+          },
+          "evidence": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence",
+            "description": "Customer quotes from the latest message supporting the escalation"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status",
+            "description": "Resolution status (e.g., Open, Completed)"
+          },
+          "feedback": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feedback",
+            "description": "User feedback on escalation"
+          },
+          "cids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cids",
+            "description": "Related conversation IDs"
+          },
+          "opened_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opened At",
+            "description": "UTC timestamp when escalation was opened"
+          },
+          "acknowledged_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acknowledged At",
+            "description": "UTC timestamp when escalation was acknowledged"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At",
+            "description": "UTC timestamp of detection"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At",
+            "description": "UTC timestamp of last update"
+          },
+          "sub_org_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sub Org Id",
+            "description": "Sub-organization that owns the group"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary",
+            "description": "Conversation summary (only when include_summary=true)"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "group_id",
+          "label"
+        ],
+        "title": "EscalationSummary",
+        "description": "Public API response shape for an escalation."
+      },
+      "EventSource": {
+        "type": "string",
+        "enum": [
+          "llm",
+          "keyword",
+          "regex",
+          "manual",
+          "webhook",
+          "inferred"
+        ],
+        "title": "EventSource"
+      },
+      "FiredSubstage": {
+        "properties": {
+          "substage_id": {
+            "type": "string",
+            "title": "Substage Id"
+          },
+          "stage_id": {
+            "type": "string",
+            "title": "Stage Id"
+          },
+          "fired_at": {
+            "type": "number",
+            "title": "Fired At"
+          },
+          "fired_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fired By"
+          },
+          "source": {
+            "$ref": "#/components/schemas/EventSource"
+          },
+          "projection_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Projection Id"
+          },
+          "conversation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversation Id"
+          },
+          "evidence_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Ref"
+          },
+          "custom_field_values": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Custom Field Values"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "substage_id",
+          "stage_id",
+          "fired_at",
+          "source"
+        ],
+        "title": "FiredSubstage",
+        "description": "One recorded occurrence of a substage."
+      },
+      "GroupSummary": {
+        "properties": {
+          "group_id": {
+            "type": "string",
+            "title": "Group Id",
+            "description": "Unique identifier of the group"
+          },
+          "group_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Name",
+            "description": "Display name of the group"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "Description of the group"
+          },
+          "company_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company Name",
+            "description": "Company name associated with the group"
+          },
+          "valid": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid",
+            "description": "Whether the group is active"
+          },
+          "created_at_utc": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At Utc",
+            "description": "UTC timestamp of creation"
+          },
+          "updated_at_utc": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At Utc",
+            "description": "UTC timestamp of last update"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "group_id"
+        ],
+        "title": "GroupSummary",
+        "description": "Public API response shape for a messaging group."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "MessageResponse": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "message_id": {
+            "type": "string",
+            "title": "Message Id"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "role",
+          "content",
+          "message_id"
+        ],
+        "title": "MessageResponse"
+      },
+      "OrganizationMemberResponse": {
+        "properties": {
+          "phone_number": {
+            "type": "string",
+            "title": "Phone Number",
+            "description": "Phone number of the member"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role",
+            "description": "Role of the member in the organization"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "phone_number",
+          "role"
+        ],
+        "title": "OrganizationMemberResponse",
+        "description": "Public API response shape for an organization member."
+      },
+      "OrganizationResponse": {
+        "properties": {
+          "org_id": {
+            "type": "string",
+            "title": "Org Id",
+            "description": "Unique identifier of the organization"
+          },
+          "org_name": {
+            "type": "string",
+            "title": "Org Name",
+            "description": "Name of the organization"
+          },
+          "valid": {
+            "type": "boolean",
+            "title": "Valid",
+            "description": "Whether the organization is active",
+            "default": true
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By",
+            "description": "Phone number of the creator"
+          },
+          "access_members": {
+            "items": {
+              "$ref": "#/components/schemas/OrganizationMemberResponse"
+            },
+            "type": "array",
+            "title": "Access Members"
+          },
+          "group_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Group Ids",
+            "description": "Group IDs in this organization"
+          },
+          "org_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Org Type",
+            "description": "Organization type (public or private)"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id",
+            "description": "Parent organization ID"
+          },
+          "created_at": {
+            "type": "number",
+            "title": "Created At",
+            "description": "UTC timestamp when the organization was created"
+          },
+          "updated_at": {
+            "type": "number",
+            "title": "Updated At",
+            "description": "UTC timestamp when the organization was last updated"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "org_id",
+          "org_name",
+          "created_by",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "OrganizationResponse",
+        "description": "Public API response shape for an organization."
+      },
+      "OutcomeCategory": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/OutcomeKind"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "kind"
+        ],
+        "title": "OutcomeCategory",
+        "description": "A categorized end state (e.g., \"Won-Price\", \"Lost-Timing\", \"Abandoned\").\nUsed to attribute terminal substage fires to a reason."
+      },
+      "OutcomeKind": {
+        "type": "string",
+        "enum": [
+          "success",
+          "failure",
+          "neutral"
+        ],
+        "title": "OutcomeKind"
+      },
+      "OwnerSource": {
+        "type": "string",
+        "enum": [
+          "first_sender",
+          "configured",
+          "extracted"
+        ],
+        "title": "OwnerSource"
+      },
+      "PackDetail": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "always_installed": {
+            "type": "boolean",
+            "title": "Always Installed"
+          },
+          "content_hash": {
+            "type": "string",
+            "title": "Content Hash"
+          },
+          "skills": {
+            "items": {
+              "$ref": "#/components/schemas/SkillContent"
+            },
+            "type": "array",
+            "title": "Skills"
+          },
+          "connectors": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Connectors"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "display_name",
+          "description",
+          "version",
+          "always_installed",
+          "content_hash",
+          "skills",
+          "connectors"
+        ],
+        "title": "PackDetail"
+      },
+      "PackInstallResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "content_hash": {
+            "type": "string",
+            "title": "Content Hash"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "content_hash"
+        ],
+        "title": "PackInstallResponse"
+      },
+      "PackSummary": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "always_installed": {
+            "type": "boolean",
+            "title": "Always Installed"
+          },
+          "skill_count": {
+            "type": "integer",
+            "title": "Skill Count"
+          },
+          "content_hash": {
+            "type": "string",
+            "title": "Content Hash"
+          },
+          "skills": {
+            "items": {
+              "$ref": "#/components/schemas/SkillSummary"
+            },
+            "type": "array",
+            "title": "Skills"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "display_name",
+          "description",
+          "version",
+          "always_installed",
+          "skill_count",
+          "content_hash",
+          "skills"
+        ],
+        "title": "PackSummary"
+      },
+      "PackUninstallResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "PackUninstallResponse"
+      },
+      "PollOption": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id",
+            "description": "Option ID"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "Option text"
+          },
+          "vote_count": {
+            "type": "integer",
+            "title": "Vote Count",
+            "description": "Number of votes for this option",
+            "default": 0
+          },
+          "voters": {
+            "items": {
+              "$ref": "#/components/schemas/PollVoter"
+            },
+            "type": "array",
+            "title": "Voters",
+            "description": "Members who voted for this option"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "PollOption",
+        "description": "A single poll option with its voters."
+      },
+      "PollVoter": {
+        "properties": {
+          "phone_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone No",
+            "description": "Voter phone number"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "Voter display name"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "PollVoter",
+        "description": "A member who voted for a poll option."
+      },
+      "PollWidget": {
+        "properties": {
+          "question": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Question",
+            "description": "Poll question"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/PollOption"
+            },
+            "type": "array",
+            "title": "Options",
+            "description": "Poll options with voters"
+          },
+          "total_voters": {
+            "type": "integer",
+            "title": "Total Voters",
+            "description": "Total distinct voters across all options",
+            "default": 0
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "PollWidget",
+        "description": "Aggregated poll widget attached to a POLL message."
+      },
+      "Progress": {
+        "properties": {
+          "progress_id": {
+            "type": "string",
+            "title": "Progress Id"
+          },
+          "subject_id": {
+            "type": "string",
+            "title": "Subject Id"
+          },
+          "schedule_id": {
+            "type": "string",
+            "title": "Schedule Id"
+          },
+          "schedule_version": {
+            "type": "integer",
+            "title": "Schedule Version"
+          },
+          "org_id": {
+            "type": "string",
+            "title": "Org Id"
+          },
+          "group_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Id"
+          },
+          "current_stage_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Stage Id"
+          },
+          "current_substage_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Substage Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ProgressStatus",
+            "default": "not_started"
+          },
+          "progress_percent": {
+            "type": "integer",
+            "maximum": 100,
+            "minimum": 0,
+            "title": "Progress Percent",
+            "default": 0
+          },
+          "days_in_current_stage": {
+            "type": "integer",
+            "title": "Days In Current Stage",
+            "default": 0
+          },
+          "last_event_ts": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Event Ts"
+          },
+          "terminal_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Terminal At"
+          },
+          "fired_substages": {
+            "items": {
+              "$ref": "#/components/schemas/FiredSubstage"
+            },
+            "type": "array",
+            "title": "Fired Substages"
+          },
+          "risk_signals": {
+            "items": {
+              "$ref": "#/components/schemas/RiskSignal"
+            },
+            "type": "array",
+            "title": "Risk Signals"
+          },
+          "next_expected_substage_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Next Expected Substage Ids"
+          },
+          "outcome_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome Id"
+          },
+          "outcome_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome Reason"
+          },
+          "created_at": {
+            "type": "number",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "number",
+            "title": "Updated At"
+          },
+          "valid": {
+            "type": "boolean",
+            "title": "Valid",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "subject_id",
+          "schedule_id",
+          "schedule_version",
+          "org_id"
+        ],
+        "title": "Progress",
+        "description": "Derived state for one Subject. Updated on every fire and by periodic\nrecompute jobs (for time-based signals like missed-deadline)."
+      },
+      "ProgressStatus": {
+        "type": "string",
+        "enum": [
+          "not_started",
+          "on_track",
+          "at_risk",
+          "delayed",
+          "blocked",
+          "completed_success",
+          "completed_failure",
+          "paused",
+          "abandoned"
+        ],
+        "title": "ProgressStatus"
+      },
+      "ProgressionMode": {
+        "type": "string",
+        "enum": [
+          "inferred",
+          "strict"
+        ],
+        "title": "ProgressionMode",
+        "description": "How the schedule treats progression through stages.\n\nINFERRED: when a substage in stage N fires, every substage in stages\n1..N-1 is auto-fired as ``EventSource.INFERRED``. Useful when the LLM\ndetection is noisy and we trust that reaching a later stage implies the\nearlier stages happened.\n\nSTRICT: no backfill. Only substages that were actually detected get\nfired. Required when the client cares about strict adherence (did each\nexpected event actually occur?)."
+      },
+      "RiskSeverity": {
+        "type": "string",
+        "enum": [
+          "info",
+          "warning",
+          "critical"
+        ],
+        "title": "RiskSeverity"
+      },
+      "RiskSignal": {
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/RiskType"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/RiskSeverity"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "detected_at": {
+            "type": "number",
+            "title": "Detected At"
+          },
+          "substage_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Substage Id"
+          },
+          "stage_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage Id"
+          },
+          "expected_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected At"
+          },
+          "evidence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "severity",
+          "summary",
+          "detected_at"
+        ],
+        "title": "RiskSignal"
+      },
+      "RiskType": {
+        "type": "string",
+        "enum": [
+          "missed_deadline",
+          "stale",
+          "stuck_at_stage",
+          "repeated_fire",
+          "substage_overdue",
+          "stage_overdue"
+        ],
+        "title": "RiskType"
+      },
+      "RoleRequestResponse": {
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "title": "Request Id"
+          },
+          "client_id": {
+            "type": "string",
+            "title": "Client Id"
+          },
+          "client_name": {
+            "type": "string",
+            "title": "Client Name"
+          },
+          "client_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Email"
+          },
+          "requested_role": {
+            "type": "string",
+            "title": "Requested Role"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "request_id",
+          "client_id",
+          "client_name",
+          "requested_role",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "RoleRequestResponse"
+      },
+      "ScheduleSnapshot": {
+        "properties": {
+          "schedule_id": {
+            "type": "string",
+            "title": "Schedule Id"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "stage_count": {
+            "type": "integer",
+            "title": "Stage Count"
+          },
+          "substage_count": {
+            "type": "integer",
+            "title": "Substage Count"
+          },
+          "duration_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Days"
+          },
+          "timezone": {
+            "type": "string",
+            "title": "Timezone"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "schedule_id",
+          "version",
+          "name",
+          "stage_count",
+          "substage_count",
+          "duration_days",
+          "timezone"
+        ],
+        "title": "ScheduleSnapshot",
+        "description": "Minimal projection of a schedule for embedding in API responses.\n\nAvoids re-sending the full StageTrackerSchedule every time — clients can fetch\nthe full schedule once and key views by schedule_id + version."
+      },
+      "ScheduleTiming": {
+        "properties": {
+          "duration_days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Days"
+          },
+          "timezone": {
+            "type": "string",
+            "title": "Timezone",
+            "default": "Asia/Kolkata"
+          },
+          "start_anchor": {
+            "$ref": "#/components/schemas/StartAnchor",
+            "default": "subject_creation"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ScheduleTiming",
+        "description": "Top-level timing for the whole workflow."
+      },
+      "SkillContent": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SkillSource"
+          },
+          "body": {
+            "type": "string",
+            "title": "Body",
+            "description": "Raw skill file contents, including YAML front-matter."
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "description",
+          "source",
+          "body"
+        ],
+        "title": "SkillContent"
+      },
+      "SkillSource": {
+        "type": "string",
+        "enum": [
+          "system",
+          "pack",
+          "private"
+        ],
+        "title": "SkillSource"
+      },
+      "SkillSummary": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SkillSource"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "description",
+          "source"
+        ],
+        "title": "SkillSummary"
+      },
+      "StageDef": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "order": {
+            "type": "integer",
+            "title": "Order",
+            "default": 0
+          },
+          "is_optional": {
+            "type": "boolean",
+            "title": "Is Optional",
+            "default": false
+          },
+          "is_terminal_success": {
+            "type": "boolean",
+            "title": "Is Terminal Success",
+            "default": false
+          },
+          "is_terminal_failure": {
+            "type": "boolean",
+            "title": "Is Terminal Failure",
+            "default": false
+          },
+          "completion_mode": {
+            "$ref": "#/components/schemas/CompletionMode",
+            "default": "all"
+          },
+          "sla_hours": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sla Hours"
+          },
+          "substages": {
+            "items": {
+              "$ref": "#/components/schemas/SubstageDef"
+            },
+            "type": "array",
+            "title": "Substages"
+          },
+          "default_owner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Owner"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "StageDef",
+        "description": "A group of substages representing one phase of the workflow."
+      },
+      "StageTrackerSchedule": {
+        "properties": {
+          "schedule_id": {
+            "type": "string",
+            "title": "Schedule Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version",
+            "default": 1
+          },
+          "business_context": {
+            "type": "string",
+            "title": "Business Context",
+            "default": ""
+          },
+          "assigned_group_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned Group Id"
+          },
+          "subject_config": {
+            "$ref": "#/components/schemas/SubjectConfig"
+          },
+          "timing": {
+            "$ref": "#/components/schemas/ScheduleTiming"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/StageDef"
+            },
+            "type": "array",
+            "title": "Stages"
+          },
+          "outcome_categories": {
+            "items": {
+              "$ref": "#/components/schemas/OutcomeCategory"
+            },
+            "type": "array",
+            "title": "Outcome Categories"
+          },
+          "subject_custom_fields": {
+            "items": {
+              "$ref": "#/components/schemas/CustomFieldDef"
+            },
+            "type": "array",
+            "title": "Subject Custom Fields"
+          },
+          "llm_prompt_template": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Prompt Template"
+          },
+          "progression_mode": {
+            "$ref": "#/components/schemas/ProgressionMode",
+            "default": "inferred"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "StageTrackerSchedule",
+        "description": "The full workflow definition stored on a catalogue instance.\n\nThis is the immutable-ish config that produces Subjects. Edits bump `version`;\nin-flight subjects retain a pointer to the version they were created against."
+      },
+      "StartAnchor": {
+        "type": "string",
+        "enum": [
+          "subject_creation",
+          "first_event",
+          "configured"
+        ],
+        "title": "StartAnchor"
+      },
+      "Subject": {
+        "properties": {
+          "subject_id": {
+            "type": "string",
+            "title": "Subject Id"
+          },
+          "schedule_id": {
+            "type": "string",
+            "title": "Schedule Id"
+          },
+          "schedule_version": {
+            "type": "integer",
+            "title": "Schedule Version"
+          },
+          "subject_key": {
+            "type": "string",
+            "title": "Subject Key"
+          },
+          "org_id": {
+            "type": "string",
+            "title": "Org Id"
+          },
+          "group_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Id"
+          },
+          "subject_name": {
+            "type": "string",
+            "title": "Subject Name"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner"
+          },
+          "subject_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject Value"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          },
+          "custom_field_values": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Custom Field Values"
+          },
+          "start_date": {
+            "type": "number",
+            "title": "Start Date"
+          },
+          "target_end_date": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target End Date"
+          },
+          "paused_until": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paused Until"
+          },
+          "cycle_number": {
+            "type": "integer",
+            "title": "Cycle Number",
+            "default": 1
+          },
+          "lifecycle": {
+            "$ref": "#/components/schemas/SubjectLifecycle",
+            "default": "active"
+          },
+          "created_at": {
+            "type": "number",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "number",
+            "title": "Updated At"
+          },
+          "valid": {
+            "type": "boolean",
+            "title": "Valid",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "schedule_id",
+          "schedule_version",
+          "subject_key",
+          "org_id",
+          "subject_name",
+          "start_date"
+        ],
+        "title": "Subject",
+        "description": "One tracked instance of a workflow."
+      },
+      "SubjectConfig": {
+        "properties": {
+          "subject_type": {
+            "$ref": "#/components/schemas/SubjectType",
+            "default": "group"
+          },
+          "custom_entity_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Entity Name"
+          },
+          "name_source": {
+            "$ref": "#/components/schemas/SubjectNameSource",
+            "default": "group_name"
+          },
+          "name_literal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name Literal"
+          },
+          "owner_source": {
+            "$ref": "#/components/schemas/OwnerSource",
+            "default": "first_sender"
+          },
+          "owner_configured": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Configured"
+          },
+          "value_field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Field"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "SubjectConfig",
+        "description": "How a Subject's identity, name, and owner are determined."
+      },
+      "SubjectLifecycle": {
+        "type": "string",
+        "enum": [
+          "active",
+          "paused",
+          "archived"
+        ],
+        "title": "SubjectLifecycle"
+      },
+      "SubjectNameSource": {
+        "type": "string",
+        "enum": [
+          "group_name",
+          "extracted",
+          "literal"
+        ],
+        "title": "SubjectNameSource"
+      },
+      "SubjectType": {
+        "type": "string",
+        "enum": [
+          "group",
+          "custom"
+        ],
+        "title": "SubjectType"
+      },
+      "SubjectView": {
+        "properties": {
+          "subject": {
+            "$ref": "#/components/schemas/Subject"
+          },
+          "progress": {
+            "$ref": "#/components/schemas/Progress"
+          },
+          "schedule": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScheduleSnapshot"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "subject",
+          "progress"
+        ],
+        "title": "SubjectView",
+        "description": "A combined Subject + Progress view, suitable for API responses."
+      },
+      "SubstageDef": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "order": {
+            "type": "integer",
+            "title": "Order",
+            "default": 0
+          },
+          "is_required": {
+            "type": "boolean",
+            "title": "Is Required",
+            "default": true
+          },
+          "is_terminal_for_stage": {
+            "type": "boolean",
+            "title": "Is Terminal For Stage",
+            "default": false
+          },
+          "synthetic": {
+            "type": "boolean",
+            "title": "Synthetic",
+            "default": false
+          },
+          "weight": {
+            "type": "number",
+            "minimum": 0,
+            "title": "Weight",
+            "default": 1
+          },
+          "timing": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TimingRule"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "detection_rules": {
+            "items": {
+              "$ref": "#/components/schemas/DetectionRule"
+            },
+            "type": "array",
+            "title": "Detection Rules"
+          },
+          "custom_fields": {
+            "items": {
+              "$ref": "#/components/schemas/CustomFieldDef"
+            },
+            "type": "array",
+            "title": "Custom Fields"
+          },
+          "default_owner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Owner"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "SubstageDef",
+        "description": "A single tracked step within a Stage. The natural unit of progress."
+      },
+      "TimelineMessage": {
+        "properties": {
+          "msg_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Msg Id",
+            "description": "Provider message ID"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id",
+            "description": "Event ID; also the pagination cursor value"
+          },
+          "message_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message Text",
+            "description": "Message text content (mentions resolved to names)"
+          },
+          "phone_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone No",
+            "description": "Sender phone number"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "Sender display name (resolved via phonebook)"
+          },
+          "group_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Id",
+            "description": "Group ID"
+          },
+          "group_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Name",
+            "description": "Canonical group display name"
+          },
+          "media_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Media Id",
+            "description": "Media ID, if the message has media"
+          },
+          "created_at": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At",
+            "description": "Message timestamp"
+          },
+          "edited": {
+            "type": "boolean",
+            "title": "Edited",
+            "description": "Whether the message was edited",
+            "default": false
+          },
+          "from_me": {
+            "type": "boolean",
+            "title": "From Me",
+            "description": "Whether the message was sent by the authenticated user",
+            "default": false
+          },
+          "mentions": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mentions",
+            "description": "Resolved mention names in the message"
+          },
+          "quoted_msg": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TimelineQuotedMessage"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The replied-to message, if any"
+          },
+          "reactions": {
+            "items": {
+              "$ref": "#/components/schemas/TimelineReaction"
+            },
+            "type": "array",
+            "title": "Reactions",
+            "description": "Emoji reactions aggregated onto this message"
+          },
+          "poll": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PollWidget"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Poll widget, present only on POLL messages"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "TimelineMessage",
+        "description": "A single message in a group timeline.\n\nReactions and poll votes are aggregated onto their target message; standalone\nreaction, vote, edited, and unrenderable (\"[UNKNOWN CONTENT]\") rows are excluded."
+      },
+      "TimelineQuotedMessage": {
+        "properties": {
+          "msg_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Msg Id",
+            "description": "Provider message ID"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id",
+            "description": "Event ID"
+          },
+          "message_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message Text",
+            "description": "Message text content"
+          },
+          "phone_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone No",
+            "description": "Sender phone number"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "Sender display name (resolved via phonebook)"
+          },
+          "group_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Id",
+            "description": "Group ID"
+          },
+          "group_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Name",
+            "description": "Group display name"
+          },
+          "media_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Media Id",
+            "description": "Media ID, if the message has media"
+          },
+          "created_at": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At",
+            "description": "Message timestamp"
+          },
+          "edited": {
+            "type": "boolean",
+            "title": "Edited",
+            "description": "Whether the message was edited",
+            "default": false
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "TimelineQuotedMessage",
+        "description": "The message a timeline message replies to (no nested reactions/poll/quote)."
+      },
+      "TimelineReaction": {
+        "properties": {
+          "emoji": {
+            "type": "string",
+            "title": "Emoji",
+            "description": "Reaction emoji"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "Display name of the reacting member"
+          },
+          "phone_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone No",
+            "description": "Phone number of the reacting member"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "emoji"
+        ],
+        "title": "TimelineReaction",
+        "description": "An emoji reaction aggregated onto its target message."
+      },
+      "TimelineResponse": {
+        "properties": {
+          "offset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offset Id",
+            "description": "Cursor ID for the next page; null when no more data"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/TimelineMessage"
+            },
+            "type": "array",
+            "title": "Data",
+            "description": "List of timeline messages"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "TimelineResponse",
+        "description": "Response for timeline endpoint with cursor-based pagination.\n\n``offset_id`` is derived from the raw fetched documents, not the filtered output,\nso a page that filters down to zero displayable items still returns a non-null\n``offset_id`` (keep paging until it is null). ``data`` is ordered oldest-first\nwhen more pages remain."
+      },
+      "TimingAnchor": {
+        "type": "string",
+        "enum": [
+          "subject_start",
+          "previous_substage",
+          "previous_stage_end",
+          "absolute"
+        ],
+        "title": "TimingAnchor",
+        "description": "What a TimingRule's offset is measured from."
+      },
+      "TimingRule": {
+        "properties": {
+          "anchor": {
+            "$ref": "#/components/schemas/TimingAnchor",
+            "default": "subject_start"
+          },
+          "offset_days": {
+            "type": "integer",
+            "title": "Offset Days",
+            "default": 0
+          },
+          "offset_hours": {
+            "type": "integer",
+            "title": "Offset Hours",
+            "default": 0
+          },
+          "offset_minutes": {
+            "type": "integer",
+            "title": "Offset Minutes",
+            "default": 0
+          },
+          "absolute_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Absolute At"
+          },
+          "sla_hours": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sla Hours"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "TimingRule",
+        "description": "When a substage is expected to fire.\n\nExamples:\n    Day 1, 7 PM IST:  anchor=subject_start, offset_days=0, offset_hours=19\n    2 hours after the previous substage:  anchor=previous_substage, offset_hours=2\n    Fixed datetime:  anchor=absolute, absolute_at=2026-05-12T19:00:00+05:30"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-api-key",
+        "description": "API key for client authentication. Pass your key in the `x-api-key` header."
+      }
+    }
+  },
+  "security": [
+    {
+      "ApiKeyAuth": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Client",
+      "description": "Client account information."
+    },
+    {
+      "name": "Organizations",
+      "description": "Manage organizations and memberships."
+    },
+    {
+      "name": "Groups",
+      "description": "Messaging groups and timelines."
+    },
+    {
+      "name": "Chat",
+      "description": "Conversational AI insights over your messaging groups."
+    },
+    {
+      "name": "Projections",
+      "description": "Projections extracted by agents."
+    },
+    {
+      "name": "Custom Agents",
+      "description": "Custom agents and their projections."
+    },
+    {
+      "name": "Role Requests",
+      "description": "Request access to additional platform roles."
+    },
+    {
+      "name": "Packs",
+      "description": "Skill packs — curated bundles of agent skills."
+    },
+    {
+      "name": "Stage Tracker",
+      "description": "Workflow definitions and subject progress for Stage Tracker."
+    }
+  ]
+}

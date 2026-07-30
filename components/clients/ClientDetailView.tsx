@@ -51,16 +51,14 @@ import {
 } from "@/lib/actions/clients";
 import { formatIST } from "@/lib/utils/time";
 import { cn } from "@/lib/utils";
-import {
-  ArrowLeft,
-  MessageCircle,
-  Ticket,
-} from "lucide-react";
+import { ArrowLeft, MessageCircle, Ticket } from "lucide-react";
 import { isAfter, parseISO } from "date-fns";
 import { toast } from "sonner";
 
 interface ClientDetailViewProps {
   initialDetail: ClientDetail;
+  /** When false, per-section Edit controls on the Profile tab are hidden. */
+  canEdit?: boolean;
 }
 
 function np(value: string | null | undefined): string {
@@ -95,14 +93,18 @@ function membershipBadgeClass(type: string | null): string {
   return "border bg-[#F4F1EA] text-stone-600 border-[#E5E4DF]";
 }
 
-export function ClientDetailView({ initialDetail }: ClientDetailViewProps) {
+export function ClientDetailView({
+  initialDetail,
+  canEdit = true,
+}: ClientDetailViewProps) {
   const [detail, setDetail] = useState(initialDetail);
   const [activeTab, setActiveTab] = useState("overview");
   const [notesLocal, setNotesLocal] = useState(initialDetail.notes ?? "");
   const [notesDirty, setNotesDirty] = useState(false);
   const [eliaProfileLoading, setEliaProfileLoading] = useState(false);
   const eliaProfileLoadedRef = useRef(
-    initialDetail.elia_profile != null || initialDetail.elia_analyzed_at != null,
+    initialDetail.elia_profile != null ||
+      initialDetail.elia_analyzed_at != null,
   );
   const clientIdRef = useRef(initialDetail.id);
 
@@ -122,7 +124,11 @@ export function ClientDetailView({ initialDetail }: ClientDetailViewProps) {
         initialDetail.elia_profile != null ||
         initialDetail.elia_analyzed_at != null;
     }
-  }, [initialDetail.id, initialDetail.elia_profile, initialDetail.elia_analyzed_at]);
+  }, [
+    initialDetail.id,
+    initialDetail.elia_profile,
+    initialDetail.elia_analyzed_at,
+  ]);
 
   useEffect(() => {
     if (activeTab !== "profile" || eliaProfileLoadedRef.current) return;
@@ -289,6 +295,7 @@ export function ClientDetailView({ initialDetail }: ClientDetailViewProps) {
           >
             <ClientProfileFields
               detail={d}
+              canEdit={canEdit}
               eliaProfile={d.elia_profile ?? null}
               eliaAnalyzedAt={d.elia_analyzed_at ?? null}
               eliaVersion={d.elia_version ?? 0}
@@ -365,6 +372,8 @@ export function ClientDetailView({ initialDetail }: ClientDetailViewProps) {
             <div className="flex h-[clamp(400px,min(68dvh,calc(100dvh-14rem)),820px)] min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-[#E5E4DF] bg-[#F9F9F6] shadow-sm">
               <ChettoTab
                 clientPhone={d.phone_number}
+                clientFirstName={d.first_name}
+                clientLastName={d.last_name}
                 queendom={d.queendom ?? "Unassigned"}
                 chettoGroupId={d.chetto_group_id ?? null}
                 isActive={activeTab === "chetto"}

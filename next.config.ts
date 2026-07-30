@@ -4,6 +4,12 @@ import type { NextConfig } from "next";
 // To re-enable: import { withSentryConfig } from "@sentry/nextjs" and wrap nextConfig below.
 
 const nextConfig: NextConfig = {
+  // NOTE: do NOT relocate `distDir` outside the project directory to dodge the
+  // OneDrive `EPERM ... unlink .next\...` lock. Node resolves modules by walking
+  // UP from the emitted file, so a build dir outside the repo cannot see
+  // node_modules and every render dies with `Cannot find module
+  // 'react/jsx-runtime'`. Fix OneDrive instead (exclude the folder from sync),
+  // or kill stale node processes and delete `.next` before starting dev.
   turbopack: {
     root: process.cwd(),
   },

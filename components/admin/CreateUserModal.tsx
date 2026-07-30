@@ -47,6 +47,7 @@ import {
   checkEmailExists,
   getProfilesForReportsTo,
 } from "@/lib/actions/admin";
+import { createConciergeAgent } from "@/lib/actions/concierge-staff";
 import { mapAuthError } from "@/lib/utils/auth-errors";
 import {
   createUserSchema,
@@ -58,6 +59,11 @@ import type {
   IndulgeDomain,
   UserRole,
   Profile,
+  ConciergeGroup,
+} from "@/lib/types/database";
+import {
+  DOMAIN_DISPLAY_CONFIG,
+  CONCIERGE_GROUP_LABELS,
 } from "@/lib/types/database";
 import {
   DEPARTMENT_CONFIG,
@@ -65,14 +71,16 @@ import {
   ALL_DEPARTMENTS,
   getDefaultDomainForDepartment,
 } from "@/lib/constants/departments";
-import { DOMAIN_DISPLAY_CONFIG } from "@/lib/types/database";
+import { generateTempPassword } from "@/lib/utils/generate-password";
+import { QueendomScopePicker } from "@/components/admin/QueendomScopePicker";
 
 // ── Types ────────────────────────────────────────────────────
 
 interface CreateUserModalProps {
   open: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  /** `agent` when created via concierge Queendom path. */
+  onSuccess: (kind?: "user" | "agent") => void;
 }
 
 type WizardStep = 1 | 2 | 3 | 4;
@@ -207,6 +215,7 @@ export function CreateUserModal({
   const [step, setStep] = useState<WizardStep>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [infoNotice, setInfoNotice] = useState<string | null>(null);
   const [emailCheckState, setEmailCheckState] = useState<
     "idle" | "checking" | "taken" | "ok"
   >("idle");
@@ -215,6 +224,8 @@ export function CreateUserModal({
     Pick<Profile, "id" | "full_name" | "job_title" | "role" | "department">[]
   >([]);
   const [reportsToSearch, setReportsToSearch] = useState("");
+  const [queendomGroups, setQueendomGroups] = useState<ConciergeGroup[]>([]);
+  const [queendomError, setQueendomError] = useState<string | null>(null);
 
   const {
     register,
@@ -274,11 +285,15 @@ export function CreateUserModal({
     return () => clearTimeout(timer);
   }, [watchedEmail]);
 
-  // When department changes, auto-suggest the primary domain.
+  // When department changes, auto-suggest the primary domain; clear Queendoms if leaving concierge.
   useEffect(() => {
     if (watchedDepartment) {
       const suggested = getDefaultDomainForDepartment(watchedDepartment);
       setValue("domain", suggested, { shouldDirty: true });
+    }
+    if (watchedDepartment !== "concierge") {
+      setQueendomGroups([]);
+      setQueendomError(null);
     }
   }, [watchedDepartment, setValue]);
 
@@ -287,8 +302,11 @@ export function CreateUserModal({
     reset();
     setStep(1);
     setSubmitError(null);
+    setInfoNotice(null);
     setEmailCheckState("idle");
     setReportsToSearch("");
+    setQueendomGroups([]);
+    setQueendomError(null);
     onClose();
   }
 
@@ -307,6 +325,12 @@ export function CreateUserModal({
 
     if (step === 1 && emailCheckState === "taken") return;
 
+    if (step === 2 && watchedDepartment === "concierge" && queendomGroups.length === 0) {
+      setQueendomError("Select at least one Queendom for ticket scope.");
+      return;
+    }
+    setQueendomError(null);
+
     setStep((s) => Math.min(s + 1, 4) as WizardStep);
   }
 
@@ -317,20 +341,58 @@ export function CreateUserModal({
   const onSubmit = useCallback(
     async (data: CreateUserInput) => {
       setSubmitError(null);
+      setInfoNotice(null);
+
+      if (data.department === "concierge" && queendomGroups.length === 0) {
+        setQueendomError("Select at least one Queendom for ticket scope.");
+        setStep(2);
+        return;
+      }
+
       setIsSubmitting(true);
-      const result = await createUser(data);
+      const result =
+        data.department === "concierge"
+          ? await createConciergeAgent({
+              email: data.email,
+              full_name: data.full_name,
+              job_title: data.job_title,
+              role: data.role,
+              groups: queendomGroups,
+              reports_to: data.reports_to ?? null,
+              send_invite: data.send_invite,
+              password: data.password,
+            })
+          : await createUser(data);
       setIsSubmitting(false);
 
       if (!result.success) {
+        // The invite email couldn't be delivered (rate limit / SMTP not set up).
+        // Don't dead-end the admin — switch to the no-email path: flip off the
+        // invite toggle, drop in a freshly generated password (revealed for
+        // copying), and let them finish with one more click.
+        if (result.code === "invite_email_failed") {
+          setValue("send_invite", false, { shouldDirty: true });
+          setValue("password", generateTempPassword(), {
+            shouldValidate: true,
+            shouldDirty: true,
+          });
+          setShowPassword(true);
+          setInfoNotice(
+            "Invite email couldn't be sent (email rate limit). We've generated a temporary password below — copy it, share it securely, then press Create User. To restore email invites, configure custom SMTP in Supabase.",
+          );
+          return;
+        }
         setSubmitError(mapAuthError(result.error ?? null));
         return;
       }
 
       reset();
       setStep(1);
-      onSuccess();
+      setQueendomGroups([]);
+      setQueendomError(null);
+      onSuccess(data.department === "concierge" ? "agent" : "user");
     },
-    [reset, onSuccess],
+    [reset, onSuccess, setValue, queendomGroups],
   );
 
   function firstValidationMessage(
@@ -665,6 +727,28 @@ export function CreateUserModal({
                     </motion.div>
                   )}
                 </AnimatePresence>
+
+                {/* Concierge agent — Queendom ticket scope */}
+                <AnimatePresence>
+                  {watchedDepartment === "concierge" && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -4 }}
+                      transition={{ duration: 0.18 }}
+                      className="rounded-xl border border-[#E5E4DF] bg-white p-3.5"
+                    >
+                      <QueendomScopePicker
+                        value={queendomGroups}
+                        onChange={(next) => {
+                          setQueendomGroups(next);
+                          if (next.length > 0) setQueendomError(null);
+                        }}
+                        error={queendomError ?? undefined}
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </motion.div>
             )}
 
@@ -900,6 +984,7 @@ export function CreateUserModal({
                             checked={field.value !== false}
                             onCheckedChange={(on) => {
                               field.onChange(on);
+                              setInfoNotice(null);
                               if (on) {
                                 setValue("password", "", {
                                   shouldDirty: false,
@@ -1027,6 +1112,23 @@ export function CreateUserModal({
                         )}
                       </div>
                     </div>
+                    {watchedDepartment === "concierge" && queendomGroups.length > 0 ? (
+                      <div className="mt-3">
+                        <p className="text-[10px] text-[#B5A99A] uppercase tracking-wide mb-1.5">
+                          Ticket Scope
+                        </p>
+                        <div className="flex flex-wrap gap-1">
+                          {queendomGroups.map((g) => (
+                            <span
+                              key={g}
+                              className="rounded bg-brand-gold/10 px-1.5 py-0.5 text-[11px] font-medium text-neutral-700"
+                            >
+                              {CONCIERGE_GROUP_LABELS[g]}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
 
                   {/* Role */}
@@ -1077,6 +1179,21 @@ export function CreateUserModal({
                     </div>
                   </div>
                 )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Recoverable notice — e.g. invite email failed, switched to password flow */}
+          <AnimatePresence>
+            {infoNotice && (
+              <motion.div
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="flex items-start gap-2 text-sm text-amber-800 bg-amber-50 border border-amber-300/60 rounded-lg px-3 py-2.5 mb-2"
+              >
+                <Info className="w-4 h-4 shrink-0 mt-0.5" />
+                {infoNotice}
               </motion.div>
             )}
           </AnimatePresence>

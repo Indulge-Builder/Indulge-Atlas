@@ -2,7 +2,24 @@
  * Maps Supabase Auth (and related) messages to user-safe copy.
  * Never surface raw provider errors in URLs.
  */
-export function mapAuthError(message: string | undefined | null): string {
+export function mapAuthError(
+  message: string | undefined | null,
+  meta?: { status?: number | null; code?: string | null },
+): string {
+  // Status / error-code take priority over free text. GoTrue's human-readable
+  // message for rate limits varies ("email rate limit exceeded" vs "For security
+  // purposes, you can only request this after N seconds") and can slip past the
+  // text checks below — but the HTTP 429 and the error code are authoritative.
+  const code = (meta?.code ?? "").toLowerCase();
+  const status = meta?.status ?? undefined;
+
+  if (code === "over_email_send_rate_limit" || code === "over_sms_send_rate_limit") {
+    return "Too many emails have been sent recently. Please wait a few minutes and try again — or set a password directly instead of emailing an invite.";
+  }
+  if (status === 429 || code.includes("rate_limit")) {
+    return "Too many attempts. Please wait a few minutes and try again.";
+  }
+
   if (!message) return "Something went wrong. Please try again or contact support.";
 
   const m = message.trim();

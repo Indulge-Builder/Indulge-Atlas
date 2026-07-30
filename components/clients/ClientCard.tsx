@@ -12,6 +12,7 @@ import type { UnmappedFilter } from "@/components/clients/ClientFilters";
 import { formatInTimeZone } from "date-fns-tz";
 import { SYSTEM_TIMEZONE } from "@/lib/utils/time";
 import { Check, ExternalLink } from "lucide-react";
+import { ClientIntegrationIcons } from "@/components/clients/ClientIntegrationIcons";
 
 interface ClientCardProps {
   client: ClientWithProfile;
@@ -103,7 +104,7 @@ export function ClientCard({
   }
 
   const placeholder =
-    unmappedMode === "chetto" ? "e.g. 120363…" : "e.g. +91 98…";
+    unmappedMode === "chetto" ? "e.g. 120363…" : "9876543210, +91 98…, or +1 650…";
   const fieldLabel =
     unmappedMode === "chetto" ? "Chetto group id" : "Phone number";
 
@@ -126,12 +127,15 @@ export function ClientCard({
       </Avatar>
 
       <div className="min-w-0 flex-1">
-        <p
-          className="truncate font-[family-name:var(--font-playfair)] text-base font-semibold text-stone-900"
-          style={{ fontSize: "16px" }}
-        >
-          {name}
-        </p>
+        <div className="flex items-center gap-2">
+          <p
+            className="truncate font-[family-name:var(--font-playfair)] text-base font-semibold text-stone-900"
+            style={{ fontSize: "16px" }}
+          >
+            {name}
+          </p>
+          <ClientIntegrationIcons client={client} />
+        </div>
         <span className="mt-1 inline-block max-w-full truncate rounded-full bg-[#F4F1EA] px-2 py-0.5 text-[10px] font-medium text-stone-700 ring-1 ring-[#E5E4DF]/90">
           {queendom}
         </span>

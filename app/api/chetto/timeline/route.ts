@@ -23,11 +23,13 @@ export async function GET(req: Request) {
   const limitRaw = url.searchParams.get("limit");
   const limit = limitRaw ? Number(limitRaw) : 50;
   const offsetId = url.searchParams.get("offsetId")?.trim() ?? undefined;
+  const queendom = url.searchParams.get("queendom")?.trim() ?? undefined;
 
   const result = await getGroupTimeline(
     groupId,
     Number.isFinite(limit) && limit > 0 ? limit : 50,
     offsetId,
+    queendom ? { queendom } : undefined,
   );
   return Response.json(result);
 }

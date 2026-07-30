@@ -16,11 +16,19 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const clientPhone = url.searchParams.get("clientPhone")?.trim() ?? "";
   const queendom = url.searchParams.get("queendom")?.trim() ?? "Unassigned";
+  const clientFirstName = url.searchParams.get("clientFirstName")?.trim() ?? "";
+  const clientLastName = url.searchParams.get("clientLastName")?.trim() ?? "";
 
-  if (!clientPhone) {
+  if (!clientPhone && !clientFirstName) {
     return Response.json({ group: null });
   }
 
-  const group = await findClientGroup(clientPhone, queendom);
+  const group = await findClientGroup(
+    clientPhone,
+    queendom,
+    clientFirstName
+      ? { firstName: clientFirstName, lastName: clientLastName || null }
+      : undefined,
+  );
   return Response.json({ group });
 }

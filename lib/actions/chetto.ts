@@ -1,8 +1,12 @@
 /** Server-only Chetto integration (called from Route Handlers). Not a Client Component server-action module — Next.js requires `"use server"` files to export only async functions. */
 
 import { unstable_cache } from "next/cache";
+import { parsePhoneNumberFromString } from "libphonenumber-js";
+import { e164LookupVariants } from "@/lib/utils/phone";
 
+/** Joule REST base — see `api-1.json` (OpenAPI 3.1) at repo root. Rate limit: 60 req/min per endpoint per API key. */
 const CHETTO_BASE = "https://apiv2.chetto.ai/joule";
+export const CHETTO_RATE_LIMIT_PER_MIN = 60;
 
 /** Maps `clients.queendom` values to hardcoded sub-org group id lists (from GET /v1/organizations/). */
 export const QUEENDOM_TO_SUB_ORG: Record<string, string> = {
@@ -199,7 +203,7 @@ export const ANISHQA_GROUP_IDS: string[] = [
   "120363406460331794",
   "120363297026652026",
   "120363113832974762",
-  "120363423907397699"
+  "120363423907397699",
 ];
 
 export const ANANYSHREE_GROUP_IDS: string[] = [
@@ -404,7 +408,7 @@ export const ANANYSHREE_GROUP_IDS: string[] = [
   "120363409481084472",
   "120363402549333793",
   "120363402565977336",
-  "120363387303304649"
+  "120363387303304649",
 ];
 
 export const QUEENDOM_GROUP_IDS: Record<string, string[]> = {
@@ -412,7 +416,6 @@ export const QUEENDOM_GROUP_IDS: Record<string, string[]> = {
   "Anishqa Queendom": ANISHQA_GROUP_IDS,
   Unassigned: UNASSIGNED_GROUP_IDS,
 };
-
 
 export type ChettoGroup = {
   group_id: string;
@@ -428,6 +431,7 @@ export type ChettoMessage = {
   id: string | null;
   text: string | null;
   phone_no: string | null;
+  sender_name: string | null;
   from_me: boolean;
   timestamp: string | null;
 };
@@ -446,6 +450,272 @@ function getChettoOrgId(): string | undefined {
   return v && v.length > 0 ? v : undefined;
 }
 
+export type ChettoOrganization = {
+  org_id: string;
+  org_name: string;
+  group_ids: string[];
+  parent_id: string | null;
+  sub_orgs: ChettoOrganization[];
+};
+
+export type ChettoEscalation = {
+  id: string;
+  group_id: string;
+  group_name: string | null;
+  label: string;
+  title: string | null;
+  description: string | null;
+  status: string | null;
+  signals: string[] | null;
+};
+
+let queendomSubOrgCache: {
+  map: Record<string, string>;
+  fetchedAt: number;
+} | null = null;
+
+const QUEENDOM_ORG_CACHE_MS = 60 * 60 * 1000;
+
+function normalizeOrgNameForQueendomMatch(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[''`]/g, "")
+    .replace(/[''`]s\b/g, "s")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function mapOrganizationJson(raw: unknown): ChettoOrganization | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  const org_id = o.org_id;
+  const org_name = o.org_name;
+  if (typeof org_id !== "string" || !org_id) return null;
+  if (typeof org_name !== "string") return null;
+  const group_ids = Array.isArray(o.group_ids)
+    ? o.group_ids.filter((x): x is string => typeof x === "string" && x.length > 0)
+    : [];
+  const parent_id =
+    typeof o.parent_id === "string" ? o.parent_id : o.parent_id === null ? null : null;
+  const subRaw = o.sub_orgs;
+  const sub_orgs = Array.isArray(subRaw)
+    ? subRaw
+        .map(mapOrganizationJson)
+        .filter((x): x is ChettoOrganization => x !== null)
+    : [];
+  return { org_id, org_name, group_ids, parent_id, sub_orgs };
+}
+
+/** `GET /v1/organizations/` — org tree with sub-orgs and group_ids. */
+export async function listOrganizations(): Promise<ChettoOrganization[]> {
+  try {
+    const res = await chettoFetch("/v1/organizations/");
+    if (!res.ok) return [];
+    const json = (await res.json().catch(() => null)) as unknown;
+    if (!Array.isArray(json)) return [];
+    return json
+      .map(mapOrganizationJson)
+      .filter((x): x is ChettoOrganization => x !== null);
+  } catch {
+    return [];
+  }
+}
+
+function matchQueendomToSubOrgId(
+  queendomKey: string,
+  orgName: string,
+): boolean {
+  const q = normalizeOrgNameForQueendomMatch(queendomKey);
+  const n = normalizeOrgNameForQueendomMatch(orgName);
+  if (!q || !n) return false;
+  if (q === n) return true;
+  if (queendomKey === "Unassigned" && n.includes("unassigned")) return true;
+  if (n.includes(q) || q.includes(n)) return true;
+  const qFirst = q.split(" ")[0] ?? "";
+  const nFirst = n.split(" ")[0] ?? "";
+  return qFirst.length >= 4 && qFirst === nFirst;
+}
+
+/** Resolve Atlas `clients.queendom` → Chetto sub-org id. API-first; falls back to `QUEENDOM_TO_SUB_ORG`. */
+export async function getQueendomSubOrgMap(): Promise<Record<string, string>> {
+  const now = Date.now();
+  if (
+    queendomSubOrgCache &&
+    now - queendomSubOrgCache.fetchedAt < QUEENDOM_ORG_CACHE_MS
+  ) {
+    return queendomSubOrgCache.map;
+  }
+
+  const merged: Record<string, string> = { ...QUEENDOM_TO_SUB_ORG };
+  const orgs = await listOrganizations();
+  const subOrgs: ChettoOrganization[] = [];
+  for (const org of orgs) {
+    subOrgs.push(...org.sub_orgs);
+    if (org.parent_id) subOrgs.push(org);
+  }
+
+  for (const queendom of Object.keys(QUEENDOM_TO_SUB_ORG)) {
+    const hit = subOrgs.find((s) => matchQueendomToSubOrgId(queendom, s.org_name));
+    if (hit) merged[queendom] = hit.org_id;
+  }
+
+  queendomSubOrgCache = { map: merged, fetchedAt: now };
+  return merged;
+}
+
+export type ChettoQueendomOrg = {
+  queendom: string;
+  org_id: string;
+  org_name: string;
+  group_count: number;
+};
+
+export type ChettoGroupCatalogEntry = {
+  group_id: string;
+  group_name: string | null;
+  queendom: string | null;
+  org_id: string;
+  org_name: string;
+};
+
+/** Atlas queendom → Chetto sub-org id + live org name from `GET /v1/organizations/`. */
+export async function getQueendomOrgRegistry(): Promise<ChettoQueendomOrg[]> {
+  const subOrgMap = await getQueendomSubOrgMap();
+  const orgs = await listOrganizations();
+  const subById = new Map<string, ChettoOrganization>();
+  for (const org of orgs) {
+    for (const sub of org.sub_orgs) subById.set(sub.org_id, sub);
+  }
+
+  return Object.entries(subOrgMap).map(([queendom, org_id]) => {
+    const sub = subById.get(org_id);
+    return {
+      queendom,
+      org_id,
+      org_name: sub?.org_name ?? queendom,
+      group_count: sub?.group_ids.length ?? 0,
+    };
+  });
+}
+
+function mapGroupSummaryJson(
+  raw: unknown,
+): Pick<ChettoGroup, "group_id" | "group_name"> | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  const group_id = o.group_id;
+  if (typeof group_id !== "string" || !group_id) return null;
+  const group_name =
+    typeof o.group_name === "string" || o.group_name === null
+      ? (o.group_name as string | null)
+      : null;
+  return { group_id, group_name };
+}
+
+/** `GET /v1/groups?org_id=` — id + display name per GroupSummary. */
+async function listGroupSummariesForOrg(
+  orgId: string,
+): Promise<Pick<ChettoGroup, "group_id" | "group_name">[]> {
+  try {
+    const res = await chettoFetch(
+      `/v1/groups?${new URLSearchParams({ org_id: orgId }).toString()}`,
+    );
+    if (!res.ok) return [];
+    const json = (await res.json().catch(() => null)) as unknown;
+    if (!Array.isArray(json)) return [];
+    return json
+      .map(mapGroupSummaryJson)
+      .filter((x): x is Pick<ChettoGroup, "group_id" | "group_name"> => x !== null);
+  } catch {
+    return [];
+  }
+}
+
+async function buildChettoGroupCatalogUncached(
+  queendom?: string,
+): Promise<ChettoGroupCatalogEntry[]> {
+  const registry = await getQueendomOrgRegistry();
+  const targets = queendom
+    ? registry.filter((r) => r.queendom === queendom)
+    : registry;
+
+  const entries: ChettoGroupCatalogEntry[] = [];
+  const seen = new Set<string>();
+
+  for (const row of targets) {
+    const summaries = await listGroupSummariesForOrg(row.org_id);
+    const nameById = new Map(
+      summaries.map((s) => [s.group_id, s.group_name] as const),
+    );
+    const orgIds = await listGroupIdsFromOrganization(row.org_id);
+    const allIds = new Set([
+      ...summaries.map((s) => s.group_id),
+      ...orgIds,
+    ]);
+
+    for (const group_id of allIds) {
+      if (seen.has(group_id)) continue;
+      seen.add(group_id);
+      entries.push({
+        group_id,
+        group_name: nameById.get(group_id) ?? null,
+        queendom: row.queendom,
+        org_id: row.org_id,
+        org_name: row.org_name,
+      });
+    }
+  }
+
+  return entries.sort((a, b) => {
+    const la = (a.group_name ?? a.group_id).toLowerCase();
+    const lb = (b.group_name ?? b.group_id).toLowerCase();
+    return la.localeCompare(lb);
+  });
+}
+
+/** All Chetto groups with names, scoped by Atlas queendom when set. Cached 1h. */
+export async function getChettoGroupCatalog(
+  options?: { queendom?: string },
+): Promise<ChettoGroupCatalogEntry[]> {
+  const queendom = options?.queendom?.trim() || "all";
+  try {
+    return await unstable_cache(
+      async () => buildChettoGroupCatalogUncached(options?.queendom),
+      ["chetto-group-catalog", queendom, getChettoOrgId() ?? "no-org"],
+      { revalidate: 3600 },
+    )();
+  } catch {
+    return buildChettoGroupCatalogUncached(options?.queendom);
+  }
+}
+
+/** Resolve display name for a group id (catalog first, then single metadata fetch). */
+export async function resolveChettoGroupName(
+  groupId: string,
+): Promise<string | null> {
+  const id = groupId.trim();
+  if (!id) return null;
+  const catalog = await getChettoGroupCatalog();
+  const hit = catalog.find((e) => e.group_id === id);
+  if (hit?.group_name?.trim()) return hit.group_name.trim();
+  const meta = await fetchGroupMetadata(id);
+  return meta?.group_name?.trim() ?? null;
+}
+
+function buildInsightsOrgQuery(
+  orgId?: string,
+  subOrgIds?: string[],
+): string {
+  const q = new URLSearchParams();
+  if (orgId) q.set("org_id", orgId);
+  for (const id of subOrgIds ?? []) {
+    q.append("sub_org_ids", id);
+  }
+  const s = q.toString();
+  return s ? `?${s}` : "";
+}
+
 async function chettoFetch(
   path: string,
   init: RequestInit = {},
@@ -453,7 +723,12 @@ async function chettoFetch(
   const key = getChettoApiKey();
   const headers = new Headers(init.headers);
   headers.set("x-api-key", key);
-  if (!headers.has("Content-Type") && init.method && init.method !== "GET" && init.body) {
+  if (
+    !headers.has("Content-Type") &&
+    init.method &&
+    init.method !== "GET" &&
+    init.body
+  ) {
     headers.set("Content-Type", "application/json");
   }
   return fetch(`${CHETTO_BASE}${path}`, {
@@ -463,26 +738,340 @@ async function chettoFetch(
   });
 }
 
-/** `GET /v1/groups?org_id=` — group ids visible to this API key within the org (preferred over static queendom lists when `CHETTO_ORG_ID` is set). */
+function extractGroupIdsFromGroupsListJson(json: unknown): string[] {
+  let items: unknown[] | null = null;
+  if (Array.isArray(json)) {
+    items = json;
+  } else if (json && typeof json === "object") {
+    const o = json as Record<string, unknown>;
+    for (const key of ["data", "groups", "result", "items"] as const) {
+      const v = o[key];
+      if (Array.isArray(v)) {
+        items = v;
+        break;
+      }
+    }
+  }
+  if (!items) return [];
+
+  const ids: string[] = [];
+  for (const item of items) {
+    if (typeof item === "string" && item.length > 0) {
+      ids.push(item);
+      continue;
+    }
+    if (item && typeof item === "object" && "group_id" in item) {
+      const gid = (item as { group_id: unknown }).group_id;
+      if (typeof gid === "string" && gid.length > 0) ids.push(gid);
+    }
+  }
+  return ids;
+}
+
+async function resolveOrgIdsForScope(queendom?: string): Promise<string[]> {
+  const subOrgMap = await getQueendomSubOrgMap();
+  const out = new Set<string>();
+  if (queendom && subOrgMap[queendom]) {
+    out.add(subOrgMap[queendom]);
+  } else {
+    for (const subOrgId of Object.values(subOrgMap)) {
+      out.add(subOrgId);
+    }
+  }
+  const parentOrgId = getChettoOrgId();
+  if (parentOrgId) out.add(parentOrgId);
+  return [...out];
+}
+
+function resolveSubOrgIdForQueendom(
+  queendom: string | undefined,
+  subOrgMap: Record<string, string>,
+): string | undefined {
+  if (!queendom) return undefined;
+  return subOrgMap[queendom];
+}
+
+/** `GET /v1/groups?org_id=` — group ids visible to this API key within one org. */
 async function listGroupIdsForOrg(orgId: string): Promise<string[] | null> {
   try {
     const res = await chettoFetch(
       `/v1/groups?${new URLSearchParams({ org_id: orgId }).toString()}`,
     );
-    if (!res.ok) return null;
-    const json = (await res.json().catch(() => null)) as unknown;
-    if (!Array.isArray(json)) return null;
-    const ids: string[] = [];
-    for (const item of json) {
-      if (item && typeof item === "object" && "group_id" in item) {
-        const gid = (item as { group_id: unknown }).group_id;
-        if (typeof gid === "string" && gid.length > 0) ids.push(gid);
-      }
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      console.warn(
+        `[chetto] GET /v1/groups org_id=${orgId} → ${res.status}${detail ? `: ${detail.slice(0, 120)}` : ""}`,
+      );
+      return null;
     }
+    const json = (await res.json().catch(() => null)) as unknown;
+    const ids = extractGroupIdsFromGroupsListJson(json);
     return ids.length > 0 ? ids : null;
-  } catch {
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "unknown error";
+    console.warn(`[chetto] GET /v1/groups org_id=${orgId} failed: ${msg}`);
     return null;
   }
+}
+
+/** `GET /v1/organizations/{org_id}` — `group_ids` on the org record (often complete for sub-orgs). */
+async function listGroupIdsFromOrganization(orgId: string): Promise<string[]> {
+  try {
+    const res = await chettoFetch(
+      `/v1/organizations/${encodeURIComponent(orgId)}`,
+    );
+    if (!res.ok) return [];
+    const json = (await res.json().catch(() => null)) as unknown;
+    if (!json || typeof json !== "object") return [];
+    const groupIds = (json as Record<string, unknown>).group_ids;
+    if (!Array.isArray(groupIds)) return [];
+    return groupIds.filter(
+      (x): x is string => typeof x === "string" && x.length > 0,
+    );
+  } catch {
+    return [];
+  }
+}
+
+export type ListAllGroupIdsOptions = {
+  /** When set, query only that queendom's sub-org (+ parent org). Otherwise all sub-orgs. */
+  queendom?: string;
+};
+
+/** Union of group ids from parent org and queendom sub-orgs via live Chetto org API. */
+export async function listAllGroupIds(
+  options: ListAllGroupIdsOptions = {},
+): Promise<string[]> {
+  const { queendom } = options;
+  const allIds = new Set<string>();
+
+  for (const orgId of await resolveOrgIdsForScope(queendom)) {
+    const fromGroups = await listGroupIdsForOrg(orgId);
+    fromGroups?.forEach((id) => allIds.add(id));
+    for (const id of await listGroupIdsFromOrganization(orgId)) {
+      allIds.add(id);
+    }
+  }
+
+  return [...allIds];
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function extractAccessMemberPhone(raw: unknown): string | null {
+  if (typeof raw === "string" && raw.trim()) return raw.trim();
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  for (const key of ["phone_number", "phone", "phone_no", "mobile"] as const) {
+    const v = o[key];
+    if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  return null;
+}
+
+function parseAccessMembers(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  for (const item of raw) {
+    const phone = extractAccessMemberPhone(item);
+    if (phone) out.push(phone);
+  }
+  return out;
+}
+
+function normalizePersonNameKey(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[\u{1F300}-\u{1FFFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\uFE00-\uFE0F\u200D]/gu, "")
+    .replace(/[''`]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function clientNameMatchKey(firstName: string, lastName: string | null): string {
+  return normalizePersonNameKey([firstName, lastName].filter(Boolean).join(" "));
+}
+
+export function groupNameMatchKey(groupName: string | null): string | null {
+  if (!groupName) return null;
+  let title = groupName
+    .replace(/[\u{1F300}-\u{1FFFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\uFE00-\uFE0F\u200D]/gu, "")
+    .replace(/\s*(?:pre\s+)?concierge\s*$/i, "")
+    .trim();
+  title = title.replace(/[''`]'s$/i, "").replace(/[''`]s$/i, "").trim();
+  const key = normalizePersonNameKey(title);
+  return key.length >= 3 ? key : null;
+}
+
+/** Digit-only lookup keys for Chetto access_members and Atlas client phones. */
+export function chettoPhoneLookupVariants(rawPhone: string): string[] {
+  const trimmed = (rawPhone ?? "").trim();
+  if (!trimmed) return [];
+
+  const seen = new Set<string>();
+  const pushDigits = (value: string) => {
+    const d = value.replace(/\D/g, "");
+    if (d.length >= 8) seen.add(d);
+  };
+
+  pushDigits(trimmed);
+
+  try {
+    let parsed = trimmed.startsWith("+")
+      ? parsePhoneNumberFromString(trimmed)
+      : parsePhoneNumberFromString(trimmed, "IN");
+
+    if (!parsed?.isValid() && !trimmed.startsWith("+")) {
+      const digits = trimmed.replace(/\D/g, "");
+      if (digits.length >= 10) {
+        parsed = parsePhoneNumberFromString(`+${digits}`);
+      }
+    }
+
+    if (parsed?.isValid()) {
+      pushDigits(parsed.format("E.164"));
+      pushDigits(parsed.nationalNumber);
+      for (const v of e164LookupVariants(parsed.format("E.164"))) {
+        pushDigits(v);
+      }
+    }
+  } catch {
+    /* digit-only fallback below */
+  }
+
+  const digits = trimmed.replace(/\D/g, "");
+  if (!trimmed.startsWith("+") && digits.length === 10 && /^[6-9]\d{9}$/.test(digits)) {
+    pushDigits(`91${digits}`);
+  }
+  if (digits.length === 12 && /^91[6-9]\d{9}$/.test(digits)) {
+    pushDigits(digits.slice(2));
+  }
+  if (!trimmed.startsWith("+") && digits.length === 11 && /^0[6-9]\d{9}$/.test(digits)) {
+    const national = digits.slice(1);
+    pushDigits(national);
+    pushDigits(`91${national}`);
+  }
+
+  return [...seen];
+}
+
+export type ChettoMappingIndex = {
+  byPhone: Map<string, string>;
+  byName: Map<string, string>;
+};
+
+export function buildChettoMappingIndex(groups: ChettoGroup[]): ChettoMappingIndex {
+  const byPhone = new Map<string, string>();
+  const byName = new Map<string, string>();
+
+  for (const group of groups) {
+    for (const memberPhone of group.access_members) {
+      for (const variant of chettoPhoneLookupVariants(memberPhone)) {
+        if (!byPhone.has(variant)) byPhone.set(variant, group.group_id);
+      }
+    }
+    const nameKey = groupNameMatchKey(group.group_name);
+    if (nameKey && !byName.has(nameKey)) byName.set(nameKey, group.group_id);
+  }
+
+  return { byPhone, byName };
+}
+
+export type ChettoClientMatchInput = {
+  phone: string;
+  firstName: string;
+  lastName: string | null;
+};
+
+export function resolveChettoGroupIdFromIndex(
+  client: ChettoClientMatchInput,
+  index: ChettoMappingIndex,
+  groupsForFuzzy?: ChettoGroup[],
+): { groupId: string; method: "phone" | "name" | "name_fuzzy" } | null {
+  for (const variant of chettoPhoneLookupVariants(client.phone)) {
+    const gid = index.byPhone.get(variant);
+    if (gid) return { groupId: gid, method: "phone" };
+  }
+
+  const nameKey = clientNameMatchKey(client.firstName, client.lastName);
+  if (nameKey) {
+    const gid = index.byName.get(nameKey);
+    if (gid) return { groupId: gid, method: "name" };
+  }
+
+  if (!groupsForFuzzy?.length || nameKey.length < 3) return null;
+
+  const first = client.firstName.trim().toLowerCase();
+  const last = (client.lastName ?? "").trim().toLowerCase();
+  const scored: { groupId: string; score: number }[] = [];
+
+  for (const group of groupsForFuzzy) {
+    const gKey = groupNameMatchKey(group.group_name);
+    if (!gKey) continue;
+
+    if (gKey.includes(nameKey)) {
+      scored.push({ groupId: group.group_id, score: 100 });
+      continue;
+    }
+    if (nameKey.includes(gKey) && gKey.length >= 5) {
+      scored.push({ groupId: group.group_id, score: 95 });
+      continue;
+    }
+    if (last.length >= 3 && gKey.includes(last)) {
+      scored.push({ groupId: group.group_id, score: last.length >= 4 ? 75 : 60 });
+    } else if (first.length >= 4 && gKey.includes(first)) {
+      scored.push({ groupId: group.group_id, score: 55 });
+    }
+  }
+
+  if (!scored.length) return null;
+  scored.sort((a, b) => b.score - a.score);
+  const topScore = scored[0].score;
+  const top = scored.filter((s) => s.score === topScore);
+  if (top.length !== 1) return null;
+  if (topScore >= 95) return { groupId: top[0].groupId, method: "name_fuzzy" };
+  if (topScore >= 75) return { groupId: top[0].groupId, method: "name_fuzzy" };
+  if (topScore >= 60) return { groupId: top[0].groupId, method: "name_fuzzy" };
+  return null;
+}
+
+/** Explain why a client did not match (for mapping reports). */
+export function explainChettoMatchFailure(
+  client: ChettoClientMatchInput,
+  index: ChettoMappingIndex,
+  groups: ChettoGroup[],
+  failedGroupIds: string[],
+): string {
+  const nameKey = clientNameMatchKey(client.firstName, client.lastName);
+  const phoneVariants = chettoPhoneLookupVariants(client.phone);
+
+  if (!phoneVariants.length && nameKey.length < 3) {
+    return "missing_phone_and_name";
+  }
+
+  const fuzzyCandidates = groups.filter((g) => {
+    const gKey = groupNameMatchKey(g.group_name);
+    if (!gKey || nameKey.length < 3) return false;
+    return gKey.includes(nameKey) || nameKey.includes(gKey);
+  });
+  if (fuzzyCandidates.length > 1) return "ambiguous_name_match";
+
+  if (phoneVariants.length > 0 && index.byPhone.size === 0) {
+    return "no_group_members_loaded";
+  }
+
+  if (phoneVariants.length > 0) {
+    return "phone_not_in_any_group_members";
+  }
+
+  if (failedGroupIds.length > 0) {
+    return "no_name_match_some_groups_failed_metadata";
+  }
+
+  return "no_chetto_group_found";
 }
 
 function mapGroupJson(raw: unknown): ChettoGroup | null {
@@ -490,105 +1079,211 @@ function mapGroupJson(raw: unknown): ChettoGroup | null {
   const o = raw as Record<string, unknown>;
   const group_id = o.group_id;
   if (typeof group_id !== "string" || !group_id) return null;
-  const access = o.access_members;
-  const access_members = Array.isArray(access)
-    ? access.filter((x): x is string => typeof x === "string")
-    : [];
   return {
     group_id,
-    group_name: typeof o.group_name === "string" || o.group_name === null ? (o.group_name as string | null) : null,
-    valid: typeof o.valid === "boolean" || o.valid === null ? (o.valid as boolean | null) : null,
-    created_at_utc: typeof o.created_at_utc === "number" ? o.created_at_utc : null,
-    updated_at_utc: typeof o.updated_at_utc === "number" ? o.updated_at_utc : null,
-    created_at: typeof o.created_at === "string" || o.created_at === null ? (o.created_at as string | null) : null,
-    access_members,
+    group_name:
+      typeof o.group_name === "string" || o.group_name === null
+        ? (o.group_name as string | null)
+        : null,
+    valid:
+      typeof o.valid === "boolean" || o.valid === null
+        ? (o.valid as boolean | null)
+        : null,
+    created_at_utc:
+      typeof o.created_at_utc === "number" ? o.created_at_utc : null,
+    updated_at_utc:
+      typeof o.updated_at_utc === "number" ? o.updated_at_utc : null,
+    created_at:
+      typeof o.created_at === "string" || o.created_at === null
+        ? (o.created_at as string | null)
+        : null,
+    access_members: parseAccessMembers(o.access_members),
   };
 }
 
-export async function fetchGroupMetadata(groupId: string): Promise<ChettoGroup | null> {
-  const orgId = getChettoOrgId();
-  const q = new URLSearchParams();
-  if (orgId) q.set("org_id", orgId);
-  const qs = q.toString();
-  const res = await chettoFetch(
-    `/v1/groups/${encodeURIComponent(groupId)}${qs ? `?${qs}` : ""}`,
-  );
-  if (!res.ok) return null;
-  const json = (await res.json().catch(() => null)) as unknown;
-  return mapGroupJson(json);
+async function fetchGroupMetadataOnce(
+  groupId: string,
+  orgId?: string,
+): Promise<{ status: number; group: ChettoGroup | null }> {
+  try {
+    const q = new URLSearchParams();
+    if (orgId) q.set("org_id", orgId);
+    const qs = q.toString();
+    const res = await chettoFetch(
+      `/v1/groups/${encodeURIComponent(groupId)}${qs ? `?${qs}` : ""}`,
+    );
+    if (!res.ok) return { status: res.status, group: null };
+    const json = (await res.json().catch(() => null)) as unknown;
+    return { status: res.status, group: mapGroupJson(json) };
+  } catch {
+    return { status: 0, group: null };
+  }
 }
 
-function normalizePhoneKey(phone: string): string {
-  return phone.replace(/\D/g, "");
-}
-
-/**
- * Chetto indexes `access_members` as digit-only strings (e.g. `919818799928`).
- * Atlas often stores Indian mobiles as 10 digits (`9818799928`) without `+91`.
- * Try equivalent keys so lookup succeeds either way.
- */
-function chettoLookupKeyVariants(normalizedDigits: string): string[] {
-  const out: string[] = [];
+export async function fetchGroupMetadata(
+  groupId: string,
+  options?: { aggressive?: boolean },
+): Promise<ChettoGroup | null> {
+  const maxRetries = options?.aggressive ? 6 : 4;
+  const retryStatuses = new Set([0, 429, 500, 502, 503]);
+  const orgAttempts: (string | undefined)[] = [];
   const seen = new Set<string>();
-  const push = (k: string) => {
-    if (k.length === 0 || seen.has(k)) return;
-    seen.add(k);
-    out.push(k);
-  };
+  for (const orgId of await resolveOrgIdsForScope()) {
+    if (!seen.has(orgId)) {
+      seen.add(orgId);
+      orgAttempts.push(orgId);
+    }
+  }
+  orgAttempts.push(undefined);
 
-  push(normalizedDigits);
-
-  // India mobile national form (10 digits, typical mobile leading digit 6–9)
-  if (/^[6-9]\d{9}$/.test(normalizedDigits)) {
-    push(`91${normalizedDigits}`);
+  for (const tryOrgId of orgAttempts) {
+    for (let retry = 0; retry < maxRetries; retry++) {
+      const { status, group } = await fetchGroupMetadataOnce(groupId, tryOrgId);
+      if (group) return group;
+      if (retryStatuses.has(status) && retry < maxRetries - 1) {
+        await sleep((options?.aggressive ? 700 : 400) * (retry + 1));
+        continue;
+      }
+      break;
+    }
   }
 
-  // Full India country code without +: 91 + 10 digits → also match national 10-digit stored form
-  if (/^91[6-9]\d{9}$/.test(normalizedDigits)) {
-    push(normalizedDigits.slice(2));
-  }
-
-  // Legacy trunk 0 prefix (e.g. 09818799928)
-  if (/^0[6-9]\d{9}$/.test(normalizedDigits)) {
-    const national = normalizedDigits.slice(1);
-    push(national);
-    push(`91${national}`);
-  }
-
-  return out;
+  return null;
 }
 
-/**
- * Find the concierge group for this client by scanning group metadata in chunks.
- * Stops at the first group whose `access_members` includes a matching phone variant
- * (avoids building a full phone→group index: previously 180+ API calls before any response).
- */
+/** Load metadata for many groups; retries failures sequentially with backoff. */
+export type FetchAllGroupMetadataOptions = {
+  concurrency?: number;
+  preloaded?: ChettoGroup[];
+  retryOnlyIds?: string[];
+  onCheckpoint?: (state: {
+    loaded: ChettoGroup[];
+    failed: string[];
+    phase: "initial" | "retry";
+  }) => void;
+  retryLogEvery?: number;
+  retryDelayMs?: number;
+};
+
+export async function fetchAllGroupMetadata(
+  groupIds: string[],
+  options?: FetchAllGroupMetadataOptions,
+): Promise<{ loaded: ChettoGroup[]; failed: string[] }> {
+  const concurrency = options?.concurrency ?? 3;
+  const retryLogEvery = options?.retryLogEvery ?? 10;
+  const retryDelayMs = options?.retryDelayMs ?? 350;
+  const byId = new Map<string, ChettoGroup>();
+  for (const g of options?.preloaded ?? []) {
+    byId.set(g.group_id, g);
+  }
+
+  const runInitialPass = !options?.retryOnlyIds?.length;
+  const initialTargets = runInitialPass
+    ? groupIds.filter((id) => !byId.has(id))
+    : [];
+  const failed: string[] = [];
+
+  if (runInitialPass) {
+    for (let i = 0; i < initialTargets.length; i += concurrency) {
+      const chunk = initialTargets.slice(i, i + concurrency);
+      const results = await Promise.all(
+        chunk.map(async (id) => {
+          try {
+            const meta = await fetchGroupMetadata(id);
+            return { id, meta };
+          } catch {
+            return { id, meta: null as ChettoGroup | null };
+          }
+        }),
+      );
+      for (const { id, meta } of results) {
+        if (meta) byId.set(id, meta);
+        else failed.push(id);
+      }
+      const done = Math.min(i + concurrency, initialTargets.length);
+      if (done % 60 === 0 || done >= initialTargets.length) {
+        console.log(
+          `  … ${done} / ${initialTargets.length} initial (${byId.size} loaded total)`,
+        );
+      }
+      options?.onCheckpoint?.({
+        loaded: [...byId.values()],
+        failed: groupIds.filter((id) => !byId.has(id)),
+        phase: "initial",
+      });
+      if (i + concurrency < initialTargets.length) await sleep(120);
+    }
+  }
+
+  const retryQueue = options?.retryOnlyIds?.length
+    ? options.retryOnlyIds.filter((id) => !byId.has(id))
+    : [...new Set(failed)];
+
+  if (retryQueue.length > 0) {
+    console.log(`  Retrying ${retryQueue.length} groups (aggressive pass)…`);
+    const stillFailed: string[] = [];
+    let retryIdx = 0;
+    for (const id of retryQueue) {
+      retryIdx += 1;
+      try {
+        await sleep(retryDelayMs);
+        const meta = await fetchGroupMetadata(id, { aggressive: true });
+        if (meta) byId.set(id, meta);
+        else stillFailed.push(id);
+      } catch {
+        stillFailed.push(id);
+      }
+      if (retryIdx % retryLogEvery === 0 || retryIdx === retryQueue.length) {
+        console.log(
+          `  … retry ${retryIdx} / ${retryQueue.length} (${byId.size} loaded total)`,
+        );
+      }
+      options?.onCheckpoint?.({
+        loaded: [...byId.values()],
+        failed: groupIds.filter((id) => !byId.has(id)),
+        phase: "retry",
+      });
+    }
+    return { loaded: [...byId.values()], failed: stillFailed };
+  }
+
+  const remainingFailed = groupIds.filter((id) => !byId.has(id));
+  return { loaded: [...byId.values()], failed: remainingFailed };
+}
+
 async function findClientGroupByScan(
   clientPhone: string,
   queendom: string,
+  clientName?: { firstName: string; lastName: string | null },
 ): Promise<ChettoGroup | null> {
-  const normalized = normalizePhoneKey(clientPhone);
-  if (!normalized) return null;
-  const orgId = getChettoOrgId();
-  let ids: string[] | undefined;
-  if (orgId) {
-    const fromApi = await listGroupIdsForOrg(orgId);
-    if (fromApi?.length) ids = fromApi;
-  }
-  if (!ids?.length) ids = QUEENDOM_GROUP_IDS[queendom];
-  if (!ids?.length) return null;
+  const ids = await listAllGroupIds({ queendom });
+  if (!ids.length) return null;
 
-  const variantSet = new Set(chettoLookupKeyVariants(normalized));
-  const chunkSize = 10;
+  const phoneVariants = new Set(chettoPhoneLookupVariants(clientPhone));
+  const nameKey = clientName
+    ? clientNameMatchKey(clientName.firstName, clientName.lastName)
+    : "";
+  const chunkSize = 8;
 
   for (let i = 0; i < ids.length; i += chunkSize) {
     const chunk = ids.slice(i, i + chunkSize);
-    const results = await Promise.all(chunk.map((id) => fetchGroupMetadata(id)));
+    const results = await Promise.all(
+      chunk.map((id) => fetchGroupMetadata(id)),
+    );
     for (const group of results) {
-      if (!group?.access_members?.length) continue;
-      for (const raw of group.access_members) {
-        const k = normalizePhoneKey(raw);
-        if (k && variantSet.has(k)) return group;
+      if (!group) continue;
+
+      if (phoneVariants.size > 0 && group.access_members.length > 0) {
+        for (const memberPhone of group.access_members) {
+          for (const variant of chettoPhoneLookupVariants(memberPhone)) {
+            if (phoneVariants.has(variant)) return group;
+          }
+        }
+      }
+
+      if (nameKey) {
+        const groupKey = groupNameMatchKey(group.group_name);
+        if (groupKey && groupKey === nameKey) return group;
       }
     }
   }
@@ -598,13 +1293,26 @@ async function findClientGroupByScan(
 export async function findClientGroup(
   clientPhone: string,
   queendom: string,
+  clientName?: { firstName: string; lastName: string | null },
 ): Promise<ChettoGroup | null> {
-  const normalized = normalizePhoneKey(clientPhone);
-  if (!normalized) return null;
+  const hasPhone = clientPhone.trim().length > 0;
+  const hasName = Boolean(
+    clientName && clientNameMatchKey(clientName.firstName, clientName.lastName),
+  );
+  if (!hasPhone && !hasName) return null;
   try {
     return await unstable_cache(
-      async () => findClientGroupByScan(clientPhone, queendom),
-      ["chetto-find-client-group", normalized, queendom, getChettoOrgId() ?? "no-org"],
+      async () => findClientGroupByScan(clientPhone, queendom, clientName),
+      [
+        "chetto-find-client-group",
+        chettoPhoneLookupVariants(clientPhone).join("|") || "no-phone",
+        queendom,
+        clientName
+          ? clientNameMatchKey(clientName.firstName, clientName.lastName)
+          : "no-name",
+        getChettoOrgId() ?? "no-org",
+        "v3-match",
+      ],
       { revalidate: 600 },
     )();
   } catch {
@@ -670,7 +1378,8 @@ function mapTimelineMessage(raw: unknown): ChettoMessage | null {
   const phone_no = pickTimelinePhone(o);
 
   let from_me = false;
-  if (o.from_me === true || o.from_me === "true" || o.from_me === 1) from_me = true;
+  if (o.from_me === true || o.from_me === "true" || o.from_me === 1)
+    from_me = true;
   else if (o.is_agent === true || o.sender_type === "agent") from_me = true;
 
   let ts = pickTimelineString(
@@ -681,7 +1390,18 @@ function mapTimelineMessage(raw: unknown): ChettoMessage | null {
     o.date,
     o.iso_timestamp,
   );
-  if (ts == null && typeof o.timestamp === "number" && !Number.isNaN(o.timestamp)) {
+  if (
+    ts == null &&
+    typeof o.created_at === "number" &&
+    !Number.isNaN(o.created_at)
+  ) {
+    ts = String(o.created_at);
+  }
+  if (
+    ts == null &&
+    typeof o.timestamp === "number" &&
+    !Number.isNaN(o.timestamp)
+  ) {
     ts = String(o.timestamp);
   }
 
@@ -693,10 +1413,18 @@ function mapTimelineMessage(raw: unknown): ChettoMessage | null {
         ? String(idRaw)
         : null;
 
+  const sender_name =
+    typeof o.name === "string" && o.name.trim()
+      ? o.name.trim()
+      : typeof o.sender_name === "string" && o.sender_name.trim()
+        ? o.sender_name.trim()
+        : null;
+
   return {
     id,
     text,
     phone_no,
+    sender_name,
     from_me,
     timestamp: ts,
   };
@@ -760,63 +1488,82 @@ export async function getGroupTimeline(
   groupId: string,
   limit = 50,
   offsetId?: string,
+  options?: { queendom?: string },
 ): Promise<ChettoTimelineResult> {
   try {
-  const q = new URLSearchParams();
-  q.set("limit", String(limit));
-  if (offsetId) q.set("offset_id", offsetId);
-  const orgId = getChettoOrgId();
-  if (orgId) q.set("org_id", orgId);
-  const res = await chettoFetch(
-    `/v1/groups/${encodeURIComponent(groupId)}/timeline?${q.toString()}`,
-  );
-  const rawJson: unknown = await res.json().catch(() => null);
-
-  if (!res.ok) {
-    const rec =
-      rawJson && typeof rawJson === "object"
-        ? (rawJson as Record<string, unknown>)
-        : null;
-    const detailStr = rec ? extractHttpDetail(rec.detail) : null;
-    const timelineNotAvailable =
-      res.status === 404 || detailStr === "No groups found";
-    return {
-      messages: [],
-      nextCursor: null,
-      timelineNotAvailable,
-      chettoDetail: detailStr,
-    };
-  }
-
-  if (Array.isArray(rawJson)) {
-    const messages: ChettoMessage[] = [];
-    for (const row of rawJson) {
-      const m = mapTimelineMessage(row);
-      if (m) messages.push(m);
+    const orgAttempts: (string | undefined)[] = [];
+    const seen = new Set<string>();
+    for (const orgId of await resolveOrgIdsForScope(options?.queendom)) {
+      if (!seen.has(orgId)) {
+        seen.add(orgId);
+        orgAttempts.push(orgId);
+      }
     }
-    return { messages, nextCursor: null };
-  }
+    orgAttempts.push(undefined);
 
-  if (!rawJson || typeof rawJson !== "object") {
+    for (const tryOrgId of orgAttempts) {
+      const q = new URLSearchParams();
+      q.set("limit", String(limit));
+      if (offsetId) q.set("offset_id", offsetId);
+      if (tryOrgId) q.set("org_id", tryOrgId);
+
+      const res = await chettoFetch(
+        `/v1/groups/${encodeURIComponent(groupId)}/timeline?${q.toString()}`,
+      );
+      const rawJson: unknown = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        const rec =
+          rawJson && typeof rawJson === "object"
+            ? (rawJson as Record<string, unknown>)
+            : null;
+        const detailStr = rec ? extractHttpDetail(rec.detail) : null;
+        const timelineNotAvailable =
+          res.status === 404 || detailStr === "No groups found";
+        if (tryOrgId !== orgAttempts[orgAttempts.length - 1]) continue;
+        return {
+          messages: [],
+          nextCursor: null,
+          timelineNotAvailable,
+          chettoDetail: detailStr,
+        };
+      }
+
+      if (Array.isArray(rawJson)) {
+        const messages: ChettoMessage[] = [];
+        for (const row of rawJson) {
+          const m = mapTimelineMessage(row);
+          if (m) messages.push(m);
+        }
+        return { messages, nextCursor: null };
+      }
+
+      if (!rawJson || typeof rawJson !== "object") {
+        continue;
+      }
+      const json = rawJson as Record<string, unknown>;
+      if ("detail" in json && json.detail === "No groups found") {
+        if (tryOrgId !== orgAttempts[orgAttempts.length - 1]) continue;
+        return {
+          messages: [],
+          nextCursor: null,
+          timelineNotAvailable: true,
+          chettoDetail: "No groups found",
+        };
+      }
+      const rows = extractTimelinePayload(json);
+      const messages: ChettoMessage[] = [];
+      for (const row of rows) {
+        const m = mapTimelineMessage(row);
+        if (m) messages.push(m);
+      }
+      const nextCursor = extractTimelineCursor(json);
+      if (messages.length > 0 || nextCursor) {
+        return { messages, nextCursor };
+      }
+    }
+
     return { messages: [], nextCursor: null };
-  }
-  const json = rawJson as Record<string, unknown>;
-  if ("detail" in json && json.detail === "No groups found") {
-    return {
-      messages: [],
-      nextCursor: null,
-      timelineNotAvailable: true,
-      chettoDetail: "No groups found",
-    };
-  }
-  const rows = extractTimelinePayload(json);
-  const messages: ChettoMessage[] = [];
-  for (const row of rows) {
-    const m = mapTimelineMessage(row);
-    if (m) messages.push(m);
-  }
-  const nextCursor = extractTimelineCursor(json);
-  return { messages, nextCursor };
   } catch {
     return { messages: [], nextCursor: null };
   }
@@ -827,7 +1574,15 @@ function extractTextFromInsightsPayload(raw: unknown): string | null {
   if (typeof raw === "string") return raw.trim() || null;
   if (typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
-  const candidates = ["text", "message", "answer", "response", "content", "output"];
+  const candidates = [
+    "text",
+    "message",
+    "answer",
+    "response",
+    "content",
+    "output",
+    "reply",
+  ];
   for (const k of candidates) {
     const v = o[k];
     if (typeof v === "string" && v.trim()) return v.trim();
@@ -843,39 +1598,312 @@ function extractTextFromInsightsPayload(raw: unknown): string | null {
   return null;
 }
 
+/** Parse Chetto insights NDJSON stream (`message` / `done` / `error` lines per OpenAPI) or single JSON body. */
+export function parseInsightsResponseBody(rawText: string): string | null {
+  const trimmed = rawText.trim();
+  if (!trimmed) return null;
+
+  const lines = trimmed.split("\n").filter((l) => l.trim().length > 0);
+  if (lines.length > 1 || (lines.length === 1 && lines[0]?.includes('"type"'))) {
+    let accumulated = "";
+    for (const line of lines) {
+      try {
+        const obj = JSON.parse(line) as Record<string, unknown>;
+        const type = obj.type;
+        if (
+          (type === "token" || type === "message") &&
+          obj.data &&
+          typeof obj.data === "object"
+        ) {
+          const d = obj.data as Record<string, unknown>;
+          if (typeof d.text === "string") accumulated += d.text;
+          if (typeof d.content === "string") accumulated += d.content;
+          if (typeof d.message === "string") accumulated += d.message;
+        }
+        if (type === "done" && obj.data && typeof obj.data === "object") {
+          const d = obj.data as Record<string, unknown>;
+          if (typeof d.reply === "string" && d.reply.trim()) {
+            return d.reply.trim();
+          }
+        }
+        if (type === "error" && obj.data && typeof obj.data === "object") {
+          const d = obj.data as Record<string, unknown>;
+          if (typeof d.detail === "string" && d.detail.trim()) {
+            return null;
+          }
+        }
+      } catch {
+        /* skip malformed NDJSON line */
+      }
+    }
+    if (accumulated.trim()) return accumulated.trim();
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed) as unknown;
+    return extractTextFromInsightsPayload(parsed);
+  } catch {
+    return trimmed;
+  }
+}
+
+export type ChettoMessageSearchHit = {
+  group_id: string;
+  group_name: string | null;
+  snippet: string | null;
+  phone_no: string | null;
+};
+
+function normalizeMessageSearchHits(json: unknown): ChettoMessageSearchHit[] {
+  if (!json || typeof json !== "object") return [];
+  const root = json as Record<string, unknown>;
+  const arrays: unknown[][] = [];
+  for (const key of ["results", "messages", "data", "items", "hits"] as const) {
+    const v = root[key];
+    if (Array.isArray(v)) arrays.push(v);
+  }
+  if (arrays.length === 0 && Array.isArray(json)) arrays.push(json);
+
+  const out: ChettoMessageSearchHit[] = [];
+  for (const arr of arrays) {
+    for (const row of arr) {
+      if (!row || typeof row !== "object") continue;
+      const o = row as Record<string, unknown>;
+      const group_id =
+        typeof o.group_id === "string"
+          ? o.group_id
+          : typeof o.groupId === "string"
+            ? o.groupId
+            : null;
+      if (!group_id || !/^120363/.test(group_id)) continue;
+      const group_name =
+        typeof o.group_name === "string"
+          ? o.group_name
+          : typeof o.groupName === "string"
+            ? o.groupName
+            : null;
+      const snippet =
+        typeof o.snippet === "string"
+          ? o.snippet
+          : typeof o.text === "string"
+            ? o.text
+            : typeof o.message === "string"
+              ? o.message
+              : null;
+      const phone_no =
+        typeof o.phone_no === "string"
+          ? o.phone_no
+          : typeof o.phone === "string"
+            ? o.phone
+            : null;
+      out.push({ group_id, group_name, snippet, phone_no });
+    }
+  }
+  return out;
+}
+
+/** Org-scoped message search (tries undocumented REST paths; no-op if unavailable). */
+export async function searchChettoMessagesOrg(
+  orgId: string,
+  query: string,
+  topN = 20,
+): Promise<ChettoMessageSearchHit[]> {
+  const attempts: { method: "GET" | "POST"; path: string; body?: string }[] = [
+    {
+      method: "POST",
+      path: `/v1/messages/search?${new URLSearchParams({ org_id: orgId }).toString()}`,
+      body: JSON.stringify({ query, top_n: topN }),
+    },
+    {
+      method: "POST",
+      path: `/v1/search/messages?${new URLSearchParams({ org_id: orgId }).toString()}`,
+      body: JSON.stringify({ query, top_n: topN }),
+    },
+    {
+      method: "GET",
+      path: `/v1/messages/search?${new URLSearchParams({
+        org_id: orgId,
+        query,
+        top_n: String(topN),
+      }).toString()}`,
+    },
+  ];
+
+  for (const attempt of attempts) {
+    try {
+      const res = await chettoFetch(attempt.path, {
+        method: attempt.method,
+        body: attempt.body,
+      });
+      if (!res.ok) continue;
+      const json = (await res.json().catch(() => null)) as unknown;
+      const hits = normalizeMessageSearchHits(json);
+      if (hits.length > 0) return hits;
+    } catch {
+      /* try next path */
+    }
+  }
+  return [];
+}
+
+export async function askChettoOrgInsights(
+  question: string,
+  options: { orgId?: string; groupIds?: string[]; queendom?: string } = {},
+): Promise<{ text: string } | { error: string }> {
+  try {
+    const parentOrgId = options.orgId?.trim() || getChettoOrgId();
+    const subOrgMap = await getQueendomSubOrgMap();
+    const subOrgId = options.queendom
+      ? resolveSubOrgIdForQueendom(options.queendom, subOrgMap)
+      : undefined;
+    const subOrgIds = subOrgId ? [subOrgId] : undefined;
+
+    const body = {
+      new_message: question,
+      chat_id: `atlas-org-${Date.now()}`,
+      group_ids: options.groupIds ?? [],
+    };
+    const orgQs = buildInsightsOrgQuery(parentOrgId, subOrgIds);
+    const res = await chettoFetch(`/v1/insights/chat${orgQs}`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    const rawText = await res.text().catch(() => "");
+    if (!res.ok) {
+      return { error: rawText || `Chetto insights failed (${res.status})` };
+    }
+    const text = parseInsightsResponseBody(rawText);
+    if (text) return { text };
+    return { error: "Could not parse Chetto insights response" };
+  } catch (e) {
+    const msg =
+      e instanceof Error ? e.message : "Chetto org insights request failed";
+    return { error: msg };
+  }
+}
+
 export async function askChettoInsights(
   groupId: string,
   question: string,
+  options?: { queendom?: string },
 ): Promise<{ text: string } | { error: string }> {
   try {
-  const body = {
-    new_message: question,
-    chat_id: groupId,
-    group_ids: [groupId],
-  };
-  const orgId = getChettoOrgId();
-  const orgQs = orgId ? `?${new URLSearchParams({ org_id: orgId }).toString()}` : "";
-  const res = await chettoFetch(`/v1/insights/chat${orgQs}`, {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
-  const rawText = await res.text().catch(() => "");
-  if (!res.ok) {
-    return { error: rawText || `Chetto insights failed (${res.status})` };
-  }
-  let parsed: unknown = null;
-  try {
-    parsed = JSON.parse(rawText) as unknown;
-  } catch {
-    const t = rawText.trim();
-    if (t) return { text: t };
-    return { error: "Empty response from Chetto" };
-  }
-  const text = extractTextFromInsightsPayload(parsed);
-  if (text) return { text };
-  return { error: "Could not parse Chetto insights response" };
+    const parentOrgId = getChettoOrgId();
+    const subOrgMap = await getQueendomSubOrgMap();
+    const subOrgId = options?.queendom
+      ? resolveSubOrgIdForQueendom(options.queendom, subOrgMap)
+      : undefined;
+    const subOrgIds = subOrgId ? [subOrgId] : undefined;
+
+    const body = {
+      new_message: question,
+      chat_id: groupId,
+      group_ids: [groupId],
+    };
+    const orgQs = buildInsightsOrgQuery(parentOrgId, subOrgIds);
+    const res = await chettoFetch(`/v1/insights/chat${orgQs}`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    const rawText = await res.text().catch(() => "");
+    if (!res.ok) {
+      return { error: rawText || `Chetto insights failed (${res.status})` };
+    }
+    const text = parseInsightsResponseBody(rawText);
+    if (text) return { text };
+    return { error: "Could not parse Chetto insights response" };
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Chetto insights request failed";
+    const msg =
+      e instanceof Error ? e.message : "Chetto insights request failed";
     return { error: msg };
+  }
+}
+
+function mapEscalationJson(raw: unknown): ChettoEscalation | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  const id = typeof o.id === "string" ? o.id : null;
+  const group_id = typeof o.group_id === "string" ? o.group_id : null;
+  const label = typeof o.label === "string" ? o.label : null;
+  if (!id || !group_id || !label) return null;
+  return {
+    id,
+    group_id,
+    group_name:
+      typeof o.group_name === "string" || o.group_name === null
+        ? (o.group_name as string | null)
+        : null,
+    label,
+    title:
+      typeof o.title === "string" || o.title === null
+        ? (o.title as string | null)
+        : null,
+    description:
+      typeof o.description === "string" || o.description === null
+        ? (o.description as string | null)
+        : null,
+    status:
+      typeof o.status === "string" || o.status === null
+        ? (o.status as string | null)
+        : null,
+    signals: Array.isArray(o.signals)
+      ? o.signals.filter((x): x is string => typeof x === "string")
+      : null,
+  };
+}
+
+export type ListEscalationsOptions = {
+  groupIds?: string[];
+  orgId?: string;
+  queendom?: string;
+  label?: string;
+  status?: string;
+  limit?: number;
+  offsetId?: string;
+  includeSummary?: boolean;
+};
+
+/** `GET /v1/escalations` — escalation projections for groups/orgs. */
+export async function listEscalations(
+  options: ListEscalationsOptions = {},
+): Promise<{ escalations: ChettoEscalation[]; nextOffsetId: string | null }> {
+  try {
+    const subOrgMap = await getQueendomSubOrgMap();
+    const parentOrgId = options.orgId?.trim() || getChettoOrgId();
+    const subOrgId = options.queendom
+      ? resolveSubOrgIdForQueendom(options.queendom, subOrgMap)
+      : undefined;
+
+    const q = new URLSearchParams();
+    if (parentOrgId) q.set("org_id", parentOrgId);
+    if (subOrgId) q.append("sub_org_ids", subOrgId);
+    for (const gid of options.groupIds ?? []) {
+      q.append("group_ids", gid);
+    }
+    if (options.label) q.set("label", options.label);
+    if (options.status) q.set("status", options.status);
+    if (options.offsetId) q.set("offset_id", options.offsetId);
+    if (options.includeSummary) q.set("include_summary", "true");
+    q.set("limit", String(Math.min(options.limit ?? 50, 1000)));
+
+    const res = await chettoFetch(`/v1/escalations?${q.toString()}`);
+    if (!res.ok) return { escalations: [], nextOffsetId: null };
+
+    const json = (await res.json().catch(() => null)) as unknown;
+    if (!json || typeof json !== "object") {
+      return { escalations: [], nextOffsetId: null };
+    }
+    const root = json as Record<string, unknown>;
+    const rows = Array.isArray(root.data) ? root.data : [];
+    const escalations = rows
+      .map(mapEscalationJson)
+      .filter((x): x is ChettoEscalation => x !== null);
+    const nextOffsetId =
+      typeof root.next_offset_id === "string" && root.next_offset_id.length > 0
+        ? root.next_offset_id
+        : null;
+    return { escalations, nextOffsetId };
+  } catch {
+    return { escalations: [], nextOffsetId: null };
   }
 }

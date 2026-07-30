@@ -182,17 +182,35 @@ async function freshdeskGet(path: string, query: Record<string, string>) {
   return { ok: res.ok, status: res.status, json };
 }
 
+/**
+ * A rate-limit (429) or server error (5xx) must NOT be swallowed as "no
+ * results" — that silently turns a real contact into a false "not found" under
+ * load. Throw so callers can retry with backoff; genuine empty matches (200 with
+ * no results, or client 4xx) still fall through to `[]`.
+ */
+function throwIfTransient(status: number, label: string): void {
+  if (status === 429 || status >= 500) {
+    throw new Error(`Freshdesk ${label} failed (status ${status})`);
+  }
+}
+
 /** Filter contacts by phone field (Freshdesk `?phone=` param). */
 async function filterByPhone(phone: string): Promise<FreshdeskContact[]> {
-  const { ok, json } = await freshdeskGet("/contacts", { phone, per_page: "10" });
-  if (!ok) return [];
+  const { ok, status, json } = await freshdeskGet("/contacts", { phone, per_page: "10" });
+  if (!ok) {
+    throwIfTransient(status, "phone filter");
+    return [];
+  }
   return parseContactList(json);
 }
 
 /** Filter contacts by mobile field (Freshdesk `?mobile=` param). */
 async function filterByMobile(mobile: string): Promise<FreshdeskContact[]> {
-  const { ok, json } = await freshdeskGet("/contacts", { mobile, per_page: "10" });
-  if (!ok) return [];
+  const { ok, status, json } = await freshdeskGet("/contacts", { mobile, per_page: "10" });
+  if (!ok) {
+    throwIfTransient(status, "mobile filter");
+    return [];
+  }
   return parseContactList(json);
 }
 
@@ -212,7 +230,10 @@ async function searchByPhoneQuery(phone: string): Promise<FreshdeskContact[]> {
     headers: { Authorization: getBasicAuthHeader(), Accept: "application/json" },
     cache: "no-store",
   });
-  if (!res.ok) return [];
+  if (!res.ok) {
+    throwIfTransient(res.status, "phone search");
+    return [];
+  }
   let json: unknown = null;
   try { json = await res.json(); } catch { return []; }
   // Search API returns { total: number, results: [...] }
@@ -220,28 +241,91 @@ async function searchByPhoneQuery(phone: string): Promise<FreshdeskContact[]> {
   return parseContactList(results);
 }
 
-/** Name search via Freshdesk contacts query string. */
+/**
+ * Name search via Freshdesk's autocomplete endpoint.
+ *
+ * The `/contacts?query=name:'...'` filter is NOT supported by Freshdesk and
+ * returns HTTP 400 ("Unexpected/invalid field"). The autocomplete endpoint
+ * (`/contacts/autocomplete?term=`) is the only contact-by-name lookup that
+ * works — it returns a plain array of matching contacts.
+ */
 export async function searchContactsByName(
   fullName: string,
 ): Promise<FreshdeskContact[]> {
-  const safe = fullName.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-  const query = `name:'${safe}'`;
-  const { ok, json } = await freshdeskGet("/contacts", { query, per_page: "10" });
-  if (!ok) return [];
-  return parseContactList(json);
+  const term = fullName.trim();
+  if (!term) return [];
+  const { ok, status, json } = await freshdeskGet("/contacts/autocomplete", {
+    term,
+  });
+  if (!ok) {
+    throwIfTransient(status, "name autocomplete");
+    return [];
+  }
+  // Autocomplete returns a plain array; some tenants wrap it in { contacts }.
+  const payload = Array.isArray(json)
+    ? json
+    : ((json as Record<string, unknown>)?.contacts ?? []);
+  return parseContactList(payload);
 }
 
 /** Build phone number variants to try (with and without +91 prefix). */
 function phoneVariants(phone: string): string[] {
-  const variants: string[] = [phone];
-  if (phone.startsWith("+91") && phone.length > 3) {
-    variants.push(phone.slice(3)); // national: 9876543210
-    variants.push("0" + phone.slice(3)); // with leading 0: 09876543210
-  } else if (/^\d{10}$/.test(phone)) {
-    variants.push("+91" + phone); // add +91
-    variants.push("0" + phone);   // add leading 0
+  const cleaned = phone.replace(/\s+/g, "").trim();
+  const variants: string[] = [cleaned, phone.trim()].filter(Boolean);
+  const base = cleaned || phone.trim();
+  if (base.startsWith("+91") && base.length > 3) {
+    variants.push(base.slice(3)); // national: 9876543210
+    variants.push("0" + base.slice(3)); // with leading 0: 09876543210
+  } else if (/^\d{10}$/.test(base)) {
+    variants.push("+91" + base); // add +91
+    variants.push("0" + base);   // add leading 0
   }
   return [...new Set(variants)];
+}
+
+/** Fetch a single contact by Freshdesk ID. */
+export async function getContactById(
+  contactId: number,
+): Promise<FreshdeskContact | null> {
+  const { ok, json, status } = await freshdeskGet(`/contacts/${contactId}`, {});
+  if (status === 404) return null;
+  if (!ok) {
+    throw new Error(`Freshdesk contact fetch failed (status ${status})`);
+  }
+  if (!json || typeof json !== "object") return null;
+  return parseContact(json as Record<string, unknown>);
+}
+
+/** Paginate all contacts (GET /contacts, per_page=100). */
+export async function listAllContacts(): Promise<FreshdeskContact[]> {
+  const allContacts: FreshdeskContact[] = [];
+  const perPage = 100;
+  let page = 1;
+
+  while (true) {
+    const { ok, json, status } = await freshdeskGet("/contacts", {
+      per_page: String(perPage),
+      page: String(page),
+    });
+
+    if (!ok) {
+      throw new Error(`Freshdesk contacts fetch failed (status ${status})`);
+    }
+
+    const pageContacts = parseContactList(json);
+    if (!pageContacts.length) {
+      break;
+    }
+
+    allContacts.push(...pageContacts);
+    if (pageContacts.length < perPage) {
+      break;
+    }
+
+    page += 1;
+  }
+
+  return allContacts;
 }
 
 export async function listTicketsForRequester(
@@ -413,4 +497,102 @@ export async function getTicketConversations(
   }
 
   return allConversations;
+}
+
+/**
+ * Freshdesk automation (Workflow Automator) rule types:
+ *   1 → Ticket Creation (Dispatch'r)
+ *   3 → Time Triggers   (Supervisor)
+ *   4 → Ticket Updates  (Observer)
+ * Admin-only API. Returns the raw rule objects (conditions/actions/performer/
+ * events included). Throws on non-OK responses so callers can surface 403s.
+ */
+export type AutomationTypeId = 1 | 3 | 4;
+
+export async function listAutomationRules(
+  typeId: AutomationTypeId,
+): Promise<Record<string, unknown>[]> {
+  const all: Record<string, unknown>[] = [];
+  const perPage = 100;
+  let page = 1;
+
+  while (true) {
+    const { ok, json, status } = await freshdeskGet(
+      `/automations/${typeId}/rules`,
+      { per_page: String(perPage), page: String(page) },
+    );
+
+    if (!ok) {
+      throw new Error(
+        `Freshdesk automation rules fetch failed (type ${typeId}, status ${status})`,
+      );
+    }
+
+    if (!Array.isArray(json)) break;
+
+    for (const item of json) {
+      if (item && typeof item === "object") {
+        all.push(item as Record<string, unknown>);
+      }
+    }
+
+    if (json.length < perPage) break;
+    page += 1;
+  }
+
+  return all;
+}
+
+/**
+ * List all SLA policies (GET /api/v2/sla_policies). Admin-only API.
+ * Returns the raw policy objects (sla_target per priority, escalation,
+ * applicable_to, is_default/active/position included). Throws on non-OK so
+ * callers can surface 403s.
+ */
+export async function listSlaPolicies(): Promise<Record<string, unknown>[]> {
+  const all: Record<string, unknown>[] = [];
+  const perPage = 100;
+  let page = 1;
+
+  while (true) {
+    const { ok, json, status } = await freshdeskGet("/sla_policies", {
+      per_page: String(perPage),
+      page: String(page),
+    });
+
+    if (!ok) {
+      throw new Error(`Freshdesk SLA policies fetch failed (status ${status})`);
+    }
+
+    if (!Array.isArray(json)) break;
+
+    for (const item of json) {
+      if (item && typeof item === "object") {
+        all.push(item as Record<string, unknown>);
+      }
+    }
+
+    if (json.length < perPage) break;
+    page += 1;
+  }
+
+  return all;
+}
+
+export async function getAutomationRule(
+  typeId: AutomationTypeId,
+  ruleId: number | string,
+): Promise<Record<string, unknown> | null> {
+  const { ok, json, status } = await freshdeskGet(
+    `/automations/${typeId}/rules/${ruleId}`,
+    {},
+  );
+  if (status === 404) return null;
+  if (!ok) {
+    throw new Error(
+      `Freshdesk automation rule fetch failed (type ${typeId}, id ${ruleId}, status ${status})`,
+    );
+  }
+  if (!json || typeof json !== "object") return null;
+  return json as Record<string, unknown>;
 }

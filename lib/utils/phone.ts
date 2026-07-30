@@ -4,8 +4,14 @@ import {
 } from "libphonenumber-js";
 
 /**
- * Normalize to E.164 using libphonenumber-js; on parse failure, strip non-digits
- * and prefix +91 (India) as a conservative fallback for inbound webhooks.
+ * Normalize a phone number to E.164 using libphonenumber-js.
+ *
+ * - Input starting with `+` is parsed as international; the entered country code is
+ *   always respected and never coerced to +91 (so removing/switching +91 persists).
+ * - Input without `+` uses `defaultCountry` (India), so a bare 10-digit mobile
+ *   becomes +91…, while other national numbers parse under that country.
+ * - Anything libphonenumber-js can't validate returns "" so callers surface a
+ *   validation error rather than persisting a coerced/garbage number.
  */
 export function normalizeToE164(
   phone: string,
@@ -20,12 +26,33 @@ export function normalizeToE164(
       return parsed.format("E.164");
     }
   } catch {
-    /* fall through to fallback */
+    /* invalid → fall through to "" */
   }
 
-  const digits = trimmed.replace(/\D/g, "");
-  if (!digits) return "";
-  return `+91${digits}`;
+  return "";
+}
+
+/**
+ * Convert a stored E.164 number into an edit-friendly value for input fields.
+ * Indian (+91) numbers become their bare national form (e.g. "9876543210") so users
+ * can see they're free to drop/keep the +91; every other country code is preserved
+ * as-is (e.g. "+16505551234") so it doesn't get coerced. `normalizeToE164` turns
+ * either shape back into E.164 on save.
+ */
+export function toEditablePhone(phone: string | null | undefined): string {
+  const trimmed = (phone ?? "").trim();
+  if (!trimmed) return "";
+
+  try {
+    const parsed = parsePhoneNumberFromString(trimmed, "IN");
+    if (parsed?.isValid() && parsed.country === "IN") {
+      return parsed.nationalNumber;
+    }
+  } catch {
+    /* fall through to raw */
+  }
+
+  return trimmed;
 }
 
 /**

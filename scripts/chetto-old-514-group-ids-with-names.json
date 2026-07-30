@@ -1,0 +1,3085 @@
+{
+  "count": 513,
+  "with_names": 511,
+  "without_names": 2,
+  "groups": [
+    {
+      "group_id": "120363022002458333",
+      "group_name": "Akashay Sharma's Concierge🧞‍♀️🟠",
+      "display_name": "Akashay Sharma's Concierge🧞‍♀️🟠",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363022106565866",
+      "group_name": "Sujeet's Concierge 🧞🟢",
+      "display_name": "Sujeet's Concierge 🧞🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363023970979966",
+      "group_name": "New Group",
+      "display_name": "New Group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363024548076519",
+      "group_name": "Eshita's Concierge 🧞🟢",
+      "display_name": "Eshita's Concierge 🧞🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363025410292137",
+      "group_name": "Athul at Indulge Global's group",
+      "display_name": "Athul at Indulge Global's group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363025611197637",
+      "group_name": "Kartikeya's Concierge 🧞‍♀️🔵",
+      "display_name": "Kartikeya's Concierge 🧞‍♀️🔵",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363026621439367",
+      "group_name": "Preethi & K's Concierge 🧞‍♀️🟢",
+      "display_name": "Preethi & K's Concierge 🧞‍♀️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363027510628984",
+      "group_name": "New Group",
+      "display_name": "New Group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363028732939345",
+      "group_name": "Ritika Jain's group",
+      "display_name": "Ritika Jain's group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363028882377345",
+      "group_name": "Naina V’s Concierge🧞‍♀️🟢",
+      "display_name": "Naina V’s Concierge🧞‍♀️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363028948756100",
+      "group_name": "Ravi and Poonam’s Concierge 🧞‍♀️🔵",
+      "display_name": "Ravi and Poonam’s Concierge 🧞‍♀️🔵",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363029106205723",
+      "group_name": "Ritika Jain's group",
+      "display_name": "Ritika Jain's group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363029160305286",
+      "group_name": "(Private) Vijay's Concierge🧞‍♀️",
+      "display_name": "(Private) Vijay's Concierge🧞‍♀️",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363029334890640",
+      "group_name": "Tanmay's Concierge🧞‍♀️🟡",
+      "display_name": "Tanmay's Concierge🧞‍♀️🟡",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363029573695819",
+      "group_name": "Ritika Jain's group",
+      "display_name": "Ritika Jain's group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363029905914978",
+      "group_name": "Bhupinder Singh’s Concierge 🧞‍♀️🟢",
+      "display_name": "Bhupinder Singh’s Concierge 🧞‍♀️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363031575921146",
+      "group_name": "Anshula's Concierge 🧞🟡",
+      "display_name": "Anshula's Concierge 🧞🟡",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363036600273263",
+      "group_name": "Nithin's Concierge 🧞‍♂️🟢",
+      "display_name": "Nithin's Concierge 🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363037643203818",
+      "group_name": "Rohan's Concierge 🧞🟢",
+      "display_name": "Rohan's Concierge 🧞🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363038098994569",
+      "group_name": "Ritika Jain's group",
+      "display_name": "Ritika Jain's group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363039015484091",
+      "group_name": "Amar's Concierge 🧞🔵",
+      "display_name": "Amar's Concierge 🧞🔵",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363039270967624",
+      "group_name": "Avnish's concierge🟢",
+      "display_name": "Avnish's concierge🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363039325874631",
+      "group_name": "Nikhil's Concierge 🧞🟢",
+      "display_name": "Nikhil's Concierge 🧞🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363039491790570",
+      "group_name": "Arjun and Tania’s Concierge 🧞‍♀️🟡",
+      "display_name": "Arjun and Tania’s Concierge 🧞‍♀️🟡",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363040330354282",
+      "group_name": "Adarsh's Concierge 🧞‍♂️🟢",
+      "display_name": "Adarsh's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363040474757538",
+      "group_name": "Seema's Concierge 🧞‍♂️🟢",
+      "display_name": "Seema's Concierge 🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363040702747653",
+      "group_name": "Prashanth's Concierge 🧞‍♂️🟢",
+      "display_name": "Prashanth's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363041162737227",
+      "group_name": "Puneet's Concierge 🧞🟢",
+      "display_name": "Puneet's Concierge 🧞🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363041280013694",
+      "group_name": "Puneet Bansal’s Concierge 🧞🟢",
+      "display_name": "Puneet Bansal’s Concierge 🧞🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363042245004242",
+      "group_name": "BM Farook's Concierge🧞‍♀️🟡",
+      "display_name": "BM Farook's Concierge🧞‍♀️🟡",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363042994189815",
+      "group_name": "Aprameya's Concierge 🧞🔵",
+      "display_name": "Aprameya's Concierge 🧞🔵",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363043253493761",
+      "group_name": "Bhavesh's Concierge 🧞‍♀️🟢",
+      "display_name": "Bhavesh's Concierge 🧞‍♀️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363043253889095",
+      "group_name": "Kamal's Concierge 🧞🟡",
+      "display_name": "Kamal's Concierge 🧞🟡",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363043301610436",
+      "group_name": "Rahul & Ratul's Concierge🧞‍♀️🟢",
+      "display_name": "Rahul & Ratul's Concierge🧞‍♀️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363043349489226",
+      "group_name": "New Group",
+      "display_name": "New Group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363043388712889",
+      "group_name": "Ritika Jain's group",
+      "display_name": "Ritika Jain's group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363043435728856",
+      "group_name": "Subin's Concierge 🧞🟢",
+      "display_name": "Subin's Concierge 🧞🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363043701552833",
+      "group_name": "Ria at Indulge's group",
+      "display_name": "Ria at Indulge's group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363043786703310",
+      "group_name": "Anu's Concierge 🧞🟢",
+      "display_name": "Anu's Concierge 🧞🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363043804845942",
+      "group_name": "Kamal V's Concierge 🧞‍♀️🟢",
+      "display_name": "Kamal V's Concierge 🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363043899663146",
+      "group_name": "Joti's Concierge 🟢🧞‍♂️",
+      "display_name": "Joti's Concierge 🟢🧞‍♂️",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363044395179980",
+      "group_name": "Ritika & Rashmi Vaswani's Concierge🧞‍♀️🟢",
+      "display_name": "Ritika & Rashmi Vaswani's Concierge🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363044415613848",
+      "group_name": "Nanditha's Concierge 🧞🟢",
+      "display_name": "Nanditha's Concierge 🧞🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363044612764775",
+      "group_name": "Madhvi's Concierge🧞‍♀️🟢",
+      "display_name": "Madhvi's Concierge🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363044934903562",
+      "group_name": "Amit's Concierge 🧞‍♂️🟢",
+      "display_name": "Amit's Concierge 🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363045129144559",
+      "group_name": "Karan bhangay’s Concierge 🧞‍♀️🟢",
+      "display_name": "Karan bhangay’s Concierge 🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363045844014066",
+      "group_name": "Sunil Vachani Concierge 🧞🟢",
+      "display_name": "Sunil Vachani Concierge 🧞🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363046197956557",
+      "group_name": "New Group",
+      "display_name": "New Group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363046616249949",
+      "group_name": "Pranav Singla’s Concierge 🧞🟢",
+      "display_name": "Pranav Singla’s Concierge 🧞🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363046809301862",
+      "group_name": "Sonali's Concierge 🧞‍♀️🟢",
+      "display_name": "Sonali's Concierge 🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363046953693990",
+      "group_name": "Ritika Jain's group",
+      "display_name": "Ritika Jain's group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363047113849371",
+      "group_name": "The Indulge Shop ( Luxury watches, Bags, Global Music & Sporting Events )",
+      "display_name": "The Indulge Shop ( Luxury watches, Bags, Global Music & Sporting Events )",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363047586126589",
+      "group_name": "The Indulge Shop ( Luxury watches, Bags, Global Music & Sporting Events )",
+      "display_name": "The Indulge Shop ( Luxury watches, Bags, Global Music & Sporting Events )",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363047814253684",
+      "group_name": "Ritika Jain's group",
+      "display_name": "Ritika Jain's group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363048035107932",
+      "group_name": "Ritika Jain's group",
+      "display_name": "Ritika Jain's group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363048456635687",
+      "group_name": "Kunal Shah Concierge 🧞🟢",
+      "display_name": "Kunal Shah Concierge 🧞🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363048518946563",
+      "group_name": "Ravi Machani's Concierge🧞‍♀️🟢",
+      "display_name": "Ravi Machani's Concierge🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363051682059006",
+      "group_name": "Sathya Murthy's Concierge 🟢",
+      "display_name": "Sathya Murthy's Concierge 🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363056742557401",
+      "group_name": "Ritika Jain's group",
+      "display_name": "Ritika Jain's group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363068259180902",
+      "group_name": "Akshay’s Concierge 🧞🟢",
+      "display_name": "Akshay’s Concierge 🧞🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363070743702528",
+      "group_name": "Ritika Jain's group",
+      "display_name": "Ritika Jain's group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363092673125850",
+      "group_name": "Ritika Jain's group",
+      "display_name": "Ritika Jain's group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363113832974762",
+      "group_name": "Anupama’s Concierge 🧞‍♀️🔵",
+      "display_name": "Anupama’s Concierge 🧞‍♀️🔵",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363113860244604",
+      "group_name": "Ritika Jain's group",
+      "display_name": "Ritika Jain's group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363120922360706",
+      "group_name": "Ritika Jain's group",
+      "display_name": "Ritika Jain's group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363121440242452",
+      "group_name": "Ritika Jain's group",
+      "display_name": "Ritika Jain's group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363121923000280",
+      "group_name": "Ritika Jain's group",
+      "display_name": "Ritika Jain's group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363128016953165",
+      "group_name": "Ankush's Concierge 🧞🟢",
+      "display_name": "Ankush's Concierge 🧞🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363129766807295",
+      "group_name": "Ritika Jain's group",
+      "display_name": "Ritika Jain's group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363134227532274",
+      "group_name": "Ritika Jain's group",
+      "display_name": "Ritika Jain's group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363138177514846",
+      "group_name": "Nischay's Concierge 🧞🟢",
+      "display_name": "Nischay's Concierge 🧞🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363138392852454",
+      "group_name": "Aditya Agarwal's Concierge 🧞🟢",
+      "display_name": "Aditya Agarwal's Concierge 🧞🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363139505387120",
+      "group_name": "Rakesh's Concierge 🧞🟢",
+      "display_name": "Rakesh's Concierge 🧞🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363139785527011",
+      "group_name": "Sanjiv's Concierge 🧞🟢",
+      "display_name": "Sanjiv's Concierge 🧞🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363141082472094",
+      "group_name": "Aashman's Concierge🧞‍♂️🟢",
+      "display_name": "Aashman's Concierge🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363143814736510",
+      "group_name": "Sahil Vachani’s Concierge 🧞‍♀️🔵",
+      "display_name": "Sahil Vachani’s Concierge 🧞‍♀️🔵",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363143829518275",
+      "group_name": "Ritika Jain's group",
+      "display_name": "Ritika Jain's group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363143956384087",
+      "group_name": "Vikas Parasrampuria's Concierge 🧞‍♀️🟢",
+      "display_name": "Vikas Parasrampuria's Concierge 🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363144248698914",
+      "group_name": "Siddharth Kothari's Concierge 🧞‍♀️🟢",
+      "display_name": "Siddharth Kothari's Concierge 🧞‍♀️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363144797874366",
+      "group_name": "Saahil's Concierge🧞‍♂️🟢",
+      "display_name": "Saahil's Concierge🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363144960493466",
+      "group_name": "Ritika Jain's group",
+      "display_name": "Ritika Jain's group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363145342868534",
+      "group_name": "Vidhya S’s Concierge 🧞🟠",
+      "display_name": "Vidhya S’s Concierge 🧞🟠",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363146249699561",
+      "group_name": "Mihir Kaji’s Concierge 🧞‍♀️🟢",
+      "display_name": "Mihir Kaji’s Concierge 🧞‍♀️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363146495493992",
+      "group_name": "Summit's Concierge 🧞🟢",
+      "display_name": "Summit's Concierge 🧞🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363146761532227",
+      "group_name": "Jayesh Sharaf's Concierge 🧞🟢",
+      "display_name": "Jayesh Sharaf's Concierge 🧞🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363147897763587",
+      "group_name": "Ritika Jain's group",
+      "display_name": "Ritika Jain's group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363148587866452",
+      "group_name": "Ritika Jain's group",
+      "display_name": "Ritika Jain's group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363148607100173",
+      "group_name": "Ritika Jain's group",
+      "display_name": "Ritika Jain's group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363150054022890",
+      "group_name": "Harsh’s Concierge 🧞‍♀️⚫",
+      "display_name": "Harsh’s Concierge 🧞‍♀️⚫",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363150728525338",
+      "group_name": "Harshil Limbasiya's Concierge 🧞‍♀️🟢",
+      "display_name": "Harshil Limbasiya's Concierge 🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363150921102837",
+      "group_name": "Pakshal Sanghvi's Concierge 🧞‍♂️🟢",
+      "display_name": "Pakshal Sanghvi's Concierge 🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363151452303019",
+      "group_name": "Ritika Jain's group",
+      "display_name": "Ritika Jain's group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363151626551930",
+      "group_name": "Sharjeel Nawaz Khan's Concierge 🟢",
+      "display_name": "Sharjeel Nawaz Khan's Concierge 🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363151664685958",
+      "group_name": "Neel Gogia's Concierge 🧞‍♀️🟢",
+      "display_name": "Neel Gogia's Concierge 🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363151670814932",
+      "group_name": "Karan Virwani’s Concierge 🧞🟢",
+      "display_name": "Karan Virwani’s Concierge 🧞🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363151825481368",
+      "group_name": "Vikas Gupta's Concierge 🧞‍♀️🟢",
+      "display_name": "Vikas Gupta's Concierge 🧞‍♀️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363151968359249",
+      "group_name": "Mr. Arjun's Concierge🧞‍♀️🟢",
+      "display_name": "Mr. Arjun's Concierge🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363152258466942",
+      "group_name": "Srinivas Kalyan Arasada's Concierge 🧞‍♂️🟢",
+      "display_name": "Srinivas Kalyan Arasada's Concierge 🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363152262774136",
+      "group_name": "🥷🏻Pixel Pro designer Videos and Designs Indulge graphic",
+      "display_name": "🥷🏻Pixel Pro designer Videos and Designs Indulge graphic",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363152388663022",
+      "group_name": "Ritika Jain's group",
+      "display_name": "Ritika Jain's group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363153890221334",
+      "group_name": "Shimmer Goel's Concierge 🧞‍♀️🟢",
+      "display_name": "Shimmer Goel's Concierge 🧞‍♀️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363154579694188",
+      "group_name": "Ayush Choudhary's Concierge 🧞‍♂️🟠",
+      "display_name": "Ayush Choudhary's Concierge 🧞‍♂️🟠",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363155908062023",
+      "group_name": "Vasant's group",
+      "display_name": "Vasant's group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363156826044156",
+      "group_name": "Ranjeeta’s Concierge 🧞🔵",
+      "display_name": "Ranjeeta’s Concierge 🧞🔵",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363157108165514",
+      "group_name": "Pruthviraj GK’s Concierge 🧞🟢",
+      "display_name": "Pruthviraj GK’s Concierge 🧞🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363157303115173",
+      "group_name": "Sunita Mankani’s Concierge 🧞🟢",
+      "display_name": "Sunita Mankani’s Concierge 🧞🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363157409212048",
+      "group_name": "Nesar's Concierge 🧞🟢",
+      "display_name": "Nesar's Concierge 🧞🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363159644290058",
+      "group_name": "Ritika Jain's group",
+      "display_name": "Ritika Jain's group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363160148966618",
+      "group_name": "Deepak Binyani’s Concierge 🧞🔵",
+      "display_name": "Deepak Binyani’s Concierge 🧞🔵",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363160599443022",
+      "group_name": "Ritika Jain's group",
+      "display_name": "Ritika Jain's group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363160767573448",
+      "group_name": "Kavya's Concierge 🧞‍♀️🟢",
+      "display_name": "Kavya's Concierge 🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363160881280576",
+      "group_name": "Lakshay and Alia’s Concierge 🧞🟢",
+      "display_name": "Lakshay and Alia’s Concierge 🧞🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363161239790773",
+      "group_name": "Anil’s Concierge 🧞🟡",
+      "display_name": "Anil’s Concierge 🧞🟡",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363161400592333",
+      "group_name": "Ankush Agrawal’s Concierge 🧞‍♀️🟢",
+      "display_name": "Ankush Agrawal’s Concierge 🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363161679388386",
+      "group_name": "Ayesha Saraf's Concierge🧞🔵",
+      "display_name": "Ayesha Saraf's Concierge🧞🔵",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363161774213490",
+      "group_name": "Satish Machani's Concierge 🧞‍♀️🟢",
+      "display_name": "Satish Machani's Concierge 🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363161886355692",
+      "group_name": "Naveen Yalamanchili's Concierge 🧞🟢️",
+      "display_name": "Naveen Yalamanchili's Concierge 🧞🟢️",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363162294920763",
+      "group_name": "Anchal Dhall’s Concierge 🧞",
+      "display_name": "Anchal Dhall’s Concierge 🧞",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363162428555103",
+      "group_name": "Rhea’s Concierge 🧞‍♀️🟡",
+      "display_name": "Rhea’s Concierge 🧞‍♀️🟡",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363162857991674",
+      "group_name": "Ramu Rao Jupally’s Concierge 🧞‍♀️🟢",
+      "display_name": "Ramu Rao Jupally’s Concierge 🧞‍♀️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363163429501522",
+      "group_name": "Amulya Reddy’s Concierge 🧞🟢",
+      "display_name": "Amulya Reddy’s Concierge 🧞🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363163705186323",
+      "group_name": "Harsha Kamatam’s Concierge🧞‍♂️🟠",
+      "display_name": "Harsha Kamatam’s Concierge🧞‍♂️🟠",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363163980141358",
+      "group_name": "Anuj Monty Yadav's Concierge🟢",
+      "display_name": "Anuj Monty Yadav's Concierge🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363164071207635",
+      "group_name": "Ranjan Pai’s Concierge 🧞🟢",
+      "display_name": "Ranjan Pai’s Concierge 🧞🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363165499892372",
+      "group_name": "Ritika Jain's group",
+      "display_name": "Ritika Jain's group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363165806968469",
+      "group_name": "Abhishek Agarwal R's Concierge 🧞‍♂️🔵",
+      "display_name": "Abhishek Agarwal R's Concierge 🧞‍♂️🔵",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363167743596531",
+      "group_name": "Abhinaya's Concierge🧞‍♂️🟢",
+      "display_name": "Abhinaya's Concierge🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363168499573628",
+      "group_name": "Ravi Kailas's Concierge 🧞‍♀️🟢",
+      "display_name": "Ravi Kailas's Concierge 🧞‍♀️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363168553720678",
+      "group_name": "Vidyasagar Dontineni’s Concierge 🧞‍♀️🔵",
+      "display_name": "Vidyasagar Dontineni’s Concierge 🧞‍♀️🔵",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363169118473095",
+      "group_name": "Mannas's Concierge 🧞🟢",
+      "display_name": "Mannas's Concierge 🧞🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363169733471845",
+      "group_name": "Rohit Reddy's Concierge 🧞🟢",
+      "display_name": "Rohit Reddy's Concierge 🧞🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363169937718110",
+      "group_name": "Shalini’s Concierge 🧞‍♂️",
+      "display_name": "Shalini’s Concierge 🧞‍♂️",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363169956620305",
+      "group_name": "Teja Raju’s Concierge 🧞‍♂️🔵",
+      "display_name": "Teja Raju’s Concierge 🧞‍♂️🔵",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363170241920857",
+      "group_name": "Tushad Dubash’s Concierge 🧞‍♀️🔵",
+      "display_name": "Tushad Dubash’s Concierge 🧞‍♀️🔵",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363170289394975",
+      "group_name": "Shaji's Concierge🧞‍♀️🟢",
+      "display_name": "Shaji's Concierge🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363170376825043",
+      "group_name": "Arjun Santanakrishnan's Concierge 🧞🔵",
+      "display_name": "Arjun Santanakrishnan's Concierge 🧞🔵",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363172698932261",
+      "group_name": "Abhishek Agarwalla's Concierge🧞‍♀️🟢",
+      "display_name": "Abhishek Agarwalla's Concierge🧞‍♀️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363172766446618",
+      "group_name": "Shikha Mohan Gupta Concierge 🧞‍♂️🟢",
+      "display_name": "Shikha Mohan Gupta Concierge 🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363178777493505",
+      "group_name": "Akshay BD's Concierge 🧞‍♀️🟢",
+      "display_name": "Akshay BD's Concierge 🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363179672645033",
+      "group_name": "Rajesh Agarwal’s Concierge 🧞‍♂️🟢",
+      "display_name": "Rajesh Agarwal’s Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363180095912452",
+      "group_name": "Sridhar's Concierge 🧞‍♀️🟢",
+      "display_name": "Sridhar's Concierge 🧞‍♀️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363182089760693",
+      "group_name": "Aditya Patil’s Concierge 🧞‍♀️🟢",
+      "display_name": "Aditya Patil’s Concierge 🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363183202792117",
+      "group_name": "Jivesh Goenka’s Concierge 🧞‍♂️🟢",
+      "display_name": "Jivesh Goenka’s Concierge 🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363183266394817",
+      "group_name": "Sandesh Cadabam's Concierge 🧞‍♀️🔵",
+      "display_name": "Sandesh Cadabam's Concierge 🧞‍♀️🔵",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363183992561752",
+      "group_name": "Nikhil Shettar's Conceirge 🧞‍♂️🟢",
+      "display_name": "Nikhil Shettar's Conceirge 🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363186992997659",
+      "group_name": "Shreyans Khemka’s Concierge 🧞‍♀️🟢",
+      "display_name": "Shreyans Khemka’s Concierge 🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363187219171883",
+      "group_name": "Tehjash Concierge 🧞‍♂️🟢",
+      "display_name": "Tehjash Concierge 🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363188317408795",
+      "group_name": "Shradha Lohia’s Concierge 🧞‍♀️🟢",
+      "display_name": "Shradha Lohia’s Concierge 🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363188760498744",
+      "group_name": "Suyash Somani's Concierge🧞‍♀️🟢",
+      "display_name": "Suyash Somani's Concierge🧞‍♀️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363189823501764",
+      "group_name": "Concierge - Gitanjali Maini 🧞‍♂️🟢",
+      "display_name": "Concierge - Gitanjali Maini 🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363190528186615",
+      "group_name": "Aryan Agarwal's Concierge 🧞‍♂️🟢",
+      "display_name": "Aryan Agarwal's Concierge 🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363191568324248",
+      "group_name": "Snehil Saraf’s Concierge🧞‍♂️🟢",
+      "display_name": "Snehil Saraf’s Concierge🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363192327581681",
+      "group_name": "Paridhi Agarwal Concierge 🧞‍♂️🟢",
+      "display_name": "Paridhi Agarwal Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363194432474919",
+      "group_name": "Himanshu Agrawal's Concierge 🧞‍♂️🟢 Indulge",
+      "display_name": "Himanshu Agrawal's Concierge 🧞‍♂️🟢 Indulge",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363195296074657",
+      "group_name": "Shah’s Concierge 🟢🧞‍♀️",
+      "display_name": "Shah’s Concierge 🟢🧞‍♀️",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363195582121152",
+      "group_name": "Shweta Kedia's Concierge 🧞‍♀️🟢",
+      "display_name": "Shweta Kedia's Concierge 🧞‍♀️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363197335540111",
+      "group_name": "Ashutosh Goel's Concierge 🧞‍♀️🔵",
+      "display_name": "Ashutosh Goel's Concierge 🧞‍♀️🔵",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363199943070703",
+      "group_name": "Akash's Pre Concierge 🧞‍♀️",
+      "display_name": "Akash's Pre Concierge 🧞‍♀️",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363200387969969",
+      "group_name": "Deepa X Indulge ",
+      "display_name": "Deepa X Indulge",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363200598187974",
+      "group_name": "Saket's Concierge 🧞‍♀️",
+      "display_name": "Saket's Concierge 🧞‍♀️",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363201188045462",
+      "group_name": "Bhanu Chopra's Concierge 🧞‍♀️🟢",
+      "display_name": "Bhanu Chopra's Concierge 🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363202538255028",
+      "group_name": "Swathi Kolla's Concierge 🧞‍♀️🔵",
+      "display_name": "Swathi Kolla's Concierge 🧞‍♀️🔵",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363204331860221",
+      "group_name": "Vinay Jethwani's Concierge 🧞‍♀️🔵",
+      "display_name": "Vinay Jethwani's Concierge 🧞‍♀️🔵",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363207182579235",
+      "group_name": "Nikhil and Shaila Verma’s Concierge 🧞🟢",
+      "display_name": "Nikhil and Shaila Verma’s Concierge 🧞🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363218594925817",
+      "group_name": "Partner @ Tech X Freshworks",
+      "display_name": "Partner @ Tech X Freshworks",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363220594193456",
+      "group_name": "Dr.Rohit Suri's Concierge 🧞‍♀️🔵",
+      "display_name": "Dr.Rohit Suri's Concierge 🧞‍♀️🔵",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363235366232140",
+      "group_name": "Vivek Lohia's Concierge 🧞‍♀️🟢",
+      "display_name": "Vivek Lohia's Concierge 🧞‍♀️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363237249470687",
+      "group_name": "Sourabh Chattopadhyay's Concierge 🧞‍♀️🔵",
+      "display_name": "Sourabh Chattopadhyay's Concierge 🧞‍♀️🔵",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363237625955352",
+      "group_name": "Ritu Arora's Concierge 🧞‍♀️🔵",
+      "display_name": "Ritu Arora's Concierge 🧞‍♀️🔵",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363238535795633",
+      "group_name": "Archit goel's Concierge 🧞‍♀️🔵",
+      "display_name": "Archit goel's Concierge 🧞‍♀️🔵",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363256000493818",
+      "group_name": "Ranjit Sapra's Concierge 🧞‍♀️🟢",
+      "display_name": "Ranjit Sapra's Concierge 🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363256281727886",
+      "group_name": "Giri's Concierge 🔵🧞‍♀️",
+      "display_name": "Giri's Concierge 🔵🧞‍♀️",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363264335318517",
+      "group_name": "Concierge 🧞",
+      "display_name": "Concierge 🧞",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363264802346282",
+      "group_name": "Mr. Pintu Dholakia's Concierge 🧞🔵",
+      "display_name": "Mr. Pintu Dholakia's Concierge 🧞🔵",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363276579328533",
+      "group_name": "Keshav Bansal’s Concierge🧞‍♂️🟢",
+      "display_name": "Keshav Bansal’s Concierge🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363279389121237",
+      "group_name": "Jignesh (Rishi & Mitali) X Indulge",
+      "display_name": "Jignesh (Rishi & Mitali) X Indulge",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363281684691440",
+      "group_name": "Aayush Munjal's  Concierge 🧞‍♀️🔵",
+      "display_name": "Aayush Munjal's  Concierge 🧞‍♀️🔵",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363282067482573",
+      "group_name": "Advita’s Team 🧞‍♀️🟣",
+      "display_name": "Advita’s Team 🧞‍♀️🟣",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363282684584044",
+      "group_name": "Ravi Reddy's Concierge 🧞‍♀️🔵",
+      "display_name": "Ravi Reddy's Concierge 🧞‍♀️🔵",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363284025344911",
+      "group_name": "Nandan's Concierge 🟢 🧞‍♂️",
+      "display_name": "Nandan's Concierge 🟢 🧞‍♂️",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363285355039509",
+      "group_name": "Kiran Mudunuri's Concierge 🧞‍♀️🟢",
+      "display_name": "Kiran Mudunuri's Concierge 🧞‍♀️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363294208930856",
+      "group_name": "Rishi and Mitali’s Concierge 🧞🟢",
+      "display_name": "Rishi and Mitali’s Concierge 🧞🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363294554107964",
+      "group_name": "Gautham Pai’s Concierge 🧞‍♀️🟢",
+      "display_name": "Gautham Pai’s Concierge 🧞‍♀️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363294877653996",
+      "group_name": "Abhishek Chanda's Concierge🧞🔵",
+      "display_name": "Abhishek Chanda's Concierge🧞🔵",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363294989760901",
+      "group_name": "Zakir Khan’s Concierge 🧞‍♀️🟡",
+      "display_name": "Zakir Khan’s Concierge 🧞‍♀️🟡",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363295123227041",
+      "group_name": "Yash Mehta's Concierge 🧞🟢",
+      "display_name": "Yash Mehta's Concierge 🧞🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363297026652026",
+      "group_name": "Pruthvi’s Concierge🧞🟢",
+      "display_name": "Pruthvi’s Concierge🧞🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363298091542183",
+      "group_name": "Prajodh Rajan's Concierge 🧞‍♀️🔵",
+      "display_name": "Prajodh Rajan's Concierge 🧞‍♀️🔵",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363298347961240",
+      "group_name": null,
+      "display_name": null,
+      "queendom": null
+    },
+    {
+      "group_id": "120363298701042875",
+      "group_name": "Rahul Bhutoria's Concierge 🧞‍♀️🔵",
+      "display_name": "Rahul Bhutoria's Concierge 🧞‍♀️🔵",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363299085095373",
+      "group_name": "Ritesh Jain's Concierge 🧞‍♂️🟢",
+      "display_name": "Ritesh Jain's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363299207531749",
+      "group_name": "Pravin Jadhav's Concierge 🧞‍♀🔵",
+      "display_name": "Pravin Jadhav's Concierge 🧞‍♀🔵",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363299304512484",
+      "group_name": "Vishal Agarwal's Concierge🟢🧞‍♀️",
+      "display_name": "Vishal Agarwal's Concierge🟢🧞‍♀️",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363299774485112",
+      "group_name": "Kashish Bindal’s Concierge 🟢🧞",
+      "display_name": "Kashish Bindal’s Concierge 🟢🧞",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363301393843270",
+      "group_name": "Prasun Jodhani's Concierge 🔵🧞‍♀️",
+      "display_name": "Prasun Jodhani's Concierge 🔵🧞‍♀️",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363301501337185",
+      "group_name": "Mr Sandeep's Concierge 🧞‍♀️🟢",
+      "display_name": "Mr Sandeep's Concierge 🧞‍♀️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363301777964509",
+      "group_name": "Ritika Jain's group",
+      "display_name": "Ritika Jain's group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363301912708623",
+      "group_name": "Siddharth Runwal's Concierge 🧞‍♂️🟢",
+      "display_name": "Siddharth Runwal's Concierge 🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363302348419256",
+      "group_name": "Rajnish Jain's Concierge🟠🧞‍♀️",
+      "display_name": "Rajnish Jain's Concierge🟠🧞‍♀️",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363303707459088",
+      "group_name": "Gautam Desai's Concierge 🟢🧞‍♀️",
+      "display_name": "Gautam Desai's Concierge 🟢🧞‍♀️",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363303905884559",
+      "group_name": "Ritika Jain's group",
+      "display_name": "Ritika Jain's group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363305143483311",
+      "group_name": "Niyami PPruth Chheda’s  Concierge 🧞‍♀️🟢",
+      "display_name": "Niyami PPruth Chheda’s  Concierge 🧞‍♀️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363305853268368",
+      "group_name": "Aman Kedia's Concierge 🧞‍♀️🟢",
+      "display_name": "Aman Kedia's Concierge 🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363313288163934",
+      "group_name": "GMG’s Concierge🧞‍♀️",
+      "display_name": "GMG’s Concierge🧞‍♀️",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363313443532982",
+      "group_name": "Washington's Concierge 🧞‍♀️🟢",
+      "display_name": "Washington's Concierge 🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363313789454939",
+      "group_name": "Vikram Kailas' Concierge 🟠🧞‍♀️",
+      "display_name": "Vikram Kailas' Concierge 🟠🧞‍♀️",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363313852346915",
+      "group_name": "Dharanish Dhanekula's Concierge🔵🧞‍♀️",
+      "display_name": "Dharanish Dhanekula's Concierge🔵🧞‍♀️",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363315491628754",
+      "group_name": "Navneet Singh's Concierge 🧞‍♀️🔵",
+      "display_name": "Navneet Singh's Concierge 🧞‍♀️🔵",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363315856792305",
+      "group_name": "Arjun Kapoor's Concierge 🟡🧞‍♀️",
+      "display_name": "Arjun Kapoor's Concierge 🟡🧞‍♀️",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363315868084520",
+      "group_name": "Aayush Gupta's Concierge 🧞‍♀️🟢",
+      "display_name": "Aayush Gupta's Concierge 🧞‍♀️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363317107566177",
+      "group_name": "Ritika Jain's group",
+      "display_name": "Ritika Jain's group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363317207064363",
+      "group_name": "Saurabh Choudhari's Concierge 🧞‍♀️🟡",
+      "display_name": "Saurabh Choudhari's Concierge 🧞‍♀️🟡",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363317417434185",
+      "group_name": "Prashant Deshpande's Concierge 🧞‍♀️🟢",
+      "display_name": "Prashant Deshpande's Concierge 🧞‍♀️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363317575136097",
+      "group_name": "Malay Parekh's Concierge 🟢",
+      "display_name": "Malay Parekh's Concierge 🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363317663435675",
+      "group_name": "Sirish Indulge concierge 🧞‍♀️",
+      "display_name": "Sirish Indulge concierge 🧞‍♀️",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363318969173169",
+      "group_name": "Sameer's Concierge 🧞🟢",
+      "display_name": "Sameer's Concierge 🧞🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363319219175463",
+      "group_name": "Medha's Concierge 🧞‍♂️🟢",
+      "display_name": "Medha's Concierge 🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363319936737300",
+      "group_name": "Kanav's  Concierge 🧞‍♂️🟠",
+      "display_name": "Kanav's  Concierge 🧞‍♂️🟠",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363319939180974",
+      "group_name": "Sanjeev Barnwal’s Concierge 🟢🧞",
+      "display_name": "Sanjeev Barnwal’s Concierge 🟢🧞",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363319994581694",
+      "group_name": "Kanika Savara’s Concierge 🧞‍♂️🟠",
+      "display_name": "Kanika Savara’s Concierge 🧞‍♂️🟠",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363320054916394",
+      "group_name": "Krishna Modi’s Concierge🟢🧞‍♀️",
+      "display_name": "Krishna Modi’s Concierge🟢🧞‍♀️",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363320085419685",
+      "group_name": "Rohini Manian's Concierge🟢🧞‍♀️",
+      "display_name": "Rohini Manian's Concierge🟢🧞‍♀️",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363320286506683",
+      "group_name": "Gaurav and Saruchi Singal’s Concierge🟢🧞‍♀️",
+      "display_name": "Gaurav and Saruchi Singal’s Concierge🟢🧞‍♀️",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363320550932574",
+      "group_name": "Devita Saraf's Concierge 🧞‍♂️🟢",
+      "display_name": "Devita Saraf's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363320644604848",
+      "group_name": "Vrajendra's Concierge🟢🧞‍♀️",
+      "display_name": "Vrajendra's Concierge🟢🧞‍♀️",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363320675765729",
+      "group_name": "Rajesh Nigam's Concierge 🧞‍♂️🟢",
+      "display_name": "Rajesh Nigam's Concierge 🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363321385807167",
+      "group_name": "Mr. Sanjay Gaddipati's Concierge 🧞‍♀️🟢",
+      "display_name": "Mr. Sanjay Gaddipati's Concierge 🧞‍♀️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363321645497588",
+      "group_name": "Ritika Jain's group",
+      "display_name": "Ritika Jain's group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363322645899806",
+      "group_name": "Rahul Mittal's Concierge🧞‍♀️🟢",
+      "display_name": "Rahul Mittal's Concierge🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363322809025554",
+      "group_name": "Indulge X Raj Shamani's Concierge 🟢🧞",
+      "display_name": "Indulge X Raj Shamani's Concierge 🟢🧞",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363323200859896",
+      "group_name": "Deepshika Yadugiri’s Concierge 🟢🧞‍♀️",
+      "display_name": "Deepshika Yadugiri’s Concierge 🟢🧞‍♀️",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363334626149906",
+      "group_name": "Sara Hassan's Concierge 🧞‍♀️🟢",
+      "display_name": "Sara Hassan's Concierge 🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363366361363777",
+      "group_name": "Kunal Rajiv Vohra's Concierge 🧞‍♀️🟠",
+      "display_name": "Kunal Rajiv Vohra's Concierge 🧞‍♀️🟠",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363367336659906",
+      "group_name": "Usman and Ahmed’s Concierge 🧞‍♀️🟢",
+      "display_name": "Usman and Ahmed’s Concierge 🧞‍♀️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363367516331883",
+      "group_name": "Yoginth's Concierge 🧞‍♀️🟢",
+      "display_name": "Yoginth's Concierge 🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363368173427025",
+      "group_name": "Indulge Concierge - BK Ramakrishna🧞‍♂️🟢",
+      "display_name": "Indulge Concierge - BK Ramakrishna🧞‍♂️🟢",
+      "queendom": null
+    },
+    {
+      "group_id": "120363368189481944",
+      "group_name": "Santhosh Reddy's Concierge 🧞‍♀️🟠",
+      "display_name": "Santhosh Reddy's Concierge 🧞‍♀️🟠",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363368389553563",
+      "group_name": "Bhavin's Concierge 🧞‍♀️🟠",
+      "display_name": "Bhavin's Concierge 🧞‍♀️🟠",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363368400350176",
+      "group_name": "Shruti Pai’s Concierge 🧞‍♀️🟢",
+      "display_name": "Shruti Pai’s Concierge 🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363368431302183",
+      "group_name": "Mohnish Yerra's Pre Concierge",
+      "display_name": "Mohnish Yerra's",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363368872177881",
+      "group_name": "Dr.Srikanth's Concierge 🧞‍♀️🟡",
+      "display_name": "Dr.Srikanth's Concierge 🧞‍♀️🟡",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363368965450911",
+      "group_name": "Swati Reddy's Concierge 🧞‍♀️🟢",
+      "display_name": "Swati Reddy's Concierge 🧞‍♀️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363369819308567",
+      "group_name": "Sandeep Mehta's Concierge 🧞‍♀️🟢",
+      "display_name": "Sandeep Mehta's Concierge 🧞‍♀️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363370665772747",
+      "group_name": "Vismora Partners",
+      "display_name": "Vismora Partners",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363377220722518",
+      "group_name": "Samir Nerurkar’s  Concierge 🧞‍♀️🟢",
+      "display_name": "Samir Nerurkar’s  Concierge 🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363378039227324",
+      "group_name": "Ansh Anand's Concierge 🧞‍♂️🟢",
+      "display_name": "Ansh Anand's Concierge 🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363379215186952",
+      "group_name": "Maasik Upasthiti X Indulge Staff",
+      "display_name": "Maasik Upasthiti X Indulge Staff",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363382791496738",
+      "group_name": "Aditya Talera's Concierge 🧞‍♀️🟢",
+      "display_name": "Aditya Talera's Concierge 🧞‍♀️🟢",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363384013787001",
+      "group_name": "Surabhi Srivastava's Concierge 🧞‍♀️🟠",
+      "display_name": "Surabhi Srivastava's Concierge 🧞‍♀️🟠",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363384894311051",
+      "group_name": "Aryaman Arya’s Concierge 🧞‍♀️🟢",
+      "display_name": "Aryaman Arya’s Concierge 🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363384903403677",
+      "group_name": "Ankit Garg's Concierge 🧞‍♀️🟡",
+      "display_name": "Ankit Garg's Concierge 🧞‍♀️🟡",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363385027386423",
+      "group_name": "Janhavi Pawar's Concierge 🧞‍♀️🟢",
+      "display_name": "Janhavi Pawar's Concierge 🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363385146342456",
+      "group_name": "Krishna Dhanuka's Concierge🧞‍♀️🟢",
+      "display_name": "Krishna Dhanuka's Concierge🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363385181795972",
+      "group_name": null,
+      "display_name": null,
+      "queendom": null
+    },
+    {
+      "group_id": "120363385194123012",
+      "group_name": "DG Concierge X Indulge 🧞‍♀️🟢",
+      "display_name": "DG Concierge X Indulge 🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363385196480275",
+      "group_name": "Mohit Jain's Concierge 🧞‍♀️🟢",
+      "display_name": "Mohit Jain's Concierge 🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363385594637556",
+      "group_name": "Indulge Hassan Ahmad’s Concierge 🧞‍♀️🟠",
+      "display_name": "Indulge Hassan Ahmad’s Concierge 🧞‍♀️🟠",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363385742628212",
+      "group_name": "Neetaji's Concierge 🧞‍♀️🟢",
+      "display_name": "Neetaji's Concierge 🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363386278568681",
+      "group_name": "Uzma Irfan’s Concierge 🧞‍♀️🟢",
+      "display_name": "Uzma Irfan’s Concierge 🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363386417502861",
+      "group_name": "Sandesh Sharda's Concierge 🧞‍♀️🟢",
+      "display_name": "Sandesh Sharda's Concierge 🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363386550299083",
+      "group_name": "Mrunal Pawar’s Concierge🟢🧞‍♀️",
+      "display_name": "Mrunal Pawar’s Concierge🟢🧞‍♀️",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363386597667905",
+      "group_name": "Rahul Sharma's Concierge🧞‍♀️🟢",
+      "display_name": "Rahul Sharma's Concierge🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363386837986517",
+      "group_name": "Pankil Yadav's Concierge 🧞‍♀️🟢",
+      "display_name": "Pankil Yadav's Concierge 🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363387303304649",
+      "group_name": "Anuj’s Concierge 🧞‍♀️🟡",
+      "display_name": "Anuj’s Concierge 🧞‍♀️🟡",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363387314118538",
+      "group_name": "Mukesh Adukia's Concierge 🧞‍♀️🟢",
+      "display_name": "Mukesh Adukia's Concierge 🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363387396625746",
+      "group_name": "Abhijit Pawar's Concierge 🧞‍♀️🟢",
+      "display_name": "Abhijit Pawar's Concierge 🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363387418348380",
+      "group_name": "Indulge Blue",
+      "display_name": "Indulge Blue",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363387452233052",
+      "group_name": "Abhishek’s Concierge 🧞‍♀️🟢",
+      "display_name": "Abhishek’s Concierge 🧞‍♀️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363387821995994",
+      "group_name": "Manugopal AK’s Concierge 🧞‍♀️🟢",
+      "display_name": "Manugopal AK’s Concierge 🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363388562456414",
+      "group_name": "Puneet Khanna's Concierge 🧞‍♀️🟢",
+      "display_name": "Puneet Khanna's Concierge 🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363388799803419",
+      "group_name": "Umang Jindal’s Concierge 🧞‍♀️🟢",
+      "display_name": "Umang Jindal’s Concierge 🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363389381424684",
+      "group_name": "Rakesh Agarwal's Concierge Indulge Global 🧞‍♀️🟢",
+      "display_name": "Rakesh Agarwal's Concierge Indulge Global 🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363399741631361",
+      "group_name": "Keshav Kumar Agrawal's Concierge🧞‍♂️ 🟢",
+      "display_name": "Keshav Kumar Agrawal's Concierge🧞‍♂️ 🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363400315442473",
+      "group_name": "ME-Juke Box Entertainment Pvt Ltd-5547",
+      "display_name": "ME-Juke Box Entertainment Pvt Ltd-5547",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363400630187534",
+      "group_name": "Internal - Indulge (App+Admin)",
+      "display_name": "Internal - Indulge (App+Admin)",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363400743669650",
+      "group_name": "Mikky's Concierge 🟠🧞‍♂️",
+      "display_name": "Mikky's Concierge 🟠🧞‍♂️",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363400825403133",
+      "group_name": "Gurava Reddy's Concierge🧞‍♂️",
+      "display_name": "Gurava Reddy's Concierge🧞‍♂️",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363401230784710",
+      "group_name": "Grishma and Jeevitha's Concierge🧞‍♂️🟢",
+      "display_name": "Grishma and Jeevitha's Concierge🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363401873060861",
+      "group_name": "Aman Peshawari's Concierge 🧞‍♂️🟢",
+      "display_name": "Aman Peshawari's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363402114248957",
+      "group_name": "Mr Mitchell's Concierge 🧞‍♂️🟢",
+      "display_name": "Mr Mitchell's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363402516229004",
+      "group_name": "Subodh's Concierge 🟢",
+      "display_name": "Subodh's Concierge 🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363402549333793",
+      "group_name": "Manhardeep Singh Ahluwalia's Concierge 🧞‍♂️🟠",
+      "display_name": "Manhardeep Singh Ahluwalia's Concierge 🧞‍♂️🟠",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363402565977336",
+      "group_name": "Darpan & Anubha's Concierge🧞‍♂️",
+      "display_name": "Darpan & Anubha's Concierge🧞‍♂️",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363402609729248",
+      "group_name": "Nithin Rajan's Concierge🧞‍♂️",
+      "display_name": "Nithin Rajan's Concierge🧞‍♂️",
+      "queendom": null
+    },
+    {
+      "group_id": "120363402701536997",
+      "group_name": "Vaibhav's Concierge🧞‍♂️🟢",
+      "display_name": "Vaibhav's Concierge🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363402777430007",
+      "group_name": "Niraj Sharma's Concierge🧞‍♂️",
+      "display_name": "Niraj Sharma's Concierge🧞‍♂️",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363402891717231",
+      "group_name": "Tejas & Megh's Concierge🧞‍♂️🟢",
+      "display_name": "Tejas & Megh's Concierge🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363402943988433",
+      "group_name": "Mr Vishwas's Concierge 🧞‍♂️🟢",
+      "display_name": "Mr Vishwas's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363403007980909",
+      "group_name": "WW Company X Indulge",
+      "display_name": "WW Company X Indulge",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363403021015909",
+      "group_name": "Aakash Oza's Concierge 🧞‍♂️🟢",
+      "display_name": "Aakash Oza's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363403157823356",
+      "group_name": "Stream Lunch",
+      "display_name": "Stream Lunch",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363403326492880",
+      "group_name": "Narendra Rao's Concierge🧞‍♂️🟢",
+      "display_name": "Narendra Rao's Concierge🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363403526182102",
+      "group_name": "Mahendra Yarlagadda's🧞‍♂️🟢",
+      "display_name": "Mahendra Yarlagadda's🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363403701634477",
+      "group_name": "Indulge Global x Sunburn",
+      "display_name": "Indulge Global x Sunburn",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363403767739960",
+      "group_name": "Choudary Karuturi’s Concierge🧞‍♂️🟠",
+      "display_name": "Choudary Karuturi’s Concierge🧞‍♂️🟠",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363403898984002",
+      "group_name": "Mubeen Mehta's Concierge 🧞‍♂️🟢",
+      "display_name": "Mubeen Mehta's Concierge 🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363404013708004",
+      "group_name": "Aditya Srinivas Prasad's Concierge🧞‍♂️🟠",
+      "display_name": "Aditya Srinivas Prasad's Concierge🧞‍♂️🟠",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363404031928279",
+      "group_name": "Indulge Concierge Abhinav Jain🧞‍♂️🟢",
+      "display_name": "Indulge Concierge Abhinav Jain🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363404204912771",
+      "group_name": "Vigyan Lodha's Concierge 🧞‍♀️🟢",
+      "display_name": "Vigyan Lodha's Concierge 🧞‍♀️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363404239244365",
+      "group_name": "Karan Bhagat's Concierge 🧞‍♂️🟢",
+      "display_name": "Karan Bhagat's Concierge 🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363404299349487",
+      "group_name": "Ankit Maheshwari's Concierge 🧞‍♂️🟢",
+      "display_name": "Ankit Maheshwari's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363404321973497",
+      "group_name": "Tapan & Vanshika's Concierge 🧞‍♂️🟢",
+      "display_name": "Tapan & Vanshika's Concierge 🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363404492835245",
+      "group_name": "Pranav Katariya's Concierge 🧞‍♂️🟢",
+      "display_name": "Pranav Katariya's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363404652601258",
+      "group_name": "Khushi Pabari's Concierge🧞‍♂️🟢",
+      "display_name": "Khushi Pabari's Concierge🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363404671158938",
+      "group_name": "Ayush & Parima's Concierge🧞‍♂️",
+      "display_name": "Ayush & Parima's Concierge🧞‍♂️",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363404874276061",
+      "group_name": "Aniruddha  Khopde's Concierge 🧞‍♂️🟠",
+      "display_name": "Aniruddha  Khopde's Concierge 🧞‍♂️🟠",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363404891326106",
+      "group_name": "Avya & Sankriti's Concierge🧞‍♂️🟠",
+      "display_name": "Avya & Sankriti's Concierge🧞‍♂️🟠",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363404908724342",
+      "group_name": "Ravi Jain's Concierge🧞‍♂️🟢",
+      "display_name": "Ravi Jain's Concierge🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363404925966428",
+      "group_name": "Parag Jain's Concierge 🧞‍♀️ 🟢",
+      "display_name": "Parag Jain's Concierge 🧞‍♀️ 🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363404961394563",
+      "group_name": "Opulent SG's Concierge 🧞‍♂️🟢",
+      "display_name": "Opulent SG's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363404969371857",
+      "group_name": "Ishmeet Singh Raina's Concierge 🧞‍♂️🟢",
+      "display_name": "Ishmeet Singh Raina's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363405210237275",
+      "group_name": "New group",
+      "display_name": "New group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363405444010176",
+      "group_name": "Manoj Laddha's Concierge 🧞‍♂️🟢",
+      "display_name": "Manoj Laddha's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363405472442286",
+      "group_name": "Avi Jain's Concierge🧞‍♂️🟢",
+      "display_name": "Avi Jain's Concierge🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363405500406410",
+      "group_name": "Abhishek & Akanksha's Concierge🧞‍♂️🟢",
+      "display_name": "Abhishek & Akanksha's Concierge🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363405526790575",
+      "group_name": "Mr. Nachiket Pawar's Concierge 🧞‍♂️🟠",
+      "display_name": "Mr. Nachiket Pawar's Concierge 🧞‍♂️🟠",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363405539585151",
+      "group_name": "Indulge x Hiring",
+      "display_name": "Indulge x Hiring",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363405549559315",
+      "group_name": "Mrunal Jhaveri's Concierge 🧞‍♂️🟢",
+      "display_name": "Mrunal Jhaveri's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363405583436950",
+      "group_name": "Vaibhav Vardhan's Concierge ✨🧞🟡",
+      "display_name": "Vaibhav Vardhan's Concierge ✨🧞🟡",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363405681101691",
+      "group_name": "Avantika's Concierge🧞‍♂️🟢",
+      "display_name": "Avantika's Concierge🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363405687165482",
+      "group_name": "Shashank Agrawal's Concierge 🧞‍♂️🟠",
+      "display_name": "Shashank Agrawal's Concierge 🧞‍♂️🟠",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363405782135865",
+      "group_name": "Shiva Shankar's Concierge 🧞‍♂️🟢",
+      "display_name": "Shiva Shankar's Concierge 🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363405798497859",
+      "group_name": "Raj Patel's Concierge🟢",
+      "display_name": "Raj Patel's Concierge🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363405984945490",
+      "group_name": "Kalpesh Padshala's Concierge🧞‍♂️🟢",
+      "display_name": "Kalpesh Padshala's Concierge🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363406023475600",
+      "group_name": "Arshad Ali's Concierge🧞‍♂️🟢",
+      "display_name": "Arshad Ali's Concierge🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363406039319398",
+      "group_name": "Manish Agrawal's Concierge🧞‍♂️🟢",
+      "display_name": "Manish Agrawal's Concierge🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363406102490388",
+      "group_name": "Neha Lulla's Concierge🧞‍♂️🟢",
+      "display_name": "Neha Lulla's Concierge🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363406114623292",
+      "group_name": "Ravi sir's Concierge🧞‍♂️🟢",
+      "display_name": "Ravi sir's Concierge🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363406157573513",
+      "group_name": "Eashan's Concierge 🧞‍♂️🟢",
+      "display_name": "Eashan's Concierge 🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363406217972327",
+      "group_name": "Srinivas Jampani's Concierge 🧞‍♂️🟢",
+      "display_name": "Srinivas Jampani's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363406333070205",
+      "group_name": "Mehul Mehta's Concierge 🧞‍♂️🟢",
+      "display_name": "Mehul Mehta's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363406352372886",
+      "group_name": "Gunjesh Jain's Concierge🧞‍♂️🟠",
+      "display_name": "Gunjesh Jain's Concierge🧞‍♂️🟠",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363406355121609",
+      "group_name": "KC's Concierge🧞‍♂️🟢",
+      "display_name": "KC's Concierge🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363406437481493",
+      "group_name": "Mahesh Ravindra Deshpande's Concierge 🧞‍♂️🟢",
+      "display_name": "Mahesh Ravindra Deshpande's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363406460331794",
+      "group_name": "Vinayak Mittal's Concierge 🟢",
+      "display_name": "Vinayak Mittal's Concierge 🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363406479982819",
+      "group_name": "Atul & Aishwarya's Concierge🧞‍♂️🟢",
+      "display_name": "Atul & Aishwarya's Concierge🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363406504631702",
+      "group_name": "Akshay Tanna's Concierge 🧞🟢",
+      "display_name": "Akshay Tanna's Concierge 🧞🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363406606739818",
+      "group_name": "Jainita Shah's Concierge  🧞‍♂️🟢",
+      "display_name": "Jainita Shah's Concierge  🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363406768737686",
+      "group_name": "Sidharth Yadav's Concierge🧞‍♂️🟢",
+      "display_name": "Sidharth Yadav's Concierge🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363406800763613",
+      "group_name": "Arpit and Suhasini's Concierge 🧞‍♂️🟢",
+      "display_name": "Arpit and Suhasini's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363406898139800",
+      "group_name": "Namrata Dhir's Concierge 🧞‍♂️",
+      "display_name": "Namrata Dhir's Concierge 🧞‍♂️",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363407006981665",
+      "group_name": "Nikhil Chandan's Concierge 🟢",
+      "display_name": "Nikhil Chandan's Concierge 🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363407161011727",
+      "group_name": "Partner X Indulge / Chetto",
+      "display_name": "Partner X Indulge / Chetto",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363407182590685",
+      "group_name": "Sahil Vazirally’s Concierge 🧞‍♂️🟢",
+      "display_name": "Sahil Vazirally’s Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363407245978188",
+      "group_name": "Kumar Mangglam Singhania’s Concierge 🧞‍♂️🟠",
+      "display_name": "Kumar Mangglam Singhania’s Concierge 🧞‍♂️🟠",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363407291744136",
+      "group_name": "Pavan Sharma's Concierge 🧞‍♂️🟢",
+      "display_name": "Pavan Sharma's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363407402891387",
+      "group_name": "Darshil Shah's Concierge🧞‍♂️🟢",
+      "display_name": "Darshil Shah's Concierge🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363407412803159",
+      "group_name": "Nishanth & Nithisha's Concierge 🧞‍♂️",
+      "display_name": "Nishanth & Nithisha's Concierge 🧞‍♂️",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363407512233524",
+      "group_name": "Dev Thakker's Concierge 🧞‍♂️🟢",
+      "display_name": "Dev Thakker's Concierge 🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363407631328480",
+      "group_name": "Anuj Srivastava's Concierge 🧞",
+      "display_name": "Anuj Srivastava's Concierge 🧞",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363407639519458",
+      "group_name": "Sumeet Singh's Concierge 🧞‍♂️🟢",
+      "display_name": "Sumeet Singh's Concierge 🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363407711507275",
+      "group_name": "Aniket Bharadia's Concierge🧞‍♂️",
+      "display_name": "Aniket Bharadia's Concierge🧞‍♂️",
+      "queendom": null
+    },
+    {
+      "group_id": "120363407847401691",
+      "group_name": "Mayur Jain's Concierge 🧞‍♂️ 🟢",
+      "display_name": "Mayur Jain's Concierge 🧞‍♂️ 🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363408004868793",
+      "group_name": "Ashish Indulge Concierge 🧞‍♂️🟢",
+      "display_name": "Ashish Indulge Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363408191937206",
+      "group_name": "Dr.\nTarang Krishna's Concierge🧞‍♂️🟢",
+      "display_name": "Dr.\nTarang Krishna's Concierge🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363408232696270",
+      "group_name": "Alok Shah's Concierge 🧞‍♂️🟠",
+      "display_name": "Alok Shah's Concierge 🧞‍♂️🟠",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363408303626088",
+      "group_name": "Sanjay Porwal's Concierge 🧞‍♂️🟠",
+      "display_name": "Sanjay Porwal's Concierge 🧞‍♂️🟠",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363408360623941",
+      "group_name": "Nihara's Concierge 🧞‍♂️",
+      "display_name": "Nihara's Concierge 🧞‍♂️",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363408444304441",
+      "group_name": "Abhinandan Sakla's Conciege  🧞‍♂️🟢",
+      "display_name": "Abhinandan Sakla's Conciege  🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363408487631193",
+      "group_name": "Lakshit & Mukul's Concierge 🟢🧞‍♂️",
+      "display_name": "Lakshit & Mukul's Concierge 🟢🧞‍♂️",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363408713965895",
+      "group_name": "Girish Chitale's Concierge🧞‍♂️🟢",
+      "display_name": "Girish Chitale's Concierge🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363408797081897",
+      "group_name": "Asheet Taneja's Concierge 🧞‍♂️🟡",
+      "display_name": "Asheet Taneja's Concierge 🧞‍♂️🟡",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363408821961117",
+      "group_name": "Riju & Mansi's Concierge🧞‍♂️🟢",
+      "display_name": "Riju & Mansi's Concierge🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363408869323241",
+      "group_name": "Jasprit and Sanjana's Concierge🟢",
+      "display_name": "Jasprit and Sanjana's Concierge🟢",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363409338622205",
+      "group_name": "Vijay Nirani's Concierge🧞‍♂️🟢",
+      "display_name": "Vijay Nirani's Concierge🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363409457449113",
+      "group_name": "Mahir Gupta's Concierge🧞‍♂️🟢",
+      "display_name": "Mahir Gupta's Concierge🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363409463042507",
+      "group_name": "New Concierge 🧞‍♂️",
+      "display_name": "New Concierge 🧞‍♂️",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363409481084472",
+      "group_name": "Dhruv's Concierge🧞‍♂️🟢",
+      "display_name": "Dhruv's Concierge🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363409854853592",
+      "group_name": "Gopal Agrawal's Concierge 🟠🧞‍♂️",
+      "display_name": "Gopal Agrawal's Concierge 🟠🧞‍♂️",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363409965784888",
+      "group_name": "Aditya Agrawal's Concierge🧞‍♂️🟢",
+      "display_name": "Aditya Agrawal's Concierge🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363410101106599",
+      "group_name": "Shruti Tiwari's Concierge 🧞‍♂️🟢",
+      "display_name": "Shruti Tiwari's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363410144948653",
+      "group_name": "Sreelakshmi Reddy's Concierge🧞‍♂️🟠Indulge",
+      "display_name": "Sreelakshmi Reddy's Concierge🧞‍♂️🟠Indulge",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363410151345811",
+      "group_name": "Dinesh Thakker's Concierge🧞‍♂️🟢",
+      "display_name": "Dinesh Thakker's Concierge🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363410223396756",
+      "group_name": "Subash BR's Concierge 🧞‍♂️🟠",
+      "display_name": "Subash BR's Concierge 🧞‍♂️🟠",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363410271980167",
+      "group_name": "Today Tasks",
+      "display_name": "Today Tasks",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363410365601728",
+      "group_name": "Gautam & Gulneet Sethi Concierge 🧞‍♂️",
+      "display_name": "Gautam & Gulneet Sethi Concierge 🧞‍♂️",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363412029699797",
+      "group_name": "Vishal Agrawal’s Concierge",
+      "display_name": "Vishal Agrawal’s",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363412082315545",
+      "group_name": "Aashish Singhania's Concierge 🧞‍♂️🟢",
+      "display_name": "Aashish Singhania's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363416642331256",
+      "group_name": "Shafi Shoukath's Concierge🟢",
+      "display_name": "Shafi Shoukath's Concierge🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363417181864522",
+      "group_name": "Ritesh Karnani's Concierge 🧞‍♂️🟠",
+      "display_name": "Ritesh Karnani's Concierge 🧞‍♂️🟠",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363417517910292",
+      "group_name": "Rajeev Sanghvi's  Concierge🧞‍♂️🟢",
+      "display_name": "Rajeev Sanghvi's  Concierge🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363417646010272",
+      "group_name": "Shanil's Concierge🧞‍♂️",
+      "display_name": "Shanil's Concierge🧞‍♂️",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363417667768819",
+      "group_name": "Kushagra Agrawal's Concierge 🧞🟠",
+      "display_name": "Kushagra Agrawal's Concierge 🧞🟠",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363417770585905",
+      "group_name": "Viren & Deesha's Concierge 🟢",
+      "display_name": "Viren & Deesha's Concierge 🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363418003343140",
+      "group_name": "Mr Tushar Jani's Concierge🟢🧞‍♀️",
+      "display_name": "Mr Tushar Jani's Concierge🟢🧞‍♀️",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363418071488706",
+      "group_name": "ME-Karan Bhangay-5529",
+      "display_name": "ME-Karan Bhangay-5529",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363418280486805",
+      "group_name": "Aayush Agarwal's Concierge🧞‍♂️🟢",
+      "display_name": "Aayush Agarwal's Concierge🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363418364383571",
+      "group_name": "Daljit Singh's Concierge🟢",
+      "display_name": "Daljit Singh's Concierge🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363418604979450",
+      "group_name": "Onboarding x Concierge",
+      "display_name": "Onboarding x",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363418740006391",
+      "group_name": "Indulge Vendors",
+      "display_name": "Indulge Vendors",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363419246027842",
+      "group_name": "Anuj Jhunjhunwala’s Concierge🧞‍♂️🟢",
+      "display_name": "Anuj Jhunjhunwala’s Concierge🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363419269665198",
+      "group_name": "Mr Vishwas's Concierge 🧞‍♂️🟢",
+      "display_name": "Mr Vishwas's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363419454725078",
+      "group_name": "Bhavadeep Reddy 🧞‍♂️🟢",
+      "display_name": "Bhavadeep Reddy 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363419519367999",
+      "group_name": "Wati Implementation",
+      "display_name": "Wati Implementation",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363419524567189",
+      "group_name": "New Group",
+      "display_name": "New Group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363419650364043",
+      "group_name": "Amit Kore's Concierge🧞‍♂️🟢",
+      "display_name": "Amit Kore's Concierge🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363419987541827",
+      "group_name": "Arjun & Pushparaj's Concierge🧞‍♂️🟢",
+      "display_name": "Arjun & Pushparaj's Concierge🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363420219378853",
+      "group_name": "Shikha Kapur's Concierge 🧞‍♂️",
+      "display_name": "Shikha Kapur's Concierge 🧞‍♂️",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363420282207441",
+      "group_name": "Mr Amit Chahal's Concierge🧞‍♂️🟢",
+      "display_name": "Mr Amit Chahal's Concierge🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363420402476601",
+      "group_name": "Kothamasu's Concierge🧞‍♂️🟠",
+      "display_name": "Kothamasu's Concierge🧞‍♂️🟠",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363420467015165",
+      "group_name": "Dinesh Goyal's Concierge🧞‍♂️",
+      "display_name": "Dinesh Goyal's Concierge🧞‍♂️",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363420504926030",
+      "group_name": "Rekha Kini’s Concierge 🧞‍♂️🟢",
+      "display_name": "Rekha Kini’s Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363420533445713",
+      "group_name": "Indulge avatar creation",
+      "display_name": "Indulge avatar creation",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363420655290475",
+      "group_name": "Harsha Vardhan Nandepu's Concierge",
+      "display_name": "Harsha Vardhan Nandepu's",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363420839082712",
+      "group_name": "Sunil & Vijay Jethwani's Concierge🧞‍♂️🟢",
+      "display_name": "Sunil & Vijay Jethwani's Concierge🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363420865931918",
+      "group_name": "Piyush Agarwal's Concierge🧞‍♂️🟠",
+      "display_name": "Piyush Agarwal's Concierge🧞‍♂️🟠",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363420903809219",
+      "group_name": "Ahura's Concierge🧞‍♂️🟢",
+      "display_name": "Ahura's Concierge🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363420930944718",
+      "group_name": "Vaishnavi's Concierge🧞‍♂️🟢",
+      "display_name": "Vaishnavi's Concierge🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363421044265641",
+      "group_name": "Internal",
+      "display_name": "Internal",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363421114187446",
+      "group_name": "Sainath Kandi's Concierge 🧞‍♂️",
+      "display_name": "Sainath Kandi's Concierge 🧞‍♂️",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363421379005517",
+      "group_name": "Tirumalasetty Raghav's Concierge 🧞‍♂️🟠",
+      "display_name": "Tirumalasetty Raghav's Concierge 🧞‍♂️🟠",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363421438018358",
+      "group_name": "Vikas Choudhury's Concierge🧞‍♂️🟠",
+      "display_name": "Vikas Choudhury's Concierge🧞‍♂️🟠",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363421510750866",
+      "group_name": "Prince's Concierge 🧞‍♂️🟠",
+      "display_name": "Prince's Concierge 🧞‍♂️🟠",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363421718610216",
+      "group_name": "Namita Gautam's Concierge 🧞🟢",
+      "display_name": "Namita Gautam's Concierge 🧞🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363421720711116",
+      "group_name": "Brijesh Thakkar's Concierge🧞‍♂️🟢",
+      "display_name": "Brijesh Thakkar's Concierge🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363421961617820",
+      "group_name": "Vybhava Srinivasan's Concierge 🧞🟠",
+      "display_name": "Vybhava Srinivasan's Concierge 🧞🟠",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363422102566383",
+      "group_name": "Ribhav & Simrit's  Concierge🧞‍♂️🟠",
+      "display_name": "Ribhav & Simrit's  Concierge🧞‍♂️🟠",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363422163888619",
+      "group_name": "Arjun Pawar's Concierge 🧞‍♂️🟢",
+      "display_name": "Arjun Pawar's Concierge 🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363422312126960",
+      "group_name": "Nutan Jain's Concierge🧞‍♂️🟢",
+      "display_name": "Nutan Jain's Concierge🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363422390499285",
+      "group_name": "Shailesh Dalmia's Concierge🧞‍♂️🟢",
+      "display_name": "Shailesh Dalmia's Concierge🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363422480647803",
+      "group_name": "Tanisha and Umesh's Concierge 🧞🟢",
+      "display_name": "Tanisha and Umesh's Concierge 🧞🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363422518080332",
+      "group_name": "Mock group - Chetto",
+      "display_name": "Mock group - Chetto",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363422643508317",
+      "group_name": "Aditya Shinde's Concierge🧞‍♂️🟠",
+      "display_name": "Aditya Shinde's Concierge🧞‍♂️🟠",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363422647739927",
+      "group_name": "Rahul Gupta's Concierge 🧞‍♂️🟢",
+      "display_name": "Rahul Gupta's Concierge 🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363422705991090",
+      "group_name": "Ria at Indulge's group",
+      "display_name": "Ria at Indulge's group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363422719606345",
+      "group_name": "Prateek Singhi's Concierge🧞‍♂️🟢",
+      "display_name": "Prateek Singhi's Concierge🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363422722027606",
+      "group_name": "Dr. Sujit Paul's Conceriege🟢",
+      "display_name": "Dr. Sujit Paul's Conceriege🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363422982311887",
+      "group_name": "Rocky's Concierge 🧞‍♂️🟢",
+      "display_name": "Rocky's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363422990292569",
+      "group_name": "Om Mokshananda's Concierge🧞‍♂️🟢",
+      "display_name": "Om Mokshananda's Concierge🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363423038209519",
+      "group_name": "Priyanka Agrawal's Concierge🧞‍♂️🟢",
+      "display_name": "Priyanka Agrawal's Concierge🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363423211033192",
+      "group_name": "New Group",
+      "display_name": "New Group",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363423215701465",
+      "group_name": "Samir & Sonal's Concierge🧞‍♂️🟢",
+      "display_name": "Samir & Sonal's Concierge🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363423229572931",
+      "group_name": "Rishabh Mariwala's Concierge🧞‍♂️🔵",
+      "display_name": "Rishabh Mariwala's Concierge🧞‍♂️🔵",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363423240818325",
+      "group_name": "Pankaj Gaur's Concierge 🧞‍♂️🟢",
+      "display_name": "Pankaj Gaur's Concierge 🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363423318563002",
+      "group_name": "Sreekar Reddy's Concierge🧞‍♂️🟠",
+      "display_name": "Sreekar Reddy's Concierge🧞‍♂️🟠",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363423384841889",
+      "group_name": "Ankit Divikar's Concierge🧞‍♂️🟢",
+      "display_name": "Ankit Divikar's Concierge🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363423449576478",
+      "group_name": "George & Sanjitha's Concierge🧞‍♂️🟢",
+      "display_name": "George & Sanjitha's Concierge🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363423465097508",
+      "group_name": "Mr Anirudh's Concierge🧞‍♂️🟢",
+      "display_name": "Mr Anirudh's Concierge🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363423505972522",
+      "group_name": "Vivek Gupta' Concierge🧞‍♂️",
+      "display_name": "Vivek Gupta' Concierge🧞‍♂️",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363423516466522",
+      "group_name": "Karan Chopra Personal Concierge 🧞‍♂️🟢",
+      "display_name": "Karan Chopra Personal Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363423787872340",
+      "group_name": "Mr Mahendra's Concierge 🟢",
+      "display_name": "Mr Mahendra's Concierge 🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363423808950524",
+      "group_name": "Mr Kishorechand Bansal's Concierge 🧞‍♂️🟢",
+      "display_name": "Mr Kishorechand Bansal's Concierge 🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363423835922364",
+      "group_name": "Jesal & Saloni's Concierge🧞‍♂️🟢",
+      "display_name": "Jesal & Saloni's Concierge🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363423897738941",
+      "group_name": "Rishabh & Sanjana's Concierge 🧞‍♂️🟠",
+      "display_name": "Rishabh & Sanjana's Concierge 🧞‍♂️🟠",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363423907397699",
+      "group_name": "Aman Kirloskar's Concierge 🧞‍♂️🟠",
+      "display_name": "Aman Kirloskar's Concierge 🧞‍♂️🟠",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363423952420193",
+      "group_name": "Manisha’s Concierge 🟢🧞‍♂️",
+      "display_name": "Manisha’s Concierge 🟢🧞‍♂️",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363423965310385",
+      "group_name": "Nitin Gandotra’s Concierge 🧞‍♂️🟢",
+      "display_name": "Nitin Gandotra’s Concierge 🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363424031427269",
+      "group_name": "Chopra's Concierge 🧞‍♂️🟢",
+      "display_name": "Chopra's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363424044370491",
+      "group_name": "Namita Soni's Concierge  🧞‍♂️🟢",
+      "display_name": "Namita Soni's Concierge  🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363424120499946",
+      "group_name": "Anand Gupta’s Concierge 🧞‍♂️🟠",
+      "display_name": "Anand Gupta’s Concierge 🧞‍♂️🟠",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363424164475345",
+      "group_name": "Arpit's Concierge🧞‍♂️🟢",
+      "display_name": "Arpit's Concierge🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363424170315965",
+      "group_name": "Indulge Vishal and Shreya Nirani's Concierge 🧞‍♂️🟢",
+      "display_name": "Indulge Vishal and Shreya Nirani's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363424178638809",
+      "group_name": "Shashank's Concierge 🟢",
+      "display_name": "Shashank's Concierge 🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363424346444187",
+      "group_name": "Venkata Chundi's Concierge 🧞‍♂️🟢",
+      "display_name": "Venkata Chundi's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363424495142211",
+      "group_name": "Kunal Mehra's Concierge 🧞‍♂️🟢",
+      "display_name": "Kunal Mehra's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363424517625560",
+      "group_name": "Aarav Gupta's Concierge🟢",
+      "display_name": "Aarav Gupta's Concierge🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363424538150546",
+      "group_name": "Jitesh Rawal's Concierge 🧞‍♂️🟢",
+      "display_name": "Jitesh Rawal's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363424576251214",
+      "group_name": "Ayush Atul Mishra's Concierge 🧞‍♂️🟢",
+      "display_name": "Ayush Atul Mishra's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363424655751101",
+      "group_name": "Jai Choudhary's Concierge🧞‍♂️🟢",
+      "display_name": "Jai Choudhary's Concierge🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363424696990958",
+      "group_name": "Rupesh & Tejaswee's Concierge🧞‍♂️🟠",
+      "display_name": "Rupesh & Tejaswee's Concierge🧞‍♂️🟠",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363424706486781",
+      "group_name": "Sonal Gupta's Concierge 🧞‍♂️🟠",
+      "display_name": "Sonal Gupta's Concierge 🧞‍♂️🟠",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363424900823247",
+      "group_name": "Akshay Adhalrao's Concierge 🧞‍♂️🟢",
+      "display_name": "Akshay Adhalrao's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363424918564935",
+      "group_name": "Kotaiah Chowdary Kunam's Concierge 🧞‍♂️🟢",
+      "display_name": "Kotaiah Chowdary Kunam's Concierge 🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363424928490379",
+      "group_name": "Rahul Goel's Concierge 🧞‍♂️🟢",
+      "display_name": "Rahul Goel's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363424949680796",
+      "group_name": "Satish Thomas's Concierge 🧞‍♂️🟢",
+      "display_name": "Satish Thomas's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363425001589399",
+      "group_name": "Poonam Kalra's Concierge 🟠",
+      "display_name": "Poonam Kalra's Concierge 🟠",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363425009648058",
+      "group_name": "Swarup Family's Concierge🧞‍♂️🟢",
+      "display_name": "Swarup Family's Concierge🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363425017701891",
+      "group_name": "Lakshyya Gupta's Concierge🧞‍♂️🟢",
+      "display_name": "Lakshyya Gupta's Concierge🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363425077678359",
+      "group_name": "Siddharth Bishnoi's Concierge 🧞‍♂️🟢",
+      "display_name": "Siddharth Bishnoi's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363425103801224",
+      "group_name": "Saurabh Ladhani's Concierge 🧞‍♂️🟢",
+      "display_name": "Saurabh Ladhani's Concierge 🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363425123962606",
+      "group_name": "Abhishek Dutta's Concierge 🟠",
+      "display_name": "Abhishek Dutta's Concierge 🟠",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363425221703758",
+      "group_name": "Vishal Karamchandani's Concierge🟢",
+      "display_name": "Vishal Karamchandani's Concierge🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363425252656613",
+      "group_name": "Jeet's Concierge🧞‍♂️🟢",
+      "display_name": "Jeet's Concierge🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363425267606855",
+      "group_name": "Neha's Concierge 🧞‍♂️🟢",
+      "display_name": "Neha's Concierge 🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363425327876019",
+      "group_name": "Gursimran Singh’s Concierge 🧞‍♂️🟢",
+      "display_name": "Gursimran Singh’s Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363425357647813",
+      "group_name": "Prathyusha and Gopi Kalepu's Concierge 🧞‍♂️🟢",
+      "display_name": "Prathyusha and Gopi Kalepu's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363425367453108",
+      "group_name": "Sidhant Dalmia's Concierge🧞‍♂️🟠",
+      "display_name": "Sidhant Dalmia's Concierge🧞‍♂️🟠",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363425405106980",
+      "group_name": "Chandershekhar Chaurasia's Concierge🧞‍♂️",
+      "display_name": "Chandershekhar Chaurasia's Concierge🧞‍♂️",
+      "queendom": null
+    },
+    {
+      "group_id": "120363425508554868",
+      "group_name": "Indulge Global's Concierge",
+      "display_name": "Indulge Global's",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363425565723949",
+      "group_name": "Anuj Mehta's Concierge🧞‍♂️🟢",
+      "display_name": "Anuj Mehta's Concierge🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363425649852635",
+      "group_name": "Mr. Rakesh Kurapati's Concierge 🧞‍♂️🟢",
+      "display_name": "Mr. Rakesh Kurapati's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363425712612632",
+      "group_name": "Nakul Dandona's Concierge 🧞‍♂️🟢",
+      "display_name": "Nakul Dandona's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363425808916128",
+      "group_name": "Aanchal Gupta's Concierge 🧞‍♂️🟢",
+      "display_name": "Aanchal Gupta's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363425891533865",
+      "group_name": "Mr Rajat's Concierge🧞‍♂️🟢",
+      "display_name": "Mr Rajat's Concierge🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363425995716973",
+      "group_name": "Pradeep Puralasetty's Concierge 🧞‍♂️🟠",
+      "display_name": "Pradeep Puralasetty's Concierge 🧞‍♂️🟠",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363426006518209",
+      "group_name": "Krishnaswamy Nagarajan's Concierge🧞‍♂️🟢",
+      "display_name": "Krishnaswamy Nagarajan's Concierge🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363426116349815",
+      "group_name": "Kamyaa Misra's Concierge🧞‍♂️🟢",
+      "display_name": "Kamyaa Misra's Concierge🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363426168596799",
+      "group_name": "Piyush Agarwal's Concierge 🧞‍♂️🟢",
+      "display_name": "Piyush Agarwal's Concierge 🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363426173724115",
+      "group_name": "Rohan's Concierge 🧞‍♂️🟢",
+      "display_name": "Rohan's Concierge 🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363426313999477",
+      "group_name": "Adil Mirajkar's Concierge 🧞‍♂️🟢",
+      "display_name": "Adil Mirajkar's Concierge 🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363426469909042",
+      "group_name": "Group 1",
+      "display_name": "Group 1",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363426490138949",
+      "group_name": "‼️ SD Concierge ‼️",
+      "display_name": "‼️ SD Concierge ‼️",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363426542445105",
+      "group_name": "Vishal Srivastava's Concierge 🧞‍♂️🟢",
+      "display_name": "Vishal Srivastava's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363426685575452",
+      "group_name": "Parv Bakshi's Concierge 🧞‍♀️🟢",
+      "display_name": "Parv Bakshi's Concierge 🧞‍♀️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363426833111328",
+      "group_name": "Indraneel's Concierge 🧞‍♂️🟢",
+      "display_name": "Indraneel's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363427099071349",
+      "group_name": "Uday Jain’s Concierge 🧞‍♂️🟢",
+      "display_name": "Uday Jain’s Concierge 🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363427122488691",
+      "group_name": "Sanay Shetty's Concierge 🧞‍♂️🟢",
+      "display_name": "Sanay Shetty's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363427214520428",
+      "group_name": "Praveen Prakash's Concierge 🧞‍♂️🟢",
+      "display_name": "Praveen Prakash's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363427443923204",
+      "group_name": "Girissh's Concierge🧞‍♂️🟢",
+      "display_name": "Girissh's Concierge🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363427718804221",
+      "group_name": "Parkin's Concierge 🧞‍♂️🟠",
+      "display_name": "Parkin's Concierge 🧞‍♂️🟠",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363427989602570",
+      "group_name": "Manushi Chillar's Concierge🧞‍♂️",
+      "display_name": "Manushi Chillar's Concierge🧞‍♂️",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363428041469299",
+      "group_name": "Mohan Kumar Sundaram Concierge 🧞‍♂️🟢",
+      "display_name": "Mohan Kumar Sundaram Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363428070107539",
+      "group_name": "Mr Harinath Reddy’s Concierge🧞‍♂️🟢",
+      "display_name": "Mr Harinath Reddy’s Concierge🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363428413491785",
+      "group_name": "Yashaswi Shroff's Concierge 🧞‍♂️🟢",
+      "display_name": "Yashaswi Shroff's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363428425537980",
+      "group_name": "Dinesh's Concierge 🧞‍♂️🟢",
+      "display_name": "Dinesh's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363428498293354",
+      "group_name": "Mr. Vinod Mehta🧞‍♂️🟢",
+      "display_name": "Mr. Vinod Mehta🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363428653732119",
+      "group_name": "Gautam Sethi's Concierge 🧞‍♂️🟢",
+      "display_name": "Gautam Sethi's Concierge 🧞‍♂️🟢",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363428710551670",
+      "group_name": "Mr Chandu's Concierge 🧞🟢",
+      "display_name": "Mr Chandu's Concierge 🧞🟢",
+      "queendom": "Unassigned"
+    },
+    {
+      "group_id": "120363428739576399",
+      "group_name": "Abhishake Rungta's Concierge 🧞",
+      "display_name": "Abhishake Rungta's Concierge 🧞",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363429000239765",
+      "group_name": "Sahil Ajmani’s Concierge 🧞‍♂️🟢",
+      "display_name": "Sahil Ajmani’s Concierge 🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363429716158787",
+      "group_name": "Shivam Gangrade’s Concierge 🧞‍♂️🟢",
+      "display_name": "Shivam Gangrade’s Concierge 🧞‍♂️🟢",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "group_id": "120363429940995557",
+      "group_name": "Prashant Naulakha's Concierge 🧞",
+      "display_name": "Prashant Naulakha's Concierge 🧞",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "group_id": "120363430014678596",
+      "group_name": "Group 2",
+      "display_name": "Group 2",
+      "queendom": "Unassigned"
+    }
+  ]
+}

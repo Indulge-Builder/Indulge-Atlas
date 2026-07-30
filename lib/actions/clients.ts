@@ -3,8 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getAuthUser } from "@/lib/auth/getAuthUser";
+import { resolveChettoGroupName } from "@/lib/actions/chetto";
 import type { SupabaseServerClient } from "@/lib/auth/getAuthUser";
 import { sanitizeText } from "@/lib/utils/sanitize";
+import { normalizeToE164 } from "@/lib/utils/phone";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import { canManageAnyClient } from "@/lib/types/database";
 import { SYSTEM_TIMEZONE } from "@/lib/utils/time";
@@ -72,6 +74,8 @@ export interface ClientWithProfile {
 
 /** Full row for detail sheet */
 export interface ClientDetail extends ClientWithProfile {
+  /** Resolved from Chetto API when `chetto_group_id` is set (not stored in DB). */
+  chetto_group_name?: string | null;
   former_queendom: string | null;
   membership_interval: string | null;
   membership_status: string | null;
@@ -606,6 +610,15 @@ export async function getClientById(
         p.profile_completeness != null ? Number(p.profile_completeness) : null;
     }
 
+    const linkedGroupId = detail.chetto_group_id?.trim();
+    if (linkedGroupId) {
+      try {
+        detail.chetto_group_name = await resolveChettoGroupName(linkedGroupId);
+      } catch {
+        detail.chetto_group_name = null;
+      }
+    }
+
     return { success: true, data: detail };
   } catch {
     return { success: false, error: "Failed to load client" };
@@ -838,12 +851,23 @@ const chettoMappingListSchema = z.object({
   pageSize: z.number().int().positive().max(200).optional(),
   search: z.string().optional(),
   onlyUnmapped: z.boolean().optional(),
+  /** When true, restrict to `client_chetto_unmapped_queue` rows with status pending. */
+  queueOnly: z.boolean().optional(),
+  /** Explicit client id allowlist (export snapshot fallback). */
+  clientIds: z.array(z.string().uuid()).optional(),
 });
+
+export type ChettoMappingSuggestion = Pick<
+  import("@/lib/types/database").ClientChettoSuggestion,
+  "id" | "client_id" | "chetto_group_id" | "confidence" | "method" | "evidence"
+>;
 
 export type ChettoMappingRow = Pick<
   ClientWithProfile,
   "id" | "first_name" | "last_name" | "phone_number" | "queendom" | "chetto_group_id"
->;
+> & {
+  pending_suggestion: ChettoMappingSuggestion | null;
+};
 
 /**
  * Paginated client list for the Chetto group mapping tool.
@@ -882,7 +906,35 @@ export async function getClientsChettoMappingPage(
         { count: "exact" },
       );
 
-    if (f.onlyUnmapped) {
+    if (f.queueOnly) {
+      const { data: queueRows, error: queueErr } = await supabase
+        .from("client_chetto_unmapped_queue")
+        .select("client_id")
+        .eq("status", "pending");
+
+      if (queueErr) {
+        if (f.clientIds?.length) {
+          query = query.in("id", f.clientIds).is("chetto_group_id", null);
+        } else {
+          console.error("getClientsChettoMappingPage queue", queueErr);
+          return {
+            success: false,
+            error: "Chetto backlog queue is not available (run migration 105)",
+            clients: [],
+            total: 0,
+            page,
+          };
+        }
+      } else {
+        const queueIds = (queueRows ?? []).map((r) => String(r.client_id));
+        if (queueIds.length === 0) {
+          return { success: true, clients: [], total: 0, page };
+        }
+        query = query.in("id", queueIds).is("chetto_group_id", null);
+      }
+    } else if (f.clientIds?.length) {
+      query = query.in("id", f.clientIds).is("chetto_group_id", null);
+    } else if (f.onlyUnmapped) {
       query = query.is("chetto_group_id", null);
     }
 
@@ -914,7 +966,30 @@ export async function getClientsChettoMappingPage(
       };
     }
 
-    const clients = (data ?? []) as ChettoMappingRow[];
+    const clientsRaw = (data ?? []) as Omit<ChettoMappingRow, "pending_suggestion">[];
+    const clientIds = clientsRaw.map((c) => c.id);
+
+    const suggestionByClient = new Map<string, ChettoMappingSuggestion>();
+    if (clientIds.length > 0) {
+      const { data: suggestions } = await supabase
+        .from("client_chetto_suggestions")
+        .select("id, client_id, chetto_group_id, confidence, method, evidence")
+        .in("client_id", clientIds)
+        .eq("status", "pending")
+        .order("confidence", { ascending: false });
+
+      for (const s of (suggestions ?? []) as ChettoMappingSuggestion[]) {
+        if (!suggestionByClient.has(s.client_id)) {
+          suggestionByClient.set(s.client_id, s);
+        }
+      }
+    }
+
+    const clients: ChettoMappingRow[] = clientsRaw.map((c) => ({
+      ...c,
+      pending_suggestion: suggestionByClient.get(c.id) ?? null,
+    }));
+
     return { success: true, clients, total: count ?? 0, page };
   } catch (e) {
     console.error(e);
@@ -928,6 +1003,56 @@ export async function getClientsChettoMappingPage(
   }
 }
 
+/** Pending count in the Chetto manual-mapping backlog (migration 105). */
+export async function getChettoUnmappedQueueStats(): Promise<{
+  success: boolean;
+  pending: number;
+  error?: string;
+}> {
+  try {
+    const { supabase, role } = await getAuthUser();
+    if (!canManageAnyClient(role)) {
+      return { success: false, pending: 0, error: "Unauthorised" };
+    }
+
+    const { count, error } = await supabase
+      .from("client_chetto_unmapped_queue")
+      .select("client_id", { count: "exact", head: true })
+      .eq("status", "pending");
+
+    if (error) {
+      return { success: false, pending: 0, error: "Queue not available" };
+    }
+
+    return { success: true, pending: count ?? 0 };
+  } catch (e) {
+    console.error(e);
+    return { success: false, pending: 0, error: "Unexpected error" };
+  }
+}
+
+/** Fallback pending count from export snapshot when queue table is not deployed. */
+export async function getChettoUnmappedBacklogCount(
+  clientIds: string[],
+): Promise<number> {
+  if (clientIds.length === 0) return 0;
+  try {
+    const { supabase, role } = await getAuthUser();
+    if (!canManageAnyClient(role)) return 0;
+
+    const { count, error } = await supabase
+      .from("clients")
+      .select("id", { count: "exact", head: true })
+      .in("id", clientIds)
+      .is("chetto_group_id", null);
+
+    if (error) return 0;
+    return count ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
 const chettoGroupIdValueSchema = z
   .string()
   .max(120)
@@ -935,7 +1060,9 @@ const chettoGroupIdValueSchema = z
 
 /**
  * Update `clients.phone_number` — used to fix Freshdesk-unmapped clients.
- * Phone is validated as a non-empty string; caller should pass normalised E.164 when possible.
+ * The raw input is sanitised and normalised to E.164 before persisting, and the
+ * write is confirmed by row count so an RLS-blocked no-op reports as a failure
+ * rather than a false success.
  */
 export async function updateClientPhone(
   clientId: string,
@@ -945,20 +1072,36 @@ export async function updateClientPhone(
     const uuid = z.string().uuid().safeParse(clientId);
     if (!uuid.success) return { success: false, error: "Invalid client id" };
 
-    const phone = sanitizeText(rawPhone.trim());
-    if (!phone) return { success: false, error: "Phone number is required" };
+    const sanitized = sanitizeText(rawPhone.trim());
+    if (!sanitized) return { success: false, error: "Phone number is required" };
+
+    // Store as E.164 so Freshdesk / Chetto lookups match. The user can freely
+    // add/remove/switch the country code: a "+…" number keeps its code, a bare
+    // Indian mobile becomes +91…, and invalid input errors instead of coercing.
+    const phone = normalizeToE164(sanitized);
+    if (!phone)
+      return {
+        success: false,
+        error: "Enter a valid phone number (e.g. 9876543210, +91…, or +1…)",
+      };
     if (phone.length > 20) return { success: false, error: "Phone number too long" };
 
     const { supabase, user, role } = await getAuthUser();
     const gate = await assertCanEditClient(supabase, user.id, role, clientId);
     if (!gate.ok) return { success: false, error: gate.error ?? "Unauthorised" };
 
-    const { error } = await supabase
+    // Select the updated row so we can distinguish a real write from an RLS-blocked
+    // no-op: RLS denials return no error but zero affected rows.
+    const { data, error } = await supabase
       .from("clients")
       .update({ phone_number: phone })
-      .eq("id", clientId);
+      .eq("id", clientId)
+      .select("id");
 
     if (error) return { success: false, error: "Failed to save phone number" };
+    if (!data || data.length === 0) {
+      return { success: false, error: "You don't have permission to update this client" };
+    }
 
     revalidatePath("/clients");
     revalidatePath(`/clients/${clientId}`);

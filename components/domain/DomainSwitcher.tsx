@@ -43,11 +43,16 @@ export function DomainSwitcher({ variant = "default" }: DomainSwitcherProps) {
   if (!mounted || !isPrivileged || !profile?.domain) return null;
 
   const currentDomain = (searchParams.get("domain") as IndulgeDomain) || null;
-  const displayDomain = currentDomain ?? profile.domain;
-  const config = DOMAIN_DISPLAY_CONFIG[displayDomain] ?? {
-    shortLabel: displayDomain?.replace(/_/g, " ") ?? "All",
-    ringColor: "rgba(212,175,55,0.3)",
-  };
+  // On User Management, no ?domain means "All Domains" — don't fall back to the
+  // viewer's personal domain (that made the filter look selected when it wasn't).
+  const isUserManagement = pathname === "/admin";
+  const displayDomain = currentDomain ?? (isUserManagement ? null : profile.domain);
+  const config = displayDomain
+    ? (DOMAIN_DISPLAY_CONFIG[displayDomain] ?? {
+        shortLabel: displayDomain.replace(/_/g, " "),
+        ringColor: "rgba(212,175,55,0.3)",
+      })
+    : { shortLabel: "All Domains", ringColor: "rgba(212,175,55,0.3)" };
 
   const isDark = variant === "dark";
 

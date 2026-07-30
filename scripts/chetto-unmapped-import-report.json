@@ -1,0 +1,474 @@
+{
+  "generatedAt": "2026-07-02T11:43:12.750Z",
+  "dryRun": false,
+  "processed": 84,
+  "suggestions": 10,
+  "suggestionsWritten": 0,
+  "directUpdated": 10,
+  "skippedUnsafe": [
+    {
+      "id": "a1652f52-44b7-4306-9765-3adcb5d826f4",
+      "name": "Aakash Anand",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "ed5ee480-fa52-45b6-a186-bf638ff06f09",
+      "name": "Abhishek Goyal",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "id": "7040eb0d-c75f-4229-98bb-89a63d8bb3a1",
+      "name": "Abhishek Mohan Gupta (Abhishek & Akansha)",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "id": "49e9f949-ba39-4bd8-a190-2ac97dc02a25",
+      "name": "Aditya Agrawal",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "5405a345-ea14-430c-8523-cd566a6f0033",
+      "name": "Aman Agrawal",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "601d2bb9-c172-42c1-8640-361b66b9fc51",
+      "name": "Arnav Agrawal",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "b3c768cb-e8d6-4d12-8447-366665e8e722",
+      "name": "Arpit Agrawal",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "30419c1d-228e-45da-960a-bd5a8113242d",
+      "name": "Nipun Agrawal",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "62dde6e2-0c73-4e69-8c54-0e16de05a352",
+      "name": "Pratiyancha Agarwal",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "6789d555-b9b6-4cae-8b41-c6661dc2b245",
+      "name": "Sakshi Singh",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "9915a598-005f-4331-b992-0abb6850e7c2",
+      "name": "Saurabh Agrawal",
+      "queendom": "Unassigned"
+    }
+  ],
+  "noMatch": [
+    {
+      "id": "572411ec-9e62-49ff-aa69-88a16de7b077",
+      "name": "Abhishek Garg",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "7075e6d1-bb8e-4f78-a56e-b7bd7f9901dc",
+      "name": "Adarsh N R",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "b1a4e02f-3599-4018-b174-d2065b002d48",
+      "name": "Adhiraj S. Agarwal (Swarup's Concierge)",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "id": "babadee0-d58f-498b-b313-1cff2bdfc44d",
+      "name": "Akshay Bardiya",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "6b5d66a2-abd8-4058-be5c-5de9f7b0cdbe",
+      "name": "Amarjot Mokha",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "id": "3cce1321-bd73-403a-8530-fbbfffcf5bb6",
+      "name": "Amit's Concierge (Amit Sadana)",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "id": "bdedfae9-ca16-4361-add6-7ad63bb7e51b",
+      "name": "Anant Sarda",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "43e99f30-2a16-4adb-9961-bf3c9899d410",
+      "name": "Anay Chowdhary",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "d5e39c7e-a07d-4c31-8b84-bf6ce6d50556",
+      "name": "Aniket Bharadia",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "id": "7b4ea0b6-c459-4064-8492-5b93c48aa90f",
+      "name": "Ankit Kedia",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "d537a78f-1018-4bef-a4b2-8f73fc1a5264",
+      "name": "Ankit Agrawal",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "id": "e6abbffc-4467-4e04-95cc-42f6b9d56047",
+      "name": "Ankit Jain",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "3901a97e-f6f2-4841-be3d-327f7c1bf468",
+      "name": "Annusaya Ripesh Bera",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "f63b67a5-93ba-4ef1-b346-565947b25aea",
+      "name": "Anshul Mengi",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "a9ff3031-2f9c-4e21-bf78-c5d43f27ea73",
+      "name": "Anshul & Varsha",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "ce5931e0-a292-4fb4-ab5e-bfb45a8f3e3d",
+      "name": "Anshul Jindal",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "ae085ed9-4a1a-4616-810e-9057d4d87898",
+      "name": "Arpit Parakh",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "f2d3e3e8-e00c-43ca-8784-41cf748705c0",
+      "name": "Ashish Singhania",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "6e2da7ff-44d9-4466-90c3-e2024d1b3379",
+      "name": "Azara - Arjun Finance",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "cf066ad6-8d6f-40d6-b908-721a86526592",
+      "name": "Chandershekhar Chaurasia",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "60af1138-5d52-4c9e-a704-7cac3d942830",
+      "name": "Debanshu's Concierge",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "0b952c98-13fd-4e3c-9237-23d86897069a",
+      "name": "Dimpy Kaur",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "aeb196e9-0252-4465-b709-595119f97a82",
+      "name": "Gail CEO Jio Mall",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "1b0f4107-1265-47b8-b982-0311282183b3",
+      "name": "Indulge Hassan Ahmad's Concierge",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "id": "6f3a1d58-03e8-4ac8-b7ef-6c1a6b245afa",
+      "name": "Ishaan Verma",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "42d6b9fc-a8be-49e5-89af-e37a2870345f",
+      "name": "Jagdish Ladi",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "id": "96945770-30c9-4e39-94d6-13bfae83200d",
+      "name": "Joseph Korah",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "557d0621-58b1-4d48-9f9b-f6c8a7a6b088",
+      "name": "Kumar Manglam Singhania",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "id": "bc05dbc6-b51b-46da-97a7-c61a557275bd",
+      "name": "Madhu Varun",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "25c0c85b-4aef-4622-8682-b6656a4ce4cd",
+      "name": "Madhu",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "7829c2a5-d4de-4295-b162-2d9ce5ed2125",
+      "name": "Mahesh Deshpande",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "id": "c51bf672-39a6-4a98-af3c-739d29396eb2",
+      "name": "Manish Shahra",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "1373db4d-e49b-4148-9ef3-e7fe3a9ccbf0",
+      "name": "Manty",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "72a3d397-2a2f-4ba0-b361-761f4e664b1c",
+      "name": "Manushi Chillar",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "87c0c543-5212-4091-98fb-242d9e861c55",
+      "name": "Mitesh & Rebecca",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "5b8d0d12-369b-4f5e-b637-8674496b1e2c",
+      "name": "Mr Satish Naidu",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "07bc5228-4a99-493b-b4eb-7b0d1debf8b2",
+      "name": "Mr Shreevardhan Khaitan",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "700789ee-9c6a-4db4-8668-72fe41805b74",
+      "name": "Mrinal Golechha",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "06374c6b-aaa7-4f58-a1d1-469f7e38fea5",
+      "name": "Ms. Chandana Penmatcha",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "dcb91195-a1f0-4aea-9646-1477f1f39427",
+      "name": "Nishant Khetan",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "3d429641-adf4-498a-880c-c98469391a3b",
+      "name": "Nitika Gupta",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "d0ba5fe8-20f3-4cb2-bcaf-07b22205b9e7",
+      "name": "Pooja Sardana",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "bd47ef4b-9da4-487e-bfe0-19f095504b5f",
+      "name": "Pooja Reddy",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "6b1da5f9-f2c4-4a9a-b251-fef5ed20edc2",
+      "name": "Prabhtej Bhatia",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "979ed252-71d2-4002-938a-c15e20b24edd",
+      "name": "Priyanka",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "841b7120-dcb2-48a7-9631-c3770950fe46",
+      "name": "Rahul's Concierge",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "6421f7c6-dde2-44ec-97df-e7f11b5bae2b",
+      "name": "Ramakrishna B K",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "id": "8cbfde84-ae89-4ce2-b95f-87dd0c141c5b",
+      "name": "Ravina & Riddhi 's Concierge",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "558ce67a-2c4a-489c-8c1c-43d8579c8988",
+      "name": "Rishi Kajaria",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "60085ca1-8352-4dd1-851c-5a14ae7c62ed",
+      "name": "Ruchir Jajoo",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "98b8168a-0621-484f-af29-e3bf42c4d99e",
+      "name": "Sailesh Dalmia",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "id": "d1c3f280-343f-498d-9499-30cc4b4e88a0",
+      "name": "Sanna Sarin",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "9faed0e2-cbe0-4493-afba-8b470c6dedf3",
+      "name": "Saurabh Gulechha",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "e3939e3d-16cc-4e52-944a-8cbb142da97e",
+      "name": "Sharad Goyal",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "d91f4689-735f-4843-a736-60bc007e2571",
+      "name": "Shrenik Parakh",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "42e49ddc-1201-4bd0-9ea6-b6fa66ef0357",
+      "name": "Sidharth Menda",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "083e4133-bf09-43f8-bb75-4ec015795a78",
+      "name": "Srilakshmi Reddy",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "id": "36730177-0e8a-4269-8bf4-1688fbd32136",
+      "name": "Supal Doshi",
+      "queendom": "Anishqa Queendom"
+    },
+    {
+      "id": "30f23232-9ae9-423d-ae7b-12facb9d047e",
+      "name": "Suraj Nambiar",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "8837cab7-79de-4d59-8efd-50639e09e26b",
+      "name": "Vaibhav Goyal",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "3e885e63-b8ea-4057-8f96-55d990f7f997",
+      "name": "Varun Mehta (Mr. Mehta)",
+      "queendom": "Ananyshree Queendom"
+    },
+    {
+      "id": "1b9811ae-ac87-4ed7-9574-b7d9a0a150e6",
+      "name": "Veda Krishnamurthy",
+      "queendom": "Unassigned"
+    },
+    {
+      "id": "c28673a2-599c-4303-a15f-b53834dd470e",
+      "name": "Vidit",
+      "queendom": "Unassigned"
+    }
+  ],
+  "matched": [
+    {
+      "groupId": "120363404013708004",
+      "groupName": "Aditya Srinivas Prasad's Concierge🧞‍♂️🟠",
+      "method": "name_fuzzy",
+      "confidence": 72,
+      "evidence": "Export name match via \"Aditya Prasad\" → Aditya Srinivas Prasad's Concierge🧞‍♂️🟠",
+      "clientId": "99928477-0343-4c75-8723-da9cb91fea04",
+      "clientName": "Aditya Prasad (Mr. Aditya)"
+    },
+    {
+      "groupId": "120363406479982819",
+      "groupName": "Atul & Aishwarya's Concierge🧞‍♂️🟢",
+      "method": "name_fuzzy",
+      "confidence": 72,
+      "evidence": "Export name match via \"Atul\" → Atul & Aishwarya's Concierge🧞‍♂️🟢",
+      "clientId": "62272db5-2174-4686-81a3-8b528e915a56",
+      "clientName": "Atul Chordia"
+    },
+    {
+      "groupId": "120363323200859896",
+      "groupName": "Deepshika Yadugiri’s Concierge 🟢🧞‍♀️",
+      "method": "name_fuzzy",
+      "confidence": 72,
+      "evidence": "Export name match via \"Deepshikha Yadugiri\" → Deepshika Yadugiri’s Concierge 🟢🧞‍♀️",
+      "clientId": "39e65c5c-1574-4331-8019-0efbab29b1fc",
+      "clientName": "Deepshikha Yadugiri"
+    },
+    {
+      "groupId": "120363425327876019",
+      "groupName": "Gursimran Singh’s Concierge 🧞‍♂️🟢",
+      "method": "name_fuzzy",
+      "confidence": 72,
+      "evidence": "Export name match via \"Gursimran\" → Gursimran Singh’s Concierge 🧞‍♂️🟢",
+      "clientId": "af20b70c-c813-4b3d-b301-436e54284f19",
+      "clientName": "Gursimran Singh Kochhar"
+    },
+    {
+      "groupId": "120363150054022890",
+      "groupName": "Harsh’s Concierge 🧞‍♀️⚫",
+      "method": "name_fuzzy",
+      "confidence": 72,
+      "evidence": "Export name match via \"Harsh\" → Harsh’s Concierge 🧞‍♀️⚫",
+      "clientId": "ec502e03-37f1-4cd4-a831-47df8fe7dc32",
+      "clientName": "Harsh Jain"
+    },
+    {
+      "groupId": "120363150054022890",
+      "groupName": "Harsh’s Concierge 🧞‍♀️⚫",
+      "method": "name_fuzzy",
+      "confidence": 72,
+      "evidence": "Export name match via \"Harsh\" → Harsh’s Concierge 🧞‍♀️⚫",
+      "clientId": "b77246eb-2501-478e-bc71-0e23972f6656",
+      "clientName": "Harsh Binani"
+    },
+    {
+      "groupId": "120363160881280576",
+      "groupName": "Lakshay and Alia’s Concierge 🧞🟢",
+      "method": "name_fuzzy",
+      "confidence": 72,
+      "evidence": "Export name match via \"Lakshay\" → Lakshay and Alia’s Concierge 🧞🟢",
+      "clientId": "805c324e-8b61-4d5f-a2f4-b30a434894ff",
+      "clientName": "Lakshay & Alia"
+    },
+    {
+      "groupId": "120363207182579235",
+      "groupName": "Nikhil and Shaila Verma’s Concierge 🧞🟢",
+      "method": "name_fuzzy",
+      "confidence": 72,
+      "evidence": "Export name match via \"Nikhil Shaila\" → Nikhil and Shaila Verma’s Concierge 🧞🟢",
+      "clientId": "962a1d88-9817-4c87-bc6c-05c3dcf0c137",
+      "clientName": "Nikhil Verma and Shaila"
+    },
+    {
+      "groupId": "120363425891533865",
+      "groupName": "Mr Rajat's Concierge🧞‍♂️🟢",
+      "method": "name_fuzzy",
+      "confidence": 72,
+      "evidence": "Export name match via \"Rajat\" → Mr Rajat's Concierge🧞‍♂️🟢",
+      "clientId": "5068042b-c934-4ff8-8a6c-d2b0de950a15",
+      "clientName": "Rajat Bhalla"
+    },
+    {
+      "groupId": "120363424696990958",
+      "groupName": "Rupesh & Tejaswee's Concierge🧞‍♂️🟠",
+      "method": "name_fuzzy",
+      "confidence": 72,
+      "evidence": "Export name match via \"Rupesh\" → Rupesh & Tejaswee's Concierge🧞‍♂️🟠",
+      "clientId": "722b3e42-156f-45b6-9e4d-8fe827d8961f",
+      "clientName": "Rupesh Kuche"
+    }
+  ]
+}

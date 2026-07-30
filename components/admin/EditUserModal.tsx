@@ -21,6 +21,11 @@ import {
   Mail,
   Phone,
   Info,
+  KeyRound,
+  ChevronDown,
+  RefreshCw,
+  Eye,
+  EyeOff,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -35,9 +40,26 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { IndulgeButton } from "@/components/ui/indulge-button";
 import { IndulgeField } from "@/components/ui/indulge-field";
-import { updateUserProfile, getProfilesForReportsTo } from "@/lib/actions/admin";
+import {
+  updateUserProfile,
+  getProfilesForReportsTo,
+  setUserPassword,
+} from "@/lib/actions/admin";
+import {
+  getConciergeGroupsForProfile,
+  setAgentGroups,
+} from "@/lib/actions/concierge-staff";
 import { updateUserProfileSchema } from "@/lib/validations/user";
-import type { EmployeeDepartment, IndulgeDomain, Profile, UserRole } from "@/lib/types/database";
+import { passwordSchema } from "@/lib/schemas/password";
+import { generateTempPassword } from "@/lib/utils/generate-password";
+import { toast } from "sonner";
+import type {
+  EmployeeDepartment,
+  IndulgeDomain,
+  Profile,
+  UserRole,
+  ConciergeGroup,
+} from "@/lib/types/database";
 import {
   DEPARTMENT_CONFIG,
   DOMAIN_CONFIG,
@@ -47,6 +69,7 @@ import {
 } from "@/lib/constants/departments";
 import { cn } from "@/lib/utils";
 import { mapAuthError } from "@/lib/utils/auth-errors";
+import { QueendomScopePicker } from "@/components/admin/QueendomScopePicker";
 
 const DEPT_ICON_MAP: Record<string, LucideIcon> = {
   Sparkles,
@@ -135,7 +158,16 @@ export function EditUserModal({ open, onClose, onSuccess, profile }: EditUserMod
   const [reportsToSearch, setReportsToSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Direct "set password" (no email) — independent from the profile form.
+  const [pwOpen, setPwOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [showPw, setShowPw] = useState(false);
+  const [pwLoading, setPwLoading] = useState(false);
+  const [pwError, setPwError] = useState<string | null>(null);
+  const [pwDone, setPwDone] = useState(false);
   const skipNextDomainAutosync = useRef(false);
+  const [queendomGroups, setQueendomGroups] = useState<ConciergeGroup[]>([]);
+  const [queendomError, setQueendomError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -149,6 +181,19 @@ export function EditUserModal({ open, onClose, onSuccess, profile }: EditUserMod
     setReportsTo(profile.reports_to ?? null);
     setReportsToSearch("");
     setError(null);
+    setQueendomError(null);
+    setPwOpen(false);
+    setNewPassword("");
+    setShowPw(false);
+    setPwError(null);
+    setPwDone(false);
+    setPwLoading(false);
+
+    if (profile.department === "concierge") {
+      getConciergeGroupsForProfile(profile.id).then(setQueendomGroups);
+    } else {
+      setQueendomGroups([]);
+    }
   }, [open, profile]);
 
   useEffect(() => {
@@ -203,9 +248,15 @@ export function EditUserModal({ open, onClose, onSuccess, profile }: EditUserMod
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setQueendomError(null);
 
     if (!jobTitle.trim()) {
       setError("Job title is required.");
+      return;
+    }
+
+    if (employeeDepartment === "concierge" && queendomGroups.length === 0) {
+      setQueendomError("Select at least one Queendom for ticket scope.");
       return;
     }
 
@@ -226,14 +277,48 @@ export function EditUserModal({ open, onClose, onSuccess, profile }: EditUserMod
 
     setLoading(true);
     const result = await updateUserProfile(profile.id, parsed.data);
-    setLoading(false);
-
     if (!result.success) {
+      setLoading(false);
       setError(mapAuthError(result.error ?? null));
       return;
     }
 
+    // Sync Queendom membership when concierge (or clearing after leaving concierge).
+    if (employeeDepartment === "concierge" || profile.department === "concierge") {
+      const groupsRes = await setAgentGroups({
+        profileId: profile.id,
+        groups: employeeDepartment === "concierge" ? queendomGroups : [],
+      });
+      if (!groupsRes.success) {
+        setLoading(false);
+        setError(groupsRes.error ?? "Profile saved, but Queendom update failed.");
+        return;
+      }
+    }
+    setLoading(false);
+
     onSuccess();
+  }
+
+  async function handleSetPassword() {
+    setPwError(null);
+    setPwDone(false);
+    const parsed = passwordSchema.safeParse(newPassword);
+    if (!parsed.success) {
+      setPwError(parsed.error.issues[0]?.message ?? "Invalid password");
+      return;
+    }
+    setPwLoading(true);
+    const result = await setUserPassword(profile.id, newPassword);
+    setPwLoading(false);
+    if (!result.success) {
+      setPwError(mapAuthError(result.error ?? null));
+      return;
+    }
+    setPwDone(true);
+    toast.success(`Password set for ${profile.full_name}`, {
+      description: "Share it securely — they can sign in immediately.",
+    });
   }
 
   return (
@@ -438,6 +523,19 @@ export function EditUserModal({ open, onClose, onSuccess, profile }: EditUserMod
                 </motion.div>
               )}
             </AnimatePresence>
+
+            {employeeDepartment === "concierge" ? (
+              <div className="mt-4 rounded-xl border border-[#E5E4DF] bg-white p-3.5">
+                <QueendomScopePicker
+                  value={queendomGroups}
+                  onChange={(next) => {
+                    setQueendomGroups(next);
+                    if (next.length > 0) setQueendomError(null);
+                  }}
+                  error={queendomError ?? undefined}
+                />
+              </div>
+            ) : null}
           </div>
 
           <div>
@@ -608,6 +706,118 @@ export function EditUserModal({ open, onClose, onSuccess, profile }: EditUserMod
             </IndulgeButton>
           </DialogFooter>
         </form>
+
+        {profile.role !== "founder" && (
+          <div className="mt-1 rounded-xl border border-[#E5E4DF] bg-[#FAFAF8] overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setPwOpen((v) => !v)}
+              className="w-full flex items-center gap-2.5 px-4 py-3 text-left"
+            >
+              <div className="w-8 h-8 rounded-lg bg-[#D4AF37]/12 flex items-center justify-center shrink-0">
+                <KeyRound className="w-4 h-4 text-[#A88B25]" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] font-semibold text-[#1A1A1A]">
+                  Set a password directly
+                </p>
+                <p className="text-[11px] text-[#8A8A6E]">
+                  No email or reset link — for when invites bounce or SMTP is down.
+                </p>
+              </div>
+              <ChevronDown
+                className={cn(
+                  "w-4 h-4 text-[#8A8A6E] transition-transform shrink-0",
+                  pwOpen && "rotate-180",
+                )}
+              />
+            </button>
+
+            <AnimatePresence initial={false}>
+              {pwOpen && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.18 }}
+                  className="border-t border-[#E5E4DF] overflow-hidden"
+                >
+                  <div className="p-4 space-y-3">
+                    <IndulgeField
+                      label="New password"
+                      error={pwError ?? undefined}
+                      hint="Min 8 characters with an uppercase, a lowercase, and a number."
+                    >
+                      <div className="relative">
+                        <Input
+                          type={showPw ? "text" : "password"}
+                          value={newPassword}
+                          onChange={(e) => {
+                            setNewPassword(e.target.value);
+                            setPwError(null);
+                            setPwDone(false);
+                          }}
+                          placeholder="Enter or generate a password"
+                          autoComplete="new-password"
+                          error={!!pwError}
+                          className="pr-16"
+                        />
+                        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setNewPassword(generateTempPassword());
+                              setShowPw(true);
+                              setPwError(null);
+                              setPwDone(false);
+                            }}
+                            title="Generate a strong password"
+                            className="p-1.5 text-[#8A8A6E] hover:text-[#A88B25] transition-colors"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowPw((v) => !v)}
+                            title={showPw ? "Hide" : "Show"}
+                            className="p-1.5 text-[#8A8A6E] hover:text-[#A88B25] transition-colors"
+                          >
+                            {showPw ? (
+                              <EyeOff className="w-3.5 h-3.5" />
+                            ) : (
+                              <Eye className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </IndulgeField>
+
+                    {pwDone && (
+                      <p className="flex items-center gap-1.5 text-[12px] text-emerald-700">
+                        <Check className="w-3.5 h-3.5 shrink-0" />
+                        Password updated — copy it now and share it securely.
+                      </p>
+                    )}
+
+                    <div className="flex justify-end">
+                      <IndulgeButton
+                        type="button"
+                        variant="gold"
+                        loading={pwLoading}
+                        leftIcon={
+                          pwLoading ? undefined : <KeyRound className="w-4 h-4" />
+                        }
+                        onClick={handleSetPassword}
+                      >
+                        Set password
+                      </IndulgeButton>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

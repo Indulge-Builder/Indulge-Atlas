@@ -20,6 +20,7 @@ import {
   Loader2,
   Mail,
   MapPin,
+  MessageCircle,
   Moon,
   Pencil,
   Phone,
@@ -40,9 +41,11 @@ import type { ClientDetail } from "@/lib/actions/clients";
 import {
   updateClientProfile,
   updateClientPhone,
+  updateClientChettoGroupId,
 } from "@/lib/actions/clients";
 import type { EliaProfile } from "@/lib/types/database";
 import { formatIST } from "@/lib/utils/time";
+import { toEditablePhone } from "@/lib/utils/phone";
 import { ExpandableText } from "./ExpandableText";
 import { ProfilePhoneCopy } from "./ProfilePhoneCopy";
 import { ProfileSection } from "./ProfileSection";
@@ -182,36 +185,40 @@ function EditableFieldRow({
 
       <div className="min-w-0">
         {editing ? (
-          <div className="flex items-center gap-2">
-            <input
-              value={inputValue}
-              onChange={(e) => onInputChange(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void handleSave();
-              }}
-              placeholder={placeholder ?? label}
-              className={cn(
-                "h-7 w-full rounded-md border border-[#E5E4DF] bg-white px-2.5 text-[13px] text-stone-800 outline-none transition-colors",
-                "focus:border-brand-gold focus:ring-2 focus:ring-brand-gold/20",
-              )}
-            />
-            <button
-              type="button"
-              onClick={() => void handleSave()}
-              disabled={isSaving}
-              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-emerald-300 bg-emerald-50 text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-50"
-              title="Save"
-            >
-              {isSaving ? (
-                <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
-              ) : localSaved ? (
-                <Check className="h-3 w-3 text-emerald-600" aria-hidden />
-              ) : (
-                <Check className="h-3 w-3" aria-hidden />
-              )}
-            </button>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <input
+                value={inputValue}
+                onChange={(e) => onInputChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void handleSave();
+                }}
+                placeholder={placeholder ?? label}
+                className={cn(
+                  "h-7 w-full rounded-md border border-[#E5E4DF] bg-white px-2.5 text-[13px] text-stone-800 outline-none transition-colors",
+                  "focus:border-brand-gold focus:ring-2 focus:ring-brand-gold/20",
+                )}
+              />
+              <button
+                type="button"
+                onClick={() => void handleSave()}
+                disabled={isSaving}
+                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-emerald-300 bg-emerald-50 text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-50"
+                title="Save"
+              >
+                {isSaving ? (
+                  <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                ) : localSaved ? (
+                  <Check className="h-3 w-3 text-emerald-600" aria-hidden />
+                ) : (
+                  <Check className="h-3 w-3" aria-hidden />
+                )}
+              </button>
+            </div>
             {inputHint && (
-              <span className="text-[10px] text-stone-400">{inputHint}</span>
+              <span className="text-[10px] leading-snug text-stone-400">
+                {inputHint}
+              </span>
             )}
           </div>
         ) : (
@@ -238,12 +245,15 @@ function EditableSectionHeader({
   editing,
   onToggle,
   onCancel,
+  canEdit = true,
 }: {
   title: string;
   icon: LucideIcon;
   editing: boolean;
   onToggle: () => void;
   onCancel: () => void;
+  /** When false, the Edit toggle is hidden (user cannot save this client). */
+  canEdit?: boolean;
 }) {
   return (
     <div className="flex items-center justify-between rounded-t-lg border border-b-0 border-[#E5E4DF] bg-[#F5F3EE] px-4 py-2.5">
@@ -268,7 +278,7 @@ function EditableSectionHeader({
           <X className="h-3 w-3" aria-hidden />
           Cancel
         </button>
-      ) : (
+      ) : canEdit ? (
         <button
           type="button"
           onClick={onToggle}
@@ -278,7 +288,7 @@ function EditableSectionHeader({
           <Pencil className="h-3 w-3" aria-hidden />
           Edit
         </button>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -287,6 +297,8 @@ function EditableSectionHeader({
 
 export interface ClientProfileFieldsProps {
   detail: ClientDetail;
+  /** When false, per-section Edit toggles are hidden (user cannot save this client). */
+  canEdit?: boolean;
   eliaProfile?: EliaProfile | null;
   eliaAnalyzedAt?: string | null;
   eliaVersion?: number;
@@ -299,6 +311,7 @@ export interface ClientProfileFieldsProps {
 
 export function ClientProfileFields({
   detail: d,
+  canEdit = true,
   eliaProfile,
   eliaAnalyzedAt,
   eliaVersion = 0,
@@ -315,8 +328,9 @@ export function ClientProfileFields({
 
   // ── draft state for every editable field ──────────────────────────────
   const [drafts, setDrafts] = useState({
-    phone: d.phone_number ?? "",
+    phone: toEditablePhone(d.phone_number),
     email: d.email ?? "",
+    chetto_group_id: d.chetto_group_id ?? "",
     date_of_birth: d.date_of_birth ?? "",
     blood_group: d.blood_group ?? "",
     marital_status: d.marital_status ?? "",
@@ -348,8 +362,9 @@ export function ClientProfileFields({
   useEffect(() => {
     if (editingSection !== null) return;
     setDrafts({
-      phone: d.phone_number ?? "",
+      phone: toEditablePhone(d.phone_number),
       email: d.email ?? "",
+      chetto_group_id: d.chetto_group_id ?? "",
       date_of_birth: d.date_of_birth ?? "",
       blood_group: d.blood_group ?? "",
       marital_status: d.marital_status ?? "",
@@ -382,8 +397,9 @@ export function ClientProfileFields({
   function cancelEditing() {
     // Reset drafts to current detail values
     setDrafts({
-      phone: d.phone_number ?? "",
+      phone: toEditablePhone(d.phone_number),
       email: d.email ?? "",
+      chetto_group_id: d.chetto_group_id ?? "",
       date_of_birth: d.date_of_birth ?? "",
       blood_group: d.blood_group ?? "",
       marital_status: d.marital_status ?? "",
@@ -417,6 +433,20 @@ export function ClientProfileFields({
       const res = await updateClientPhone(clientId, drafts.phone.trim());
       if (!res.success) { toast.error(res.error ?? "Failed to save"); return; }
       toast.success("Phone saved");
+      setEditingSection(null);   // exit edit mode so useEffect can re-sync drafts
+      await onProfileUpdated?.();
+    } finally { setSavingField(null); }
+  }
+
+  async function saveChettoGroupId() {
+    setSavingField("chetto_group_id");
+    try {
+      const res = await updateClientChettoGroupId(
+        clientId,
+        drafts.chetto_group_id.trim() || null,
+      );
+      if (!res.success) { toast.error(res.error ?? "Failed to save"); return; }
+      toast.success("Chetto group id saved");
       setEditingSection(null);   // exit edit mode so useEffect can re-sync drafts
       await onProfileUpdated?.();
     } finally { setSavingField(null); }
@@ -517,6 +547,7 @@ export function ClientProfileFields({
           editing={isEditing("contact")}
           onToggle={() => setEditingSection("contact")}
           onCancel={cancelEditing}
+          canEdit={canEdit}
         />
         <div className="divide-y divide-[#F5F3EF] rounded-b-lg border border-t-0 border-[#E5E4DF] bg-white">
           <EditableFieldRow
@@ -527,9 +558,36 @@ export function ClientProfileFields({
             onInputChange={(v) => setDraft("phone", v)}
             onSave={savePhone}
             isSaving={savingField === "phone"}
-            placeholder="+91 98…"
+            placeholder="9876543210, +91 98…, or +1 650…"
+            inputHint="Indian numbers: 10 digits without +91 is fine. For other countries use +1, +44, etc."
             isEmpty={!d.phone_number?.trim()}
             displayValue={<ProfilePhoneCopy rawPhone={d.phone_number} />}
+          />
+          <EditableFieldRow
+            label="Chetto WhatsApp group"
+            icon={MessageCircle}
+            editing={isEditing("contact")}
+            inputValue={drafts.chetto_group_id}
+            onInputChange={(v) => setDraft("chetto_group_id", v)}
+            onSave={saveChettoGroupId}
+            isSaving={savingField === "chetto_group_id"}
+            placeholder="e.g. 120363… or search by group name in Chetto mapping"
+            inputHint="Joule group_id from app.chetto.ai, or set via Chetto mapping (name search). Powers the WhatsApp tab and Elia analysis."
+            isEmpty={!d.chetto_group_id?.trim()}
+            displayValue={
+              d.chetto_group_id?.trim() ? (
+                <span className="flex flex-col gap-0.5">
+                  {d.chetto_group_name?.trim() ? (
+                    <span className="text-[13px] font-medium text-[#1C1917]">
+                      {d.chetto_group_name.trim()}
+                    </span>
+                  ) : null}
+                  <span className="break-all font-mono text-[11px] text-stone-500">
+                    {d.chetto_group_id.trim()}
+                  </span>
+                </span>
+              ) : null
+            }
           />
           <EditableFieldRow
             label="Email"
@@ -567,6 +625,7 @@ export function ClientProfileFields({
           editing={isEditing("personal")}
           onToggle={() => setEditingSection("personal")}
           onCancel={cancelEditing}
+          canEdit={canEdit}
         />
         <div className="divide-y divide-[#F5F3EF] rounded-b-lg border border-t-0 border-[#E5E4DF] bg-white">
           <EditableFieldRow
@@ -797,6 +856,7 @@ export function ClientProfileFields({
           editing={isEditing("travel")}
           onToggle={() => setEditingSection("travel")}
           onCancel={cancelEditing}
+          canEdit={canEdit}
         />
         <div className="divide-y divide-[#F5F3EF] rounded-b-lg border border-t-0 border-[#E5E4DF] bg-white">
           <EditableFieldRow
@@ -857,6 +917,7 @@ export function ClientProfileFields({
           editing={isEditing("lifestyle")}
           onToggle={() => setEditingSection("lifestyle")}
           onCancel={cancelEditing}
+          canEdit={canEdit}
         />
         <div className="divide-y divide-[#F5F3EF] rounded-b-lg border border-t-0 border-[#E5E4DF] bg-white">
           <EditableFieldRow
@@ -944,6 +1005,7 @@ export function ClientProfileFields({
           editing={isEditing("passions")}
           onToggle={() => setEditingSection("passions")}
           onCancel={cancelEditing}
+          canEdit={canEdit}
         />
         <div className="divide-y divide-[#F5F3EF] rounded-b-lg border border-t-0 border-[#E5E4DF] bg-white">
           <EditableFieldRow

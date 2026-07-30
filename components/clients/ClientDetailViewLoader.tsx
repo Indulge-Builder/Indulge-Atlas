@@ -23,8 +23,10 @@ const ClientDetailView = nextDynamic(
 
 export function ClientDetailViewLoader({
   initialDetail,
+  canEdit = true,
 }: {
   initialDetail: ClientDetail;
+  canEdit?: boolean;
 }) {
-  return <ClientDetailView initialDetail={initialDetail} />;
+  return <ClientDetailView initialDetail={initialDetail} canEdit={canEdit} />;
 }

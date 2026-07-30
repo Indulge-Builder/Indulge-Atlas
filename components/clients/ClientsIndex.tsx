@@ -38,6 +38,8 @@ interface ClientsIndexProps {
   stats: ClientDirectoryStats;
   /** Manager / admin — link to bulk Chetto group id mapping. */
   showChettoMappingLink?: boolean;
+  /** Pending rows in client_chetto_unmapped_queue (migration 105). */
+  chettoQueuePending?: number;
 }
 
 function ClientsListSkeleton() {
@@ -93,6 +95,7 @@ export default function ClientsIndex({
   initialTotal,
   stats,
   showChettoMappingLink = false,
+  chettoQueuePending = 0,
 }: ClientsIndexProps) {
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 300);
@@ -230,6 +233,15 @@ export default function ClientsIndex({
           </h1>
           {showChettoMappingLink ? (
             <div className="flex flex-wrap items-center gap-4">
+              {chettoQueuePending > 0 ? (
+                <Link
+                  href="/clients/chetto-unmapped"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-900 transition-colors hover:bg-amber-200"
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-600" aria-hidden />
+                  Chetto backlog ({chettoQueuePending})
+                </Link>
+              ) : null}
               <Link
                 href="/clients/unmapped"
                 className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 transition-colors hover:bg-amber-100"

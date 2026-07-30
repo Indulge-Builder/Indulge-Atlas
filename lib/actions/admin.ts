@@ -16,11 +16,14 @@ import { z } from "zod";
 import { sanitizeText as sanitizePlainText } from "@/lib/utils/sanitize";
 import { getPublicSiteUrl } from "@/lib/utils/site-url";
 import { mapAuthError } from "@/lib/utils/auth-errors";
+import { passwordSchema } from "@/lib/schemas/password";
 
 interface ActionResult<T = void> {
   success: boolean;
   error?: string;
   data?: T;
+  /** Optional machine-readable discriminator for the caller (e.g. UI fallbacks). */
+  code?: string;
 }
 
 const uuidSchema = z.string().uuid();
@@ -28,6 +31,41 @@ const uuidSchema = z.string().uuid();
 /** Sanitize a single text field — strips all HTML tags/attributes. */
 function sanitizeText(input: string): string {
   return sanitizePlainText(input).trim();
+}
+
+/** Extract HTTP status + error code from a Supabase AuthError (if present). */
+function authErrorMeta(err: unknown): { status?: number; code?: string } {
+  if (err && typeof err === "object") {
+    const e = err as { status?: unknown; code?: unknown };
+    return {
+      status: typeof e.status === "number" ? e.status : undefined,
+      code: typeof e.code === "string" ? e.code : undefined,
+    };
+  }
+  return {};
+}
+
+/**
+ * True when an invite failed because the *email* couldn't be delivered
+ * (rate limit / SMTP not configured) rather than because of the request data.
+ * In that case the caller can safely fall back to creating the account with a
+ * temporary password — that path sends no email.
+ */
+function isEmailDeliveryFailure(
+  meta: { status?: number; code?: string },
+  message?: string | null,
+): boolean {
+  const code = (meta.code ?? "").toLowerCase();
+  const msg = (message ?? "").toLowerCase();
+  return (
+    meta.status === 429 ||
+    code.includes("rate_limit") ||
+    msg.includes("rate limit") ||
+    msg.includes("error sending") ||
+    msg.includes("sending invite") ||
+    msg.includes("failed to send") ||
+    msg.includes("smtp")
+  );
 }
 
 // ── Auth guards ────────────────────────────────────────────────────────────
@@ -287,8 +325,19 @@ export async function createUser(params: {
           redirectTo,
         });
 
-      if (inviteError)
-        return { success: false, error: mapAuthError(inviteError.message) };
+      if (inviteError) {
+        const meta = authErrorMeta(inviteError);
+        return {
+          success: false,
+          error: mapAuthError(inviteError.message, meta),
+          // When the invite fails because the email couldn't be delivered
+          // (rate limit / SMTP), tell the UI it can safely fall back to the
+          // set-a-password flow — the account data itself is fine.
+          ...(isEmailDeliveryFailure(meta, inviteError.message)
+            ? { code: "invite_email_failed" }
+            : {}),
+        };
+      }
       if (!inviteData.user)
         return { success: false, error: "Invite failed — no user returned." };
 
@@ -301,7 +350,10 @@ export async function createUser(params: {
         });
       if (metaError) {
         await serviceClient.auth.admin.deleteUser(newUserId);
-        return { success: false, error: mapAuthError(metaError.message) };
+        return {
+          success: false,
+          error: mapAuthError(metaError.message, authErrorMeta(metaError)),
+        };
       }
     } else {
       // ── Direct create flow: admin sets password ────────────────────────────
@@ -315,7 +367,10 @@ export async function createUser(params: {
         });
 
       if (authError)
-        return { success: false, error: mapAuthError(authError.message) };
+        return {
+          success: false,
+          error: mapAuthError(authError.message, authErrorMeta(authError)),
+        };
       if (!authData.user)
         return { success: false, error: "User creation failed." };
 
@@ -358,7 +413,7 @@ export async function createUser(params: {
     return { success: true, data: { id: newUserId } };
   } catch (e) {
     const message = e instanceof Error ? e.message : "Unexpected error";
-    return { success: false, error: mapAuthError(message) };
+    return { success: false, error: mapAuthError(message, authErrorMeta(e)) };
   }
 }
 
@@ -496,6 +551,62 @@ export async function updateUserProfile(
   }
 }
 
+// ── Set a user's password directly (admin, no email) ───────────────────────
+//
+// Bypasses the invite / reset-email flow entirely — for when SMTP is down or
+// rate-limited, or for fast provisioning. Sets the password via the
+// service-role Admin API; the user can sign in immediately. Share it out of band.
+
+export async function setUserPassword(
+  userId: string,
+  password: string,
+): Promise<ActionResult> {
+  try {
+    const idCheck = uuidSchema.safeParse(userId);
+    if (!idCheck.success) return { success: false, error: "Invalid user ID" };
+
+    const pwCheck = passwordSchema.safeParse(password);
+    if (!pwCheck.success) {
+      return {
+        success: false,
+        error: pwCheck.error.issues[0]?.message ?? "Invalid password",
+      };
+    }
+
+    const { serviceClient } = await requireAdminOnly();
+
+    // Guard: user management must not be able to set a founder's password.
+    const { data: target } = await serviceClient
+      .from("profiles")
+      .select("role")
+      .eq("id", userId)
+      .single();
+    if ((target as { role?: string } | null)?.role === "founder") {
+      return {
+        success: false,
+        error: "Founder passwords cannot be set from user management.",
+      };
+    }
+
+    const { error } = await serviceClient.auth.admin.updateUserById(userId, {
+      password,
+    });
+
+    if (error) {
+      return {
+        success: false,
+        error: mapAuthError(error.message, authErrorMeta(error)),
+      };
+    }
+
+    revalidatePath("/admin");
+    return { success: true };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Unexpected error";
+    return { success: false, error: mapAuthError(message, authErrorMeta(e)) };
+  }
+}
+
 // ── Send password reset email ──────────────────────────────────────────────
 
 export async function sendPasswordReset(email: string): Promise<ActionResult> {
@@ -523,7 +634,10 @@ export async function sendPasswordReset(email: string): Promise<ActionResult> {
         low.includes("too many") ||
         error.status === 429
       ) {
-        return { success: false, error: mapAuthError(error.message) };
+        return {
+          success: false,
+          error: mapAuthError(error.message, authErrorMeta(error)),
+        };
       }
     }
 

@@ -4,9 +4,11 @@ import { Suspense, useEffect, useState } from "react";
 import { MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "./NotificationBell";
+import { ConciergeNotificationBell } from "@/components/concierge/ConciergeNotificationBell";
 import { ScoutSLAAlerts } from "@/components/sla/ScoutSLAAlerts";
 import { useChatDrawer } from "@/components/chat/ChatProvider";
 import { useProfile } from "@/components/sla/ProfileProvider";
+import { isPrivilegedRole } from "@/lib/types/database";
 import { DomainSwitcher } from "@/components/domain/DomainSwitcher";
 import { useCommandPalette } from "@/components/providers/CommandPaletteProvider";
 import { toast } from "sonner";
@@ -116,6 +118,12 @@ export function TopBar({
   const profile = useProfile();
   const showSLA =
     profile && (profile.role === "admin" || profile.role === "founder" || profile.role === "manager");
+  // Concierge/finance staff and admins work tickets — surface ticket notifications for them.
+  const showTicketBell =
+    !!profile &&
+    (isPrivilegedRole(profile.role) ||
+      profile.department === "concierge" ||
+      profile.department === "finance");
   const isDark = variant === "dark";
 
   useEffect(() => {
@@ -188,6 +196,8 @@ export function TopBar({
         {actions}
 
         <ChatTriggerButton dark={isDark} />
+
+        {showTicketBell && <ConciergeNotificationBell userId={profile!.id} dark={isDark} />}
 
         <NotificationBell />
 

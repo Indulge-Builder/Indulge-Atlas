@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import type { ClientWithProfile } from "@/lib/actions/clients";
 import type { UnmappedFilter } from "@/components/clients/ClientFilters";
 import { Check, ExternalLink } from "lucide-react";
+import { ClientIntegrationIcons } from "@/components/clients/ClientIntegrationIcons";
 
 interface ClientListRowProps {
   client: ClientWithProfile;
@@ -73,7 +74,7 @@ export function ClientListRow({
   }
 
   const placeholder =
-    unmappedMode === "chetto" ? "e.g. 120363…" : "e.g. +91 98…";
+    unmappedMode === "chetto" ? "e.g. 120363…" : "9876543210, +91 98…, or +1 650…";
   const label =
     unmappedMode === "chetto" ? "Chetto group id" : "Phone number";
 
@@ -96,6 +97,7 @@ export function ClientListRow({
           <span className="truncate font-[family-name:var(--font-playfair)] text-[15px] font-semibold text-stone-900">
             {name}
           </span>
+          <ClientIntegrationIcons client={client} />
           <span
             className={cn(
               "h-2 w-2 shrink-0 rounded-full",

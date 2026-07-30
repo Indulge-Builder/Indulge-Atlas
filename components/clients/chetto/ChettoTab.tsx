@@ -1,11 +1,11 @@
 "use client";
 
-import type { ChettoGroup, ChettoMessage } from "@/lib/actions/chetto";
+import type { ChettoEscalation, ChettoGroup, ChettoMessage } from "@/lib/actions/chetto";
 import { JOKER_PHONE_NUMBERS } from "@/lib/constants/chetto-jokers";
 import { formatIST, isSameCalendarDayIST } from "@/lib/utils/time";
 import { cn } from "@/lib/utils";
 import { parseISO } from "date-fns";
-import { Download, Loader2, MessageCircle } from "lucide-react";
+import { Download, Loader2, MessageCircle, TriangleAlert } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -101,6 +101,8 @@ function mergeMessages(
 
 type ChettoTabProps = {
   clientPhone: string;
+  clientFirstName?: string;
+  clientLastName?: string | null;
   queendom: string;
   isActive: boolean;
   /** When set, skips phone scan and loads this Joule group directly. */
@@ -109,6 +111,8 @@ type ChettoTabProps = {
 
 export function ChettoTab({
   clientPhone,
+  clientFirstName = "",
+  clientLastName = null,
   queendom,
   isActive,
   chettoGroupId,
@@ -121,6 +125,7 @@ export function ChettoTab({
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [loadMoreLoading, setLoadMoreLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [atRiskEscalations, setAtRiskEscalations] = useState<ChettoEscalation[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const didInitialScroll = useRef(false);
@@ -132,7 +137,24 @@ export function ChettoTab({
   const loadMoreLoadingRef = useRef(false);
 
   const mappedId = chettoGroupId?.trim() ?? "";
-  const phoneOk = clientPhone.trim().length > 0 || Boolean(mappedId);
+  const phoneOk =
+    clientPhone.trim().length > 0 ||
+    Boolean(mappedId) ||
+    clientFirstName.trim().length > 0;
+
+  const timelineQuery = useCallback(
+    (groupId: string, limit: number, offsetId?: string) => {
+      const p = new URLSearchParams({
+        groupId,
+        limit: String(limit),
+      });
+      const q = queendom.trim();
+      if (q) p.set("queendom", q);
+      if (offsetId) p.set("offsetId", offsetId);
+      return `/api/chetto/timeline?${p.toString()}`;
+    },
+    [queendom],
+  );
 
   useEffect(() => {
     if (!isActive || !phoneOk) {
@@ -183,6 +205,12 @@ export function ChettoTab({
             clientPhone: clientPhone.trim(),
             queendom: queendom.trim() || "Unassigned",
           });
+          if (clientFirstName.trim()) {
+            fg.set("clientFirstName", clientFirstName.trim());
+            if (clientLastName?.trim()) {
+              fg.set("clientLastName", clientLastName.trim());
+            }
+          }
           const fr = await fetch(`/api/chetto/find-group?${fg.toString()}`, {
             signal: ctrl.signal,
           });
@@ -223,7 +251,8 @@ export function ChettoTab({
         setTimelineLoading(true);
         try {
           const tr = await fetch(
-            `/api/chetto/timeline?groupId=${encodeURIComponent(timelineGroupId)}&limit=50`,
+            timelineQuery(timelineGroupId, 50),
+            { signal: ctrl.signal },
           );
           const raw = await tr.text();
           let tj: {
@@ -266,7 +295,33 @@ export function ChettoTab({
     return () => {
       cancelled = true;
     };
-  }, [isActive, clientPhone, queendom, phoneOk, chettoGroupId]);
+  }, [isActive, clientPhone, clientFirstName, clientLastName, queendom, phoneOk, chettoGroupId, timelineQuery]);
+
+  useEffect(() => {
+    const gid = (mappedId || group?.group_id)?.trim();
+    if (!isActive || !gid) {
+      setAtRiskEscalations([]);
+      return;
+    }
+
+    let cancelled = false;
+    const p = new URLSearchParams({ groupId: gid, label: "AtRisk", limit: "5" });
+    if (queendom.trim()) p.set("queendom", queendom.trim());
+
+    void fetch(`/api/chetto/escalations?${p.toString()}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { escalations?: ChettoEscalation[] } | null) => {
+        if (cancelled || !data?.escalations) return;
+        setAtRiskEscalations(data.escalations);
+      })
+      .catch(() => {
+        if (!cancelled) setAtRiskEscalations([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isActive, mappedId, group?.group_id, queendom]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -326,7 +381,7 @@ export function ChettoTab({
     }
     try {
       const tr = await fetch(
-        `/api/chetto/timeline?groupId=${encodeURIComponent(gid)}&limit=50&offsetId=${encodeURIComponent(nextCursor)}`,
+        timelineQuery(gid, 50, nextCursor),
       );
       const raw = await tr.text();
       let tj: { messages?: ChettoMessage[]; nextCursor?: string | null } = {};
@@ -352,7 +407,7 @@ export function ChettoTab({
       setLoadMoreLoading(false);
       loadMoreLoadingRef.current = false;
     }
-  }, [mappedId, group?.group_id, nextCursor]);
+  }, [mappedId, group?.group_id, nextCursor, timelineQuery]);
 
   useEffect(() => {
     const root = scrollRef.current;
@@ -448,9 +503,7 @@ export function ChettoTab({
       let cursor: string | null = nextCursor;
       // fetch all remaining pages
       while (cursor) {
-        const tr = await fetch(
-          `/api/chetto/timeline?groupId=${encodeURIComponent(gid)}&limit=200&offsetId=${encodeURIComponent(cursor)}`,
-        );
+        const tr = await fetch(timelineQuery(gid, 200, cursor));
         if (!tr.ok) break;
         const tj = (await tr.json()) as {
           messages?: ChettoMessage[];
@@ -469,9 +522,8 @@ export function ChettoTab({
         const ts = d ? formatIST(d, "yyyy-MM-dd HH:mm:ss") : "unknown";
         const sender = m.from_me
           ? "Agent"
-          : m.phone_no
-            ? `+${normalizePhoneDigits(m.phone_no)}`
-            : "Unknown";
+          : m.sender_name?.trim() ||
+            (m.phone_no ? `+${normalizePhoneDigits(m.phone_no)}` : "Unknown");
         const text = m.text?.trim() || "[Media]";
         return `[${ts}] ${sender}: ${text}`;
       });
@@ -548,6 +600,34 @@ export function ChettoTab({
           ) : null}
         </div>
       </div>
+
+      {atRiskEscalations.length > 0 ? (
+        <div className="shrink-0 border-b border-amber-200/80 bg-amber-50/90 px-4 py-2.5">
+          <div className="flex items-start gap-2">
+            <TriangleAlert
+              className="mt-0.5 h-4 w-4 shrink-0 text-amber-700"
+              aria-hidden
+            />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium text-amber-900">
+                {atRiskEscalations.length === 1
+                  ? "Chetto flagged an at-risk escalation"
+                  : `${atRiskEscalations.length} at-risk escalations (Chetto)`}
+              </p>
+              <ul className="mt-1 space-y-1">
+                {atRiskEscalations.slice(0, 3).map((e) => (
+                  <li
+                    key={e.id}
+                    className="text-[11px] leading-snug text-amber-800/90"
+                  >
+                    {e.title?.trim() || e.description?.trim() || e.label}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* Section 2 — timeline (single scroll surface; height bounded by parent card) */}
       <div className="relative min-h-0 flex-1 overflow-hidden">
@@ -687,14 +767,15 @@ export function ChettoTab({
                               Joker ✨
                             </p>
                           ) : null}
-                          {!m.from_me &&
-                          showSenderLabel &&
-                          curPhone.length >= 4 ? (
+                          {!m.from_me && showSenderLabel ? (
                             <p
                               className="mb-0.5 text-[10px] font-medium"
                               style={{ color: senderColor(m.phone_no) }}
                             >
-                              ····{curPhone.slice(-4)}
+                              {m.sender_name?.trim() ||
+                                (curPhone.length >= 4
+                                  ? `····${curPhone.slice(-4)}`
+                                  : "Member")}
                             </p>
                           ) : null}
                           <p className="wrap-break-word text-[13.5px] leading-relaxed text-[#111827]">

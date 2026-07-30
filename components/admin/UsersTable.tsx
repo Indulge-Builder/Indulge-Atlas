@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   MoreHorizontal,
@@ -37,8 +37,22 @@ import {
 import { getInitials, formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { mapAuthError } from "@/lib/utils/auth-errors";
-import type { Profile, UserRole } from "@/lib/types/database";
-import { DOMAIN_DISPLAY_CONFIG } from "@/lib/types/database";
+import type { Profile, UserRole, ConciergeGroup, IndulgeDomain } from "@/lib/types/database";
+import { DOMAIN_DISPLAY_CONFIG, CONCIERGE_GROUP_LABELS } from "@/lib/types/database";
+
+/** Domains offered by TopBar DomainSwitcher (+ global for matching). */
+const FILTERABLE_DOMAINS: readonly IndulgeDomain[] = [
+  "indulge_concierge",
+  "indulge_shop",
+  "indulge_house",
+  "indulge_legacy",
+  "indulge_global",
+];
+
+function parseDomainFilter(raw: string | null): IndulgeDomain | null {
+  if (!raw) return null;
+  return FILTERABLE_DOMAINS.includes(raw as IndulgeDomain) ? (raw as IndulgeDomain) : null;
+}
 
 const ROLE_CONFIG: Record<
   UserRole,
@@ -82,20 +96,44 @@ function getRoleConfig(role: string | null | undefined) {
 interface UsersTableProps {
   profiles: Profile[];
   currentUserId: string;
+  /** Queendom memberships keyed by profile id (concierge agents). */
+  groupsByProfileId?: Record<string, ConciergeGroup[]>;
 }
 
 export function UsersTable({
   profiles: initialProfiles,
   currentUserId,
+  groupsByProfileId: initialGroups = {},
 }: UsersTableProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const domainFilter = parseDomainFilter(searchParams.get("domain"));
   const [isPending, startTransition] = useTransition();
   const [profiles, setProfiles] = useState<Profile[]>(initialProfiles);
+  const [groupsByProfileId, setGroupsByProfileId] =
+    useState<Record<string, ConciergeGroup[]>>(initialGroups);
   const [showCreate, setShowCreate] = useState(false);
   const [editTarget, setEditTarget] = useState<Profile | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [toastType, setToastType] = useState<"success" | "error">("success");
   const [processingId, setProcessingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setProfiles(initialProfiles);
+  }, [initialProfiles]);
+
+  useEffect(() => {
+    setGroupsByProfileId(initialGroups);
+  }, [initialGroups]);
+
+  const visibleProfiles = useMemo(() => {
+    if (!domainFilter) return profiles;
+    return profiles.filter((p) => p.domain === domainFilter);
+  }, [profiles, domainFilter]);
+
+  const domainFilterLabel = domainFilter
+    ? (DOMAIN_DISPLAY_CONFIG[domainFilter]?.shortLabel ?? domainFilter.replace(/_/g, " "))
+    : null;
 
   function showToast(msg: string, type: "success" | "error" = "success") {
     setToastType(type);
@@ -157,8 +195,8 @@ export function UsersTable({
     }
   }
 
-  const activeCount = profiles.filter((p) => p.is_active).length;
-  const agentCount = profiles.filter((p) => p.role === "agent").length;
+  const activeCount = visibleProfiles.filter((p) => p.is_active).length;
+  const agentCount = visibleProfiles.filter((p) => p.role === "agent").length;
 
   return (
     <div className="space-y-5">
@@ -167,7 +205,7 @@ export function UsersTable({
         {[
           {
             label: "Total Users",
-            value: profiles.length,
+            value: visibleProfiles.length,
             color: "#1A1A1A",
             bg: "#F2F2EE",
           },
@@ -185,7 +223,7 @@ export function UsersTable({
           },
           {
             label: "Admins & Managers",
-            value: profiles.filter((p) => p.role !== "agent").length,
+            value: visibleProfiles.filter((p) => p.role !== "agent").length,
             color: "#C5830A",
             bg: "#FEF3D0",
           },
@@ -214,7 +252,8 @@ export function UsersTable({
               Team Members
             </h2>
             <p className="text-xs text-[#9E9E9E] mt-0.5">
-              {profiles.length} user{profiles.length !== 1 ? "s" : ""} total
+              {visibleProfiles.length} user{visibleProfiles.length !== 1 ? "s" : ""}
+              {domainFilterLabel ? ` in ${domainFilterLabel}` : " total"}
             </p>
           </div>
           <Button
@@ -250,8 +289,17 @@ export function UsersTable({
             </tr>
           </thead>
           <tbody>
+            {visibleProfiles.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-5 py-12 text-center text-sm text-[#9E9E9E]">
+                  {domainFilterLabel
+                    ? `No users in ${domainFilterLabel}. Switch to All Domains or create a user in this domain.`
+                    : "No users found."}
+                </td>
+              </tr>
+            ) : (
             <AnimatePresence mode="popLayout">
-              {profiles.map((profile, i) => {
+              {visibleProfiles.map((profile, i) => {
                 const roleConfig = getRoleConfig(profile.role);
                 const RoleIcon = roleConfig.icon;
                 const isSelf = profile.id === currentUserId;
@@ -316,26 +364,40 @@ export function UsersTable({
                       </span>
                     </td>
 
-                    {/* Department */}
+                    {/* Department / domain + Queendoms */}
                     <td className="px-4 py-3.5">
-                      {profile.domain ? (
-                        <span
-                          className="inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-full"
-                          style={{
-                            backgroundColor:
-                              DOMAIN_DISPLAY_CONFIG[profile.domain]?.pillBg ??
-                              "#F4F4F5",
-                            color:
-                              DOMAIN_DISPLAY_CONFIG[profile.domain]
-                                ?.pillColor ?? "#6B7280",
-                          }}
-                        >
-                          {DOMAIN_DISPLAY_CONFIG[profile.domain]?.shortLabel ??
-                            profile.domain.replace(/_/g, " ")}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-[#9E9E9E]">—</span>
-                      )}
+                      <div className="flex flex-col gap-1">
+                        {profile.domain ? (
+                          <span
+                            className="inline-flex w-fit items-center text-xs font-medium px-2.5 py-1 rounded-full"
+                            style={{
+                              backgroundColor:
+                                DOMAIN_DISPLAY_CONFIG[profile.domain]?.pillBg ??
+                                "#F4F4F5",
+                              color:
+                                DOMAIN_DISPLAY_CONFIG[profile.domain]
+                                  ?.pillColor ?? "#6B7280",
+                            }}
+                          >
+                            {DOMAIN_DISPLAY_CONFIG[profile.domain]?.shortLabel ??
+                              profile.domain.replace(/_/g, " ")}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-[#9E9E9E]">—</span>
+                        )}
+                        {(groupsByProfileId[profile.id] ?? []).length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {(groupsByProfileId[profile.id] ?? []).map((g) => (
+                              <span
+                                key={g}
+                                className="rounded bg-brand-gold/10 px-1.5 py-0.5 text-[10px] font-medium text-neutral-700"
+                              >
+                                {CONCIERGE_GROUP_LABELS[g]}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
                     </td>
 
                     {/* Status */}
@@ -445,6 +507,7 @@ export function UsersTable({
                 );
               })}
             </AnimatePresence>
+            )}
           </tbody>
         </table>
       </div>
@@ -453,9 +516,9 @@ export function UsersTable({
       <CreateUserModal
         open={showCreate}
         onClose={() => setShowCreate(false)}
-        onSuccess={() => {
+        onSuccess={(kind) => {
           setShowCreate(false);
-          showToast("User created successfully.");
+          showToast(kind === "agent" ? "Agent created successfully." : "User created successfully.");
           refreshData();
         }}
       />

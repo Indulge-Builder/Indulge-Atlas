@@ -12,6 +12,7 @@
     "types:generate": "supabase gen types typescript --project-id YOUR_PROJECT_ID > lib/types/database.generated.ts"
   },
   "dependencies": {
+    "@hapi/boom": "^10.0.1",
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -34,6 +35,7 @@
     "@supabase/supabase-js": "^2.105.1",
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.37.0",
+    "baileys": "^7.0.0-rc13",
     "chrono-node": "^2.9.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -45,6 +47,7 @@
     "next": "16.1.6",
     "next-themes": "^0.4.6",
     "python-dateutil": "^0.0.1",
+    "qrcode-terminal": "^0.12.0",
     "react": "19.2.3",
     "react-day-picker": "^9.14.0",
     "react-dom": "19.2.3",

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { getAllProfiles } from "@/lib/actions/admin";
+import { getConciergeGroupsByProfileIds } from "@/lib/actions/concierge-staff";
 import { TopBar } from "@/components/layout/TopBar";
 import { UsersTable, UsersTableSkeleton } from "@/components/admin/UsersTable";
 
@@ -9,8 +10,15 @@ export const dynamic = "force-dynamic";
 
 async function AdminContent({ userId }: { userId: string }) {
   const profiles = await getAllProfiles();
+  const groupsByProfileId = await getConciergeGroupsByProfileIds(profiles.map((p) => p.id));
 
-  return <UsersTable profiles={profiles} currentUserId={userId} />;
+  return (
+    <UsersTable
+      profiles={profiles}
+      currentUserId={userId}
+      groupsByProfileId={groupsByProfileId}
+    />
+  );
 }
 
 export default async function AdminPage() {

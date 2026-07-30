@@ -1,8 +1,11 @@
-import { getClientsDirectoryPageData } from "@/lib/actions/clients";
+import { getClientsDirectoryPageData, getChettoUnmappedQueueStats, getChettoUnmappedBacklogCount } from "@/lib/actions/clients";
 import { canManageAnyClient } from "@/lib/types/database";
 import ClientsIndex from "@/components/clients/ClientsIndex";
+import chettoBacklog from "@/scripts/chetto-unmapped-remaining.json";
 
 export const dynamic = "force-dynamic";
+
+const BACKLOG_CLIENT_IDS = chettoBacklog.clients.map((c) => c.id);
 
 export default async function ClientsPage() {
   const { clients, total, stats, role } = await getClientsDirectoryPageData({
@@ -12,12 +15,22 @@ export default async function ClientsPage() {
     sort: "profile_data",
   });
 
+  const showChetto = canManageAnyClient(role);
+  let chettoQueuePending = 0;
+  if (showChetto) {
+    const queueStats = await getChettoUnmappedQueueStats();
+    chettoQueuePending = queueStats.success
+      ? queueStats.pending
+      : await getChettoUnmappedBacklogCount(BACKLOG_CLIENT_IDS);
+  }
+
   return (
     <ClientsIndex
       initialClients={clients}
       initialTotal={total}
       stats={stats}
-      showChettoMappingLink={canManageAnyClient(role)}
+      showChettoMappingLink={showChetto}
+      chettoQueuePending={chettoQueuePending}
     />
   );
 }

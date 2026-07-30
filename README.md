@@ -27,13 +27,22 @@ Open [http://localhost:3000](http://localhost:3000). Sign-in and dashboard route
 
 ### Environment variables
 
-Create a local env file (e.g. `.env.local`) with at least:
+Copy the template and fill in real values (never commit `.env.local`):
+
+```bash
+cp .env.example .env.local
+```
+
+At minimum these three are **required** — `proxy.ts` returns a 503 "Server
+configuration error" if the two `NEXT_PUBLIC_` Supabase vars are missing:
 
 | Variable | Purpose |
 |----------|---------|
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon (public) key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only; bypasses RLS where used |
+
+See `.env.example` for the full, documented list.
 
 Other variables are **feature-specific** (omit what you do not use locally), for example:
 
@@ -51,14 +60,44 @@ SQL migrations live in `supabase/migrations/`. Apply them with the Supabase CLI 
 
 | Command | Description |
 |---------|-------------|
-| `npm run dev` | Development server |
-| `npm run dev:webpack` | Dev server using webpack |
+| `npm run dev` | Development server (webpack — reliable on OneDrive-synced checkouts) |
+| `npm run dev:webpack` | Alias for the webpack dev server |
+| `npm run dev:turbo` | Dev server using Turbopack (faster; use only outside OneDrive — see note below) |
 | `npm run build` | Production build |
 | `npm run start` | Start production server |
 | `npm run lint` | ESLint |
 | `npm test` | Vitest |
 
 `npm run types:generate` is a placeholder for generating DB types into `lib/types/database.generated.ts` (the app currently relies on hand-maintained types in `lib/types/database.ts`).
+
+## Local dev on OneDrive (Windows) — Turbopack cache crash
+
+This repo lives under `OneDrive\Desktop\atlas`. OneDrive continuously syncs the
+`.next/` build cache, which locks files while Turbopack is writing its persistent
+cache DB and produces:
+
+```text
+Error: Failed to open database
+Caused by: The cloud operation was not completed before the time-out period expired. (os error 426)
+```
+
+Mitigations (in order of preference):
+
+1. **Use `npm run dev`** — it now defaults to `--webpack`, which does not hit the
+   Turbopack persistent-cache DB and starts reliably here (~4s). `npm run dev:turbo`
+   remains available for machines outside OneDrive.
+2. **Clear a corrupted cache** if a start hangs or the lock sticks:
+
+   ```powershell
+   Remove-Item -Recurse -Force .next
+   ```
+
+   (also kill stray `node` processes if you see `Unable to acquire lock at .next\dev\lock`).
+3. **Exclude `.next` from OneDrive** (optional, best long-term): right-click the
+   `.next` folder → *OneDrive* → *Always keep on this device* off / *Free up space*,
+   or move the checkout outside the OneDrive-synced tree entirely.
+
+`.next/` is already git-ignored; none of this affects production/Vercel builds.
 
 ## Project layout (high level)
 
