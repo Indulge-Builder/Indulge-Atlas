@@ -34,6 +34,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { AcademyReport } from "@/components/academy/AcademyReport";
+import { PanelErrorBoundary } from "@/components/academy/PanelErrorBoundary";
 import { TicketDetails } from "@/components/academy/TicketPanel";
 import { TicketUpdateForm } from "@/components/academy/TicketUpdateForm";
 import { elapsedMinutes } from "@/lib/academy/ticket";
@@ -161,28 +162,29 @@ export function ConversationActions({
             </SheetDescription>
           </SheetHeader>
           <SheetBody>
-            <TicketDetails
-              ticket={thread.ticket.ticket}
-              update={thread.ticket.update}
-              requestStatus={thread.status}
-            />
+            <PanelErrorBoundary label="ticket">
+              <TicketDetails
+                ticket={thread.ticket.ticket}
+                update={thread.ticket.update}
+                requestStatus={thread.status}
+              />
+            </PanelErrorBoundary>
           </SheetBody>
         </SheetContent>
       </Sheet>
 
       {/* ── Freshdesk write-up ─────────────────────────────────────────────── */}
       <Sheet open={panel === "freshdesk"} onOpenChange={(o) => !o && close()}>
-        <SheetContent
-          className="sm:max-w-xl"
-          /*
-           * Radix unmounts Sheet content on close, taking TicketUpdateForm's
-           * local state with it. A stray backdrop click would therefore delete
-           * a half-written ticket with no warning, so outside-interaction
-           * dismissal is disabled here. Escape and the X still close it —
-           * those are deliberate acts, not slips.
-           */
-          onInteractOutside={(e) => e.preventDefault()}
-        >
+        {/*
+          * `onInteractOutside` was previously prevented here to protect a
+          * half-written ticket from a stray backdrop click. That was the wrong
+          * trade: it turns the dimmed overlay into a trap. If anything inside
+          * the panel fails to render, the user is left facing a darkened page
+          * that clicking cannot dismiss — which is exactly what a stuck
+          * backdrop looks like. Losing a draft is recoverable; an
+          * undismissable modal is not.
+          */}
+        <SheetContent className="sm:max-w-xl">
           <SheetHeader>
             <SheetTitle>Freshdesk ticket</SheetTitle>
             <SheetDescription>
@@ -193,20 +195,22 @@ export function ConversationActions({
           </SheetHeader>
           {/* SheetBody already scrolls; the form supplies its own padding. */}
           <SheetBody className="px-0 py-0">
-            {thread.sessionId ? (
-              <TicketUpdateForm
-                sessionId={thread.sessionId}
-                existing={thread.ticket.update}
-                defaultPriority={thread.ticket.ticket.priority}
-                suggestedMinutes={elapsedMinutes(first, last)}
-                onSubmitted={(passed) => {
-                  // Refetch either way — a rejection is persisted too, and the
-                  // verdict must survive closing and reopening the sheet.
-                  if (passed) close();
-                  onCompleted?.();
-                }}
-              />
-            ) : null}
+            <PanelErrorBoundary label="Freshdesk ticket">
+              {thread.sessionId ? (
+                <TicketUpdateForm
+                  sessionId={thread.sessionId}
+                  existing={thread.ticket.update}
+                  defaultPriority={thread.ticket.ticket.priority}
+                  suggestedMinutes={elapsedMinutes(first, last)}
+                  onSubmitted={(passed) => {
+                    // Refetch either way — a rejection is persisted too, and the
+                    // verdict must survive closing and reopening the sheet.
+                    if (passed) close();
+                    onCompleted?.();
+                  }}
+                />
+              ) : null}
+            </PanelErrorBoundary>
           </SheetBody>
         </SheetContent>
       </Sheet>
@@ -221,13 +225,15 @@ export function ConversationActions({
             </SheetDescription>
           </SheetHeader>
           <SheetBody>
-            {thread.review ? (
-              <AcademyReport
-                review={thread.review}
-                display={displayFor(thread)}
-                transcript={thread.turns}
-              />
-            ) : null}
+            <PanelErrorBoundary label="review">
+              {thread.review ? (
+                <AcademyReport
+                  review={thread.review}
+                  display={displayFor(thread)}
+                  transcript={thread.turns}
+                />
+              ) : null}
+            </PanelErrorBoundary>
           </SheetBody>
         </SheetContent>
       </Sheet>
