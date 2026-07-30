@@ -1,33 +1,29 @@
 /**
- * One-off / cron-friendly: match Atlas clients to Chetto Joule groups by phone in
- * `access_members` on GET /v1/groups/{id}, then set `clients.chetto_group_id`.
- *
- * Loads `.env` then `.env.local` from the repo root (cwd). You can also set vars in the shell.
- *
- * Requires:
- *   CHETTO_API_KEY
- *   NEXT_PUBLIC_SUPABASE_URL
- *   SUPABASE_SERVICE_ROLE_KEY
- *
- * Recommended:
- *   CHETTO_ORG_ID   (parent org — unioned with queendom sub-orgs in lib/actions/chetto.ts)
- *   or pass `--org-id=<uuid>` once
- *
+ * Match Atlas clients to Chetto groups (phone, exact name, fuzzy name).
  * Usage:
  *   npx tsx scripts/map-chetto-groups.ts --dry-run
- *   npx tsx scripts/map-chetto-groups.ts --dry-run --org-id=733e0439253a44c58f5e4d231ad39b74
- *   npx tsx scripts/map-chetto-groups.ts           # fill only rows where chetto_group_id IS NULL
- *   npx tsx scripts/map-chetto-groups.ts --overwrite
- *
- * Unmatched clients: phone not found in any group's `access_members` (wrong number,
- * guest not added to WA group yet, or Chetto metadata missing members for that group).
- * Review on /clients/chetto-mapping.
+ *   npx tsx scripts/map-chetto-groups.ts
+ *   npx tsx scripts/map-chetto-groups.ts --overwrite   # remap all clients
+ *   npx tsx scripts/map-chetto-groups.ts --retry-only  # resume aggressive metadata retry from cache
+ *   npx tsx scripts/map-chetto-groups.ts --use-cache-only  # map clients from cached metadata (no API fetch)
  */
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import * as fs from "fs";
 import * as path from "path";
-import { fetchGroupMetadata, listAllGroupIds } from "../lib/actions/chetto";
+import {
+  buildChettoMappingIndex,
+  explainChettoMatchFailure,
+  fetchAllGroupMetadata,
+  listAllGroupIds,
+  resolveChettoGroupIdFromIndex,
+} from "../lib/actions/chetto";
+import {
+  cacheToLoadedGroups,
+  DEFAULT_CHETTO_METADATA_CACHE_PATH,
+  loadChettoMetadataCache,
+  saveChettoMetadataCache,
+} from "../lib/services/chettoMetadataCache";
 
 function applyEnvFile(filePath: string): void {
   if (!fs.existsSync(filePath)) return;
@@ -49,32 +45,18 @@ function applyEnvFile(filePath: string): void {
   }
 }
 
-/** `.env` first, then `.env.local` (later file wins per key). Run from repo root. */
 function loadDotEnvFiles(): void {
   const root = process.cwd();
   applyEnvFile(path.join(root, ".env"));
   applyEnvFile(path.join(root, ".env.local"));
-  if (
-    !fs.existsSync(path.join(root, ".env")) &&
-    !fs.existsSync(path.join(root, ".env.local"))
-  ) {
-    console.warn(
-      "Warning: no .env or .env.local in cwd — using process.env only.",
-    );
-  }
 }
 
 function parseOrgIdFromArgv(): string | undefined {
   const eq = process.argv.find((a) => a.startsWith("--org-id="));
-  if (eq) {
-    const v = eq.slice("--org-id=".length).trim();
-    return v.length > 0 ? v : undefined;
-  }
+  if (eq) return eq.slice("--org-id=".length).trim() || undefined;
   const idx = process.argv.indexOf("--org-id");
-  if (idx !== -1) {
-    const next = process.argv[idx + 1];
-    if (next && !next.startsWith("--")) return next.trim() || undefined;
-  }
+  const next = process.argv[idx + 1];
+  if (idx !== -1 && next && !next.startsWith("--")) return next.trim();
   return undefined;
 }
 
@@ -82,53 +64,23 @@ function getServiceClient(): SupabaseClient {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) {
-    throw new Error(
-      "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY",
-    );
+    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
   }
   return createClient(url, key, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 }
 
-function normalizePhoneKey(phone: string): string {
-  return phone.replace(/\D/g, "");
-}
-
-function chettoLookupKeyVariants(normalizedDigits: string): string[] {
-  const out: string[] = [];
-  const seen = new Set<string>();
-  const push = (k: string) => {
-    if (k.length === 0 || seen.has(k)) return;
-    seen.add(k);
-    out.push(k);
-  };
-
-  push(normalizedDigits);
-  if (/^[6-9]\d{9}$/.test(normalizedDigits)) {
-    push(`91${normalizedDigits}`);
-  }
-  if (/^91[6-9]\d{9}$/.test(normalizedDigits)) {
-    push(normalizedDigits.slice(2));
-  }
-  if (/^0[6-9]\d{9}$/.test(normalizedDigits)) {
-    const national = normalizedDigits.slice(1);
-    push(national);
-    push(`91${national}`);
-  }
-  return out;
-}
-
-type GroupMeta = {
-  group_id: string;
-  access_members: string[];
-};
-
 type DbClient = {
   id: string;
+  first_name: string;
+  last_name: string | null;
   phone_number: string;
+  queendom: string | null;
   chetto_group_id: string | null;
 };
+
+type MatchMethod = "phone" | "name" | "name_fuzzy";
 
 async function main(): Promise<void> {
   loadDotEnvFiles();
@@ -138,114 +90,155 @@ async function main(): Promise<void> {
   const orgFromArg = parseOrgIdFromArgv();
   if (orgFromArg) {
     process.env.CHETTO_ORG_ID = orgFromArg;
-    console.log(
-      "Using --org-id from argv (overrides CHETTO_ORG_ID for this run).\n",
-    );
-  } else if (!process.env.CHETTO_ORG_ID?.trim()) {
-    console.warn(
-      "CHETTO_ORG_ID not set — listing queendom sub-orgs + static fallback only.\n",
-    );
+    console.log("Using --org-id from argv.\n");
   }
 
   if (!process.env.CHETTO_API_KEY?.trim()) {
-    throw new Error(
-      "CHETTO_API_KEY is missing. Add it to .env.local (or .env) in the project root, or export it in the shell.",
-    );
+    throw new Error("CHETTO_API_KEY is missing.");
   }
 
   const supabase = getServiceClient();
-
   let q = supabase
     .from("clients")
-    .select("id, phone_number, chetto_group_id")
+    .select("id, first_name, last_name, phone_number, queendom, chetto_group_id")
     .order("id", { ascending: true });
-  if (!overwrite) {
-    q = q.is("chetto_group_id", null);
-  }
+  if (!overwrite) q = q.is("chetto_group_id", null);
 
   const { data: clients, error: cErr } = await q;
   if (cErr) throw cErr;
   const list = (clients ?? []) as DbClient[];
   console.log(
-    `Clients to process: ${list.length} (${overwrite ? "overwrite on" : "only unmapped"})`,
+    `Clients to process: ${list.length}${overwrite ? " (overwrite)" : " (unmapped only)"}`,
   );
 
+  // `includeStaticFallback` was removed from ListAllGroupIdsOptions; the static
+  // fallback no longer exists, so the live API is the only source either way.
   const groupIds = await listAllGroupIds();
+  console.log(`Chetto group ids (live API): ${groupIds.length}`);
+
+  const cachePath = path.join(process.cwd(), DEFAULT_CHETTO_METADATA_CACHE_PATH);
+  const existingCache = loadChettoMetadataCache(cachePath);
+  const preloaded = existingCache ? cacheToLoadedGroups(existingCache) : [];
+  const retryOnly = process.argv.includes("--retry-only");
+  const useCacheOnly = process.argv.includes("--use-cache-only");
+
+  if (preloaded.length > 0) {
+    console.log(`Using metadata cache: ${preloaded.length} groups preloaded`);
+  }
+
+  let loadedGroups: Awaited<ReturnType<typeof fetchAllGroupMetadata>>["loaded"];
+  let failedGroupIds: string[];
+
+  if (useCacheOnly) {
+    if (!existingCache || preloaded.length === 0) {
+      throw new Error(
+        "No metadata cache at scripts/chetto-metadata-cache.json — run a full fetch first.",
+      );
+    }
+    loadedGroups = preloaded;
+    failedGroupIds = groupIds.filter((id) => !existingCache.loaded[id]);
+    console.log(
+      `Skipping API fetch — mapping from cache (${loadedGroups.length} groups, ${failedGroupIds.length} without metadata)\n`,
+    );
+  } else {
+  let lastCheckpointAt = 0;
+  const fetchResult =
+    await fetchAllGroupMetadata(groupIds, {
+      concurrency: 3,
+      preloaded,
+      retryOnlyIds:
+        retryOnly && existingCache
+          ? groupIds.filter((id) => !existingCache.loaded[id])
+          : undefined,
+      retryLogEvery: 5,
+      onCheckpoint: ({ loaded, failed }) => {
+        const now = Date.now();
+        if (now - lastCheckpointAt < 2000) return;
+        lastCheckpointAt = now;
+        const record: Record<string, (typeof loaded)[0]> = {};
+        for (const g of loaded) record[g.group_id] = g;
+        saveChettoMetadataCache(cachePath, {
+          updatedAt: new Date().toISOString(),
+          groupIdsListed: groupIds,
+          loaded: record,
+          failed,
+        });
+      },
+    });
+
+  loadedGroups = fetchResult.loaded;
+  failedGroupIds = fetchResult.failed;
+
+  saveChettoMetadataCache(cachePath, {
+    updatedAt: new Date().toISOString(),
+    groupIdsListed: groupIds,
+    loaded: Object.fromEntries(loadedGroups.map((g) => [g.group_id, g])),
+    failed: failedGroupIds,
+    aggressiveRetryCompleted: true,
+  });
+  console.log(`Metadata cache: ${cachePath}`);
+  }
+
   console.log(
-    `Chetto groups (parent org + sub-orgs + static fallback): ${groupIds.length}`,
+    `Metadata loaded: ${loadedGroups.length} / ${groupIds.length} (${failedGroupIds.length} Chetto failures)`,
   );
 
-  const chunkSize = 12;
-  const groupMetaById = new Map<string, GroupMeta>();
+  const index = buildChettoMappingIndex(loadedGroups);
+  console.log(
+    `Index: ${index.byPhone.size} phone keys, ${index.byName.size} exact names\n`,
+  );
 
-  for (let i = 0; i < groupIds.length; i += chunkSize) {
-    const chunk = groupIds.slice(i, i + chunkSize);
-    const metas = await Promise.all(
-      chunk.map((gid) => fetchGroupMetadata(gid)),
-    );
-    for (const m of metas) {
-      if (m?.group_id) {
-        groupMetaById.set(m.group_id, {
-          group_id: m.group_id,
-          access_members: m.access_members,
-        });
-      }
-    }
-    console.log(
-      `  … metadata ${Math.min(i + chunkSize, groupIds.length)} / ${groupIds.length}`,
-    );
-  }
-
-  /** phone variant → first group_id whose members list includes it */
-  const variantToGroup = new Map<string, string>();
-  for (const [, meta] of groupMetaById) {
-    for (const raw of meta.access_members) {
-      const k = normalizePhoneKey(raw);
-      if (!k) continue;
-      for (const v of chettoLookupKeyVariants(k)) {
-        if (!variantToGroup.has(v)) variantToGroup.set(v, meta.group_id);
-      }
-    }
-  }
-
-  let skippedNoPhone = 0;
-  let skippedNoMatch = 0;
-  const proposed: { id: string; groupId: string }[] = [];
+  const counts: Record<MatchMethod, number> = {
+    phone: 0,
+    name: 0,
+    name_fuzzy: 0,
+  };
+  const proposed: { id: string; groupId: string; method: MatchMethod }[] = [];
+  const unmatched: {
+    id: string;
+    name: string;
+    phone: string;
+    queendom: string | null;
+    reason: string;
+  }[] = [];
 
   for (const c of list) {
-    const normalized = normalizePhoneKey(c.phone_number);
-    if (!normalized) {
-      skippedNoPhone += 1;
+    const match = resolveChettoGroupIdFromIndex(
+      {
+        phone: c.phone_number,
+        firstName: c.first_name,
+        lastName: c.last_name,
+      },
+      index,
+      loadedGroups,
+    );
+    if (!match) {
+      unmatched.push({
+        id: c.id,
+        name: [c.first_name, c.last_name].filter(Boolean).join(" "),
+        phone: c.phone_number,
+        queendom: c.queendom,
+        reason: explainChettoMatchFailure(
+          {
+            phone: c.phone_number,
+            firstName: c.first_name,
+            lastName: c.last_name,
+          },
+          index,
+          loadedGroups,
+          failedGroupIds,
+        ),
+      });
       continue;
     }
-    const variants = new Set(chettoLookupKeyVariants(normalized));
-    let matched: string | null = null;
-    for (const v of variants) {
-      const gid = variantToGroup.get(v);
-      if (gid) {
-        matched = gid;
-        break;
-      }
-    }
-    if (!matched) {
-      skippedNoMatch += 1;
-      continue;
-    }
-    proposed.push({ id: c.id, groupId: matched });
+    counts[match.method] += 1;
+    proposed.push({ id: c.id, groupId: match.groupId, method: match.method });
   }
-
-  const byGroup = new Map<string, string[]>();
-  for (const p of proposed) {
-    const arr = byGroup.get(p.groupId) ?? [];
-    arr.push(p.id);
-    byGroup.set(p.groupId, arr);
-  }
-  const collisions = [...byGroup.entries()].filter(([, ids]) => ids.length > 1);
 
   let updated = 0;
   if (dryRun) {
     for (const p of proposed) {
-      console.log(`[dry-run] ${p.id} → ${p.groupId}`);
+      console.log(`[dry-run] ${p.id} → ${p.groupId} (${p.method})`);
     }
   } else {
     for (const p of proposed) {
@@ -253,34 +246,36 @@ async function main(): Promise<void> {
         .from("clients")
         .update({ chetto_group_id: p.groupId })
         .eq("id", p.id);
-      if (uErr) {
-        console.error(`Update failed ${p.id}:`, uErr.message);
-      } else {
-        updated += 1;
-      }
+      if (uErr) console.error(`Update failed ${p.id}:`, uErr.message);
+      else updated += 1;
     }
   }
 
-  console.log("\n========== SUMMARY ==========");
-  console.log(
-    `  ${dryRun ? "Would update" : "Updated"}: ${dryRun ? proposed.length : updated}`,
+  const reportPath = path.join(process.cwd(), "scripts", "chetto-unmapped-report.json");
+  fs.writeFileSync(
+    reportPath,
+    JSON.stringify(
+      {
+        generatedAt: new Date().toISOString(),
+        groupsListed: groupIds.length,
+        groupsLoaded: loadedGroups.length,
+        groupsFailed: failedGroupIds,
+        matched: proposed.length,
+        unmatched,
+      },
+      null,
+      2,
+    ),
   );
-  console.log(`  Skipped (no phone): ${skippedNoPhone}`);
-  console.log(`  Skipped (no Chetto match): ${skippedNoMatch}`);
-  if (collisions.length > 0) {
-    console.log(
-      `\n  Same Chetto group linked to multiple clients: ${collisions.length} group(s) — often OK (household) or review if wrong.`,
-    );
-    const show = collisions.slice(0, 15);
-    for (const [gid, ids] of show) {
-      console.log(
-        `    ${gid}  ←  ${ids.length} clients  ${ids.slice(0, 4).join(", ")}${ids.length > 4 ? " …" : ""}`,
-      );
-    }
-    if (collisions.length > show.length) {
-      console.log(`    … and ${collisions.length - show.length} more`);
-    }
-  }
+
+  console.log("\n========== SUMMARY ==========");
+  console.log(`  ${dryRun ? "Would update" : "Updated"}: ${dryRun ? proposed.length : updated}`);
+  console.log(`  Matched by phone: ${counts.phone}`);
+  console.log(`  Matched by exact name: ${counts.name}`);
+  console.log(`  Matched by fuzzy name: ${counts.name_fuzzy}`);
+  console.log(`  Skipped (no match): ${unmatched.length}`);
+  console.log(`  Groups Chetto could not load: ${failedGroupIds.length}`);
+  console.log(`  Unmapped report: ${reportPath}`);
   console.log("=============================\n");
 }
 

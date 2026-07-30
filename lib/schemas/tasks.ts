@@ -22,6 +22,12 @@ const EMPLOYEE_DEPARTMENT_VALUES = [
   "legacy",
   "marketing",
   "onboarding",
+  // Drifted behind the `EmployeeDepartment` type: `watcher` arrived with
+  // migration 122 and `academy` with 124, but this runtime list was never
+  // updated — so a master task could not be created for either department, and
+  // the form's own reset() call failed to typecheck against the schema.
+  "watcher",
+  "academy",
 ] as const satisfies readonly EmployeeDepartment[];
 
 const INDULGE_DOMAIN_VALUES = [

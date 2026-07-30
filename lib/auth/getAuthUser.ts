@@ -2,6 +2,11 @@ import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getServiceSupabaseClient } from "@/lib/supabase/service";
+import type {
+  EmployeeDepartment,
+  IndulgeDomain,
+  UserRole,
+} from "@/lib/types/database";
 
 export type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -36,9 +41,15 @@ export const getAuthUser = cache(async () => {
 
   const profile = await getCachedProfile(user.id);
 
-  const role = (profile?.role ?? "agent") as string;
-  const domain = (profile?.domain ?? "indulge_concierge") as string;
-  const department = (profile?.department ?? null) as string | null;
+  /*
+   * Typed to the real unions rather than `string`. These come straight from
+   * `profiles`, whose columns are Postgres enums, so widening them to `string`
+   * only pushed the cast out to every caller — and callers with a genuinely
+   * typed signature (e.g. `isBishopOrAdmin`) then failed to compile.
+   */
+  const role = (profile?.role ?? "agent") as UserRole;
+  const domain = (profile?.domain ?? "indulge_concierge") as IndulgeDomain;
+  const department = (profile?.department ?? null) as EmployeeDepartment | null;
 
   return { supabase, user, role, domain, department, profile };
 });
