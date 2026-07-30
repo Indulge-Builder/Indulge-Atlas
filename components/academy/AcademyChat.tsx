@@ -533,27 +533,43 @@ export function AcademyChat({
   const handleConfirmClose = useCallback(() => {
     setConfirmOpen(false);
     startClosing(async () => {
-      const res = await endAcademySession(liveSessionId ?? "");
-      if (!res.success) {
-        toast.error(res.error);
-        return;
-      }
-      setSessionClosed(true);
-      if (res.data?.reviewError) {
-        toast.warning("Session closed, but scoring failed.", {
-          description: res.data.reviewError,
-        });
-      } else {
-        toast.success("Conversation closed — write up the ticket to finish.");
-      }
       /*
-       * Load-bearing: the parent owns `thread` in client state (fetched via a
-       * server action), so `router.refresh()` alone does NOT update it. Without
-       * this call the status stays `in_progress`, and the header's Freshdesk
-       * icon — the only way to reach the ticket form — never appears.
+       * The try/catch is load-bearing, not defensive habit. The scoring overlay
+       * is driven by this transition's pending state and has NO dismiss handler
+       * — it is meant to block while the evaluator runs. If this callback threw
+       * (a network failure, a rejected server action), the transition would
+       * never settle and that overlay would cover the conversation permanently,
+       * with no click target and no Escape route out of it.
        */
-      onClosed?.();
-      router.refresh();
+      try {
+        const res = await endAcademySession(liveSessionId ?? "");
+        if (!res.success) {
+          toast.error(res.error);
+          return;
+        }
+        setSessionClosed(true);
+        if (res.data?.reviewError) {
+          toast.warning("Session closed, but scoring failed.", {
+            description: res.data.reviewError,
+          });
+        } else {
+          toast.success("Conversation closed — write up the ticket to finish.");
+        }
+        /*
+         * Load-bearing: the parent owns `thread` in client state (fetched via a
+         * server action), so `router.refresh()` alone does NOT update it.
+         * Without this call the status stays `in_progress`, and the header's
+         * Freshdesk icon — the only way to reach the ticket form — never
+         * appears.
+         */
+        onClosed?.();
+        router.refresh();
+      } catch (err) {
+        console.error("[AcademyChat] closing the session failed:", err);
+        toast.error("Could not close the conversation", {
+          description: "Nothing was lost — try again in a moment.",
+        });
+      }
     });
   }, [router, liveSessionId, onClosed]);
 
@@ -776,20 +792,31 @@ export function AcademyChat({
       )}
 
       {/* ── Close confirmation ───────────────────────────────────────────── */}
-      <AnimatePresence>
-        {confirmOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
+      {/*
+        * Deliberately NOT wrapped in AnimatePresence.
+        *
+        * AnimatePresence owns the lifetime of its children: it keeps an exiting
+        * child mounted until the exit animation finishes. If that animation is
+        * ever interrupted — a parent remount, a fast unmount — the backdrop is
+        * left on screen while `confirmOpen` is already false. At that point the
+        * UI is trapped: this element's onClick calls setConfirmOpen(false),
+        * which is a no-op for an unchanged value, so React never re-renders and
+        * the overlay never leaves. The Escape handler early-returns on
+        * `!confirmOpen` too. The only way out is a page refresh.
+        *
+        * Presence is therefore driven straight off `confirmOpen`, so the
+        * backdrop cannot outlive the state. The entrance animation on the card
+        * below is kept — an entrance cannot trap anything. Losing the 150ms
+        * fade-out is a trade worth making for a blocking overlay.
+        */}
+      {confirmOpen && (
+          <div
             className="absolute inset-0 z-30 flex items-center justify-center bg-black/40 p-4 backdrop-blur-[2px]"
             onClick={() => setConfirmOpen(false)}
           >
             <motion.div
               initial={{ opacity: 0, y: 12, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 8, scale: 0.98 }}
               transition={{ duration: 0.18, ease: "easeOut" }}
               role="dialog"
               aria-modal="true"
@@ -841,9 +868,8 @@ export function AcademyChat({
                 </button>
               </div>
             </motion.div>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
     </div>
   );
 }
