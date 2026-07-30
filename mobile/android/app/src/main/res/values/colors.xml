@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Atlas brand palette for the Android shell.
+
+  These three are referenced by styles.xml but the generated Capacitor project
+  never defined them, so `gradlew assembleDebug` failed with "resource
+  color/colorPrimary not found" before this file existed.
+
+  Values match app/globals.css: the dark shell that the Academy nav bar paints
+  on, and the muted-umber accent that lives under the legacy `brand-gold` name
+  (it is not a metallic gold).
+-->
+<resources>
+    <color name="colorPrimary">#1A1814</color>
+    <color name="colorPrimaryDark">#1A1814</color>
+    <color name="colorAccent">#5F5348</color>
+
+    <!-- Splash + WebView background, so neither flashes white on launch. -->
+    <color name="academyCanvas">#1A1814</color>
+</resources>

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Indulge Academy</string>
+    <string name="title_activity_main">Indulge Academy</string>
+    <string name="package_name">global.indulge.academy</string>
+    <string name="custom_url_scheme">global.indulge.academy</string>
+</resources>

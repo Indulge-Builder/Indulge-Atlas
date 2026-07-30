@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Launcher icon foreground — a mortarboard, matching the GraduationCap that
+  marks Academy in the app's own nav bar.
+
+  A vector rather than five PNG densities: it scales to every launcher size
+  without generating binary assets, and Android's adaptive-icon masks (circle,
+  squircle, teardrop) can crop it without artefacts.
+
+  108x108 canvas with the artwork kept inside the centre ~72dp, which is the
+  only region guaranteed to survive every mask.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Board -->
+    <path
+        android:fillColor="#F9F9F6"
+        android:pathData="M54,32 L92,46 L54,60 L16,46 Z" />
+
+    <!-- Cap body below the board -->
+    <path
+        android:fillColor="#F9F9F6"
+        android:pathData="M32,52.5 L32,68 C32,68 41,76 54,76 C67,76 76,68 76,68 L76,52.5 L54,60.8 Z" />
+
+    <!-- Tassel: cord down the right edge, with a small bead -->
+    <path
+        android:fillColor="#C9A227"
+        android:pathData="M86,49 L89,49 L89,66 L86,66 Z" />
+    <path
+        android:fillColor="#C9A227"
+        android:pathData="M87.5,66 m-4,0 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0" />
+</vector>

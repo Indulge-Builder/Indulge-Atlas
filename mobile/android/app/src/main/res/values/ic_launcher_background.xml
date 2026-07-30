@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Was #FFFFFF (Capacitor default). Dark shell to match the app. -->
+<resources>
+    <color name="ic_launcher_background">#1A1814</color>
+</resources>
