@@ -712,7 +712,9 @@ export type EmployeeDepartment =
   | "house"
   | "legacy"
   | "marketing"
-  | "onboarding";
+  | "onboarding"
+  | "watcher" // Cross-Queendom read-only ticket oversight. Added migration 122.
+  | "academy"; // Academy trainers — author seeds + read all training sessions. Added migration 124.
 
 // ── Task type groupings ────────────────────────────────────
 
@@ -754,9 +756,43 @@ export interface Profile {
   reports_to: string | null;
   /** Added migration 049 — when true, agent is excluded from routing. */
   is_on_leave?: boolean | null;
+  /** Queendom (anishqa/ananyshree) for concierge ticket RLS scoping. Added migration 106 / relabeled 112. Optional: only selected where needed. */
+  concierge_group?: ConciergeGroup | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
+}
+
+/**
+ * Agent group — matches `agent_groups` (migration 115). Organisational directory
+ * imported from Freshdesk's 11 groups. DISTINCT from profiles.department (fixed
+ * access-control enum) and profiles.concierge_group (ticket RLS scoping).
+ */
+export interface AgentGroup {
+  id: string;
+  name: string;
+  slug: string | null;
+  /** Provenance, e.g. 'freshdesk' (imported) or 'atlas' (created in-app). */
+  source: string;
+  /** Freshdesk group id when imported; null for Atlas-native groups. */
+  fd_group_id: number | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+/** Agent group membership — matches `agent_group_members` (migration 115). */
+export interface AgentGroupMember {
+  group_id: string;
+  profile_id: string;
+  /** Optional per-group role label (e.g. "lead"). */
+  role_in_group: string | null;
+  created_at: string;
+}
+
+/** Group with its members joined in (for the admin Groups manager). */
+export interface AgentGroupWithMembers extends AgentGroup {
+  members: Array<Pick<Profile, "id" | "full_name" | "email" | "role"> & { role_in_group: string | null }>;
+  member_count: number;
 }
 
 /** Lead routing engine — matches `lead_routing_rules` */
@@ -1431,6 +1467,44 @@ export interface Client {
   membership_status: string;
   created_at: string;
   updated_at: string;
+  chetto_group_id: string | null;
+  /** Queendom (anishqa/ananyshree); default source for a ticket's group. Added migration 106 / relabeled 112. Optional: only selected where needed. */
+  concierge_group?: ConciergeGroup | null;
+}
+
+export type ChettoSuggestionMethod =
+  | "phone"
+  | "name"
+  | "name_fuzzy"
+  | "timeline"
+  | "insights"
+  | "search";
+
+export type ChettoSuggestionStatus = "pending" | "accepted" | "rejected";
+
+export interface ClientChettoSuggestion {
+  id: string;
+  client_id: string;
+  chetto_group_id: string;
+  confidence: number;
+  method: ChettoSuggestionMethod;
+  evidence: string | null;
+  status: ChettoSuggestionStatus;
+  created_at: string;
+  updated_at: string;
+  resolved_by: string | null;
+}
+
+export type ChettoUnmappedQueueStatus = "pending" | "resolved";
+
+export interface ClientChettoUnmappedQueue {
+  client_id: string;
+  display_name: string;
+  queendom: string | null;
+  source: string;
+  status: ChettoUnmappedQueueStatus;
+  queued_at: string;
+  resolved_at: string | null;
 }
 
 export interface ClientProfile {
@@ -1569,4 +1643,760 @@ export interface BotClaudeResponse {
   } | null;
   should_handoff: boolean;
   handoff_reason: string | null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Concierge ticketing subsystem (migrations 106–110)
+// Native replacement for the Freshdesk concierge workflow. Hand-written to match
+// the Postgres enums/tables exactly (this repo has no generated types).
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** Matches PG enum public.concierge_ticket_status. */
+export type ConciergeTicketStatus =
+  | "open"
+  | "pending"
+  | "nudge_client"
+  | "nudge_vendor"
+  | "ongoing_delivery"
+  | "invoice_due"
+  | "resolved"
+  | "closed";
+
+/** Matches PG enum public.concierge_ticket_priority. */
+export type ConciergeTicketPriority = "low" | "medium" | "urgent";
+
+/**
+ * Matches the active values of PG enum public.concierge_group used for ticket
+ * RLS + agent assignment. Only the two Queendoms are assignable (migration 118
+ * deactivated the other 9 Freshdesk groups). Column is `org_group` (not `group`).
+ * PG may still hold legacy enum labels on old rows; UI only offers these two.
+ */
+export type ConciergeGroup = "anishqa" | "ananyshree";
+
+/** Matches PG enum public.concierge_update_kind (append-only timeline entry kinds). */
+export type ConciergeUpdateKind =
+  | "note"
+  | "status_change"
+  | "assignment"
+  | "attachment"
+  | "canned_response"
+  | "checklist"
+  | "vendor_feedback"
+  | "system";
+
+/** Matches PG enum public.vendor_promptness. */
+export type VendorPromptness = "within_1h" | "within_24h" | "2_3_days";
+/** Matches PG enum public.vendor_cost_band. */
+export type VendorCostBand = "lowest" | "moderate" | "high_premium";
+/** Matches PG enum public.vendor_delivery. */
+export type VendorDelivery = "on_time" | "delay" | "poor_communication";
+
+/** Matches PG enum public.concierge_ticket_notification_type. */
+export type ConciergeTicketNotificationType =
+  | "ticket_assigned"
+  | "ticket_transferred"
+  | "ticket_status_changed"
+  | "ticket_note_added"
+  | "invoice_due";
+
+export const CONCIERGE_TICKET_STATUSES: readonly ConciergeTicketStatus[] = [
+  "open", "pending", "nudge_client", "nudge_vendor",
+  "ongoing_delivery", "invoice_due", "resolved", "closed",
+] as const;
+
+export const CONCIERGE_TICKET_PRIORITIES: readonly ConciergeTicketPriority[] = [
+  "low", "medium", "urgent",
+] as const;
+
+export const CONCIERGE_GROUPS: readonly ConciergeGroup[] = [
+  "anishqa",
+  "ananyshree",
+] as const;
+
+/** Human labels for the status enum (UI). */
+export const CONCIERGE_STATUS_LABELS: Record<ConciergeTicketStatus, string> = {
+  open: "Open",
+  pending: "Pending",
+  nudge_client: "Nudge Client",
+  nudge_vendor: "Nudge Vendor",
+  ongoing_delivery: "Ongoing Delivery",
+  invoice_due: "Invoice Due",
+  resolved: "Resolved",
+  closed: "Closed",
+};
+
+export const CONCIERGE_PRIORITY_LABELS: Record<ConciergeTicketPriority, string> = {
+  low: "Low", medium: "Medium", urgent: "Urgent",
+};
+
+export const CONCIERGE_GROUP_LABELS: Record<ConciergeGroup, string> = {
+  anishqa: "Anishqa Queendom",
+  ananyshree: "Ananyshree Queendom",
+};
+
+/**
+ * FD-style escalation tracker — matches PG enum public.concierge_escalation_status.
+ * SEPARATE from the workflow `status` state machine; never feeds it.
+ */
+export type ConciergeEscalationStatus =
+  | "not_escalated"
+  | "under_review"
+  | "unable_to_solve"
+  | "delay_in_response"
+  | "resolved"
+  | "closed";
+
+export const CONCIERGE_ESCALATION_STATUSES: readonly ConciergeEscalationStatus[] = [
+  "not_escalated", "under_review", "unable_to_solve", "delay_in_response", "resolved", "closed",
+] as const;
+
+export const CONCIERGE_ESCALATION_STATUS_LABELS: Record<ConciergeEscalationStatus, string> = {
+  not_escalated: "Not Escalated",
+  under_review: "Under Review",
+  unable_to_solve: "Unable to Solve",
+  delay_in_response: "Delay in Response",
+  resolved: "Resolved",
+  closed: "Closed",
+};
+
+/**
+ * Ticket ops gate — mirrors canManageAnyClient. Bishops (managers) + privileged
+ * roles create/assign/transfer. Genies (agents) work assigned tickets only, which
+ * is enforced per-row by RLS, not by this coarse helper.
+ */
+export function canManageConciergeTickets(role: string): boolean {
+  return isPrivilegedRole(role) || role === "manager";
+}
+
+// ── Academy (intern training simulator — migrations 120–122) ───────────────────
+
+/**
+ * A "trainer" reads every training session and authors the scenario seed
+ * library. Mirrors the DB helper `is_academy_trainer()`: privileged roles OR
+ * anyone in the `academy` department. Every other authenticated user is an
+ * "intern" who owns only their own sessions.
+ */
+export function isAcademyTrainer(
+  role: string,
+  department: string | null | undefined,
+): boolean {
+  return isPrivilegedRole(role) || department === "academy";
+}
+
+/** The six Indulge verticals a scenario seed can belong to. */
+export type AcademyVertical =
+  | "Global"
+  | "House"
+  | "Shop"
+  | "Legacy"
+  | "Dubai"
+  | "GMR";
+
+export const ACADEMY_VERTICALS: AcademyVertical[] = [
+  "Global",
+  "House",
+  "Shop",
+  "Legacy",
+  "Dubai",
+  "GMR",
+];
+
+export type AcademyDifficulty = "easy" | "medium" | "hard";
+
+export const ACADEMY_DIFFICULTIES: AcademyDifficulty[] = [
+  "easy",
+  "medium",
+  "hard",
+];
+
+/** The rubric dimensions the evaluator scores (1–5 each). */
+export type AcademyRubricDimension =
+  | "comprehension"
+  | "brand_tone"
+  | "factual_accuracy"
+  | "proactivity"
+  | "escalation_judgment"
+  | "closure";
+
+/** A hidden constraint the client reveals only when correctly probed. */
+export interface AcademyHiddenConstraint {
+  id: string;
+  label: string;
+  /** Natural-language description of the probe that unlocks `value`. */
+  reveal_when: string;
+  value: string;
+}
+
+/** Relative weight per rubric dimension (used to compute the overall score). */
+export type AcademyRubricWeights = Partial<
+  Record<AcademyRubricDimension, number>
+>;
+
+/** scenario_seeds row (secrets: hidden_constraints/escalation_trigger/rubric_weights/ideal_outcome). */
+export interface ScenarioSeed {
+  id: string;
+  title: string;
+  archetype: string;
+  vertical: AcademyVertical;
+  opening_message: string;
+  hidden_constraints: AcademyHiddenConstraint[];
+  difficulty: AcademyDifficulty;
+  escalation_trigger: string;
+  ideal_outcome: string;
+  rubric_weights: AcademyRubricWeights;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Safe subset of a seed exposed to interns (no secrets). */
+export interface AcademyScenarioCard {
+  id: string;
+  title: string;
+  archetype: string;
+  vertical: AcademyVertical;
+  difficulty: AcademyDifficulty;
+}
+
+/**
+ * Snapshot stored on each session so the intern UI never has to read
+ * scenario_seeds. `randomized` holds the per-session name/date substitutions;
+ * `constraint_override` records the single mutated constraint value.
+ */
+export interface AcademySessionVars {
+  display: AcademyScenarioCard;
+  randomized: { name: string; date: string };
+  constraint_override?: { id: string; value: string } | null;
+}
+
+/** training_sessions row. */
+export interface TrainingSession {
+  id: string;
+  intern_id: string;
+  seed_id: string;
+  status: "open" | "closed";
+  session_vars: AcademySessionVars;
+  model_version: string | null;
+  started_at: string;
+  ended_at: string | null;
+}
+
+/**
+ * An image/video shared into a training conversation (migration 127).
+ * `path` is a storage object path in the private `academy-attachments` bucket;
+ * the UI renders it via a short-lived signed URL, never a public URL.
+ */
+export interface TrainingAttachment {
+  path: string;
+  kind: "image" | "video";
+  mime: string;
+  name: string;
+  size: number;
+  /** Populated at read time by the server action — never persisted. */
+  signedUrl?: string;
+}
+
+/** training_turns row — APPEND-ONLY (ordering by created_at + seq). */
+export interface TrainingTurn {
+  id: string;
+  session_id: string;
+  role: "client" | "intern";
+  body: string;
+  seq: number;
+  created_at: string;
+  /** Added migration 127. Written at INSERT only — turns are never updated. */
+  attachments?: TrainingAttachment[];
+}
+
+/** One scored rubric dimension. */
+export interface AcademyDimensionScore {
+  score: number; // 1–5
+  justification: string;
+}
+
+export type AcademyRubricScores = Record<
+  AcademyRubricDimension,
+  AcademyDimensionScore
+>;
+
+/** training_reviews row — evaluator output. */
+export interface TrainingReview {
+  id: string;
+  session_id: string;
+  scores: AcademyRubricScores;
+  strengths: string[];
+  misses: string[];
+  rewritten_reply: string | null;
+  overall: number;
+  model_version: string;
+  created_at: string;
+}
+
+// ── Academy Freshdesk ticket workflow (migration 131) ────────────────────────
+//
+// Every training request is framed as a Freshdesk support ticket. Closing the
+// conversation is no longer the finish line: the intern must then document the
+// resolution on the ticket, and an AI reviewer must pass that write-up before
+// the request counts as handled. Deliberately distinct from the `Concierge*`
+// ticket types above — those model the real ticketing product, these model the
+// Freshdesk-shaped training artefact.
+
+/** Freshdesk-style lifecycle states offered in the update form. */
+export type AcademyTicketStatus =
+  | "open"
+  | "pending"
+  | "waiting_on_customer"
+  | "resolved"
+  | "closed";
+
+export const ACADEMY_TICKET_STATUSES: AcademyTicketStatus[] = [
+  "open",
+  "pending",
+  "waiting_on_customer",
+  "resolved",
+  "closed",
+];
+
+export type AcademyTicketPriority = "low" | "medium" | "high" | "urgent";
+
+export const ACADEMY_TICKET_PRIORITIES: AcademyTicketPriority[] = [
+  "low",
+  "medium",
+  "high",
+  "urgent",
+];
+
+/** Tag vocabulary offered on the update form. Free tags are not accepted. */
+export const ACADEMY_TICKET_TAGS = [
+  "luxury",
+  "travel",
+  "watches",
+  "concierge",
+  "shopping",
+  "urgent",
+] as const;
+
+export type AcademyTicketTag = (typeof ACADEMY_TICKET_TAGS)[number];
+
+/** The five things the AI reviewer scores the written ticket on. */
+export type AcademyTicketReviewDimension =
+  | "completeness"
+  | "professionalism"
+  | "accuracy"
+  | "client_satisfaction"
+  | "documentation";
+
+export const ACADEMY_TICKET_REVIEW_DIMENSIONS: AcademyTicketReviewDimension[] =
+  [
+    "completeness",
+    "professionalism",
+    "accuracy",
+    "client_satisfaction",
+    "documentation",
+  ];
+
+export type AcademyTicketReviewScores = Record<
+  AcademyTicketReviewDimension,
+  AcademyDimensionScore
+>;
+
+/**
+ * The reviewer's verdict on a submitted ticket update.
+ *
+ * `passed === false` is a coaching outcome, not an error: the intern revises
+ * and resubmits. `quality` is computed in code from `scores`, never asked of
+ * the model — same discipline as `computeOverall` for the rubric.
+ */
+export interface AcademyTicketVerdict {
+  passed: boolean;
+  /** Short, concrete required fixes. Empty when passed. */
+  feedback: string[];
+  scores: AcademyTicketReviewScores;
+  /** Weighted 1–5, computed in code. */
+  quality: number;
+  model_version: string;
+}
+
+/** training_ticket_updates row — one per session, revisable until it passes. */
+export interface TrainingTicketUpdate {
+  id: string;
+  session_id: string;
+  resolution_summary: string;
+  internal_notes: string;
+  public_reply: string;
+  status: AcademyTicketStatus;
+  priority: AcademyTicketPriority;
+  tags: AcademyTicketTag[];
+  time_spent_minutes: number;
+  /** Null until the first submission has been reviewed. */
+  verdict: AcademyTicketVerdict | null;
+  passed: boolean;
+  /** How many times this update has been submitted for review. */
+  attempts: number;
+  submitted_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// ── Row interfaces (match tables exactly) ──────────────────────────────────────
+
+/** public.ticket_categories (self-referencing taxonomy). */
+export interface TicketCategory {
+  id: string;
+  name: string;
+  parent_id: string | null;
+  sort_order: number;
+  is_active: boolean;
+  /** Retail category → tickets visible to the Shop/Retail team cross-Queendom. Added migration 121. */
+  is_retail: boolean;
+  created_at: string;
+}
+
+/** public.ticket_checklist_templates. */
+export interface TicketChecklistTemplate {
+  id: string;
+  category_id: string;
+  label: string;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+/** public.sla_policies. Durations are BUSINESS minutes. */
+export interface SlaPolicy {
+  id: string;
+  name: string;
+  category_id: string | null;
+  priority: ConciergeTicketPriority | null;
+  first_response_minutes: number;
+  resolution_minutes: number;
+  is_default: boolean;
+  is_active: boolean;
+  escalation_enabled: boolean;
+  clock: "business_hours" | "calendar";
+  created_at: string;
+}
+
+/** public.canned_responses. */
+export interface CannedResponse {
+  id: string;
+  name: string;
+  shortcut: string | null;
+  body_template: string;
+  category_id: string | null;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+}
+
+/** public.vendors. */
+export interface Vendor {
+  id: string;
+  name: string;
+  company: string | null;
+  phone: string | null;
+  email: string | null;
+  poc: string | null;
+  location: string | null;
+  trust_score: number | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+/** Aggregated vendor scorecard (spec: Speed tick/cross, Quality tick/cross, Cost up/down). */
+export interface VendorScorecardSummary {
+  feedbackCount: number;
+  /** Mean quality 1..5, or null when no ratings. */
+  avgQuality: number | null;
+  /** Speed good (tick) vs poor (cross); null = no data. */
+  speedGood: boolean | null;
+  /** Quality good (tick) vs poor (cross); null = no data. */
+  qualityGood: boolean | null;
+  /** true = cost trending down/favourable (down arrow); false = up; null = no data. */
+  costDown: boolean | null;
+}
+
+/** One row of a vendor's order history (from ticket_invoices). */
+export interface VendorOrderInvoice {
+  id: string;
+  ticket_id: string;
+  ref_number: number | null;
+  client_name: string;
+  description: string;
+  selling_price: number;
+  created_at: string;
+}
+
+/** Full vendor profile for /concierge/vendors/[id]. */
+export interface VendorProfile {
+  vendor: Vendor;
+  scorecard: VendorScorecardSummary;
+  orderCount: number;
+  invoices: VendorOrderInvoice[]; // last 10, newest first
+}
+
+/** public.vendor_feedback. */
+export interface VendorFeedback {
+  id: string;
+  vendor_id: string;
+  ticket_id: string;
+  quality: number; // 1..5
+  promptness: VendorPromptness;
+  cost: VendorCostBand;
+  delivery: VendorDelivery;
+  created_by: string | null;
+  created_at: string;
+}
+
+/** public.concierge_tickets. NOTE column `org_group` (not `group`). */
+export interface ConciergeTicket {
+  id: string;
+  ref_number: number;
+  client_id: string;
+  title: string;
+  description: string | null;
+  category_id: string;
+  subcategory_id: string | null;
+  org_group: ConciergeGroup;
+  status: ConciergeTicketStatus;
+  priority: ConciergeTicketPriority;
+  assigned_to: string | null;
+  created_by: string;
+  is_billable: boolean | null;
+  invoice_number: string | null;
+  primary_vendor_id: string | null;
+  status_changed_at: string;
+  first_response_at: string | null;
+  sla_first_response_due: string | null;
+  sla_resolution_due: string | null;
+  is_overdue: boolean;
+  resolved_at: string | null;
+  closed_at: string | null;
+  tags: string[];
+  escalation_status: ConciergeEscalationStatus;
+  /** Date the ticket is scheduled for (YYYY-MM-DD). Nullable. Added migration 120. */
+  scheduled_on: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** public.concierge_ticket_updates (append-only). */
+export interface ConciergeTicketUpdate {
+  id: string;
+  ticket_id: string;
+  author_id: string | null;
+  kind: ConciergeUpdateKind;
+  body: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+/** public.concierge_ticket_attachments. */
+export interface ConciergeTicketAttachment {
+  id: string;
+  ticket_id: string;
+  update_id: string | null;
+  uploaded_by: string | null;
+  storage_path: string;
+  file_name: string;
+  mime_type: string;
+  size_bytes: number;
+  kind: "image" | "pdf" | "video" | "other";
+  is_proof: boolean;
+  created_at: string;
+}
+
+/** public.concierge_ticket_checklist_items. */
+export interface ConciergeTicketChecklistItem {
+  id: string;
+  ticket_id: string;
+  template_id: string | null;
+  label: string;
+  sort_order: number;
+  is_checked: boolean;
+  checked_by: string | null;
+  checked_at: string | null;
+}
+
+/** public.ticket_invoices. */
+export interface TicketInvoice {
+  id: string;
+  ticket_id: string;
+  client_name: string;
+  description: string;
+  cost_price: number;
+  selling_price: number;
+  service_charge: number;
+  vendor_id: string | null;
+  vendor_name: string | null;
+  vendor_bill_att_id: string | null;
+  payment_method: string;
+  invoice_att_id: string | null;
+  bill_in_other_name: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** public.concierge_ticket_notifications. */
+export interface ConciergeTicketNotification {
+  id: string;
+  recipient_id: string;
+  actor_id: string;
+  type: ConciergeTicketNotificationType;
+  ticket_id: string;
+  title: string;
+  body: string | null;
+  read_at: string | null;
+  created_at: string;
+}
+
+/** public.concierge_watchers — which Queendoms a Watcher oversees (read-only). Added migration 123. */
+export interface ConciergeWatcher {
+  profile_id: string;
+  org_group: ConciergeGroup;
+  created_at: string;
+}
+
+/** A watcher profile plus the Queendoms they currently oversee (admin management view). */
+export interface WatcherAssignment {
+  id: string;
+  full_name: string;
+  email: string;
+  groups: ConciergeGroup[];
+}
+
+// ── Read models / composite shapes (server actions → UI) ────────────────────────
+
+/** One row in the ticket list. */
+export interface TicketListItem {
+  id: string;
+  ref_number: number;
+  title: string;
+  status: ConciergeTicketStatus;
+  priority: ConciergeTicketPriority;
+  org_group: ConciergeGroup;
+  is_overdue: boolean;
+  is_billable: boolean | null;
+  created_at: string;
+  status_changed_at: string;
+  sla_resolution_due: string | null;
+  scheduled_on: string | null;
+  category_name: string | null;
+  subcategory_name: string | null;
+  client: { id: string; name: string; avatar_url: string | null } | null;
+  assignee: { id: string; full_name: string } | null;
+}
+
+/** Filters for getMyTickets / getTicketQueue. All default to "all"/undefined. */
+export interface TicketListFilters {
+  scope?: "mine" | "queue";
+  status?: ConciergeTicketStatus | "all";
+  categoryId?: string | "all";
+  subcategoryId?: string | "all";
+  priority?: ConciergeTicketPriority | "all";
+  billable?: "yes" | "no" | "all";
+  createdRange?: "today" | "yesterday" | "this_week" | "this_month" | "all";
+  createdFrom?: string; // ISO, when createdRange is custom
+  createdTo?: string;
+  /** Scheduled-on filter — tickets whose scheduled_on falls in the range. Added migration 120. */
+  scheduledRange?: "today" | "yesterday" | "this_week" | "this_month" | "all";
+  /** Agent filter: "all" | "unassigned" | "overdue" | <profileId>. */
+  agent?: string;
+  group?: ConciergeGroup | "all"; // admins only
+  /** Sort column (default "created") and direction (default "desc"). */
+  sort?: "created" | "updated" | "priority" | "status" | "due";
+  sortDir?: "asc" | "desc";
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+/** Full ticket detail assembled for /concierge/tickets/[id]. */
+export interface TicketDetail {
+  ticket: ConciergeTicket;
+  client: { id: string; name: string; phone_number: string; email: string | null; avatar_url: string | null; notes: string | null } | null;
+  category: TicketCategory | null;
+  subcategory: TicketCategory | null;
+  assignee: { id: string; full_name: string } | null;
+  primaryVendor: Vendor | null;
+  updates: Array<ConciergeTicketUpdate & { author: { id: string; full_name: string } | null }>;
+  attachments: ConciergeTicketAttachment[];
+  checklist: ConciergeTicketChecklistItem[];
+  invoice: TicketInvoice | null;
+}
+
+/** Payload for upsertTicketInvoice. */
+export interface TicketInvoiceInput {
+  clientName: string;
+  description: string;
+  costPrice: number;
+  sellingPrice: number;
+  serviceCharge: number;
+  vendorId?: string | null;
+  vendorName?: string | null;
+  vendorBillAttId?: string | null;
+  paymentMethod: string;
+  invoiceAttId?: string | null;
+  billInOtherName?: string | null;
+}
+
+/** Payload for findOrCreateVendor. */
+export interface VendorInput {
+  name: string;
+  company?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  poc?: string | null;
+  location?: string | null;
+}
+
+// ── SLA report (concierge-reports.ts → SlaReportClient) ─────────────────────────
+
+export interface SlaReportFilters {
+  /** ISO datetime, inclusive lower bound on created_at. */
+  from?: string;
+  /** ISO datetime, inclusive upper bound on created_at. */
+  to?: string;
+  /** Admins only; managers are auto-scoped to their queendom by RLS. */
+  group?: ConciergeGroup | "all";
+}
+
+/** met / breached / pending counts for one SLA dimension, with % met. */
+export interface SlaBucket {
+  total: number;
+  met: number;
+  breached: number;
+  pending: number;
+  /** met / (met + breached) * 100, rounded to 1dp; 0 when nothing determined. */
+  pctMet: number;
+}
+
+/** A named breakdown row carrying both SLA buckets. */
+export interface SlaBreakdownRow {
+  key: string;
+  label: string;
+  firstResponse: SlaBucket;
+  resolution: SlaBucket;
+}
+
+/** By-priority row, plus the priority's default policy targets (minutes). */
+export interface SlaPriorityRow extends SlaBreakdownRow {
+  priority: ConciergeTicketPriority;
+  responseTargetMinutes: number | null;
+  resolutionTargetMinutes: number | null;
+}
+
+export interface ConciergeSlaReport {
+  range: { from: string; to: string };
+  totals: { created: number; resolved: number; open: number; overdue: number };
+  firstResponse: SlaBucket;
+  resolution: SlaBucket;
+  byPriority: SlaPriorityRow[];
+  byQueendom: SlaBreakdownRow[];
+  byCategory: SlaBreakdownRow[];
+  byAssignee: SlaBreakdownRow[];
+  /** Non-null when the caller is a queendom-scoped concierge manager. */
+  scopedToQueendom: ConciergeGroup | null;
 }

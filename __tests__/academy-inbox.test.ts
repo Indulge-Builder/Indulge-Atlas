@@ -68,20 +68,39 @@ describe("event spacing", () => {
     expect(event?.kind).toBe("reminder");
   });
 
-  it("ticks every 8–15 minutes, jittered so it never feels metronomic", () => {
+  it("ticks every 2–5 minutes, jittered so it never feels metronomic", () => {
     const floor = nextTickDelay(() => 0);
     const ceiling = nextTickDelay(() => 0.999);
 
     expect(floor).toBe(INBOX_MIN_INTERVAL_MS);
-    expect(floor).toBe(8 * 60_000);
+    expect(floor).toBe(2 * 60_000);
     expect(ceiling).toBeLessThan(INBOX_MAX_INTERVAL_MS);
-    expect(INBOX_MAX_INTERVAL_MS).toBe(15 * 60_000);
+    expect(INBOX_MAX_INTERVAL_MS).toBe(5 * 60_000);
 
     // Genuinely spread across the window rather than clustered at one end.
     const samples = Array.from({ length: 200 }, () => nextTickDelay());
     expect(Math.min(...samples)).toBeGreaterThanOrEqual(INBOX_MIN_INTERVAL_MS);
     expect(Math.max(...samples)).toBeLessThan(INBOX_MAX_INTERVAL_MS);
     expect(new Set(samples).size).toBeGreaterThan(50);
+  });
+
+  it("every possible delay lands inside the stated 2–5 minute window", () => {
+    // Sweep the rng domain rather than sampling, so no edge of the range can
+    // drift outside the window a future edit claims in the docs.
+    for (let r = 0; r < 1; r += 0.001) {
+      const d = nextTickDelay(() => r);
+      expect(d).toBeGreaterThanOrEqual(2 * 60_000);
+      expect(d).toBeLessThan(5 * 60_000);
+    }
+  });
+
+  it("allows enough arrivals to stay live across a full sitting", () => {
+    // At the 2–5 min cadence the old cap of 12 was exhausted in ~40 minutes and
+    // the inbox fell silent. Guard the relationship, not just the number.
+    const slowestMs = DEFAULT_TUNING.maxArrivals * INBOX_MAX_INTERVAL_MS;
+    const fastestMs = DEFAULT_TUNING.maxArrivals * INBOX_MIN_INTERVAL_MS;
+    expect(fastestMs).toBeGreaterThanOrEqual(60 * 60_000);
+    expect(slowestMs).toBeGreaterThan(2 * 60 * 60_000);
   });
 
   it("never lets two events land closer together than the tick floor", () => {

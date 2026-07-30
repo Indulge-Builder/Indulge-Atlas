@@ -20,6 +20,17 @@ export const ACADEMY_EVALUATOR_MODEL = "claude-opus-4-8";
  */
 export const ACADEMY_EVALUATOR_VERSION = "academy-eval-1@claude-opus-4-8";
 
+/**
+ * Freshdesk ticket reviewer — judges the intern's written ticket, separately
+ * from the transcript. Same tier as the evaluator: it gates completion, so it
+ * has to be as hard to fool.
+ */
+export const ACADEMY_TICKET_REVIEW_MODEL = "claude-opus-4-8";
+
+/** Bump when the ticket-review model OR its rubric/prompt changes. */
+export const ACADEMY_TICKET_REVIEW_VERSION =
+  "academy-ticket-1@claude-opus-4-8";
+
 export const ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
 export const ANTHROPIC_VERSION = "2023-06-01";
 

@@ -9,7 +9,8 @@ import { LeadCollaborationGrantListener } from "@/components/leads/LeadCollabora
 import { ChatProvider } from "@/components/chat/ChatProvider";
 import { ProfileProvider } from "@/components/sla/ProfileProvider";
 import { SLAProvider } from "@/components/sla/SLAProvider";
-import type { Profile } from "@/lib/types/database";
+import { isPrivilegedRole } from "@/lib/types/database";
+import type { Profile, UserRole } from "@/lib/types/database";
 
 export default async function DashboardLayout({
   children,
@@ -18,14 +19,28 @@ export default async function DashboardLayout({
 }) {
   let user: Awaited<ReturnType<typeof getAuthUser>>["user"];
   let profile: Awaited<ReturnType<typeof getAuthUser>>["profile"];
+  let role: string;
+  let department: string | null;
 
   try {
-    ({ user, profile } = await getAuthUser());
+    ({ user, profile, role, department } = await getAuthUser());
   } catch {
     redirect("/login");
   }
 
   if (!profile) redirect("/login");
+
+  /*
+   * Academy interns belong to the Academy app, not Atlas.
+   *
+   * DEPARTMENT_ROUTE_ACCESS only filters Sidebar links — it is not an
+   * authorization gate, so without this an intern could reach /leads or
+   * /clients by typing the URL. Privileged roles in the academy department
+   * (trainers who are also admins/founders) keep their Atlas access.
+   */
+  if (department === "academy" && !isPrivilegedRole(role as UserRole)) {
+    redirect("/academy");
+  }
 
   return (
     /*

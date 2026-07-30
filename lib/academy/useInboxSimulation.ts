@@ -51,8 +51,32 @@ export function useInboxSimulation({
   const lastEventAtRef = useRef<number | null>(null);
   const arrivalsRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /*
+   * The tick loop reads these through refs rather than closing over them.
+   *
+   * They used to sit in the scheduling effect's dependency array, which meant
+   * every state change restarted the countdown: opening a client calls
+   * markRead, that replaces the state Map, the effect tears down and schedules
+   * a *fresh* 2–5 minute timer. `apply` was worse — it depends on the caller's
+   * `onReminderDelivered`, which the shell passes as an inline arrow, so it
+   * changed identity on every parent render. Under active triage the timer was
+   * reset faster than it could ever elapse and the inbox stayed silent.
+   *
+   * Mirrored in effects, not during render: a render can be discarded or
+   * replayed under concurrent React, and a ref written on a thrown-away render
+   * would leave the loop pointing at state that never committed. The timer runs
+   * on a multi-minute delay, so settling one paint later costs nothing.
+   */
   const activeRef = useRef(activeSeedId);
-  activeRef.current = activeSeedId;
+  const stateRef = useRef(state);
+
+  useEffect(() => {
+    activeRef.current = activeSeedId;
+  }, [activeSeedId]);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   // Seed live state from the server rows, preserving anything the simulation
   // has already accumulated for a client.
@@ -159,7 +183,18 @@ export function useInboxSimulation({
     [clients, noteActivity, onReminderDelivered],
   );
 
-  // The tick loop.
+  const applyRef = useRef(apply);
+  useEffect(() => {
+    applyRef.current = apply;
+  }, [apply]);
+
+  /*
+   * The tick loop. Deps are deliberately only `enabled` and `clients.length` —
+   * both stable across ordinary interaction — so the countdown runs to
+   * completion instead of being restarted by unrelated re-renders. Everything
+   * that changes per-render is read from a ref at fire time, which also means
+   * the callback always sees current state rather than a stale closure.
+   */
   useEffect(() => {
     if (!enabled || clients.length === 0) return;
 
@@ -176,7 +211,7 @@ export function useInboxSimulation({
         }
 
         const event = nextInboxEvent({
-          clients: [...state.values()],
+          clients: [...stateRef.current.values()],
           now: Date.now(),
           lastEventAt: lastEventAtRef.current,
           activeSeedId: activeRef.current,
@@ -184,7 +219,7 @@ export function useInboxSimulation({
           tuning: DEFAULT_TUNING,
         });
 
-        if (event) void apply(event);
+        if (event) void applyRef.current(event);
         schedule();
       }, nextTickDelay());
     };
@@ -194,7 +229,7 @@ export function useInboxSimulation({
       cancelled = true;
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [enabled, clients.length, state, apply]);
+  }, [enabled, clients.length]);
 
   // Clear the flash after the animation has played.
   useEffect(() => {

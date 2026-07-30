@@ -51,6 +51,8 @@ function ClientRow({
 }): JSX.Element {
   const done = client.status === "completed";
   const live = client.status === "in_progress";
+  // Conversation finished, ticket still owed — the row must not read as done.
+  const awaitingTicket = client.status === "awaiting_ticket";
   const tier = client.difficulty as AcademyTier;
 
   return (
@@ -71,16 +73,30 @@ function ClientRow({
         flash && "bg-chat-accent/10",
       )}
     >
-      <div
-        className={cn(
-          "grid size-11 shrink-0 place-items-center rounded-full text-[13px] font-semibold",
-          done
-            ? "bg-chat-accent-dark text-chat-header-ink"
-            : "bg-chat-canvas text-chat-ink-muted",
-        )}
-      >
-        {done ? <Check className="size-5" strokeWidth={2.5} aria-hidden /> : initials(client.name)}
-      </div>
+      {/* Real member avatar when the record has one, initials otherwise. */}
+      {!done && client.member?.avatarUrl ? (
+        <img
+          src={client.member.avatarUrl}
+          alt=""
+          className="size-11 shrink-0 rounded-full object-cover"
+          loading="lazy"
+        />
+      ) : (
+        <div
+          className={cn(
+            "grid size-11 shrink-0 place-items-center rounded-full text-[13px] font-semibold",
+            done
+              ? "bg-chat-accent-dark text-chat-header-ink"
+              : "bg-chat-canvas text-chat-ink-muted",
+          )}
+        >
+          {done ? (
+            <Check className="size-5" strokeWidth={2.5} aria-hidden />
+          ) : (
+            client.member?.initials ?? initials(client.name)
+          )}
+        </div>
+      )}
 
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2">
@@ -113,12 +129,19 @@ function ClientRow({
           >
             {TIER_LABEL[tier] ?? client.difficulty}
           </span>
-          <span className="truncate text-[11px] text-chat-ink-muted">
+          <span
+            className={cn(
+              "truncate text-[11px]",
+              awaitingTicket ? "font-medium text-warning" : "text-chat-ink-muted",
+            )}
+          >
             {done
               ? `Completed · ${client.overall?.toFixed(1) ?? "—"}/5`
-              : live
-                ? "In progress"
-                : client.vertical}
+              : awaitingTicket
+                ? "Ticket update required"
+                : live
+                  ? "In progress"
+                  : client.vertical}
           </span>
         </div>
       </div>
@@ -179,7 +202,19 @@ export function ClientList({
   }, [clients, query, filter]);
 
   return (
-    <aside className={cn("flex h-full min-h-0 flex-col bg-chat-panel", className)}>
+    /*
+     * The whole panel is one scroll region — the identity header and the
+     * progress ring scroll away with the list rather than staying pinned, so a
+     * 176-row roster gets the full panel height. `flex`/`hidden md:flex` comes
+     * from `className` (the mobile pane switch), hence `flex-col` but no `flex`
+     * here.
+     */
+    <aside
+      className={cn(
+        "h-full min-h-0 flex-col overflow-y-auto bg-chat-panel",
+        className,
+      )}
+    >
       <header className="shrink-0 space-y-2 border-b border-chat-divider px-4 py-3.5">
         <div className="flex items-center gap-2.5">
           <div className="grid size-9 place-items-center rounded-full bg-chat-header text-chat-header-ink">
@@ -210,7 +245,9 @@ export function ClientList({
         <ProgressBreakdown overview={overview} />
       </header>
 
-      <div className="shrink-0 space-y-2 border-b border-chat-divider px-3 py-2.5">
+      {/* Sticks to the top edge once the header scrolls past it — filtering a
+          176-row roster must not require scrolling back up. */}
+      <div className="sticky top-0 z-10 shrink-0 space-y-2 border-b border-chat-divider bg-chat-panel px-3 py-2.5">
         <div className="flex items-center gap-2 rounded-lg bg-chat-panel-active px-2.5 py-1.5">
           <Search className="size-3.5 shrink-0 text-chat-ink-muted" aria-hidden />
           <input
@@ -240,7 +277,7 @@ export function ClientList({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div>
         {visible.length === 0 ? (
           <p className="px-4 py-8 text-center text-[13px] text-chat-ink-muted">
             No clients match that search.

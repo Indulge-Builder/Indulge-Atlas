@@ -34,6 +34,9 @@ import {
   Table2,
   Library,
   Wallet,
+  Ticket,
+  Building2,
+  GraduationCap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -141,7 +144,7 @@ const FOUNDER_NAV_SECTIONS: { label: string; hrefs: readonly string[] }[] = [
   },
   {
     label: "Insights & AI",
-    hrefs: ["/task-insights", "/budget", "/elia-preview"],
+    hrefs: ["/task-insights", "/budget", "/elia-preview", "/academy"],
   },
   {
     label: "Platform & control",
@@ -211,6 +214,24 @@ const navItems: NavItemDef[] = [
     navGroup: "crm",
   },
   {
+    href: "/concierge/tickets",
+    label: "Concierge Tickets",
+    icon: Ticket,
+    roles: ["agent", "manager", "founder", "admin", "super_admin"],
+    section: "main",
+    navGroup: "crm",
+    departmentAllowlist: ["concierge", "finance", "watcher"],
+  },
+  {
+    href: "/concierge/vendors",
+    label: "Vendors",
+    icon: Building2,
+    roles: ["agent", "manager", "founder", "admin", "super_admin"],
+    section: "main",
+    navGroup: "crm",
+    departmentAllowlist: ["concierge", "finance", "watcher"],
+  },
+  {
     href: "/wa-business",
     label: "WA Business",
     icon: MessageSquare,
@@ -255,6 +276,16 @@ const navItems: NavItemDef[] = [
     label: "Escalations",
     icon: AlertTriangle,
     roles: ["agent", "admin", "founder", "super_admin", "manager"],
+    section: "main",
+    navGroup: "insight",
+  },
+  {
+    // Launcher into the standalone Academy app (app/(academy) route group).
+    // The seed editor moved with it, to /academy/seeds.
+    href: "/academy",
+    label: "Academy",
+    icon: GraduationCap,
+    roles: ["agent", "manager", "founder", "admin", "super_admin"],
     section: "main",
     navGroup: "insight",
   },
@@ -311,6 +342,22 @@ const navItems: NavItemDef[] = [
     href: "/budget",
     label: "Budget",
     icon: Wallet,
+    roles: ["founder", "admin", "super_admin"],
+    section: "admin",
+    navGroup: "command",
+  },
+  {
+    href: "/admin/groups",
+    label: "Agent Groups",
+    icon: UsersRound,
+    roles: ["founder", "admin", "super_admin"],
+    section: "admin",
+    navGroup: "command",
+  },
+  {
+    href: "/admin/concierge-settings",
+    label: "Ticket Settings",
+    icon: ClipboardList,
     roles: ["founder", "admin", "super_admin"],
     section: "admin",
     navGroup: "command",

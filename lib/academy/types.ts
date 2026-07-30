@@ -11,8 +11,31 @@ import type {
   AcademyScenarioCard,
   TrainingReview,
   TrainingSession,
+  TrainingTicketUpdate,
   TrainingTurn,
 } from "@/lib/types/database";
+import type { AcademyTicket } from "@/lib/academy/ticket";
+import type { AcademyMember } from "@/lib/academy/roster";
+
+/**
+ * Where a request sits in the two-stage loop.
+ *
+ * `awaiting_ticket` is the stage the Freshdesk workflow adds: the conversation
+ * is closed and scored, but the intern has not yet had their ticket write-up
+ * accepted. It is deliberately NOT `completed` — a handled client with no desk
+ * record is not a handled request, and it earns no progress.
+ */
+export type AcademyRequestStatus =
+  | "not_started"
+  | "in_progress"
+  | "awaiting_ticket"
+  | "completed";
+
+/** The derived ticket plus whatever the intern has saved against it. */
+export interface AcademyTicketState {
+  ticket: AcademyTicket;
+  update: TrainingTicketUpdate | null;
+}
 
 /** One row of the trainer cohort table. */
 export interface CohortInternRow {
@@ -45,11 +68,13 @@ export interface AcademyClientRow {
   taskNumber: number;
   /** The member's name — what the row is titled. */
   name: string;
+  /** Real client identity (name, initials, avatar, membership tier). */
+  member?: AcademyMember;
   /** Their request, used as the conversation preview line. */
   requestTitle: string;
   vertical: string;
   difficulty: string;
-  status: "not_started" | "in_progress" | "completed";
+  status: AcademyRequestStatus;
   sessionId: string | null;
   overall: number | null;
   lastActivity: string | null;
@@ -91,6 +116,8 @@ export interface AcademyClientThread {
   seedId: string;
   taskNumber: number;
   name: string;
+  /** Real client identity behind this request. */
+  member?: AcademyMember;
   requestTitle: string;
   brief: string | null;
   vertical: string;
@@ -104,11 +131,17 @@ export interface AcademyClientThread {
   /** How many hidden constraints exist — shapes the in-thread mentor cue. */
   constraintCount: number;
   sessionId: string | null;
-  status: "not_started" | "in_progress" | "completed";
+  status: AcademyRequestStatus;
   turns: TrainingTurn[];
   review: TrainingReview | null;
   readOnly: boolean;
   overview: AcademyClientOverview;
+  /**
+   * The Freshdesk ticket this request arrived as, plus the intern's write-up.
+   * Present from the first render — the ticket is derived, not created, so it
+   * exists before any session does.
+   */
+  ticket: AcademyTicketState;
 }
 
 // ── Curriculum view models (the 50-group ladder) ─────────────────────────────

@@ -38,6 +38,11 @@ function req(over: Partial<RequestInput> = {}): RequestInput {
     attempts: 1,
     internTurns: 6,
     priorMean: null,
+    // Default to an accepted, top-quality ticket so existing cases isolate the
+    // conversation behaviour they were written to pin.
+    ticketQuality: 1,
+    ticketAttempts: 1,
+    avgResponseMinutes: 3,
     ...over,
   };
 }
@@ -50,9 +55,13 @@ describe("progress weights", () => {
   it("match the specified distribution", () => {
     const byKey = Object.fromEntries(PROGRESS_METRICS.map((m) => [m.key, m.weight]));
     expect(byKey.task_completion).toBe(0.2);
-    expect(byKey.response_quality).toBe(0.2);
-    expect(byKey.information_accuracy).toBe(0.15);
-    expect(byKey.time_efficiency).toBe(0.15);
+    expect(byKey.response_quality).toBe(0.17);
+    expect(byKey.information_accuracy).toBe(0.13);
+    expect(byKey.documentation_quality).toBe(0.05);
+    // Speed is split between the two halves, still 0.15 combined.
+    expect(byKey.responsiveness).toBe(0.05);
+    expect(byKey.time_efficiency).toBe(0.1);
+    expect(byKey.responsiveness + byKey.time_efficiency).toBeCloseTo(0.15, 10);
     expect(byKey.ai_evaluation).toBe(0.1);
     expect(byKey.first_attempt).toBe(0.05);
     expect(byKey.critical_thinking).toBe(0.05);
@@ -61,8 +70,30 @@ describe("progress weights", () => {
     expect(byKey.consistency).toBe(0.02);
   });
 
-  it("covers all ten metrics", () => {
-    expect(PROGRESS_METRICS).toHaveLength(10);
+  it("covers all twelve metrics", () => {
+    expect(PROGRESS_METRICS).toHaveLength(12);
+  });
+});
+
+describe("responsiveness", () => {
+  it("rewards a prompt reply over a slow one", () => {
+    const fast = scoreRequestMetrics(req({ avgResponseMinutes: 2 })).responsiveness;
+    const slow = scoreRequestMetrics(req({ avgResponseMinutes: 25 })).responsiveness;
+    expect(fast).toBeGreaterThan(slow);
+  });
+
+  it("cannot be bought with speed alone — it is gated on quality", () => {
+    const fastGood = scoreRequestMetrics(req({ avgResponseMinutes: 1 })).responsiveness;
+    const fastBad = scoreRequestMetrics(
+      req({ avgResponseMinutes: 1, scores: scores(1), overall: 1 }),
+    ).responsiveness;
+    expect(fastBad).toBeLessThan(fastGood);
+  });
+
+  it("scores neutral rather than zero when unmeasurable", () => {
+    const m = scoreRequestMetrics(req({ avgResponseMinutes: null }));
+    expect(m.responsiveness).toBeGreaterThan(0);
+    expect(m.responsiveness).toBeLessThan(1);
   });
 });
 
@@ -73,7 +104,9 @@ describe("scoreRequest", () => {
 
   it("a poor request scores far lower than a strong one", () => {
     const strong = scoreRequest(req());
-    const weak = scoreRequest(req({ scores: scores(1), overall: 1 }));
+    const weak = scoreRequest(
+      req({ scores: scores(1), overall: 1, ticketQuality: 0 }),
+    );
     expect(weak).toBeLessThan(strong * 0.5);
   });
 
@@ -92,6 +125,40 @@ describe("scoreRequest", () => {
     const m = scoreRequestMetrics(req({ internTurns: 1 }));
     expect(m.task_completion).toBeLessThan(1);
     expect(scoreRequestMetrics(req({ internTurns: 0 })).task_completion).toBe(0);
+  });
+});
+
+/**
+ * The Freshdesk gate. A handled client with no accepted ticket is not a handled
+ * request — this is the property the whole ticket workflow exists to enforce.
+ */
+describe("ticket gating", () => {
+  it("awards no completion credit without an accepted ticket", () => {
+    const m = scoreRequestMetrics(req({ ticketQuality: null }));
+    expect(m.task_completion).toBe(0);
+    expect(m.documentation_quality).toBe(0);
+  });
+
+  it("scores a perfect conversation materially lower while the ticket is owed", () => {
+    const ticketed = scoreRequest(req());
+    const owed = scoreRequest(req({ ticketQuality: null }));
+    expect(owed).toBeLessThan(ticketed);
+    // The 0.20 completion + 0.05 documentation weights are both forfeited.
+    expect(ticketed - owed).toBeGreaterThan(0.24);
+  });
+
+  it("a flawless ticket cannot rescue a badly handled conversation", () => {
+    const rescued = scoreRequest(
+      req({ scores: scores(1), overall: 1, ticketQuality: 1 }),
+    );
+    // Still nowhere near a genuinely good request.
+    expect(rescued).toBeLessThan(0.5);
+  });
+
+  it("counts ticket resubmissions against first-attempt", () => {
+    expect(scoreRequest(req({ ticketAttempts: 3 }))).toBeLessThan(
+      scoreRequest(req({ ticketAttempts: 1 })),
+    );
   });
 });
 

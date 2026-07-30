@@ -107,6 +107,24 @@ export const DEPARTMENT_CONFIG: Record<EmployeeDepartment, DepartmentConfig> = {
     allowedDomains: ["indulge_concierge"],
     workspaceRoute: "/admin/onboarding",
   },
+  watcher: {
+    label: "Watcher",
+    description: "Cross-Queendom read-only ticket oversight",
+    icon: "Eye",
+    accentColor: "#6366F1",
+    primaryDomain: "indulge_concierge",
+    allowedDomains: ["indulge_concierge"],
+    workspaceRoute: "/concierge/tickets",
+  },
+  academy: {
+    label: "Academy",
+    description: "Intern training — authors scenarios & reviews cohorts",
+    icon: "GraduationCap",
+    accentColor: "#5f5348",
+    primaryDomain: "indulge_concierge",
+    allowedDomains: ["indulge_concierge"],
+    workspaceRoute: "/academy",
+  },
 };
 
 // ── Domain Configuration ─────────────────────────────────────
@@ -182,6 +200,9 @@ export const DEPARTMENT_ROUTE_ACCESS: Record<EmployeeDepartment, string[]> = {
     "/leads",
     "/clients",
     "/whatsapp",
+    "/concierge/tickets",
+    "/concierge/tickets/reports",
+    "/concierge/vendors",
     "/tasks",
     "/projects",
     "/task-insights",
@@ -189,11 +210,15 @@ export const DEPARTMENT_ROUTE_ACCESS: Record<EmployeeDepartment, string[]> = {
     "/performance",
     "/conversions",
     "/escalations",
+    "/academy",
   ],
   finance: [
     "/workspace",
     "/leads",
     "/clients",
+    "/concierge/tickets",
+    "/concierge/tickets/reports",
+    "/concierge/vendors",
     "/tasks",
     "/projects",
     "/calendar",
@@ -201,6 +226,7 @@ export const DEPARTMENT_ROUTE_ACCESS: Record<EmployeeDepartment, string[]> = {
     "/manager/dashboard",
     "/task-insights",
     "/manager",
+    "/academy",
   ],
   tech: [
     "/",
@@ -210,6 +236,7 @@ export const DEPARTMENT_ROUTE_ACCESS: Record<EmployeeDepartment, string[]> = {
     "/calendar",
     "/clients",
     "/elia-preview",
+    "/academy",
   ],
   shop: [
     "/shop/workspace",
@@ -221,6 +248,7 @@ export const DEPARTMENT_ROUTE_ACCESS: Record<EmployeeDepartment, string[]> = {
     "/task-insights",
     "/calendar",
     "/whatsapp",
+    "/academy",
   ],
   house: [
     "/",
@@ -235,6 +263,7 @@ export const DEPARTMENT_ROUTE_ACCESS: Record<EmployeeDepartment, string[]> = {
     "/performance",
     "/conversions",
     "/escalations",
+    "/academy",
   ],
   legacy: [
     "/",
@@ -249,6 +278,7 @@ export const DEPARTMENT_ROUTE_ACCESS: Record<EmployeeDepartment, string[]> = {
     "/performance",
     "/conversions",
     "/escalations",
+    "/academy",
   ],
   marketing: [
     "/workspace",
@@ -263,6 +293,7 @@ export const DEPARTMENT_ROUTE_ACCESS: Record<EmployeeDepartment, string[]> = {
     "/manager/team",
     "/task-insights",
     "/manager",
+    "/academy",
   ],
   onboarding: [
     "/",
@@ -277,7 +308,25 @@ export const DEPARTMENT_ROUTE_ACCESS: Record<EmployeeDepartment, string[]> = {
     "/calendar",
     "/conversions",
     "/admin/onboarding",
+    "/academy",
   ],
+  // Watchers oversee tickets read-only across their Queendoms — ticket/vendor views
+  // + reports + clients. No creation surfaces (/new, /sla-policies).
+  watcher: [
+    "/",
+    "/clients",
+    "/concierge/tickets",
+    "/concierge/tickets/reports",
+    "/concierge/vendors",
+    "/academy",
+  ],
+  /*
+   * Academy staff live in the standalone Academy app (app/(academy) route
+   * group), not the Atlas dashboard — the dashboard layout redirects
+   * unprivileged users in this department to /academy. The seed editor moved
+   * from /admin/academy-seeds to /academy/seeds.
+   */
+  academy: ["/", "/workspace", "/academy", "/academy/seeds", "/tasks", "/calendar"],
 };
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -299,6 +348,8 @@ export const ALL_DEPARTMENTS: EmployeeDepartment[] = [
   "legacy",
   "marketing",
   "onboarding",
+  "watcher",
+  "academy",
 ];
 
 /**

@@ -23,11 +23,13 @@
  * testable without waiting on real time.
  */
 
+import type { AcademyRequestStatus } from "@/lib/academy/types";
+
 export type InboxEventKind = "arrival" | "reminder";
 
 export interface InboxClientState {
   seedId: string;
-  status: "not_started" | "in_progress" | "completed";
+  status: AcademyRequestStatus;
   /** Epoch ms of the last thing that happened here. Null = never touched. */
   lastActivityAt: number | null;
   unread: number;
@@ -78,15 +80,15 @@ export interface InboxTuning {
 const MINUTE = 60_000;
 
 /**
- * How often the inbox does anything at all: one event every 8–15 minutes.
+ * How often the inbox does anything at all: one event every 2–5 minutes.
  *
- * This is the throttle for the whole simulation. It is deliberately slow — a
- * trainee is meant to work a conversation properly, not be interrupted every
- * few seconds. Over a realistic sitting they will see a handful of arrivals and
- * chases, which is the rhythm of an actual shift rather than a demo reel.
+ * This is the throttle for the whole simulation. A busy concierge desk does not
+ * go quiet for a quarter of an hour, so requests and chases land often enough
+ * that the trainee has to actually triage — but never so fast that they cannot
+ * finish a thought. The jitter (below) is what stops it reading as a metronome.
  */
-export const INBOX_MIN_INTERVAL_MS = 8 * MINUTE;
-export const INBOX_MAX_INTERVAL_MS = 15 * MINUTE;
+export const INBOX_MIN_INTERVAL_MS = 2 * MINUTE;
+export const INBOX_MAX_INTERVAL_MS = 5 * MINUTE;
 
 export const DEFAULT_TUNING: InboxTuning = {
   // Long enough that stepping away from a conversation for a moment does not
@@ -95,7 +97,14 @@ export const DEFAULT_TUNING: InboxTuning = {
   maxRemindersPerClient: 3,
   // Matches the tick floor, so two events can never land back to back.
   minGapMs: INBOX_MIN_INTERVAL_MS,
-  maxArrivals: 12,
+  /*
+   * Raised with the cadence. At the old 8–15 min tick, 12 arrivals covered ~2
+   * hours; at 2–5 min they would be exhausted in ~40 minutes and the inbox
+   * would go silent for the rest of the sitting — the opposite of the point.
+   * 30 keeps new work landing across a realistic session without ever
+   * approaching the 176-client roster.
+   */
+  maxArrivals: 30,
 };
 
 export interface InboxDecisionInput {
@@ -161,7 +170,7 @@ export function nextInboxEvent(input: InboxDecisionInput): InboxEvent | null {
 }
 
 /**
- * How long to wait before the next check: 8–15 minutes.
+ * How long to wait before the next check: 2–5 minutes.
  *
  * Jittered across that window so messages never land on a metronome — a
  * perfectly regular inbox reads as a script, which is precisely the feeling

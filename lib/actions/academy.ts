@@ -12,7 +12,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getAuthUser } from "@/lib/auth/getAuthUser";
 import { getServiceSupabaseClient } from "@/lib/supabase/service";
-import { isAcademyTrainer } from "@/lib/types/database";
+import { isAcademyTrainer, ACADEMY_TICKET_TAGS } from "@/lib/types/database";
 import { sanitizeText } from "@/lib/utils/sanitize";
 import { randomizeSession, buildSessionVars, renderTemplate } from "@/lib/academy/randomize";
 import { ACADEMY_PERSONA_MODEL, ACADEMY_TURN_CAP } from "@/lib/academy/models";
@@ -25,11 +25,51 @@ import {
   type MetricBreakdown,
 } from "@/lib/academy/progressScore";
 import { runAcademyEvaluation } from "@/lib/services/academyEvaluator";
+import { runAcademyTicketReview } from "@/lib/services/academyTicketReview";
+import { deriveTicket, validateTicketUpdate } from "@/lib/academy/ticket";
+import { ticketQualityNormalised } from "@/lib/academy/ticketReview";
+import { sessionTiming, type TimedTurn } from "@/lib/academy/timing";
+import {
+  buildRoster,
+  memberFor,
+  orderRoster,
+  type AcademyMember,
+  type RosterClient,
+} from "@/lib/academy/roster";
+
+/** Identity fields only — contact details are deliberately never selected. */
+const ROSTER_COLUMNS =
+  "id, first_name, last_name, avatar_url, membership_type, membership_status";
+
+/**
+ * Only Premium members populate the academy roster.
+ *
+ * 288 of the 460 records qualify — comfortably more than the 176 curriculum
+ * tasks, so every task still gets a distinct member. Trial and Standard tiers
+ * are excluded deliberately: the training register is written around the
+ * expectations of the Premium membership, so practising against anyone else
+ * teaches the wrong service bar.
+ */
+const ROSTER_MEMBERSHIP = "Premium";
+
+/**
+ * The real membership, ordered for deterministic task assignment.
+ *
+ * Returns an empty array on any failure so the academy degrades to its
+ * synthetic roster instead of failing to render.
+ */
+async function loadRosterClients(): Promise<RosterClient[]> {
+  const db = getServiceSupabaseClient();
+  const { data, error } = await db
+    .from("clients")
+    .select(ROSTER_COLUMNS)
+    .eq("membership_type", ROSTER_MEMBERSHIP);
+  if (error || !data) return [];
+  return orderRoster(data as unknown as RosterClient[]);
+}
 import {
   ACADEMY_TOTAL_GROUPS,
   groupTitle,
-  memberForGroup,
-  memberForTask,
   overallProgress,
   percentComplete,
   resolveLadder,
@@ -46,8 +86,10 @@ import type {
   AcademyClientOverview,
   AcademyClientRow,
   AcademyClientThread,
+  AcademyRequestStatus,
   AcademySessionProgress,
   AcademyTaskCard,
+  AcademyTicketState,
   CohortInternRow,
   InternSessionRow,
 } from "@/lib/academy/types";
@@ -55,10 +97,12 @@ import type {
   AcademyRubricScores,
   AcademyScenarioCard,
   AcademySessionVars,
+  AcademyTicketVerdict,
   ScenarioSeed,
   TrainingAttachment,
   TrainingReview,
   TrainingSession,
+  TrainingTicketUpdate,
   TrainingTurn,
 } from "@/lib/types/database";
 
@@ -114,11 +158,12 @@ export async function startAcademySession(
   // row is named after. Free-practice seeds have no task number and keep the
   // randomised pool name.
   const taskNumber = (seed as { task_number?: number | null }).task_number ?? null;
-  const rand = randomizeSession(
-    typedSeed,
-    Math.random,
-    taskNumber ? memberForTask(taskNumber) : undefined,
-  );
+  // The persona must open as the real member the row is named after, or the
+  // transcript and the roster would disagree about who is in the room.
+  const rosterName = taskNumber
+    ? memberFor(await loadRosterClients(), taskNumber).name
+    : undefined;
+  const rand = randomizeSession(typedSeed, Math.random, rosterName);
   const sessionVars = buildSessionVars(typedSeed, rand);
 
   const { data: session, error: insErr } = await db
@@ -287,6 +332,167 @@ export async function retryAcademyEvaluation(
   revalidatePath(`/academy/session/${parsed.data}`);
   revalidatePath("/academy");
   return { success: true };
+}
+
+// ── Freshdesk ticket workflow ────────────────────────────────────────────────
+//
+// Closing the conversation scores the transcript; it does not finish the
+// request. The intern then writes the ticket, a reviewer judges it, and only an
+// accepted ticket earns progress. See migration 131 for the mutability rules.
+
+const ticketUpdateSchema = z.object({
+  resolution_summary: z.string().max(4000),
+  internal_notes: z.string().max(4000),
+  public_reply: z.string().max(4000),
+  status: z.enum([
+    "open",
+    "pending",
+    "waiting_on_customer",
+    "resolved",
+    "closed",
+  ]),
+  priority: z.enum(["low", "medium", "high", "urgent"]),
+  tags: z.array(z.enum(ACADEMY_TICKET_TAGS)).max(ACADEMY_TICKET_TAGS.length),
+  // A 16-hour ceiling: anything beyond that is a typo, not a concierge request.
+  time_spent_minutes: z.number().int().min(0).max(960),
+});
+
+/** Read the ticket row for a session, if the intern has started one. */
+async function readTicketUpdate(
+  sessionId: string,
+): Promise<TrainingTicketUpdate | null> {
+  const db = getServiceSupabaseClient();
+  const { data } = await db
+    .from("training_ticket_updates")
+    .select(
+      "id, session_id, resolution_summary, internal_notes, public_reply, status, priority, tags, time_spent_minutes, verdict, passed, attempts, submitted_at, created_at, updated_at",
+    )
+    .eq("session_id", sessionId)
+    .maybeSingle();
+  return (data as TrainingTicketUpdate | null) ?? null;
+}
+
+/**
+ * Save the intern's ticket without submitting it for review.
+ *
+ * Free to call as often as the form autosaves — it never touches `verdict`,
+ * `passed` or `attempts`, which is exactly what the migration-131 trigger
+ * enforces at the database level too.
+ */
+export async function saveTicketDraft(
+  sessionId: string,
+  input: unknown,
+): Promise<Result> {
+  const id = z.string().uuid().safeParse(sessionId);
+  if (!id.success) return { success: false, error: "Invalid session id" };
+
+  const parsed = ticketUpdateSchema.safeParse(input);
+  if (!parsed.success) return { success: false, error: "Invalid ticket update" };
+
+  const access = await assertCanAccessSession(id.data);
+  if (!access.ok) return { success: false, error: access.error };
+
+  const { user } = await getAuthUser();
+  if (access.session.intern_id !== user.id) {
+    return { success: false, error: "Only the assigned agent can edit this ticket" };
+  }
+
+  const existing = await readTicketUpdate(id.data);
+  if (existing?.passed) {
+    return { success: false, error: "This ticket has been accepted and is locked" };
+  }
+
+  const row = {
+    session_id: id.data,
+    resolution_summary: sanitizeText(parsed.data.resolution_summary),
+    internal_notes: sanitizeText(parsed.data.internal_notes),
+    public_reply: sanitizeText(parsed.data.public_reply),
+    status: parsed.data.status,
+    priority: parsed.data.priority,
+    tags: parsed.data.tags,
+    time_spent_minutes: parsed.data.time_spent_minutes,
+  };
+
+  const db = getServiceSupabaseClient();
+  const { error } = await db
+    .from("training_ticket_updates")
+    .upsert(row, { onConflict: "session_id" });
+  if (error) return { success: false, error: error.message };
+
+  return { success: true };
+}
+
+/**
+ * Submit the ticket for AI review.
+ *
+ * Structural checks run first so an obviously incomplete ticket never costs an
+ * API call. The verdict is authoritative: a pass closes the request out and
+ * unlocks the progress it earns, a fail comes back with concrete fixes and the
+ * intern revises in place.
+ */
+export async function submitTicketUpdate(
+  sessionId: string,
+  input: unknown,
+): Promise<Result<{ verdict: AcademyTicketVerdict }>> {
+  const id = z.string().uuid().safeParse(sessionId);
+  if (!id.success) return { success: false, error: "Invalid session id" };
+
+  const parsed = ticketUpdateSchema.safeParse(input);
+  if (!parsed.success) return { success: false, error: "Invalid ticket update" };
+
+  const access = await assertCanAccessSession(id.data);
+  if (!access.ok) return { success: false, error: access.error };
+
+  const { user } = await getAuthUser();
+  if (access.session.intern_id !== user.id) {
+    return { success: false, error: "Only the assigned agent can submit this ticket" };
+  }
+  if (access.session.status !== "closed") {
+    return {
+      success: false,
+      error: "Close the conversation before updating the ticket",
+    };
+  }
+
+  const existing = await readTicketUpdate(id.data);
+  if (existing?.passed) {
+    return { success: false, error: "This ticket has already been accepted" };
+  }
+
+  const clean = {
+    resolution_summary: sanitizeText(parsed.data.resolution_summary),
+    internal_notes: sanitizeText(parsed.data.internal_notes),
+    public_reply: sanitizeText(parsed.data.public_reply),
+    status: parsed.data.status,
+    priority: parsed.data.priority,
+    tags: parsed.data.tags,
+    time_spent_minutes: parsed.data.time_spent_minutes,
+  };
+
+  const structural = validateTicketUpdate(clean);
+  if (structural.length > 0) {
+    return { success: false, error: structural.join(" ") };
+  }
+
+  const db = getServiceSupabaseClient();
+  const { error: upErr } = await db.from("training_ticket_updates").upsert(
+    {
+      session_id: id.data,
+      ...clean,
+      attempts: (existing?.attempts ?? 0) + 1,
+    },
+    { onConflict: "session_id" },
+  );
+  if (upErr) return { success: false, error: upErr.message };
+
+  const review = await runAcademyTicketReview(id.data, clean);
+  if (!review.success || !review.verdict) {
+    return { success: false, error: review.error ?? "Ticket review failed" };
+  }
+
+  revalidatePath(`/academy/session/${id.data}`);
+  revalidatePath("/academy");
+  return { success: true, data: { verdict: review.verdict } };
 }
 
 /** The signed-in intern's own sessions, newest first (with score if reviewed). */
@@ -689,12 +895,18 @@ export async function getAcademyAttachmentUrls(
 
 type SeedState = {
   sessionId: string;
-  status: "in_progress" | "completed";
+  /**
+   * `awaiting_ticket` = conversation closed and scored, ticket not yet accepted.
+   * It is not `completed` and earns no progress.
+   */
+  status: Exclude<AcademyRequestStatus, "not_started">;
   overall: number | null;
   at: string | null;
   /** Per-request performance score, 0..1. Null until scored. */
   requestScore: number | null;
   metrics: MetricBreakdown | null;
+  /** The accepted ticket's weighted quality, 1–5. Null until one passes. */
+  ticketQuality: number | null;
 };
 
 /**
@@ -725,11 +937,24 @@ async function loadSeedStatus(internId: string): Promise<Map<string, SeedState>>
 
   const reviewBySession = new Map<string, { overall: number; scores: AcademyRubricScores }>();
   const internTurnsBySession = new Map<string, number>();
+  const turnsBySession = new Map<string, TimedTurn[]>();
+  const ticketBySession = new Map<
+    string,
+    { passed: boolean; quality: number | null; attempts: number }
+  >();
 
   if (closedIds.length > 0) {
-    const [reviewsRes, turnsRes] = await Promise.all([
+    const [reviewsRes, turnsRes, ticketsRes] = await Promise.all([
       db.from("training_reviews").select("session_id, overall, scores").in("session_id", closedIds),
-      db.from("training_turns").select("session_id, role").in("session_id", closedIds),
+      // created_at + seq are needed for response timing, not just the count.
+      db
+        .from("training_turns")
+        .select("session_id, role, created_at, seq")
+        .in("session_id", closedIds),
+      db
+        .from("training_ticket_updates")
+        .select("session_id, passed, verdict, attempts")
+        .in("session_id", closedIds),
     ]);
     for (const r of reviewsRes.data ?? []) {
       reviewBySession.set(r.session_id as string, {
@@ -738,9 +963,25 @@ async function loadSeedStatus(internId: string): Promise<Map<string, SeedState>>
       });
     }
     for (const t of turnsRes.data ?? []) {
-      if (t.role !== "intern") continue;
       const k = t.session_id as string;
-      internTurnsBySession.set(k, (internTurnsBySession.get(k) ?? 0) + 1);
+      if (t.role === "intern") {
+        internTurnsBySession.set(k, (internTurnsBySession.get(k) ?? 0) + 1);
+      }
+      const arr = turnsBySession.get(k) ?? [];
+      arr.push({
+        role: t.role as "client" | "intern",
+        created_at: t.created_at as string,
+        seq: Number(t.seq ?? 0),
+      });
+      turnsBySession.set(k, arr);
+    }
+    for (const t of ticketsRes.data ?? []) {
+      const verdict = t.verdict as AcademyTicketVerdict | null;
+      ticketBySession.set(t.session_id as string, {
+        passed: t.passed === true,
+        quality: typeof verdict?.quality === "number" ? verdict.quality : null,
+        attempts: Number(t.attempts ?? 0),
+      });
     }
   }
 
@@ -758,7 +999,10 @@ async function loadSeedStatus(internId: string): Promise<Map<string, SeedState>>
     const id = s.id as string;
     const seedId = s.seed_id as string;
     const review = reviewBySession.get(id);
-    const isComplete = s.status === "closed" && review !== undefined;
+    const ticket = ticketBySession.get(id);
+    const scored = s.status === "closed" && review !== undefined;
+    // The ticket, not the conversation, is the finish line.
+    const isComplete = scored && ticket?.passed === true;
 
     let requestScore: number | null = null;
     let metrics: MetricBreakdown | null = null;
@@ -782,6 +1026,12 @@ async function loadSeedStatus(internId: string): Promise<Map<string, SeedState>>
           priorScores.length > 0
             ? priorScores.reduce((a, b) => a + b, 0) / priorScores.length
             : null,
+        ticketQuality: ticketQualityNormalised(ticket?.quality ?? 0),
+        ticketAttempts: ticket?.attempts ?? 1,
+        avgResponseMinutes: sessionTiming(turnsBySession.get(id) ?? [], {
+          startedAt: s.started_at as string | null,
+          resolvedAt: s.ended_at as string | null,
+        }).avgResponseMinutes,
       };
       metrics = scoreRequestMetrics(input);
       requestScore = scoreRequest(input);
@@ -791,11 +1041,16 @@ async function loadSeedStatus(internId: string): Promise<Map<string, SeedState>>
     // Later sessions win, so a retry supersedes an earlier attempt.
     bySeed.set(seedId, {
       sessionId: id,
-      status: isComplete ? "completed" : "in_progress",
+      status: isComplete
+        ? "completed"
+        : scored
+          ? "awaiting_ticket"
+          : "in_progress",
       overall: review?.overall ?? null,
       at: (s.ended_at as string | null) ?? (s.started_at as string | null) ?? null,
       requestScore,
       metrics,
+      ticketQuality: ticket?.passed ? (ticket.quality ?? null) : null,
     });
   }
 
@@ -825,7 +1080,11 @@ function buildOverview(
       if (state.requestScore !== null && state.metrics) {
         scored.push({ score: state.requestScore, metrics: state.metrics });
       }
-    } else if (state.status === "in_progress") {
+    } else if (
+      state.status === "in_progress" ||
+      state.status === "awaiting_ticket"
+    ) {
+      // A request whose ticket is still outstanding is open work, not done.
       inProgress += 1;
     }
   }
@@ -848,7 +1107,7 @@ export async function getAcademyClients(): Promise<Result<AcademyClientList>> {
   const { user } = await getAuthUser();
   const db = getServiceSupabaseClient();
 
-  const [seedsRes, bySeed] = await Promise.all([
+  const [seedsRes, bySeed, rosterClients] = await Promise.all([
     db
       .from("scenario_seeds")
       .select("id, title, vertical, difficulty, task_number")
@@ -856,18 +1115,26 @@ export async function getAcademyClients(): Promise<Result<AcademyClientList>> {
       .eq("is_active", true)
       .order("task_number", { ascending: true }),
     loadSeedStatus(user.id),
+    loadRosterClients(),
   ]);
 
   if (seedsRes.error) return { success: false, error: seedsRes.error.message };
   const seeds = seedsRes.data ?? [];
 
+  const roster = buildRoster(
+    rosterClients,
+    seeds.map((s) => (s.task_number as number) ?? 0),
+  );
+
   const clients: AcademyClientRow[] = seeds.map((s) => {
     const taskNumber = (s.task_number as number) ?? 0;
     const state = bySeed.get(s.id as string);
+    const member = roster.get(taskNumber);
     return {
       seedId: s.id as string,
       taskNumber,
-      name: memberForTask(taskNumber),
+      member,
+      name: member?.name ?? "Indulge member",
       requestTitle: (s.title as string) ?? "Request",
       vertical: (s.vertical as string) ?? "Global",
       difficulty: (s.difficulty as string) ?? "medium",
@@ -898,7 +1165,7 @@ export async function getAcademyClientThread(
   const parsed = z.string().uuid().safeParse(seedId);
   if (!parsed.success) return { success: false, error: "Invalid client" };
 
-  const { user } = await getAuthUser();
+  const { user, profile } = await getAuthUser();
   const db = getServiceSupabaseClient();
 
   const { data: seed, error: seedErr } = await db
@@ -910,7 +1177,8 @@ export async function getAcademyClientThread(
   if (seedErr || !seed) return { success: false, error: "Client not found" };
 
   const taskNumber = (seed.task_number as number) ?? 0;
-  const name = memberForTask(taskNumber);
+  const member = memberFor(await loadRosterClients(), taskNumber);
+  const name = member.name;
 
   const [allSeedsRes, bySeed] = await Promise.all([
     db
@@ -924,8 +1192,11 @@ export async function getAcademyClientThread(
   const state = bySeed.get(parsed.data);
   let turns: TrainingTurn[] = [];
   let review: TrainingReview | null = null;
+  let ticketUpdate: TrainingTicketUpdate | null = null;
 
   if (state?.sessionId) {
+    ticketUpdate = await readTicketUpdate(state.sessionId);
+
     const [turnsRes, reviewRes] = await Promise.all([
       db
         .from("training_turns")
@@ -971,6 +1242,7 @@ export async function getAcademyClientThread(
       seedId: parsed.data,
       taskNumber,
       name,
+      member,
       requestTitle: (seed.title as string) ?? "Request",
       brief: (seed.brief as string | null) ?? null,
       vertical: (seed.vertical as string) ?? "Global",
@@ -994,6 +1266,26 @@ export async function getAcademyClientThread(
       review,
       readOnly: false,
       overview: buildOverview(allSeedsRes.data ?? [], bySeed),
+      ticket: {
+        // Derived, not stored — see lib/academy/ticket.ts. A client who has
+        // never been opened still has a ticket, which is what makes the request
+        // read as inbound work rather than an exercise.
+        ticket: deriveTicket({
+          seedId: parsed.data,
+          requestTitle: (seed.title as string) ?? "Request",
+          clientName: name,
+          vertical: (seed.vertical as string) ?? "Global",
+          difficulty: (seed.difficulty as string) ?? "medium",
+          assignedTo: profile?.full_name ?? "Unassigned",
+          createdAt:
+            (seed.task_date as string | null) ??
+            state?.at ??
+            new Date().toISOString(),
+          currentStatus: ticketUpdate?.status ?? null,
+          currentPriority: ticketUpdate?.priority ?? null,
+        }),
+        update: ticketUpdate,
+      },
     },
   };
 }
@@ -1007,11 +1299,14 @@ function buildMentorIntro(p: {
   name: string;
   vertical: string;
   constraintCount: number;
-  status: "not_started" | "in_progress" | "completed";
+  status: AcademyRequestStatus;
   overall: number | null;
 }): string {
   if (p.status === "completed") {
     return `Scored ${p.overall ?? "—"}/5. Read the review below, then try another client.`;
+  }
+  if (p.status === "awaiting_ticket") {
+    return `${p.name} is handled — now write up the Freshdesk ticket to close it out.`;
   }
   if (p.status === "in_progress") {
     return `You're mid-conversation with ${p.name}. Pick up where you left off.`;

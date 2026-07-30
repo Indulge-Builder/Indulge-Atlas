@@ -134,7 +134,10 @@ export function AcademyClientShell({ initial }: { initial: AcademyClientList }):
               patchClient(thread.seedId, { status: "in_progress", sessionId })
             }
             onClosed={() => {
-              patchClient(thread.seedId, { status: "completed" });
+              // Closing the conversation does NOT complete the request — the
+              // ticket write-up still has to be accepted. `load` then replaces
+              // this optimistic patch with the server's real status.
+              patchClient(thread.seedId, { status: "awaiting_ticket" });
               void load(thread.seedId);
             }}
             className="w-full"

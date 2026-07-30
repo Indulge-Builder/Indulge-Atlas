@@ -30,13 +30,16 @@ app/(dashboard)/          All authenticated routes — shares DashboardLayout
   tasks/                  Atlas Tasks — index, [id] workspace, import
   task-insights/          Org-wide task view (manager/admin/founder): index, [departmentId], agents/[agentId]
   admin/                  Admin panel — conversions, integrations, mappings, marketing, onboarding,
-                          routing, shop subpages
+                          routing, shop, academy-seeds subpages
   budget/                 Budget tracking — transactions + deliverables per domain (admin/founder only)
   shop/workspace/         Shop War Room + tasks/[taskId]
   workspace/              Agent personal workspace (DailyAnchor, PrimaryFocus, Scratchpad, WhisperBox)
   whatsapp/               Global WhatsApp Hub — master-detail latest threads
   concierge/              ⚠️ MOCK DATA — fabricated UHNI profiles served to real users
   elia-preview/           Full-page Elia chat — EliaChat + EliaChatMessage; RSC → getEliaActiveMemberCount()
+  academy/                Academy intern training simulator (force-dynamic) — two-panel client list
+                          + inline conversation; session/[id] single-session view. Tabs:
+                          Clients / Free practice / Cohort (trainer-only, gated server-side)
   indulge-world/          Brand/org chart page
   calendar/               Smart calendar (chrono-node NLP)
   performance/            Agent performance analytics
@@ -47,6 +50,7 @@ app/(dashboard)/          All authenticated routes — shares DashboardLayout
 app/api/
   elia/chat               POST — Anthropic Haiku; optional clientId for member-scoped chat
   elia/analyse-client     POST — Bearer ELIA_ANALYSIS_SECRET; cron → runEliaWhatsAppAnalysis
+  academy/chat            POST — Academy client-persona turn; text/plain STREAM (not SSE/JSON)
   chetto/                 find-group, group, timeline, insights — proxy routes (CHETTO_API_KEY server-only)
   webhooks/               leads/meta, leads/google, leads/website, ads, whatsapp, gupshup,
                           onboarding-conversion (Pabbly + HMAC auth)
@@ -68,6 +72,12 @@ components/task-intelligence/  Task Insights dashboard, department detail, emplo
                                workspace bento grid (taskInsightsBento.ts), AssignTaskModal
 components/elia/          EliaChat.tsx, EliaChatMessage.tsx — /elia-preview UI (TSX).
                           EliaMobilePrototype.tsx. EliaSidePanel.jsx — sidebar shell (JSX not TSX ⚠️)
+components/academy/       Academy UI (13) — ClientList + ClientConversation + AcademyClientShell
+                          (two-panel /academy), AcademyChat/AcademyBubble/AcademyComposer (chat),
+                          AcademyProgressHeader/ProgressRing/ProgressBreakdown, AcademyReport,
+                          CohortTable, ScenarioPicker, SeedEditor. Atlas tokens only
+                          (zero hardcoded hex in components; the `chat-*` tokens in
+                          app/globals.css ARE the WhatsApp palette — #075e54 / #25d366 / #d9fdd3)
 components/layout/        Sidebar, TopBar, NotificationBell, LeaderPerspectiveNotice
 components/workspace/     DailyAnchor, PrimaryFocus, Scratchpad, WhisperBox, WorkspaceBoard
 components/whatsapp/      ActiveChatPanel, WhatsAppHubClient
@@ -89,6 +99,8 @@ lib/actions/              Primary "use server" modules — component-facing data
                           getEliaSingleClientProfileText, getClientSummary (Haiku),
                           triggerEliaWhatsAppAnalysis (manager+)
   chetto.ts               Chetto Joule helpers — no "use server"; used only by app/api/chetto/*
+  academy.ts              Academy clients, sessions, cohort, seed authoring (service role +
+                          isAcademyTrainer)
   projects.ts             Project + task group + project task CRUD
   tasks.ts                Atlas unified tasks (masters, subtasks, personal, import)
   shop-tasks.ts           Shop task creation + sale registration
@@ -105,6 +117,8 @@ lib/actions/              Primary "use server" modules — component-facing data
 lib/services/             Internal business services (not component-facing)
   eliaProfileAnalysis.ts  WhatsApp → Chetto Joule → Haiku → client_profiles.elia_profile
                           (service role; NOT "use server")
+  academyEvaluator.ts     Academy session close → Opus structured scoring → training_reviews
+                          (service role; NOT "use server")
   gupshupChatbot.ts       Gupshup WhatsApp chatbot logic — Elia-powered conversational bot,
                           catalog lookup, lead handoff (server-only; ANTHROPIC_API_KEY + GUPSHUP_API_KEY)
   gupshupClient.ts        Gupshup outbound REST client (GUPSHUP_API_KEY, GUPSHUP_APP_NAME)
@@ -120,6 +134,12 @@ lib/services/             Internal business services (not component-facing)
 lib/freshdesk/            Freshdesk REST client + types — server-only; call via lib/actions/freshdesk.ts
 lib/elia/                 chat-prompt.ts — eliaSystemPrompt, eliaClientScopedPrompt,
                           buildWhatsAppProfilePrompt (not "use server")
+lib/academy/              Academy pure modules, 10 files (none are "use server"): models.ts (model
+                          ids, ACADEMY_TURN_CAP, ACADEMY_EVALUATOR_VERSION), persona.ts,
+                          evaluator.ts, rubric.ts, randomize.ts, pii.ts, curriculum.ts (tiers +
+                          memberForTask 176-name client roster), progressScore.ts (weighted
+                          progress model), mentor.ts (in-chat cues + typingDelayFor),
+                          types.ts (UI view models)
 lib/briefing/             executiveBriefing.ts — executive briefing service (no UI surface yet)
 lib/hooks/
   useSLA_Monitor.ts       60s poll SLA breach detection (client-side)
@@ -153,9 +173,18 @@ lib/auth/                 getAuthUser.ts — shared auth helper
 lib/leads/                leadDetailRequestCache.ts, leadJourneyStages.ts, leadsTableSelect.ts,
                           pipelineProgress.ts
 
+supabase/manual/          Standalone apply files — Academy parts 1–8 (part 4 is a verify query)
+supabase/seed-data/       academy-task-register.json — source of truth for migration 130
+
 middleware.ts             ✅ Live — exports { proxy as middleware, config } from "./proxy"
 proxy.ts                  Next.js middleware implementation (createServerClient, session refresh,
                           auth redirects, public route allowlist)
+
+app/(academy)/            Standalone Academy app — own shell, own nav, own login. Mounts NONE of
+                          the dashboard provider tree. /academy, /academy/session/[id],
+                          /academy/seeds
+app/(academy-auth)/       Ungated sibling group holding /academy/login only (gating it with the
+                          layout it serves would redirect-loop)
 ```
 
 ---
@@ -321,6 +350,8 @@ await supabase.auth.admin.createUser({
 ## Active Context (as of 2026-05-23)
 
 **Recently shipped:**
+- **Academy — intern training simulator (2026-07-28, migrations 124–130, all applied)** — one **client**, one **request**: the intern replies as that client's concierge in a WhatsApp-style chat, an LLM plays the client, and on close a **separate** evaluator scores the transcript. New **`academy`** department + **`isAcademyTrainer(role, department)`** (privileged roles OR `department='academy'`; everyone else is an intern). Migrations: **124** the enum value alone (Postgres cannot use a new enum value in the txn that adds it — same pattern as `122_employee_department_watcher.sql`); **125** four tables + `is_academy_trainer()` / `can_access_academy_session(uuid)` SECURITY DEFINER helpers + RLS + realtime — `scenario_seeds` (trainer-only, holds the answers), `training_sessions`, **`training_turns` — APPEND-ONLY (SELECT+INSERT policies only)**, `training_reviews` (service-role writes only); **126** the original 12 hand-written scenarios; **127** `training_turns.attachments jsonb` + a PRIVATE `academy-attachments` storage bucket + object RLS; **128** 12 more scenarios (24 free-practice total); **129** `advanced`/`expert` tiers + curriculum columns (`group_number`, `day_number`, `task_number`, `task_date`, `raised_by`, `brief`) + `academy_group_progress()` RPC; **130** **176 curriculum tasks** built from the real Indulge Retail Training register (17 training days, 4–27 July 2026), source of truth `supabase/seed-data/academy-task-register.json`. Standalone apply files in **`supabase/manual/`**. Progress is **performance-weighted, not completion-weighted** (`lib/academy/progressScore.ts`). Chat layer: staged message arrival behind a typing indicator (`typingDelayFor`), in-thread mentor cues (`nextMentorCue`, at most once each, **never persisted**), framer-motion entry, sticky header + composer over a single scroll region. Per-session randomisation (`lib/academy/randomize.ts`) mutates one hidden constraint so seeds can't be memorised — persona **and** evaluator read the mutated value. 166 tests across 7 offline suites, plus `__tests__/academy-live-signoff.test.ts` (real API, `describe.skipIf`-gated on `ACADEMY_LIVE=1`, skipped by default). Full spec: **`docs/ACADEMY_PAGE_SPEC.md`**.
+- **Academy extracted into its own app + Freshdesk ticket workflow (2026-07-28, migration 131)** — Academy now lives in the **`app/(academy)`** route group with its own shell, nav and login (`/academy/login`, in the ungated `(academy-auth)` sibling), mounting **none** of the eight dashboard providers. Pages use **`AcademyTopBar`**, not `components/layout/TopBar` — that one needs `useChatDrawer`/`useProfile`/`useCommandPalette`. The Atlas dashboard now **gates out interns** (`department === 'academy'` && unprivileged → `/academy`), closing a real hole: `DEPARTMENT_ROUTE_ACCESS` only ever filtered Sidebar links and was never an authorization check. **Genie Trainer was removed** (`training/`, `app/(training)/train/`, `components/training/`, `app/api/training/`, 3 suites) and replaced by the ticket workflow — note "Genie" remains Indulge's word for a concierge agent and is untouched elsewhere. **The ticket workflow:** every request is presented as a Freshdesk ticket (derived, not stored — `lib/academy/ticket.ts`); closing the conversation now yields status **`awaiting_ticket`**, not `completed`. The intern writes resolution summary / internal notes / public reply / status / priority / tags / time spent, an Opus reviewer scores five dimensions (`lib/academy/ticketReview.ts` + `lib/services/academyTicketReview.ts`), and **only an accepted ticket earns progress**. Quality and the pass decision are computed in code (`computeTicketQuality`, `decidePassed`) — a model "pass" can only ever be downgraded. Progress model gained **`documentation_quality`** (11 metrics, still summing to 1); the ticket blends into three other metrics at **30%** so paperwork cannot rescue a badly handled member. **NB: repo is npm-managed — never run `pnpm` (it relocates node_modules); typecheck via `npx tsc --noEmit`.**
 - **`middleware.ts` created (2026-05-23)** — `export { proxy as middleware, config } from "./proxy"`. Session refresh and edge auth gate now live. The noisy `Auth session missing!` log on public routes is also suppressed (expected for logged-out users).
 - **Gupshup WhatsApp chatbot (migration 094)** — `bot_catalog_items` + `bot_sessions` tables; `webhook_logs.source` extended to include `'gupshup'`. Services: **`lib/services/gupshupChatbot.ts`** (Haiku-powered Elia conversational bot — catalog lookup, 7-turn limit, lead handoff) + **`lib/services/gupshupClient.ts`** (outbound REST). Webhook: **`POST /api/webhooks/gupshup`** (`GUPSHUP_WEBHOOK_SECRET`). Env: `GUPSHUP_API_KEY`, `GUPSHUP_APP_NAME`, `GUPSHUP_WEBHOOK_SECRET`.
 - **Budget module (migration 092)** — `budget_transactions` + budget deliverables tables per domain; `/budget` route; `lib/actions/budget.ts`; `components/budget/BudgetClient.tsx`. Visible to founder/admin/super_admin only (application-layer + RLS).
@@ -385,6 +416,27 @@ await supabase.auth.admin.createUser({
 | Server | `CHETTO_API_KEY` — never in client bundles; Joule base `https://apiv2.chetto.ai/joule` |
 
 Chetto is **not** Elia: separate vendor API and env key from `ANTHROPIC_API_KEY`. Timeline may be empty when Joule returns **404** for `.../timeline` even if `GET .../groups/{id}` works — UI surfaces `timelineNotAvailable`.
+
+## Academy (intern training simulator — quick reference)
+
+| Surface | Mechanism |
+|--------|-----------|
+| `/academy` | Two-panel `AcademyClientShell`: `ClientList` (left, one row per client) + `ClientConversation` (right, opens **inline** on selection — no View button, no navigation). Tabs Clients / Free practice / Cohort (trainer-only, gated server-side). `getAcademyClients`, `getAcademyClientThread`, `listAcademyScenarios`, `getMyAcademySessions`, `getAcademyCohort` (`lib/actions/academy.ts`) |
+| `/academy/session/[id]` | One session — `AcademyChat`; a closed session keeps the chat with the review folded beneath it (`ReviewToggle` → `AcademyReport`). Trainers open others' sessions `readOnly` |
+| `/admin/academy-seeds` | `SeedEditor` — trainer-only; `createSeed`/`updateSeed` refuse the write and return `piiIssues` when `scanSeedForPII` flags anything |
+| **Session creation is lazy** | Opening a client does **NOT** create a session — browsing 176 clients would write 176 junk rows. `getAcademyClientThread` renders a preview opening from the seed; `startAcademySession` runs on the intern's **first reply** and returns `openingMessage` so the previewed bubble and the persisted transcript agree |
+| **Persona** (the client) | `POST /api/academy/chat` `{ sessionId, message, attachments? }` → **`text/plain` streaming** (NOT SSE, NOT JSON — read with `res.body.getReader()`). `claude-haiku-4-5-20251001`, `max_tokens` **200** (deliberately low so replies stay message-length). Headers: `X-Academy-Degraded: 1` (canned fallback), `X-Academy-Turn-Cap: 1` (last allowed turn). 409 = closed or cap reached. Cap `ACADEMY_TURN_CAP` = 24 |
+| **Evaluator** (the scorer) | `runAcademyEvaluation` (`lib/services/academyEvaluator.ts`) on close — **`claude-opus-4-8`**, structured JSON output, `max_tokens` 2000, idempotent on `session_id`. Six dimensions 1–5, `factual_accuracy` weighted 1.5; **`overall` is computed in code** (`computeOverall`), never asked of the model |
+
+**Persona / evaluator split is the design:** the persona prompt (`lib/academy/persona.ts`) carries the seed's hidden constraints so the client can reveal them when correctly probed, but **never the rubric** — it must not grade, coach, or admit to being an AI (pinned by `__tests__/academy-persona-guardrails.test.ts`). All judgment happens afterwards, in a different call, on a different model. Every review stamps `model_version` = `ACADEMY_EVALUATOR_VERSION` so scoring drift is detectable; sessions stamp the persona model. `buildPersonaSystemPrompt` also takes **`openingMessage`**: the opening turn maps to `assistant` and Anthropic requires a `user` first message, so the route strips it — without echoing it back into the system prompt the persona invents a different scenario (caught in live sign-off).
+
+**`training_turns` is the graded transcript and is append-only** — SELECT + INSERT policies only (migration 125). Nothing rewrites a turn after the fact, and mentor cues are never written to it.
+
+**Progress is performance-weighted, not completion-weighted** (`lib/academy/progressScore.ts`): ten metrics with fixed weights (task completion 20%, response quality 20%, accuracy 15%, time efficiency 15%, AI evaluation 10%, first attempt 5%, critical thinking 5%, communication 5%, research quality 3%, consistency 2%). `academyBar = Σ requestScores ÷ totalRequests`, so the bar only reaches 100 by handling every request **well**; time efficiency is multiplied by response quality so speed cannot buy a score. **Honest provenance:** the evaluator emits only six rubric dimensions, so six metrics are proxied off rubric dimensions and four come from session telemetry/history — every mapping is declared in `METRIC_SOURCE`.
+
+**Env:** `ANTHROPIC_API_KEY` (shared with Elia — no Academy-specific key; missing → the chat degrades to a canned reply and evaluation fails loudly) + `SUPABASE_SERVICE_ROLE_KEY` (all Academy actions use `getServiceSupabaseClient()`). `ACADEMY_LIVE=1` unskips `__tests__/academy-live-signoff.test.ts`, the only Academy suite that hits the real API.
+
+**Tests:** 166 passing across 7 offline suites (`academy-rubric`, `academy-pii`, `academy-randomize`, `academy-evaluator`, `academy-persona-guardrails`, `academy-progress-score`, `academy-mentor`). Run with `node ./node_modules/vitest/vitest.mjs run <paths>`.
 
 ---
 
@@ -456,3 +508,11 @@ Chetto is **not** Elia: separate vendor API and env key from `ANTHROPIC_API_KEY`
 22. **`/clients/chetto-mapping` is admin-only** — `canManageAnyClient()` gate. Only admin/founder/super_admin/manager can bulk-assign Chetto group IDs to client records.
 
 23. **`proxy.ts` suppresses `Auth session missing!` for public routes** — this error is expected (logged-out user hits any route before middleware redirects). The error is only logged if the message is something other than `"Auth session missing!"`.
+
+24. **`training_turns` has no UPDATE or DELETE policy — by design** — migration 125 grants SELECT + INSERT only. It is the transcript the evaluator grades, so it must not be rewritable after scoring. Adding either policy breaks the guarantee. Migration 127 added an `attachments` column and that is fine: a schema change is not a row mutation, and attachments are supplied at INSERT time.
+
+25. **`can_access_academy_session()` must be created after `training_sessions`** — it is `LANGUAGE sql`, so PostgreSQL parses and validates its body at CREATE time. Defining it earlier fails with `42P01: relation "public.training_sessions" does not exist`. Same table-then-helper ordering as `108_concierge_ticket_tables.sql`.
+
+26. **Academy mentor cues must never be persisted** — `nextMentorCue` lines live in `AcademyChat` component state and die with the mount. Writing them into `training_turns` would pollute the graded transcript and teach the persona to expect a coach in the room.
+
+27. **`npx vitest` swallows stdout on this machine** — run suites with `node ./node_modules/vitest/vitest.mjs run <paths>`. The repo is npm-managed; never run `pnpm` here (it relocates `node_modules`).

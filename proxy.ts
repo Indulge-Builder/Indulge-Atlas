@@ -46,6 +46,7 @@ export async function proxy(request: NextRequest) {
 
     const publicRoutes = [
       "/login",
+      "/academy/login",
       "/forgot-password",
       "/update-password",
       "/auth/callback",
@@ -55,6 +56,10 @@ export async function proxy(request: NextRequest) {
     const isPublicRoute = publicRoutes.some((route) =>
       pathname.startsWith(route),
     );
+
+    // The Academy app has its own front door. Bouncing an intern to the Atlas
+    // login would drop them into a product they cannot open.
+    const isAcademyApp = pathname.startsWith("/academy");
 
     // Elia Preview chat — JSON API; return 401 from the route, not an HTML redirect
     const isEliaApi = pathname.startsWith("/api/elia");
@@ -76,7 +81,7 @@ export async function proxy(request: NextRequest) {
       !isServerAction
     ) {
       const loginUrl = request.nextUrl.clone();
-      loginUrl.pathname = "/login";
+      loginUrl.pathname = isAcademyApp ? "/academy/login" : "/login";
       loginUrl.searchParams.set("redirectedFrom", pathname);
       return NextResponse.redirect(loginUrl);
     }
@@ -86,6 +91,11 @@ export async function proxy(request: NextRequest) {
       const dashboardUrl = request.nextUrl.clone();
       dashboardUrl.pathname = "/";
       return NextResponse.redirect(dashboardUrl);
+    }
+    if (user && pathname === "/academy/login") {
+      const academyUrl = request.nextUrl.clone();
+      academyUrl.pathname = "/academy";
+      return NextResponse.redirect(academyUrl);
     }
     if (user && pathname === "/forgot-password") {
       const dashboardUrl = request.nextUrl.clone();

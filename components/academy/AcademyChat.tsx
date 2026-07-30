@@ -544,8 +544,15 @@ export function AcademyChat({
           description: res.data.reviewError,
         });
       } else {
-        toast.success("Conversation closed — your review is ready.");
+        toast.success("Conversation closed — write up the ticket to finish.");
       }
+      /*
+       * Load-bearing: the parent owns `thread` in client state (fetched via a
+       * server action), so `router.refresh()` alone does NOT update it. Without
+       * this call the status stays `in_progress`, and the header's Freshdesk
+       * icon — the only way to reach the ticket form — never appears.
+       */
+      onClosed?.();
       router.refresh();
     });
   }, [router, liveSessionId, onClosed]);

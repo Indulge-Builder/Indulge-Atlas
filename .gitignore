@@ -33,6 +33,8 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...but keep the documented template committable
+!.env.example
 
 # vercel
 .vercel
@@ -46,7 +48,11 @@ next-env.d.ts
 lib/types/database.generated.ts
 
 # data exports and personal assets — never commit these
+exports/
 *.csv
+scripts/chetto-unmapped-report.json
+scripts/chetto-suggestions-report.json
+scripts/chetto-metadata-cache.json
 *.jpeg
 *.jpg
 *.png
@@ -55,3 +61,8 @@ lib/types/database.generated.ts
 
 # Sentry Config File
 .env.sentry-build-plugin
+
+.next-local
+
+# Local dev server log
+dev.log

@@ -13,10 +13,10 @@
  */
 
 import { useState, type JSX } from "react";
-import { ArrowLeft, ClipboardList, ChevronDown, GraduationCap, Trophy } from "lucide-react";
+import { ArrowLeft, ChevronDown, GraduationCap, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AcademyChat } from "@/components/academy/AcademyChat";
-import { AcademyReport } from "@/components/academy/AcademyReport";
+import { ConversationActions } from "@/components/academy/ConversationActions";
 import { ProgressBar } from "@/components/academy/ProgressRing";
 import { ACADEMY_TURN_CAP } from "@/lib/academy/models";
 import { TIER_CLASS, TIER_LABEL, type AcademyTier } from "@/lib/academy/curriculum";
@@ -28,7 +28,6 @@ const nf = new Intl.NumberFormat("en-IN");
 /** Mentor framing + request detail, shown above the conversation. */
 function Briefing({ thread }: { thread: AcademyClientThread }): JSX.Element {
   const [open, setOpen] = useState(false);
-  const tier = thread.difficulty as AcademyTier;
 
   return (
     <div className="shrink-0 border-b border-chat-divider bg-chat-panel">
@@ -90,45 +89,6 @@ function Briefing({ thread }: { thread: AcademyClientThread }): JSX.Element {
   );
 }
 
-/** The scored review, folded away beneath a finished conversation. */
-function ReviewPanel({ thread }: { thread: AcademyClientThread }): JSX.Element | null {
-  const [open, setOpen] = useState(false);
-  if (!thread.review) return null;
-
-  return (
-    <div className="shrink-0 border-t border-chat-divider bg-chat-panel">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="flex w-full items-center gap-2.5 px-4 py-3 text-left transition-colors hover:bg-chat-panel-hover"
-      >
-        <ClipboardList className="size-4 shrink-0 text-chat-accent-dark" aria-hidden />
-        <span className="flex-1 text-[13px] font-medium text-chat-ink">
-          {open ? "Hide your review" : "See your review"}
-        </span>
-        <ChevronDown
-          className={cn(
-            "size-4 shrink-0 text-chat-ink-muted transition-transform duration-200",
-            open && "rotate-180",
-          )}
-          aria-hidden
-        />
-      </button>
-
-      {open ? (
-        <div className="max-h-[55vh] overflow-y-auto border-t border-chat-divider bg-surface px-4 py-5">
-          <AcademyReport
-            review={thread.review}
-            display={displayFor(thread)}
-            transcript={thread.turns}
-          />
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 function displayFor(thread: AcademyClientThread): AcademyScenarioCard {
   return {
     id: thread.seedId,
@@ -175,7 +135,9 @@ export function ClientConversation({
   return (
     <section className={cn("flex h-full min-h-0 flex-col bg-chat-canvas", className)}>
       {/* Client header */}
-      <header className="z-10 flex shrink-0 items-center gap-3 bg-chat-header px-3 py-2.5 text-chat-header-ink sm:px-4">
+      {/* gap-2 on phones: with three action icons added, gap-3 everywhere left
+          the client name crushed to a couple of characters at 360px. */}
+      <header className="z-10 flex shrink-0 items-center gap-2 bg-chat-header px-3 py-2.5 text-chat-header-ink sm:gap-3 sm:px-4">
         {onBack ? (
           <button
             type="button"
@@ -187,14 +149,23 @@ export function ClientConversation({
           </button>
         ) : null}
 
-        <div className="grid size-9 shrink-0 place-items-center rounded-full bg-chat-header-ink/15 text-[12px] font-semibold">
-          {thread.name
-            .split(/\s+/)
-            .map((p) => p[0])
-            .slice(0, 2)
-            .join("")
-            .toUpperCase()}
-        </div>
+        {thread.member?.avatarUrl ? (
+          <img
+            src={thread.member.avatarUrl}
+            alt=""
+            className="size-9 shrink-0 rounded-full object-cover"
+          />
+        ) : (
+          <div className="grid size-9 shrink-0 place-items-center rounded-full bg-chat-header-ink/15 text-[12px] font-semibold">
+            {thread.member?.initials ??
+              thread.name
+                .split(/\s+/)
+                .map((p) => p[0])
+                .slice(0, 2)
+                .join("")
+                .toUpperCase()}
+          </div>
+        )}
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
@@ -211,26 +182,34 @@ export function ClientConversation({
           <p className="truncate text-[11.5px] text-chat-header-ink/75">
             {thread.status === "completed"
               ? "Completed"
-              : thread.status === "in_progress"
-                ? "In progress"
-                : thread.vertical}
+              : thread.status === "awaiting_ticket"
+                ? "Awaiting ticket"
+                : thread.status === "in_progress"
+                  ? "In progress"
+                  : thread.vertical}
             {" · "}
             {thread.requestTitle}
           </p>
         </div>
 
-        {/* Turn budget lives here now that the chat's own header is gone. */}
+        {/* Turn budget lives here now that the chat's own header is gone.
+            Hidden on phones — the action icons are the higher-value use of
+            that space, and the cap is also surfaced inside the composer. */}
         {thread.status !== "completed" ? (
-          <span className="shrink-0 text-right text-[11px] tabular-nums text-chat-header-ink/75">
+          <span className="hidden shrink-0 text-right text-[11px] tabular-nums text-chat-header-ink/75 sm:inline">
             {internTurns}/{ACADEMY_TURN_CAP}
-            <span className="ml-1 hidden sm:inline">turns</span>
+            <span className="ml-1">turns</span>
           </span>
         ) : null}
+
+        {/* Ticket, Freshdesk write-up and review — all Sheet-backed, so none of
+            them can disturb the transcript below. */}
+        <ConversationActions thread={thread} onCompleted={onClosed} />
       </header>
 
       <Briefing thread={thread} />
 
-      {/* The conversation — the only scrolling region on the screen. */}
+      {/* The conversation — now the only flexible region on the screen. */}
       <div className="flex min-h-0 flex-1 flex-col">
         <AcademyChat
           sessionId={thread.sessionId}
@@ -238,15 +217,17 @@ export function ClientConversation({
           display={displayFor(thread)}
           initialTurns={previewTurns}
           turnCap={ACADEMY_TURN_CAP}
-          readOnly={thread.status === "completed" || thread.readOnly}
+          readOnly={
+            thread.status === "completed" ||
+            thread.status === "awaiting_ticket" ||
+            thread.readOnly
+          }
           onSessionStarted={onSessionStarted}
           onClosed={onClosed}
           chrome={false}
           constraintHint={thread.constraintCount}
         />
       </div>
-
-      <ReviewPanel thread={thread} />
     </section>
   );
 }
