@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Academy mortarboard on the dark Atlas shell. Foreground is a vector
+     (drawable/), so no per-density PNGs are needed. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background"/>
+    <foreground android:drawable="@drawable/ic_academy_foreground"/>
+</adaptive-icon>

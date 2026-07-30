@@ -9,7 +9,11 @@
     "start": "next start",
     "lint": "eslint .",
     "test": "vitest run",
-    "types:generate": "supabase gen types typescript --project-id YOUR_PROJECT_ID > lib/types/database.generated.ts"
+    "types:generate": "supabase gen types typescript --project-id YOUR_PROJECT_ID > lib/types/database.generated.ts",
+    "cap:sync": "cap sync android",
+    "apk:debug": "cap sync android && cd mobile/android && gradlew.bat assembleDebug",
+    "apk:release": "cap sync android && cd mobile/android && gradlew.bat assembleRelease",
+    "apk:open": "cap open android"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -57,6 +61,10 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@capacitor/android": "^6.2.1",
+    "@capacitor/app": "^6.0.3",
+    "@capacitor/cli": "^6.2.1",
+    "@capacitor/core": "^6.2.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

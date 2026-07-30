@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { getAuthUser } from "@/lib/auth/getAuthUser";
+import { isNativeShell } from "@/lib/academy/shell";
 import { isAcademyTrainer, isPrivilegedRole } from "@/lib/types/database";
 import { AcademyNav } from "@/components/academy/AcademyNav";
 import type { UserRole } from "@/lib/types/database";
@@ -35,10 +37,18 @@ export default async function AcademyAppLayout({
 
   if (!profile) redirect("/academy/login");
 
-  // Interns (department === "academy", unprivileged) are bounced out of the
-  // Atlas dashboard, so offering them a back-link would just loop them.
+  /*
+   * The back-link is hidden for two independent reasons:
+   *  - interns (unprivileged, department "academy") are bounced out of the
+   *    dashboard anyway, so offering it would just loop them; and
+   *  - inside the Android shell there is no Atlas to return to. The APK is
+   *    Academy only, so rendering a link out would strand the user on a screen
+   *    the native URL guard then refuses to load.
+   */
+  const inNativeShell = isNativeShell((await headers()).get("user-agent"));
   const canReturnToAtlas =
-    isPrivilegedRole(role as UserRole) || department !== "academy";
+    !inNativeShell &&
+    (isPrivilegedRole(role as UserRole) || department !== "academy");
 
   return (
     /*
