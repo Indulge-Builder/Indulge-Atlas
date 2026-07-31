@@ -69,6 +69,7 @@ async function loadRosterClients(): Promise<RosterClient[]> {
 }
 import {
   ACADEMY_TOTAL_GROUPS,
+  CURRICULUM_TASK_NUMBERS,
   canAccessTask,
   dayForTask,
   groupTitle,
@@ -1164,7 +1165,11 @@ export async function getAcademyClients(): Promise<Result<AcademyClientList>> {
     db
       .from("scenario_seeds")
       .select("id, title, vertical, difficulty, task_number")
-      .not("task_number", "is", null)
+      // The taught curriculum is the 40, not the 176 the register holds. Scoping
+      // here rather than in the UI is what keeps the client list, the progress
+      // bar and the Training day view counting the same denominator — the other
+      // 136 stay in the database and remain reachable through free practice.
+      .in("task_number", CURRICULUM_TASK_NUMBERS)
       .eq("is_active", true)
       .order("task_number", { ascending: true }),
     loadSeedStatus(user.id),
@@ -1244,7 +1249,9 @@ export async function getAcademyClientThread(
     db
       .from("scenario_seeds")
       .select("id")
-      .not("task_number", "is", null)
+      // Same 40 as the client list — this feeds the overview shown above the
+      // conversation, and the two must not disagree.
+      .in("task_number", CURRICULUM_TASK_NUMBERS)
       .eq("is_active", true),
     loadSeedStatus(user.id),
   ]);
