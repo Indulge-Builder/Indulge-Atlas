@@ -31,6 +31,16 @@ export const ACADEMY_TICKET_REVIEW_MODEL = "claude-opus-4-8";
 export const ACADEMY_TICKET_REVIEW_VERSION =
   "academy-ticket-1@claude-opus-4-8";
 
+/**
+ * Style estimator for the AI-assistance signal. Haiku, not Opus: this runs once
+ * per submitted reply rather than once per session, and the judgment is a
+ * shallow read of register — not the deep rubric work the evaluator does.
+ */
+export const ACADEMY_AI_ASSIST_MODEL = "claude-haiku-4-5-20251001";
+
+/** Bump when the estimator model OR its prompt changes. Stored on every row. */
+export const ACADEMY_AI_ASSIST_VERSION = "academy-aiassist-1@claude-haiku-4-5";
+
 export const ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
 export const ANTHROPIC_VERSION = "2023-06-01";
 

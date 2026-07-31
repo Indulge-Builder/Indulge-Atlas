@@ -57,6 +57,7 @@ export default async function AcademySessionPage({ params }: PageProps) {
             initialTurns={turns}
             turnCap={ACADEMY_TURN_CAP}
             readOnly={readOnly}
+            observingName={readOnly ? internName : null}
           />
         </div>
       </div>
@@ -87,6 +88,7 @@ export default async function AcademySessionPage({ params }: PageProps) {
             initialTurns={turns}
             turnCap={ACADEMY_TURN_CAP}
             readOnly
+            observingName={readOnly ? internName : null}
           />
         </div>
 

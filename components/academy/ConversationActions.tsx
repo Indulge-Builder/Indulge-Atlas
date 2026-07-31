@@ -103,7 +103,13 @@ export function ConversationActions({
   onCompleted,
 }: {
   thread: AcademyClientThread;
-  onCompleted?: () => void;
+  /**
+   * Fires after the reviewer has ruled. `passed` distinguishes an accepted
+   * ticket — which completes the request — from one sent back for revision,
+   * which leaves it outstanding. The caller needs the difference: patching the
+   * row without it would show an accepted ticket as still owing one.
+   */
+  onCompleted?: (passed: boolean) => void;
 }): JSX.Element {
   const [panel, setPanel] = useState<PanelKey | null>(null);
 
@@ -206,7 +212,7 @@ export function ConversationActions({
                     // Refetch either way — a rejection is persisted too, and the
                     // verdict must survive closing and reopening the sheet.
                     if (passed) close();
-                    onCompleted?.();
+                    onCompleted?.(passed);
                   }}
                 />
               ) : null}

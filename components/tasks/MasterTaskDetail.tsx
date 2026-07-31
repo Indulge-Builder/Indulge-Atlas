@@ -21,6 +21,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { IndulgeButton } from "@/components/ui/indulge-button";
 import { surfaceCardVariants } from "@/components/ui/card";
+import { DynamicIcon } from "@/components/ui/dynamic-icon";
 import { TaskListView } from "./TaskListView";
 import { TaskAnalyticsPanel } from "./TaskAnalyticsPanel";
 import { CreateMasterTaskModal } from "./CreateMasterTaskModal";
@@ -122,7 +123,7 @@ export function MasterTaskDetail({
   }
 
   const accentColor = masterTask.cover_color ?? "#D4AF37";
-  const HeroIcon = getHeroIcon(masterTask.icon_key);
+  const heroIcon = getHeroIcon(masterTask.icon_key);
 
   const descriptionText =
     masterTask.description ??
@@ -162,8 +163,8 @@ export function MasterTaskDetail({
               className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-[#E5E4DF] bg-white shadow-[0_1px_4px_0_rgb(0_0_0/0.04)]"
               style={{ boxShadow: `0 0 0 1px ${accentColor}22` }}
             >
-              {HeroIcon ? (
-                <HeroIcon className="h-7 w-7" style={{ color: accentColor }} />
+              {heroIcon ? (
+                <DynamicIcon icon={heroIcon} className="h-7 w-7" style={{ color: accentColor }} />
               ) : (
                 <LayoutGrid
                   className="h-7 w-7"

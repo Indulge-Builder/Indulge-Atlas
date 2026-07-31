@@ -34,6 +34,7 @@ import { toast } from "sonner";
 import { AcademyBubble, TypingIndicator } from "@/components/academy/AcademyBubble";
 import {
   AcademyComposer,
+  type ComposerComposition,
   type PendingAttachment,
 } from "@/components/academy/AcademyComposer";
 import {
@@ -41,7 +42,7 @@ import {
   startAcademySession,
   uploadAcademyAttachment,
 } from "@/lib/actions/academy";
-import { nextMentorCue, typingDelayFor, type MentorCueId } from "@/lib/academy/mentor";
+import { typingDelayFor } from "@/lib/academy/mentor";
 import { cn } from "@/lib/utils";
 import { formatIST } from "@/lib/utils/time";
 import type {
@@ -121,26 +122,6 @@ function Notice({
   );
 }
 
-/**
- * A mentor cue inside the thread — centred and visually distinct from both
- * sides of the conversation, so it never reads as something the client said.
- */
-function MentorLine({ text }: { text: string }): JSX.Element {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-      className="my-1.5 flex justify-center"
-    >
-      <div className="flex max-w-[85%] items-start gap-1.5 rounded-lg bg-surface/85 px-3 py-1.5 text-[11.5px] leading-snug text-chat-ink-muted ring-1 ring-surface-border">
-        <Sparkles className="mt-px size-3 shrink-0 text-brand-gold" aria-hidden />
-        <span>{text}</span>
-      </div>
-    </motion.div>
-  );
-}
-
 // ── Chat ──────────────────────────────────────────────────────────────────────
 
 export function AcademyChat({
@@ -150,10 +131,10 @@ export function AcademyChat({
   initialTurns,
   turnCap,
   readOnly = false,
+  observingName = null,
   onSessionStarted,
   onClosed,
   chrome = true,
-  constraintHint = 0,
 }: {
   /**
    * Null when the intern has opened a client but not replied yet. The session is
@@ -167,6 +148,11 @@ export function AcademyChat({
   turnCap: number;
   /** Trainer viewing someone else's transcript — no composer, no writes. */
   readOnly?: boolean;
+  /**
+   * Whose session this is, when a trainer is observing someone else's. Absent
+   * when the transcript is read-only merely because it is finished.
+   */
+  observingName?: string | null;
   onSessionStarted?: (sessionId: string) => void;
   onClosed?: () => void;
   /**
@@ -174,8 +160,6 @@ export function AcademyChat({
    * frame — avoids stacking a second header above the conversation.
    */
   chrome?: boolean;
-  /** How many hidden constraints this request has — shapes the opening cue. */
-  constraintHint?: number;
 }): JSX.Element {
   const router = useRouter();
 
@@ -205,9 +189,6 @@ export function AcademyChat({
     initialTurns.length > 1 ? initialTurns.length : 0,
   );
   const [clientTyping, setClientTyping] = useState(false);
-  /** Mentor cues already fired, and which turn each was anchored to. */
-  const shownCuesRef = useRef<Set<MentorCueId>>(new Set());
-  const [mentorAfter, setMentorAfter] = useState<Map<string, string>>(new Map());
 
   const inFlightRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -284,32 +265,6 @@ export function AcademyChat({
     return -1;
   }, [turns]);
 
-  // Fire at most one mentor cue per delivered message, anchored to the turn it
-  // follows so it stays in place as the thread grows. Cues are UI-only and are
-  // never written to the transcript the evaluator grades.
-  useEffect(() => {
-    if (readOnly || visibleTurns.length === 0) return;
-    const anchor = visibleTurns[visibleTurns.length - 1];
-    if (!anchor || mentorAfter.has(anchor.id)) return;
-
-    const lastIntern = [...visibleTurns].reverse().find((t) => t.role === "intern");
-    const cue = nextMentorCue({
-      internTurns: visibleTurns.filter((t) => t.role === "intern").length,
-      turnCap,
-      lastInternMessage: lastIntern?.body ?? null,
-      constraintCount: constraintHint,
-      shown: shownCuesRef.current,
-    });
-    if (!cue) return;
-
-    shownCuesRef.current.add(cue.id);
-    // A short beat after the message lands, so the cue reads as a reaction.
-    const timer = setTimeout(() => {
-      setMentorAfter((prev) => new Map(prev).set(anchor.id, cue.text));
-    }, 450);
-    return () => clearTimeout(timer);
-  }, [visibleTurns, turnCap, readOnly, mentorAfter, constraintHint]);
-
   const threadDate = safeDate(turns[0]?.created_at);
 
   const handleThreadScroll = useCallback(() => {
@@ -332,7 +287,11 @@ export function AcademyChat({
   }, [turns.length, streaming, sending]);
 
   const handleSend = useCallback(
-    async (text: string, attachment: PendingAttachment | null) => {
+    async (
+      text: string,
+      attachment: PendingAttachment | null,
+      composition?: ComposerComposition,
+    ) => {
       if (inFlightRef.current || readOnly || sessionClosed || capReached) return;
       inFlightRef.current = true;
       // Sending is an explicit intent to follow the conversation again.
@@ -441,6 +400,9 @@ export function AcademyChat({
                   size: uploaded.size,
                 }]
               : [],
+            // What the editor observed while this reply was written. Optional —
+            // the server treats its absence as "not reported", not as zero.
+            composition: composition ?? null,
           }),
           signal: controller.signal,
         });
@@ -681,9 +643,6 @@ export function AcademyChat({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
             >
-              {mentorAfter.get(turn.id) ? (
-                <MentorLine text={mentorAfter.get(turn.id) as string} />
-              ) : null}
             <AcademyBubble
               side={turn.role}
               body={turn.body}
@@ -768,8 +727,21 @@ export function AcademyChat({
           tone="muted"
           icon={<Lock className="size-3.5" aria-hidden="true" />}
         >
-          Read-only transcript — you are reviewing another trainee&apos;s
-          session.
+          {/* `readOnly` is set for two different reasons — someone else's
+              session, or your own finished one. Saying "another trainee's
+              session" to an intern re-reading their own work is simply wrong,
+              so the reason has to be carried, not assumed. */}
+          {observingName ? (
+            <>
+              Read-only transcript — you are reviewing {observingName}&apos;s
+              session. Messages cannot be edited or sent.
+            </>
+          ) : (
+            <>
+              Read-only transcript — this conversation is closed. Messages
+              cannot be edited or sent.
+            </>
+          )}
         </Notice>
       ) : sessionClosed ? (
         <Notice

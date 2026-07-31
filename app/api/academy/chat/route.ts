@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getServiceSupabaseClient } from "@/lib/supabase/service";
 import { sanitizeText } from "@/lib/utils/sanitize";
 import { buildPersonaSystemPrompt } from "@/lib/academy/persona";
+import { runAiAssistanceEstimate } from "@/lib/services/academyAiAssistance";
 import {
   ACADEMY_PERSONA_MODEL,
   ACADEMY_TURN_CAP,
@@ -46,11 +47,26 @@ const attachmentSchema = z.object({
   size: z.number().int().nonnegative(),
 });
 
+/**
+ * Editor telemetry, when the composer reports it. Every field is something the
+ * browser observed while the reply was written — never an inference about where
+ * the text came from. Optional: an older client simply omits it.
+ */
+const compositionSchema = z.object({
+  pasteCount: z.number().int().nonnegative().max(1000),
+  pastedChars: z.number().int().nonnegative().max(100_000),
+  largestPasteChars: z.number().int().nonnegative().max(100_000),
+  typedChars: z.number().int().nonnegative().max(100_000),
+  timeToFirstInputMs: z.number().int().nonnegative().max(86_400_000).nullable(),
+  compositionMs: z.number().int().nonnegative().max(86_400_000).nullable(),
+});
+
 const bodySchema = z.object({
   sessionId: z.string().uuid(),
   // A share can carry only media, so the text may be empty when attachments exist.
   message: z.string().max(4000).default(""),
   attachments: z.array(attachmentSchema).max(4).default([]),
+  composition: compositionSchema.nullish(),
 });
 
 /** Anthropic vision accepts these; anything else is described, not shown. */
@@ -91,7 +107,7 @@ export async function POST(req: Request): Promise<Response> {
   if (!parsed.success) {
     return Response.json({ error: "Bad request" }, { status: 400 });
   }
-  const { sessionId, message, attachments } = parsed.data;
+  const { sessionId, message, attachments, composition } = parsed.data;
   const internBody = sanitizeText(message).trim();
   // A turn must carry something — text, media, or both.
   if (!internBody && attachments.length === 0) {
@@ -159,9 +175,21 @@ export async function POST(req: Request): Promise<Response> {
   // migration has not been applied yet, so only send the column when there is
   // something to store, and fall back to a plain insert if the column is absent
   // (PostgREST reports an unknown column as PGRST204 / 42703).
-  let insErr = safeAttachments.length
-    ? (await db.from("training_turns").insert({ ...baseTurn, attachments: safeAttachments })).error
-    : (await db.from("training_turns").insert(baseTurn)).error;
+  // The inserted id is needed to attach the AI-assistance estimate to this exact
+  // reply — the estimate lives in a sibling table because `training_turns` is
+  // append-only and must never be updated after the fact.
+  const insertTurn = (payload: Record<string, unknown>) =>
+    db.from("training_turns").insert(payload).select("id").single();
+
+  let internTurnId: string | null = null;
+  let insErr: Awaited<ReturnType<typeof insertTurn>>["error"] = null;
+  {
+    const res = safeAttachments.length
+      ? await insertTurn({ ...baseTurn, attachments: safeAttachments })
+      : await insertTurn(baseTurn);
+    internTurnId = res.data?.id ?? null;
+    insErr = res.error;
+  }
 
   const missingAttachmentsColumn =
     !!insErr &&
@@ -174,7 +202,9 @@ export async function POST(req: Request): Promise<Response> {
       "[academy/chat] `training_turns.attachments` is missing — apply migration 127 " +
         "(supabase/manual/academy_part5_attachments.sql). Saving the turn without media.",
     );
-    insErr = (await db.from("training_turns").insert(baseTurn)).error;
+    const retry = await insertTurn(baseTurn);
+    internTurnId = retry.data?.id ?? null;
+    insErr = retry.error;
   }
 
   if (insErr) {
@@ -189,6 +219,25 @@ export async function POST(req: Request): Promise<Response> {
       { error: "Could not save your message", detail: insErr.message },
       { status: 500 },
     );
+  }
+
+  // Estimate AI assistance out of band. It costs a model round-trip, so running
+  // it inline would delay the persona's reply for a signal nobody is waiting on.
+  // Media-only turns carry a synthetic body ("[shared a photo]") and are not
+  // writing, so there is nothing to judge.
+  if (internTurnId && internBody) {
+    const turnId = internTurnId;
+    after(async () => {
+      await runAiAssistanceEstimate({
+        turnId,
+        sessionId,
+        internId: session.intern_id as string,
+        text: internBody,
+        composition: composition
+          ? { ...composition, finalChars: internBody.length }
+          : null,
+      });
+    });
   }
 
   const isLastTurn = internCount + 1 >= ACADEMY_TURN_CAP;

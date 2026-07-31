@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 import { cn } from "@/lib/utils";
 import { surfaceCardVariants } from "@/components/ui/card";
+import { DynamicIcon } from "@/components/ui/dynamic-icon";
 import { MemberAvatarStack } from "./MemberAvatarStack";
 import type { MasterTask } from "@/lib/types/database";
 import * as LucideIcons from "lucide-react";
@@ -24,7 +25,7 @@ function getIcon(iconKey: string | null | undefined) {
 
 export function MasterTaskCard({ task }: MasterTaskCardProps) {
   const accentColor = task.cover_color ?? "#D4AF37";
-  const Icon = getIcon(task.icon_key);
+  const icon = getIcon(task.icon_key);
   const total     = task.subtask_count ?? 0;
   const done      = task.completed_subtask_count ?? 0;
   const pct       = total > 0 ? Math.round((done / total) * 100) : 0;
@@ -73,13 +74,13 @@ export function MasterTaskCard({ task }: MasterTaskCardProps) {
         <div className="p-4">
           {/* Top row */}
           <div className="flex items-start gap-2.5 mb-2.5">
-            {Icon && (
+            {icon && (
               <div
                 className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg"
                 style={{ backgroundColor: `${accentColor}18` }}
                 aria-hidden
               >
-                <Icon className="h-4 w-4" style={{ color: accentColor }} />
+                <DynamicIcon icon={icon} className="h-4 w-4" style={{ color: accentColor }} />
               </div>
             )}
 

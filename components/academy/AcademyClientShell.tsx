@@ -19,7 +19,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ClientList } from "@/components/academy/ClientList";
 import { ClientConversation } from "@/components/academy/ClientConversation";
-import { getAcademyClientThread } from "@/lib/actions/academy";
+import { getAcademyClients, getAcademyClientThread } from "@/lib/actions/academy";
 import { useInboxSimulation } from "@/lib/academy/useInboxSimulation";
 import { sortInbox } from "@/lib/academy/inbox";
 import type {
@@ -57,6 +57,19 @@ export function AcademyClientShell({ initial }: { initial: AcademyClientList }):
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  /**
+   * Re-read the whole list from the server.
+   *
+   * `load` refreshes only the open thread, so the roster and the "N of 176
+   * handled" overview stay on whatever they were rendered with. After a ticket
+   * is accepted those are precisely the numbers that changed, so an optimistic
+   * row patch alone leaves the counter stale until a manual reload.
+   */
+  const refreshList = useCallback(async () => {
+    const res = await getAcademyClients();
+    if (res.success && res.data) setList(res.data);
   }, []);
 
   useEffect(() => {
@@ -139,6 +152,18 @@ export function AcademyClientShell({ initial }: { initial: AcademyClientList }):
               // this optimistic patch with the server's real status.
               patchClient(thread.seedId, { status: "awaiting_ticket" });
               void load(thread.seedId);
+            }}
+            onTicketReviewed={(passed) => {
+              // An accepted ticket is the finish line — this is the only moment
+              // a request becomes completed. A rejection ("sent back for
+              // revision") leaves it outstanding, exactly as before.
+              patchClient(thread.seedId, {
+                status: passed ? "completed" : "awaiting_ticket",
+              });
+              void load(thread.seedId);
+              // The overview counter and every other row are server-derived,
+              // so re-read rather than trying to recompute them here.
+              void refreshList();
             }}
             className="w-full"
           />
