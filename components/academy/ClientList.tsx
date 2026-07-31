@@ -43,12 +43,15 @@ function ClientRow({
   unread,
   flash,
   onSelect,
+  showTaskNumber = false,
 }: {
   client: AcademyClientRow;
   isActive: boolean;
   unread: number;
   flash: boolean;
   onSelect: (seedId: string) => void;
+  /** Training mode names the drill as well as the member. */
+  showTaskNumber?: boolean;
 }): JSX.Element {
   const done = client.status === "completed";
   const live = client.status === "in_progress";
@@ -101,7 +104,16 @@ function ClientRow({
 
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2">
-          <span className="truncate text-[14px] font-medium text-chat-ink">{client.name}</span>
+          <span className="flex min-w-0 items-baseline gap-1.5">
+            {showTaskNumber ? (
+              <span className="shrink-0 text-[11px] font-semibold tabular-nums text-chat-ink-muted">
+                {String(client.taskNumber).padStart(2, "0")}
+              </span>
+            ) : null}
+            <span className="truncate text-[14px] font-medium text-chat-ink">
+              {client.name}
+            </span>
+          </span>
           <span
             className={cn(
               "shrink-0 text-[11px]",
@@ -241,7 +253,7 @@ export function ClientList({
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <h1 className="font-serif text-[17px] leading-tight text-chat-ink">
-                {headline?.title ?? "Academy"}
+                {headline?.title ?? "Indulge Training"}
               </h1>
               {totalUnread && totalUnread > 0 ? (
                 <motion.span
@@ -344,6 +356,10 @@ export function ClientList({
                       unread={inboxState?.get(c.seedId)?.unread ?? 0}
                       flash={flashSeedId === c.seedId}
                       onSelect={onSelect}
+                      /* Only in the day view — a drill is identified by its
+                         register number as well as by the member. The flat
+                         Clients list is unchanged. */
+                      showTaskNumber
                     />
                   ))
                 )}
