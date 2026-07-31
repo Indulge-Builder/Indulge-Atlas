@@ -52,6 +52,41 @@
     0 4px 16px 0 rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.06);
   --shadow-gold:
     0 0 0 1px rgb(95 83 72 / 0.22), 0 4px 16px rgb(95 83 72 / 0.08);
+
+  /* ── Academy chat surface (intern training simulator) ───────────────────────
+     Interns train on WhatsApp all day, so the drill deliberately mirrors that
+     visual language — muscle memory should transfer. These are the ONLY place
+     these hex values live: every Academy component references the tokens, so
+     `grep -rE '#[0-9a-fA-F]{3,6}' components/academy` stays clean and the whole
+     surface can be re-skinned from here alone.
+       canvas      → thread wallpaper (WhatsApp warm sand)
+       bubble-in   → the simulated client (left, white)
+       bubble-out  → the intern (right, WhatsApp outgoing green)
+       header      → chat header / composer chrome (deep teal)
+       accent      → send button + active affordances
+       ink         → bubble body copy; ink-muted → timestamps & meta
+       tick        → delivered receipt; tick-read → blue double-tick
+     ────────────────────────────────────────────────────────────────────────── */
+  --color-chat-canvas: #ece5dd;
+  --color-chat-bubble-in: #ffffff;
+  --color-chat-bubble-in-border: #ece5dd;
+  --color-chat-bubble-out: #d9fdd3;
+  --color-chat-bubble-out-border: #c5f2bd;
+  --color-chat-header: #075e54;
+  --color-chat-header-ink: #ffffff;
+  --color-chat-accent: #25d366;
+  --color-chat-accent-dark: #128c7e;
+  --color-chat-ink: #111b21;
+  --color-chat-ink-muted: #667781;
+  --color-chat-tick: #8696a0;
+  --color-chat-tick-read: #53bdeb;
+
+  /* Academy ladder — the left-hand group list (conversation-list surface) */
+  --color-chat-panel: #ffffff;
+  --color-chat-panel-hover: #f5f6f6;
+  --color-chat-panel-active: #f0f2f5;
+  --color-chat-divider: #e9edef;
+  --color-chat-locked: #aebac1;
 }
 
 :root {
