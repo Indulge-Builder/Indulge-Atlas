@@ -254,9 +254,15 @@ export interface DayProgress {
  * tasks are done, not because ten of anything are. Completing forty unrelated
  * tasks unlocks nothing.
  *
- * Day 1 is always open. A day already carrying progress is never re-locked —
- * otherwise editing DAY_TASK_NUMBERS beneath a trainee could strand them
- * mid-programme with work they cannot reach.
+ * Day 1 is always open. Every later day is shut until its predecessor is
+ * finished — unconditionally.
+ *
+ * There is deliberately NO exemption for a day that already holds progress.
+ * An earlier version unlocked such a day, on the reasoning that reshaping the
+ * curriculum beneath a trainee shouldn't strand them. In practice that clause
+ * fired on stray completions: a request handled from the Clients tab (which
+ * lists all 176 and is not day-aware) put one tick in Day 3 and opened the
+ * whole day. Progress made outside the ladder must not be a way through it.
  *
  * Derived purely from completion records, so it is inherently per-trainee and
  * survives logout: there is no unlock flag to persist or fall out of sync.
@@ -278,7 +284,7 @@ export function resolveDays(completedTaskNumbers: Iterable<number>): DayProgress
       completedCount,
       percent: percentComplete(completedCount, taskNumbers.length),
       isComplete,
-      isLocked: !previousComplete && completedCount === 0,
+      isLocked: !previousComplete,
       unlockedBy: previousComplete ? null : dayNumber - 1,
     });
 

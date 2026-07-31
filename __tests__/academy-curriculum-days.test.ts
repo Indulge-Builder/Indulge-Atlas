@@ -90,13 +90,23 @@ describe("sequential unlocking", () => {
     expect(days[1].isLocked).toBe(false);
   });
 
-  it("never re-locks a day that already carries progress", () => {
-    // Day 2 started, Day 1 then incomplete (e.g. the map was edited beneath
-    // them). Trapping the trainee would be worse than letting them finish.
+  it("stays locked even when the day already holds a stray completion", () => {
+    // The real case this guards: a request handled from the Clients tab (which
+    // lists all 176 and is not day-aware) leaves one tick inside a later day.
+    // That must not open it — progress made outside the ladder is not a way
+    // through it.
     const days = resolveDays([DAY2[0]]);
     expect(days[0].isLocked).toBe(false);
     expect(days[1].completedCount).toBe(1);
-    expect(days[1].isLocked).toBe(false);
+    expect(days[1].isLocked).toBe(true);
+  });
+
+  it("locks Day 3 while Day 1 is unfinished, whatever Day 3 already holds", () => {
+    const days = resolveDays([DAY3[0], DAY3[1], DAY3[2]]);
+    expect(days[2].completedCount).toBe(3);
+    expect(days[1].isLocked).toBe(true);
+    expect(days[2].isLocked).toBe(true);
+    expect(days[3].isLocked).toBe(true);
   });
 });
 
