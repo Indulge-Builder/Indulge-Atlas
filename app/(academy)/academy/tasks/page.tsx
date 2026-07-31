@@ -1,17 +1,20 @@
 import { type JSX } from "react";
 import { getAcademyClients } from "@/lib/actions/academy";
-import { buildTrainingDays } from "@/lib/academy/trainingDays";
-import { TrainingDays } from "@/components/academy/TrainingDays";
+import { AcademyClientShell } from "@/components/academy/AcademyClientShell";
 
 /**
  * /academy/tasks — the four-day training programme.
  *
- * Reads the same rows the client list reads and derives the days from them, so
- * this page cannot report a different number of completed requests than the
- * Clients tab. There is no separate query and no second definition of "done".
+ * Renders the SAME shell as /academy, in training mode: identical two-panel
+ * frame, identical sidebar, identical conversation panel and Freshdesk flow.
+ * The only differences are that the roster is narrowed to the 40 taught tasks,
+ * the sidebar groups them by day, and locked days are not selectable.
  *
- * force-dynamic because progress is per-trainee and changes the moment a ticket
- * is accepted — a cached curriculum would show a stale lock.
+ * Reusing the shell rather than rebuilding it is the point — a second copy of
+ * this UI would drift from the Clients page the first time either changed.
+ *
+ * force-dynamic because progress is per-trainee and moves the moment a ticket
+ * is accepted; a cached page would show a stale lock.
  */
 export const dynamic = "force-dynamic";
 
@@ -31,16 +34,16 @@ export default async function AcademyTasksPage(): Promise<JSX.Element> {
     );
   }
 
-  const view = buildTrainingDays(
-    res.data.clients.map((c) => ({
-      seedId: c.seedId,
-      taskNumber: c.taskNumber,
-      name: c.name,
-      requestTitle: c.requestTitle,
-      status: c.status,
-      sessionId: c.sessionId,
-    })),
+  return (
+    /*
+     * Identical height wrapper to /academy. The Academy layout is `h-screen`
+     * with a bounded <main>, so the shell takes `h-full` and scrolls its two
+     * panels internally rather than growing the page.
+     */
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <div className="min-h-0 flex-1 px-4 py-4 md:px-6 lg:px-8">
+        <AcademyClientShell initial={res.data} training />
+      </div>
+    </div>
   );
-
-  return <TrainingDays view={view} />;
 }
