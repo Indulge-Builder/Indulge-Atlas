@@ -55,6 +55,45 @@ function stateFor(status: AcademyRequestStatus, dayLocked: boolean): TaskStatus 
   return "not_started";
 }
 
+/**
+ * A day as the client-list sidebar needs it: a heading plus the seed ids that
+ * belong under it, in day order.
+ *
+ * Seed ids rather than whole rows so the sidebar keeps rendering the same
+ * `ClientRow` it always has, from the same `clients` array — the training view
+ * only decides grouping and lock state, never how a row looks.
+ */
+export interface DaySection {
+  dayNumber: number;
+  isLocked: boolean;
+  isComplete: boolean;
+  unlockedBy: number | null;
+  completedCount: number;
+  taskCount: number;
+  seedIds: string[];
+}
+
+export function daySections(view: TrainingDaysView): DaySection[] {
+  return view.days.map((day) => ({
+    dayNumber: day.dayNumber,
+    isLocked: day.isLocked,
+    isComplete: day.isComplete,
+    unlockedBy: day.unlockedBy,
+    completedCount: day.completedCount,
+    taskCount: day.taskCount,
+    // A task with no seeded row has no id to select; it is counted in
+    // taskCount but cannot be opened.
+    seedIds: day.tasks.map((t) => t.seedId).filter((id) => id !== ""),
+  }));
+}
+
+/** Seed ids a trainee may currently open — everything in an unlocked day. */
+export function unlockedSeedIds(view: TrainingDaysView): Set<string> {
+  return new Set(
+    view.days.filter((d) => !d.isLocked).flatMap((d) => d.tasks.map((t) => t.seedId)),
+  );
+}
+
 export function buildTrainingDays(rows: TrainingTaskInput[]): TrainingDaysView {
   const byTaskNumber = new Map<number, TrainingTaskInput>();
   for (const row of rows) byTaskNumber.set(row.taskNumber, row);

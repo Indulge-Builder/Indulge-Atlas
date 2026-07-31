@@ -13,7 +13,7 @@
  * time. No session row is written until they actually reply.
  */
 
-import { useCallback, useEffect, useState, type JSX } from "react";
+import { useCallback, useEffect, useMemo, useState, type JSX } from "react";
 import { Loader2, MessageSquare } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -22,21 +22,79 @@ import { ClientConversation } from "@/components/academy/ClientConversation";
 import { getAcademyClients, getAcademyClientThread } from "@/lib/actions/academy";
 import { useInboxSimulation } from "@/lib/academy/useInboxSimulation";
 import { sortInbox } from "@/lib/academy/inbox";
+import {
+  buildTrainingDays,
+  daySections,
+  unlockedSeedIds,
+} from "@/lib/academy/trainingDays";
 import type {
   AcademyClientList,
   AcademyClientThread,
 } from "@/lib/academy/types";
 
-export function AcademyClientShell({ initial }: { initial: AcademyClientList }): JSX.Element {
+export function AcademyClientShell({
+  initial,
+  training = false,
+}: {
+  initial: AcademyClientList;
+  /**
+   * Training mode: the roster is narrowed to the four-day curriculum and the
+   * sidebar groups it by day. Everything else — the frame, the conversation
+   * panel, the Freshdesk flow — is the Clients experience untouched, because it
+   * is literally the same components.
+   */
+  training?: boolean;
+}): JSX.Element {
   const [list, setList] = useState(initial);
   useEffect(() => setList(initial), [initial]);
 
+  /**
+   * Derived from the same rows the list renders, so the day counts and the
+   * roster can never disagree. Null outside training mode.
+   */
+  const trainingView = useMemo(
+    () =>
+      training
+        ? buildTrainingDays(
+            list.clients.map((c) => ({
+              seedId: c.seedId,
+              taskNumber: c.taskNumber,
+              name: c.name,
+              requestTitle: c.requestTitle,
+              status: c.status,
+              sessionId: c.sessionId,
+            })),
+          )
+        : null,
+    [training, list.clients],
+  );
+
+  const openable = useMemo(
+    () => (trainingView ? unlockedSeedIds(trainingView) : null),
+    [trainingView],
+  );
+
+  /** In training mode the roster is the 40 taught tasks, not all 176. */
+  const rosterClients = useMemo(() => {
+    if (!trainingView) return list.clients;
+    const inCurriculum = new Set(
+      trainingView.days.flatMap((d) => d.tasks.map((t) => t.seedId)),
+    );
+    return list.clients.filter((c) => inCurriculum.has(c.seedId));
+  }, [trainingView, list.clients]);
+
   // Open on the first client with unfinished business — where the intern
   // actually is, rather than the top of an alphabet.
+  // In training mode only unlocked tasks are candidates — landing a trainee on
+  // a locked Day 3 request would open a conversation they may not start.
+  const openableClients = openable
+    ? rosterClients.filter((c) => openable.has(c.seedId))
+    : rosterClients;
+
   const firstOpen =
-    list.clients.find((c) => c.status === "in_progress")?.seedId ??
-    list.clients.find((c) => c.status === "not_started")?.seedId ??
-    list.clients[0]?.seedId ??
+    openableClients.find((c) => c.status === "in_progress")?.seedId ??
+    openableClients.find((c) => c.status === "not_started")?.seedId ??
+    openableClients[0]?.seedId ??
     null;
 
   const [activeSeedId, setActiveSeedId] = useState<string | null>(firstOpen);
@@ -93,11 +151,14 @@ export function AcademyClientShell({ initial }: { initial: AcademyClientList }):
 
   const handleSelect = useCallback(
     (seedId: string) => {
+      // Belt to the server's braces: a locked task is not selectable here, and
+      // the server refuses it independently.
+      if (openable && !openable.has(seedId)) return;
       setActiveSeedId(seedId);
       setMobileShowsChat(true);
       inbox.markRead(seedId);
     },
-    [inbox],
+    [inbox, openable],
   );
 
   // Opening a conversation clears its badge.
@@ -119,13 +180,24 @@ export function AcademyClientShell({ initial }: { initial: AcademyClientList }):
   return (
     <div className="flex h-full min-h-0 overflow-hidden rounded-xl border border-chat-divider bg-chat-panel shadow-card">
       <ClientList
-        clients={sortInbox(list.clients, inbox.state)}
+        clients={
+          trainingView ? rosterClients : sortInbox(list.clients, inbox.state)
+        }
         inboxState={inbox.state}
         flashSeedId={inbox.flashSeedId}
         totalUnread={inbox.totalUnread}
         overview={list.overview}
         activeSeedId={activeSeedId}
         onSelect={handleSelect}
+        dayGroups={trainingView ? daySections(trainingView) : undefined}
+        headline={
+          trainingView
+            ? {
+                title: "Training",
+                subtitle: `${trainingView.progress.completed} of ${trainingView.progress.total} completed · ${trainingView.progress.percent}% · Day ${trainingView.currentDay}`,
+              }
+            : undefined
+        }
         className={cn(
           "w-full shrink-0 border-r border-chat-divider md:w-[340px] lg:w-[380px]",
           mobileShowsChat ? "hidden md:flex" : "flex",
