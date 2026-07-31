@@ -51,7 +51,15 @@ export interface TrainingDaysView {
 function stateFor(status: AcademyRequestStatus, dayLocked: boolean): TaskStatus {
   if (dayLocked) return "locked";
   if (status === "completed") return "completed";
-  if (status === "in_progress" || status === "awaiting_ticket") return "in_progress";
+  // A failed evaluation is unfinished work, not unstarted work — the trainee
+  // has a transcript, it just has no score yet.
+  if (
+    status === "in_progress" ||
+    status === "awaiting_ticket" ||
+    status === "scoring_failed"
+  ) {
+    return "in_progress";
+  }
   return "not_started";
 }
 

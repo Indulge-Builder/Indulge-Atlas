@@ -12,9 +12,16 @@
  * message and swaps in the real transcript.
  */
 
-import { useState, type JSX } from "react";
-import { ArrowLeft, ChevronDown, GraduationCap, Trophy } from "lucide-react";
+import { useState, useTransition, type JSX } from "react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  ChevronDown,
+  GraduationCap,
+  Trophy,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
+import { retryAcademyEvaluation } from "@/lib/actions/academy";
 import { AcademyChat } from "@/components/academy/AcademyChat";
 import { ConversationActions } from "@/components/academy/ConversationActions";
 import { ProgressBar } from "@/components/academy/ProgressRing";
@@ -85,6 +92,49 @@ function Briefing({ thread }: { thread: AcademyClientThread }): JSX.Element {
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * Recovery for a session that closed without a score.
+ *
+ * The same `retryAcademyEvaluation` the standalone session page offers, brought
+ * into the two-panel shell — which is where trainees actually work, and where
+ * the dead end was otherwise unreachable.
+ */
+function ScoringRetry({
+  sessionId,
+  onRetried,
+}: {
+  sessionId: string;
+  onRetried?: () => void;
+}): JSX.Element {
+  const [pending, startRetry] = useTransition();
+  const [failed, setFailed] = useState(false);
+
+  return (
+    <div className="flex shrink-0 items-center gap-2.5 border-b border-warning/25 bg-warning-light px-3 py-2.5 sm:px-4">
+      <AlertTriangle className="size-4 shrink-0 text-warning" aria-hidden />
+      <p className="min-w-0 flex-1 text-[12.5px] leading-snug text-chat-ink">
+        {failed
+          ? "Scoring failed again. Your conversation is safe — try once more in a moment."
+          : "This conversation closed before it could be scored. Your transcript is saved."}
+      </p>
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() =>
+          startRetry(async () => {
+            const res = await retryAcademyEvaluation(sessionId);
+            if (res.success) onRetried?.();
+            else setFailed(true);
+          })
+        }
+        className="shrink-0 rounded-lg bg-warning px-2.5 py-1.5 text-[12px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+      >
+        {pending ? "Scoring…" : "Score it now"}
+      </button>
     </div>
   );
 }
@@ -187,9 +237,11 @@ export function ClientConversation({
               ? "Completed"
               : thread.status === "awaiting_ticket"
                 ? "Awaiting ticket"
-                : thread.status === "in_progress"
-                  ? "In progress"
-                  : thread.vertical}
+                : thread.status === "scoring_failed"
+                  ? "Scoring failed"
+                  : thread.status === "in_progress"
+                    ? "In progress"
+                    : thread.vertical}
             {" · "}
             {thread.requestTitle}
           </p>
@@ -213,6 +265,13 @@ export function ClientConversation({
         />
       </header>
 
+      {/* The evaluator never returned. Without a way back the request is stuck
+          forever: the session is shut so the chat refuses messages, and the
+          ticket panel is gated on a review existing. */}
+      {thread.status === "scoring_failed" && thread.sessionId ? (
+        <ScoringRetry sessionId={thread.sessionId} onRetried={onClosed} />
+      ) : null}
+
       <Briefing thread={thread} />
 
       {/* The conversation — now the only flexible region on the screen. */}
@@ -226,6 +285,9 @@ export function ClientConversation({
           readOnly={
             thread.status === "completed" ||
             thread.status === "awaiting_ticket" ||
+            // The session is shut, so the chat route rejects every message.
+            // Leaving the composer live only produced a 409 per keystroke.
+            thread.status === "scoring_failed" ||
             thread.readOnly
           }
           onSessionStarted={onSessionStarted}

@@ -54,6 +54,7 @@ function ClientRow({
   const live = client.status === "in_progress";
   // Conversation finished, ticket still owed — the row must not read as done.
   const awaitingTicket = client.status === "awaiting_ticket";
+  const scoringFailed = client.status === "scoring_failed";
   const tier = client.difficulty as AcademyTier;
 
   return (
@@ -133,16 +134,20 @@ function ClientRow({
           <span
             className={cn(
               "truncate text-[11px]",
-              awaitingTicket ? "font-medium text-warning" : "text-chat-ink-muted",
+              awaitingTicket || scoringFailed
+                ? "font-medium text-warning"
+                : "text-chat-ink-muted",
             )}
           >
             {done
               ? `Completed · ${client.overall?.toFixed(1) ?? "—"}/5`
               : awaitingTicket
                 ? "Ticket update required"
-                : live
-                  ? "In progress"
-                  : client.vertical}
+                : scoringFailed
+                  ? "Scoring failed — retry"
+                  : live
+                    ? "In progress"
+                    : client.vertical}
           </span>
         </div>
       </div>
