@@ -43,6 +43,7 @@ import {
   uploadAcademyAttachment,
 } from "@/lib/actions/academy";
 import { typingDelayFor } from "@/lib/academy/mentor";
+import { chunkDelay, splitClientMessage } from "@/lib/academy/messageSplit";
 import { cn } from "@/lib/utils";
 import { formatIST } from "@/lib/utils/time";
 import type {
@@ -211,21 +212,52 @@ export function AcademyChat({
     };
   }, []);
 
+  /**
+   * The opening request, expanded into the two-to-four bubbles a person would
+   * actually have sent.
+   *
+   * Display only — the transcript keeps one row, so the evaluator, the ticket
+   * reviewer and the persona all still read exactly what they read before.
+   *
+   * Scoped to the opening: once the intern has replied the conversation is
+   * under way and the persona's own turns are already message-length, so
+   * splitting them would add nothing. It also keeps resumed conversations on
+   * the untouched path, where the delivery pointer is already correct.
+   */
+  const deliveryTurns = useMemo(() => {
+    if (turns.some((t) => t.role === "intern")) return turns;
+
+    return turns.flatMap((turn) => {
+      if (turn.role !== "client") return [turn];
+      const chunks = splitClientMessage(turn.body);
+      if (chunks.length <= 1) return [turn];
+
+      return chunks.map((body, i) => ({
+        ...turn,
+        // Derived ids keep React keys stable without touching the real row.
+        id: `${turn.id}#${i}`,
+        body,
+        // Media belongs with the closing bubble, not repeated on each.
+        attachments: i === chunks.length - 1 ? turn.attachments : [],
+      }));
+    });
+  }, [turns]);
+
   /** Only the turns that have "arrived" are rendered. */
   const visibleTurns = useMemo(
-    () => turns.slice(0, Math.max(deliveredCount, 0)),
-    [turns, deliveredCount],
+    () => deliveryTurns.slice(0, Math.max(deliveredCount, 0)),
+    [deliveryTurns, deliveredCount],
   );
 
   // Stage the arrival of undelivered turns: show the typing indicator for a
   // length-appropriate beat, then let the message land. Runs one message at a
   // time so a burst arrives in sequence rather than all at once.
   useEffect(() => {
-    if (deliveredCount >= turns.length) {
+    if (deliveredCount >= deliveryTurns.length) {
       setClientTyping(false);
       return;
     }
-    const next = turns[deliveredCount];
+    const next = deliveryTurns[deliveredCount];
     if (!next) return;
 
     // The intern's own messages never need a typing beat — they wrote them.
@@ -234,20 +266,31 @@ export function AcademyChat({
       return;
     }
 
+    /*
+     * A continuation of a split request waits far longer than a normal beat —
+     * the client is thinking of the next thing to add, not typing one message.
+     * The composer stays open throughout, so the trainee can answer the first
+     * line without waiting for the rest.
+     */
+    const isContinuation = next.id.includes("#") && !next.id.endsWith("#0");
+    const wait = isContinuation
+      ? chunkDelay()
+      : typingDelayFor(next.body, { min: 700, max: 2200 });
+
     setClientTyping(true);
     const timer = setTimeout(() => {
       setClientTyping(false);
       setDeliveredCount((n) => n + 1);
-    }, typingDelayFor(next.body, { min: 700, max: 2200 }));
+    }, wait);
 
     return () => clearTimeout(timer);
-  }, [turns, deliveredCount]);
+  }, [deliveryTurns, deliveredCount]);
 
   // Keep the delivery pointer sane when the transcript is replaced wholesale
   // (session start, server refresh) rather than appended to.
   useEffect(() => {
-    setDeliveredCount((n) => Math.min(n, turns.length));
-  }, [turns.length]);
+    setDeliveredCount((n) => Math.min(n, deliveryTurns.length));
+  }, [deliveryTurns.length]);
 
   const internTurnCount = useMemo(
     () => turns.filter((turn) => turn.role === "intern").length,
@@ -257,13 +300,16 @@ export function AcademyChat({
   const capReached = turnCapHit || remainingTurns === 0;
   const composerDisabled = sessionClosed || capReached;
 
-  /** Index of the newest client turn — everything before it has been "read". */
+  /**
+   * Index of the newest client turn — everything before it has been "read".
+   * Indexed over the delivered array, since that is what the map below renders.
+   */
   const lastClientIndex = useMemo(() => {
-    for (let i = turns.length - 1; i >= 0; i -= 1) {
-      if (turns[i].role === "client") return i;
+    for (let i = deliveryTurns.length - 1; i >= 0; i -= 1) {
+      if (deliveryTurns[i].role === "client") return i;
     }
     return -1;
-  }, [turns]);
+  }, [deliveryTurns]);
 
   const threadDate = safeDate(turns[0]?.created_at);
 
