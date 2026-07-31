@@ -290,24 +290,38 @@ describe("review parsing", () => {
 });
 
 describe("verdict assembly", () => {
-  it("clears feedback on a pass", () => {
+  it("clears feedback when the write-up met the bar", () => {
     const v = buildVerdict(
       { scores: ticketScores(5), passed: true, feedback: ["nitpick"] },
       "resolved",
       "test",
     );
-    expect(v.passed).toBe(true);
+    expect(v.meets_bar).toBe(true);
     expect(v.feedback).toEqual([]);
   });
 
-  it("always explains a code-side veto, so the intern is never stuck", () => {
+  it("accepts the ticket on submission regardless of the quality call", () => {
+    // One submission per ticket: `passed` records that the request was handed
+    // in, `meets_bar` records how well. A weak write-up still completes the
+    // request — it just scores badly and comes back with notes.
+    const weak = buildVerdict(
+      { scores: ticketScores(2), passed: false, feedback: ["thin summary"] },
+      "resolved",
+      "test",
+    );
+    expect(weak.passed).toBe(true);
+    expect(weak.meets_bar).toBe(false);
+    expect(weak.feedback.length).toBeGreaterThan(0);
+  });
+
+  it("always explains a sub-bar verdict, so the intern is never left guessing", () => {
     // Model said pass, but the status is not terminal and it returned no notes.
     const v = buildVerdict(
       { scores: ticketScores(5), passed: true, feedback: [] },
       "waiting_on_customer" as AcademyTicketStatus,
       "test",
     );
-    expect(v.passed).toBe(false);
+    expect(v.meets_bar).toBe(false);
     expect(v.feedback.length).toBeGreaterThan(0);
     expect(v.feedback[0]).toMatch(/Resolved or Closed/);
   });

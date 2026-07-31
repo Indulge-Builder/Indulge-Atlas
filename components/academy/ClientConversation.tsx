@@ -104,12 +104,15 @@ export function ClientConversation({
   onBack,
   onSessionStarted,
   onClosed,
+  onTicketReviewed,
   className,
 }: {
   thread: AcademyClientThread;
   onBack?: () => void;
   onSessionStarted?: (sessionId: string) => void;
   onClosed?: () => void;
+  /** Reviewer has ruled on the ticket: accepted (true) or sent back (false). */
+  onTicketReviewed?: (passed: boolean) => void;
   className?: string;
 }): JSX.Element {
   const tier = thread.difficulty as AcademyTier;
@@ -204,7 +207,10 @@ export function ClientConversation({
 
         {/* Ticket, Freshdesk write-up and review — all Sheet-backed, so none of
             them can disturb the transcript below. */}
-        <ConversationActions thread={thread} onCompleted={onClosed} />
+        <ConversationActions
+          thread={thread}
+          onCompleted={(passed) => onTicketReviewed?.(passed)}
+        />
       </header>
 
       <Briefing thread={thread} />
@@ -225,7 +231,6 @@ export function ClientConversation({
           onSessionStarted={onSessionStarted}
           onClosed={onClosed}
           chrome={false}
-          constraintHint={thread.constraintCount}
         />
       </div>
     </section>

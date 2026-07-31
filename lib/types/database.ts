@@ -2009,8 +2009,25 @@ export type AcademyTicketReviewScores = Record<
  * the model — same discipline as `computeOverall` for the rubric.
  */
 export interface AcademyTicketVerdict {
+  /**
+   * The ticket was accepted — the request is handled. A trainee gets one
+   * submission, so this is true from the moment they submit.
+   */
   passed: boolean;
-  /** Short, concrete required fixes. Empty when passed. */
+  /**
+   * Whether the write-up actually met the quality bar (all dimensions above the
+   * hard floor, weighted quality at or above threshold, terminal status).
+   *
+   * Separate from `passed` on purpose: acceptance is about the request being
+   * handled, this is about how well it was documented. It no longer blocks
+   * completion, but it still drives `quality` — and therefore the trainee's
+   * score — and it decides whether coaching feedback is shown.
+   *
+   * Optional for rows written before the one-submission change, where `passed`
+   * carried both meanings.
+   */
+  meets_bar?: boolean;
+  /** Short, concrete fixes. Empty when the write-up met the bar. */
   feedback: string[];
   scores: AcademyTicketReviewScores;
   /** Weighted 1–5, computed in code. */

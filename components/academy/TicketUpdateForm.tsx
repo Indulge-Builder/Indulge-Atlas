@@ -206,11 +206,14 @@ export function TicketUpdateForm({
       }
       const v = res.data!.verdict;
       setVerdict(v);
-      if (v.passed) {
-        toast.success("Ticket accepted — request complete.");
+      // One submission per ticket, so this always hands the request in. The
+      // reviewer's quality call still lands — it just reads as feedback on
+      // completed work rather than a door to walk back through.
+      if (v.meets_bar ?? v.passed) {
+        toast.success("Ticket submitted — request handled.");
       } else {
-        toast.warning("Sent back for revision", {
-          description: "The reviewer left notes on what to tighten.",
+        toast.success("Ticket submitted — request handled.", {
+          description: `Documentation scored ${v.quality.toFixed(1)}/5 — see the reviewer's notes.`,
         });
       }
       onSubmitted?.(v.passed);
@@ -225,16 +228,41 @@ export function TicketUpdateForm({
           <CheckCircle2 className="size-5 shrink-0 text-success" aria-hidden />
           <div className="min-w-0 flex-1">
             <p className="text-[13px] font-semibold text-chat-ink">
-              Ticket accepted
+              Ticket submitted — request handled
             </p>
             <p className="text-[12px] text-chat-ink-muted">
               Documentation quality {verdict.quality.toFixed(1)}/5
               {existing.attempts > 1
                 ? ` · ${existing.attempts} submissions`
-                : " · first attempt"}
+                : " · one submission"}
             </p>
           </div>
         </div>
+
+        {/* Coaching, not a gate. The request is in; these are the things to do
+            differently next time, and they are the reason the score is what it
+            is — so they stay visible rather than hidden behind a disclosure. */}
+        {verdict.meets_bar === false && verdict.feedback.length > 0 ? (
+          <div className="rounded-lg border border-warning/25 bg-warning-light px-3.5 py-3">
+            <p className="text-[12.5px] font-semibold text-warning">
+              What to tighten next time
+            </p>
+            <ul className="mt-2 space-y-1.5">
+              {verdict.feedback.map((f, i) => (
+                <li
+                  key={i}
+                  className="flex gap-2 text-[12.5px] leading-relaxed text-chat-ink"
+                >
+                  <span
+                    className="mt-1.5 size-1 shrink-0 rounded-full bg-warning"
+                    aria-hidden
+                  />
+                  {f}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
 
         <div className="rounded-lg border border-chat-divider bg-surface p-3.5">
           <VerdictScores verdict={verdict} />
@@ -300,7 +328,7 @@ export function TicketUpdateForm({
           <div className="flex items-center gap-2">
             <RotateCcw className="size-4 shrink-0 text-warning" aria-hidden />
             <p className="text-[12.5px] font-semibold text-warning">
-              Sent back for revision — quality {verdict.quality.toFixed(1)}/5
+              Not yet completed — quality {verdict.quality.toFixed(1)}/5
             </p>
           </div>
           <ul className="mt-2 space-y-1.5">

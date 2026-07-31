@@ -32,6 +32,34 @@ const MAX_MESSAGE_LENGTH = 4000;
 /** Warn once the intern is inside the last few turns. */
 const LOW_TURN_THRESHOLD = 3;
 
+/**
+ * What the editor observed while this reply was written.
+ *
+ * These are facts about the editing session — characters pasted, characters
+ * typed, how long it took — and nothing else. A paste is a paste: it says
+ * nothing about where the text came from, and no consumer may present it as
+ * evidence of AI use. `finalChars` is added server-side from the submitted body.
+ */
+export type ComposerComposition = {
+  pasteCount: number;
+  pastedChars: number;
+  largestPasteChars: number;
+  typedChars: number;
+  timeToFirstInputMs: number | null;
+  compositionMs: number | null;
+};
+
+function emptyComposition(): ComposerComposition {
+  return {
+    pasteCount: 0,
+    pastedChars: 0,
+    largestPasteChars: 0,
+    typedChars: 0,
+    timeToFirstInputMs: null,
+    compositionMs: null,
+  };
+}
+
 export function AcademyComposer({
   disabled,
   pending,
@@ -45,7 +73,11 @@ export function AcademyComposer({
   pending: boolean;
   remainingTurns: number;
   /** Text may be empty when an attachment is present. */
-  onSend: (text: string, attachment: PendingAttachment | null) => void;
+  onSend: (
+    text: string,
+    attachment: PendingAttachment | null,
+    composition: ComposerComposition,
+  ) => void;
   onClose: () => void;
   closing?: boolean;
   uploading?: boolean;
@@ -55,6 +87,54 @@ export function AcademyComposer({
   const [attachment, setAttachment] = useState<PendingAttachment | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Editing telemetry. Refs, not state: these change on every keystroke and
+  // nothing renders from them, so re-rendering the composer per character would
+  // be pure waste. Reset after each send so counters describe one reply.
+  const telemetryRef = useRef<ComposerComposition>(emptyComposition());
+  const openedAtRef = useRef<number | null>(null);
+  const firstInputAtRef = useRef<number | null>(null);
+  /** Length of a paste that has fired but whose onChange has not landed yet. */
+  const pendingPasteRef = useRef(0);
+
+  // Clock reads live in effects and event handlers, never in render.
+  useEffect(() => {
+    openedAtRef.current = Date.now();
+  }, []);
+
+  const markFirstInput = useCallback(() => {
+    if (firstInputAtRef.current === null) firstInputAtRef.current = Date.now();
+  }, []);
+
+  const handlePaste = useCallback(
+    (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      const pasted = event.clipboardData.getData("text");
+      if (pasted.length > 0) {
+        const t = telemetryRef.current;
+        t.pasteCount += 1;
+        t.pastedChars += pasted.length;
+        t.largestPasteChars = Math.max(t.largestPasteChars, pasted.length);
+        pendingPasteRef.current = pasted.length;
+      }
+      markFirstInput();
+    },
+    [markFirstInput],
+  );
+
+  const handleChange = useCallback(
+    (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+      const next = event.target.value;
+      // onPaste fires first, so a growth already accounted for as a paste must
+      // not be double-counted as typing.
+      const fromPaste = pendingPasteRef.current;
+      pendingPasteRef.current = 0;
+      const delta = next.length - value.length;
+      if (delta > 0 && fromPaste === 0) telemetryRef.current.typedChars += delta;
+      markFirstInput();
+      setValue(next);
+    },
+    [value, markFirstInput],
+  );
 
   const noTurnsLeft = remainingTurns <= 0;
   const inputLocked = disabled || closing || noTurnsLeft;
@@ -110,8 +190,26 @@ export function AcademyComposer({
   const submit = useCallback(() => {
     const text = value.trim();
     if ((!text && !attachment) || inputLocked || pending || uploading) return;
-    onSend(text, attachment);
+
+    const now = Date.now();
+    const firstInputAt = firstInputAtRef.current;
+    const composition: ComposerComposition = {
+      ...telemetryRef.current,
+      timeToFirstInputMs:
+        firstInputAt !== null && openedAtRef.current !== null
+          ? Math.max(0, firstInputAt - openedAtRef.current)
+          : null,
+      compositionMs: firstInputAt !== null ? Math.max(0, now - firstInputAt) : null,
+    };
+
+    onSend(text, attachment, composition);
     setValue("");
+
+    // Start a fresh measurement window for the next reply.
+    telemetryRef.current = emptyComposition();
+    firstInputAtRef.current = null;
+    pendingPasteRef.current = 0;
+    openedAtRef.current = now;
     // Ownership of the object URL passes to the caller for the optimistic
     // bubble, so clear the reference without revoking it here.
     setAttachment(null);
@@ -245,7 +343,8 @@ export function AcademyComposer({
           value={value}
           maxLength={MAX_MESSAGE_LENGTH}
           disabled={inputLocked}
-          onChange={(event) => setValue(event.target.value)}
+          onChange={handleChange}
+          onPaste={handlePaste}
           onKeyDown={handleKeyDown}
           onCompositionStart={() => setIsComposing(true)}
           onCompositionEnd={() => setIsComposing(false)}
