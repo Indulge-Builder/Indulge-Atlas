@@ -224,7 +224,7 @@ export function TraineeProfileView({
 
         <div className="mt-5">
           <div className="mb-1 flex items-baseline justify-between gap-2">
-            <span className="text-[11.5px] font-medium text-black/70">Academy progress</span>
+            <span className="text-[11.5px] font-medium text-black/70">Indulge Training progress</span>
             <span className="text-[11.5px] tabular-nums text-black/45">
               {nf.format(t.requestsCompleted)}/{nf.format(t.totalRequests)} requests · {t.progressPercent}%
               {t.awaitingTicket > 0 ? ` · ${t.awaitingTicket} ticket${t.awaitingTicket === 1 ? "" : "s"} owed` : ""}
@@ -237,7 +237,7 @@ export function TraineeProfileView({
       {/* ── Metric rings ───────────────────────────────────────────────────── */}
       <Panel
         title="Performance breakdown"
-        subtitle="All eleven weighted metrics behind the academy score."
+        subtitle="All eleven weighted metrics behind the training score."
       >
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-6">
           {PROGRESS_METRICS.map((m) => (

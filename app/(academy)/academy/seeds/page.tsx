@@ -20,7 +20,7 @@ export default async function AcademySeedsPage() {
   return (
     <div className="min-h-full">
       <AcademyTopBar
-        title="Academy scenarios"
+        title="Indulge Training scenarios"
         subtitle="Author the seed library — synthetic members only, never real client data"
       />
 
@@ -31,7 +31,7 @@ export default async function AcademySeedsPage() {
             className="inline-flex items-center gap-2 text-[13px] font-medium text-black/45 transition-colors duration-150 hover:text-brand-gold"
           >
             <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
-            Back to Academy
+            Back to Indulge Training
           </Link>
         </div>
 

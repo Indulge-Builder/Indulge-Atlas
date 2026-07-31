@@ -82,7 +82,7 @@ function Briefing({ thread }: { thread: AcademyClientThread }): JSX.Element {
 
           <div>
             <div className="mb-1 flex items-baseline justify-between gap-2">
-              <span className="text-[11px] font-medium text-chat-ink">Academy progress</span>
+              <span className="text-[11px] font-medium text-chat-ink">Indulge Training progress</span>
               <span className="text-[11px] tabular-nums text-chat-ink-muted">
                 {nf.format(thread.overview.completed)}/{nf.format(thread.overview.total)} clients ·{" "}
                 {thread.overview.percent}%

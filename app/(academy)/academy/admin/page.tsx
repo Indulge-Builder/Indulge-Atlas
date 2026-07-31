@@ -19,7 +19,7 @@ export default async function AcademyAdminPage() {
     <div className="min-h-full">
       <AcademyTopBar
         title="Training analytics"
-        subtitle="Cohort performance, rankings and coaching signal — all from recorded academy activity"
+        subtitle="Cohort performance, rankings and coaching signal — all from recorded training activity"
       />
 
       <div className="mx-auto w-full max-w-7xl px-4 py-6 md:px-6 md:py-8 lg:px-8">

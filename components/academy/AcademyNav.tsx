@@ -57,7 +57,7 @@ function NavLinks({ isTrainer }: { isTrainer: boolean }): JSX.Element {
 
   return (
     <nav
-      aria-label="Academy sections"
+      aria-label="Indulge Training sections"
       /* Scrolls rather than wraps on narrow screens: a second nav row is the
          exact thing this change removed. */
       className="-mx-1 flex items-center gap-0.5 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
@@ -112,7 +112,7 @@ export function AcademyNav({
             className="text-[15px] font-semibold tracking-wide text-[#F9F9F6]"
             style={{ fontFamily: "var(--font-playfair)" }}
           >
-            Academy
+            Indulge Training
           </span>
         </Link>
 

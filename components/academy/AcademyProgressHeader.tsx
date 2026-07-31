@@ -92,7 +92,7 @@ export function AcademyProgressHeader({
 
               <div>
                 <div className="mb-1 flex items-baseline justify-between gap-2">
-                  <span className="text-[11px] font-medium text-chat-ink">Academy overall</span>
+                  <span className="text-[11px] font-medium text-chat-ink">Indulge Training overall</span>
                   <span className="text-[11px] tabular-nums text-chat-ink-muted">
                     {nf.format(progress.overallCompleted)}/{nf.format(progress.overallTotal)}{" "}
                     tasks · {progress.overallPercent}%
@@ -103,7 +103,7 @@ export function AcademyProgressHeader({
             </>
           ) : (
             <p className="text-[12px] text-chat-ink-muted">
-              This drill sits outside the 50-group ladder, so it does not count towards academy
+              This drill sits outside the 50-group ladder, so it does not count towards training
               progress.
             </p>
           )}

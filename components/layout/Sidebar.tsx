@@ -283,7 +283,7 @@ const navItems: NavItemDef[] = [
     // Launcher into the standalone Academy app (app/(academy) route group).
     // The seed editor moved with it, to /academy/seeds.
     href: "/academy",
-    label: "Academy",
+    label: "Indulge Training",
     icon: GraduationCap,
     roles: ["agent", "manager", "founder", "admin", "super_admin"],
     section: "main",

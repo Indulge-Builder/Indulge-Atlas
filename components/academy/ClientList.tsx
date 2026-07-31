@@ -246,7 +246,7 @@ export function ClientList({
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <h1 className="font-serif text-[17px] leading-tight text-chat-ink">
-                {headline?.title ?? "Academy"}
+                {headline?.title ?? "Indulge Training"}
               </h1>
               {totalUnread && totalUnread > 0 ? (
                 <motion.span

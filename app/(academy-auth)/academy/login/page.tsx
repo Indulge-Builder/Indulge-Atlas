@@ -62,10 +62,10 @@ export default function AcademyLoginPage() {
             className="text-3xl font-normal text-[#F5F0E8]"
             style={{ fontFamily: "var(--font-playfair)" }}
           >
-            Academy
+            Indulge Training
           </h1>
           <p className="mt-2 text-[12px] tracking-wide text-white/40">
-            Indulge intern training
+            Concierge training
           </p>
         </div>
 
