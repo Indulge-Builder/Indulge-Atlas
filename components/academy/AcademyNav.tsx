@@ -29,6 +29,7 @@ interface NavLink {
 
 const LINKS: NavLink[] = [
   { href: "/academy", label: "Clients" },
+  { href: "/academy/tasks", label: "Training tasks" },
   { href: "/academy?view=practice", label: "Free practice", view: "practice" },
   { href: "/academy?view=cohort", label: "Cohort", view: "cohort", trainerOnly: true },
   { href: "/academy/seeds", label: "Scenario library", trainerOnly: true },
