@@ -38,6 +38,24 @@ const PRIORITY_ORDER: Record<string, number> = {
   low: 3,
 };
 
+/** Sort affordance for a column header — the active column shows the direction. */
+function SortIcon({
+  k,
+  sortKey,
+  sortDir,
+}: {
+  k: SortKey;
+  sortKey: SortKey;
+  sortDir: SortDir;
+}) {
+  if (sortKey !== k) return <Minus className="w-3 h-3 opacity-30" />;
+  return sortDir === "asc" ? (
+    <ChevronDown className="w-3 h-3" />
+  ) : (
+    <ChevronRight className="w-3 h-3 rotate-90" />
+  );
+}
+
 function DueDateCell({ date }: { date: string | null }) {
   if (!date) return <span className="text-zinc-300 text-xs">—</span>;
   const d = new Date(date);
@@ -224,17 +242,6 @@ export function ListView({
     });
   }
 
-  const SortIcon = ({ k }: { k: SortKey }) =>
-    sortKey === k ? (
-      sortDir === "asc" ? (
-        <ChevronDown className="w-3 h-3" />
-      ) : (
-        <ChevronRight className="w-3 h-3 rotate-90" />
-      )
-    ) : (
-      <Minus className="w-3 h-3 opacity-30" />
-    );
-
   const headerClass =
     "text-[11px] font-semibold text-zinc-400 uppercase tracking-wide cursor-pointer hover:text-zinc-600 select-none flex items-center gap-1";
 
@@ -315,14 +322,14 @@ export function ListView({
           className={headerClass}
           onClick={() => handleSort("title")}
         >
-          Title <SortIcon k="title" />
+          Title <SortIcon k="title" sortKey={sortKey} sortDir={sortDir} />
         </button>
         <button
           type="button"
           className={headerClass}
           onClick={() => handleSort("priority")}
         >
-          Priority <SortIcon k="priority" />
+          Priority <SortIcon k="priority" sortKey={sortKey} sortDir={sortDir} />
         </button>
         <span className={headerClass.replace("cursor-pointer hover:text-zinc-600 ", "")}>
           Assignees
@@ -332,14 +339,14 @@ export function ListView({
           className={headerClass}
           onClick={() => handleSort("progress")}
         >
-          Progress <SortIcon k="progress" />
+          Progress <SortIcon k="progress" sortKey={sortKey} sortDir={sortDir} />
         </button>
         <button
           type="button"
           className={headerClass}
           onClick={() => handleSort("due_date")}
         >
-          Due <SortIcon k="due_date" />
+          Due <SortIcon k="due_date" sortKey={sortKey} sortDir={sortDir} />
         </button>
         <span className={headerClass.replace("cursor-pointer hover:text-zinc-600 ", "")}>
           Group
