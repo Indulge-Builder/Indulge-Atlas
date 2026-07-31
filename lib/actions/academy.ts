@@ -69,6 +69,8 @@ async function loadRosterClients(): Promise<RosterClient[]> {
 }
 import {
   ACADEMY_TOTAL_GROUPS,
+  canAccessTask,
+  dayForTask,
   groupTitle,
   overallProgress,
   percentComplete,
@@ -134,6 +136,53 @@ export async function listAcademyScenarios(): Promise<
 
 // ── Sessions ──────────────────────────────────────────────────────────────────
 
+/**
+ * Refuse a curriculum task whose day is still shut.
+ *
+ * The sidebar already hides locked days, but hiding a control is not a
+ * permission: the Clients tab lists all 176 requests and knows nothing about
+ * days, and a session id can be typed into the URL. Without this, a trainee can
+ * complete a Day 3 request while Day 1 is unfinished — which is exactly how a
+ * stray completion appeared inside a locked day.
+ *
+ * Only tasks that are part of the four-day programme are gated. A task outside
+ * it has no day, so it is archive/free practice and stays open — `canAccessTask`
+ * answers "may this be opened as curriculum", which is not the same question.
+ *
+ * Returns an error string to surface, or null when the task may be opened.
+ */
+async function lockedDayRefusal(
+  internId: string,
+  taskNumber: number | null,
+): Promise<string | null> {
+  if (taskNumber === null || dayForTask(taskNumber) === null) return null;
+
+  const db = getServiceSupabaseClient();
+  const [seedsRes, bySeed] = await Promise.all([
+    db
+      .from("scenario_seeds")
+      .select("id, task_number")
+      .not("task_number", "is", null),
+    loadSeedStatus(internId),
+  ]);
+
+  const taskNumberBySeed = new Map<string, number>(
+    (seedsRes.data ?? []).map((s) => [s.id as string, s.task_number as number]),
+  );
+
+  const completed: number[] = [];
+  for (const [seedId, state] of bySeed) {
+    if (state.status !== "completed") continue;
+    const n = taskNumberBySeed.get(seedId);
+    if (n !== undefined) completed.push(n);
+  }
+
+  if (canAccessTask(taskNumber, completed)) return null;
+
+  const day = dayForTask(taskNumber);
+  return `Day ${day} is locked — finish Day ${(day ?? 2) - 1} first.`;
+}
+
 export async function startAcademySession(
   seedId: string,
 ): Promise<Result<{ sessionId: string; openingMessage: string }>> {
@@ -160,6 +209,10 @@ export async function startAcademySession(
   const taskNumber = (seed as { task_number?: number | null }).task_number ?? null;
   // The persona must open as the real member the row is named after, or the
   // transcript and the roster would disagree about who is in the room.
+  // Gate before any row is written — a locked day must not leave a session behind.
+  const refusal = await lockedDayRefusal(user.id, taskNumber);
+  if (refusal) return { success: false, error: refusal };
+
   const rosterName = taskNumber
     ? memberFor(await loadRosterClients(), taskNumber).name
     : undefined;
@@ -1165,7 +1218,7 @@ export async function getAcademyClientThread(
   const parsed = z.string().uuid().safeParse(seedId);
   if (!parsed.success) return { success: false, error: "Invalid client" };
 
-  const { user, profile } = await getAuthUser();
+  const { user, profile, role, department } = await getAuthUser();
   const db = getServiceSupabaseClient();
 
   const { data: seed, error: seedErr } = await db
@@ -1177,6 +1230,13 @@ export async function getAcademyClientThread(
   if (seedErr || !seed) return { success: false, error: "Client not found" };
 
   const taskNumber = (seed.task_number as number) ?? 0;
+
+  // Trainers review any transcript; only the trainee walking the ladder is gated.
+  if (!isAcademyTrainer(role, department)) {
+    const refusal = await lockedDayRefusal(user.id, taskNumber);
+    if (refusal) return { success: false, error: refusal };
+  }
+
   const member = memberFor(await loadRosterClients(), taskNumber);
   const name = member.name;
 
