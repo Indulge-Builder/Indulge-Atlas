@@ -1098,7 +1098,12 @@ async function loadSeedStatus(internId: string): Promise<Map<string, SeedState>>
         ? "completed"
         : scored
           ? "awaiting_ticket"
-          : "in_progress",
+          : // Closed with no review is a failed evaluation, not open work.
+            // Calling it in_progress reopened the composer over a session the
+            // chat route refuses, stranding the request permanently.
+            s.status === "closed"
+            ? "scoring_failed"
+            : "in_progress",
       overall: review?.overall ?? null,
       at: (s.ended_at as string | null) ?? (s.started_at as string | null) ?? null,
       requestScore,
@@ -1135,7 +1140,8 @@ function buildOverview(
       }
     } else if (
       state.status === "in_progress" ||
-      state.status === "awaiting_ticket"
+      state.status === "awaiting_ticket" ||
+      state.status === "scoring_failed"
     ) {
       // A request whose ticket is still outstanding is open work, not done.
       inProgress += 1;
