@@ -54,6 +54,14 @@ export interface CohortInternRow {
   avgByDimension: Partial<Record<AcademyRubricDimension, number | null>>;
   /** Avg overall of the last 3 reviews minus the prior ones. Null if too few. */
   trend: number | null;
+  /**
+   * Standing in the cohort, 1 = strongest. Present so a trainee viewing their
+   * own row learns where they sit without being shown anyone else's name or
+   * score. Null until they have a scored request to rank.
+   */
+  rank?: number | null;
+  /** How many trainees the rank is out of. */
+  cohortSize?: number;
 }
 
 /** A session summary row in the intern's "my sessions" list. */

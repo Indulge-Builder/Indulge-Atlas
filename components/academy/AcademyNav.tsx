@@ -36,13 +36,18 @@ interface NavLink {
  *
  * Scenario library is admin-only deliberately: it holds hidden_constraints and
  * ideal_outcome, i.e. the answers to the drills. Analytics is the whole-cohort
- * dashboard. Trainers review their cohort through the Cohort tab instead.
+ * dashboard.
+ *
+ * Cohort is open to everyone because its *contents* are scoped per reader by
+ * `getAcademyCohort`, not by hiding the link: a trainer gets the cohort, a
+ * trainee gets their own row and standing. Hiding it from trainees would have
+ * denied them their own scores, not protected anyone else's.
  */
 const LINKS: NavLink[] = [
   { href: "/academy", label: "Clients" },
   { href: "/academy/tasks", label: "Training tasks" },
   { href: "/academy?view=practice", label: "Free practice", view: "practice" },
-  { href: "/academy?view=cohort", label: "Cohort", view: "cohort", trainerOnly: true },
+  { href: "/academy?view=cohort", label: "Cohort", view: "cohort" },
   { href: "/academy/seeds", label: "Scenario library", adminOnly: true },
   { href: "/academy/admin", label: "Analytics", adminOnly: true },
 ];

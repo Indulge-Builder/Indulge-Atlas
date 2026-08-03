@@ -18,6 +18,7 @@ import { randomizeSession, buildSessionVars, renderTemplate } from "@/lib/academ
 import { ACADEMY_PERSONA_MODEL, ACADEMY_TURN_CAP } from "@/lib/academy/models";
 import { DEFAULT_RUBRIC_WEIGHTS, ACADEMY_DIMENSIONS } from "@/lib/academy/rubric";
 import { scanSeedForPII } from "@/lib/academy/pii";
+import { rankCohort, scopeCohortToReader } from "@/lib/academy/cohort";
 import {
   computeAcademyPerformance,
   scoreRequest,
@@ -1614,13 +1615,18 @@ export async function getAcademyGroup(
   };
 }
 
-// ── Trainer: cohort dashboard ─────────────────────────────────────────────────
+// ── Cohort dashboard ─────────────────────────────────────────────────────────
 
+/**
+ * The cohort table. A trainer gets every trainee; a trainee gets their own row
+ * and their standing within the cohort, and nobody else's.
+ *
+ * Both cases compute the full cohort first — the trainee's rank is only
+ * meaningful measured against everyone — then narrow before returning.
+ */
 export async function getAcademyCohort(): Promise<Result<CohortInternRow[]>> {
-  const { role, department } = await getAuthUser();
-  if (!isAcademyTrainer(role, department)) {
-    return { success: false, error: "Trainers only" };
-  }
+  const { user, role, department } = await getAuthUser();
+  const trainer = isAcademyTrainer(role, department);
 
   const db = getServiceSupabaseClient();
 
@@ -1699,7 +1705,14 @@ export async function getAcademyCohort(): Promise<Result<CohortInternRow[]>> {
   }
 
   rows.sort((a, b) => (b.avgOverall ?? 0) - (a.avgOverall ?? 0));
-  return { success: true, data: rows };
+
+  // Rank across everyone, then narrow — a trainee's standing has to be measured
+  // against the cohort, not against the one row they are allowed to see.
+  const ranked = rankCohort(rows);
+  return {
+    success: true,
+    data: scopeCohortToReader(ranked, { isTrainer: trainer, userId: user.id }),
+  };
 }
 
 // ── Trainer: seed authoring ───────────────────────────────────────────────────
