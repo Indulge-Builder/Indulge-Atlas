@@ -1772,15 +1772,35 @@ export function canManageConciergeTickets(role: string): boolean {
 
 /**
  * A "trainer" reads every training session and authors the scenario seed
- * library. Mirrors the DB helper `is_academy_trainer()`: privileged roles OR
- * anyone in the `academy` department. Every other authenticated user is an
- * "intern" who owns only their own sessions.
+ * library. Every other authenticated user is a trainee who owns only their own
+ * sessions.
+ *
+ * ── WHY DEPARTMENT ALONE IS NOT ENOUGH ──────────────────────────────────────
+ * This used to be `isPrivilegedRole(role) || department === "academy"`. But
+ * trainees and trainers BOTH sit in the `academy` department — that is what
+ * assigns someone to Indulge Training in the first place — so every trainee an
+ * admin created was silently handed the Scenario Library (which holds the
+ * hidden constraints and ideal outcomes the evaluator grades against), the
+ * whole cohort's analytics, and every other trainee's transcripts.
+ *
+ * Role is what separates them, using the existing role field rather than a
+ * second permission system:
+ *     trainee = role "agent"   + department "academy"
+ *     trainer = role "manager" + department "academy"  (or any privileged role)
+ *
+ * MUST stay in lockstep with the SQL helper `public.is_academy_trainer()`
+ * (migration 135). The SQL side gates scenario_seeds at the RLS layer; if the
+ * two disagree, hiding the UI achieves nothing because the rows are still
+ * readable over the REST API.
  */
 export function isAcademyTrainer(
   role: string,
   department: string | null | undefined,
 ): boolean {
-  return isPrivilegedRole(role) || department === "academy";
+  return (
+    isPrivilegedRole(role) ||
+    (department === "academy" && role === "manager")
+  );
 }
 
 /** The six Indulge verticals a scenario seed can belong to. */

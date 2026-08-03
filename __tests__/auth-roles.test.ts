@@ -10,7 +10,12 @@ import { describe, it, expect } from "vitest";
 import { canReturnToAtlas } from "@/lib/academy/shell";
 import { createUserSchema } from "@/lib/validations/user";
 import { ALL_DEPARTMENTS } from "@/lib/constants/departments";
-import { isPrivilegedRole, type EmployeeDepartment, type UserRole } from "@/lib/types/database";
+import {
+  isAcademyTrainer,
+  isPrivilegedRole,
+  type EmployeeDepartment,
+  type UserRole,
+} from "@/lib/types/database";
 
 // ── "← Atlas" visibility ─────────────────────────────────────────────────────
 
@@ -115,5 +120,40 @@ describe("createUser accepts every department the form can offer", () => {
     expect(
       createUserSchema.safeParse({ ...base, department: "academy", password: "" }).success,
     ).toBe(true);
+  });
+});
+
+// ── Trainer vs trainee ───────────────────────────────────────────────────────
+
+describe("a trainee is not a trainer", () => {
+  it("does NOT make a trainee a trainer just for being in the department", () => {
+    // Assigning someone to Indulge Training IS setting department 'academy'.
+    // Treating that as trainer handed every new trainee the Scenario Library —
+    // the hidden constraints and ideal outcomes they are about to be scored on.
+    expect(isAcademyTrainer("agent", "academy")).toBe(false);
+  });
+
+  it("treats a manager in the academy department as a trainer", () => {
+    expect(isAcademyTrainer("manager", "academy")).toBe(true);
+  });
+
+  it("keeps every privileged role a trainer, department irrelevant", () => {
+    for (const role of ["admin", "founder", "super_admin"]) {
+      expect(isAcademyTrainer(role, "academy")).toBe(true);
+      expect(isAcademyTrainer(role, null)).toBe(true);
+    }
+  });
+
+  it("does not promote a manager outside the academy department", () => {
+    expect(isAcademyTrainer("manager", "concierge")).toBe(false);
+    expect(isAcademyTrainer("manager", null)).toBe(false);
+  });
+
+  it("leaves ordinary staff out entirely", () => {
+    for (const role of ["agent", "guest"]) {
+      for (const dept of ["concierge", "finance", null]) {
+        expect(isAcademyTrainer(role, dept)).toBe(false);
+      }
+    }
   });
 });
