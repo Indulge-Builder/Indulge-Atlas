@@ -1,10 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense, useState, type JSX } from "react";
 import { GraduationCap, LogOut, Loader2 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
 /**
@@ -93,15 +92,17 @@ export function AcademyNav({
   displayName: string | null;
   isTrainer?: boolean;
 }) {
-  const router = useRouter();
   const [signingOut, setSigningOut] = useState(false);
 
-  async function handleSignOut() {
-    setSigningOut(true);
-    await createClient().auth.signOut();
-    router.push("/academy/login");
-    router.refresh();
-  }
+  /*
+   * Sign-out is a real form POST to /auth/signout, not a client-side call.
+   *
+   * The old version cleared the session from JavaScript and then
+   * router.push()'d. That left the session cookie alive on the server and,
+   * worse, left the authenticated `/academy` page sitting in Next's client
+   * Router Cache — so Back re-displayed it without asking the server. The route
+   * handler clears the cookies server-side and revalidates every segment.
+   */
 
   return (
     <header className="sticky top-0 z-40 border-b border-black/[0.06] bg-[#1A1814]">
@@ -140,20 +141,25 @@ export function AcademyNav({
             </Link>
           )}
 
-          <button
-            type="button"
-            onClick={handleSignOut}
-            disabled={signingOut}
-            aria-label="Sign out"
-            className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[12px] text-white/50 transition-colors hover:text-white/80 disabled:opacity-50"
+          <form
+            action="/auth/signout?from=/academy"
+            method="post"
+            onSubmit={() => setSigningOut(true)}
           >
-            {signingOut ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-            ) : (
-              <LogOut className="h-3.5 w-3.5" aria-hidden />
-            )}
-            <span className="hidden sm:inline">Sign out</span>
-          </button>
+            <button
+              type="submit"
+              disabled={signingOut}
+              aria-label="Sign out"
+              className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[12px] text-white/50 transition-colors hover:text-white/80 disabled:opacity-50"
+            >
+              {signingOut ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+              ) : (
+                <LogOut className="h-3.5 w-3.5" aria-hidden />
+              )}
+              <span className="hidden sm:inline">Sign out</span>
+            </button>
+          </form>
         </div>
       </div>
     </header>

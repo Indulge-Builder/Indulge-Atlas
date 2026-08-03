@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { getAuthUser } from "@/lib/auth/getAuthUser";
-import { isNativeShell } from "@/lib/academy/shell";
+import { canReturnToAtlas, isNativeShell } from "@/lib/academy/shell";
 import { isAcademyTrainer, isPrivilegedRole } from "@/lib/types/database";
 import { AcademyNav } from "@/components/academy/AcademyNav";
 import type { UserRole } from "@/lib/types/database";
@@ -45,10 +45,18 @@ export default async function AcademyAppLayout({
    *    Academy only, so rendering a link out would strand the user on a screen
    *    the native URL guard then refuses to load.
    */
+  /*
+   * "← Atlas" is administrators only.
+   *
+   * The previous condition also passed for anyone whose department merely was
+   * not "academy", so an ordinary concierge agent taking a training session saw
+   * a link into the CRM. Role is now the only thing that decides it, and
+   * `isPrivilegedRole` (admin / founder / super_admin) is the same test the
+   * Atlas dashboard itself gates on — so the link can never point somewhere its
+   * owner would be bounced from.
+   */
   const inNativeShell = isNativeShell((await headers()).get("user-agent"));
-  const canReturnToAtlas =
-    !inNativeShell &&
-    (isPrivilegedRole(role as UserRole) || department !== "academy");
+  const showAtlasLink = canReturnToAtlas({ role, inNativeShell });
 
   return (
     /*
@@ -59,7 +67,7 @@ export default async function AcademyAppLayout({
      */
     <div className="flex h-screen flex-col overflow-hidden bg-[#F9F9F6]">
       <AcademyNav
-        canReturnToAtlas={canReturnToAtlas}
+        canReturnToAtlas={showAtlasLink}
         displayName={profile.full_name ?? null}
         isTrainer={isAcademyTrainer(role as UserRole, department)}
       />

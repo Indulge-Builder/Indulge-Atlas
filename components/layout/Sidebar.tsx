@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { ComponentType } from "react";
+import { useRef, type ComponentType } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
@@ -41,7 +41,6 @@ import {
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getInitials } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
 import type { EmployeeDepartment, Profile } from "@/lib/types/database";
 import { canAccessShopSurfaces } from "@/lib/shop/access";
 import {
@@ -603,12 +602,17 @@ function NavSection({
 export function Sidebar({ profile }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const supabase = createClient();
+  const signOutFormRef = useRef<HTMLFormElement>(null);
 
-  async function handleSignOut() {
-    await supabase.auth.signOut();
-    router.push("/login");
-    router.refresh();
+  /*
+   * Sign-out posts to /auth/signout rather than clearing the session from
+   * JavaScript. A client-only signOut() never emits a Set-Cookie, so the
+   * server-side session survived, and the authenticated dashboard stayed in
+   * Next's client Router Cache — Back re-displayed it without a server round
+   * trip. The route handler clears the cookies and revalidates every segment.
+   */
+  function handleSignOut() {
+    signOutFormRef.current?.requestSubmit();
   }
 
   const isFullSidebarRole =
@@ -792,9 +796,20 @@ export function Sidebar({ profile }: SidebarProps) {
               transition-colors duration-150
             "
             title="Sign out"
+            type="button"
           >
             <LogOut className="w-3.5 h-3.5" />
           </motion.button>
+
+          {/* The real submit target. Kept as a sibling — a <form> nested inside
+              a <button> is invalid HTML, and the motion.button cannot be the
+              form's own submit control without losing its animation props. */}
+          <form
+            ref={signOutFormRef}
+            action="/auth/signout"
+            method="post"
+            className="hidden"
+          />
         </div>
       </div>
     </aside>
