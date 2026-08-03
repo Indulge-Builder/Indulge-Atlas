@@ -20,19 +20,31 @@ import { cn } from "@/lib/utils";
 interface NavLink {
   href: string;
   label: string;
-  /** Trainer-only surfaces are hidden here and gated server-side as well. */
+  /** Trainers and admins. Hidden here AND gated server-side. */
   trainerOnly?: boolean;
+  /** Admins only — trainers do not get these. Gated server-side too. */
+  adminOnly?: boolean;
   /** Which ?view= value marks this tab active. Absent = no view param. */
   view?: string;
 }
 
+/**
+ * Three tiers, all mirrored by a server-side gate on the route itself:
+ *   everyone  — the training experience a trainee signs in for
+ *   trainer   — cohort oversight
+ *   admin     — the scenario answer key and the cohort-wide analytics
+ *
+ * Scenario library is admin-only deliberately: it holds hidden_constraints and
+ * ideal_outcome, i.e. the answers to the drills. Analytics is the whole-cohort
+ * dashboard. Trainers review their cohort through the Cohort tab instead.
+ */
 const LINKS: NavLink[] = [
   { href: "/academy", label: "Clients" },
   { href: "/academy/tasks", label: "Training tasks" },
   { href: "/academy?view=practice", label: "Free practice", view: "practice" },
   { href: "/academy?view=cohort", label: "Cohort", view: "cohort", trainerOnly: true },
-  { href: "/academy/seeds", label: "Scenario library", trainerOnly: true },
-  { href: "/academy/admin", label: "Analytics", trainerOnly: true },
+  { href: "/academy/seeds", label: "Scenario library", adminOnly: true },
+  { href: "/academy/admin", label: "Analytics", adminOnly: true },
 ];
 
 /**
@@ -40,9 +52,22 @@ const LINKS: NavLink[] = [
  * each other apart. Split out because `useSearchParams` needs its own Suspense
  * boundary — same pattern as DomainSwitcher inside the Atlas TopBar.
  */
-function NavLinks({ isTrainer }: { isTrainer: boolean }): JSX.Element {
+function NavLinks({
+  isTrainer,
+  isAdmin,
+}: {
+  isTrainer: boolean;
+  isAdmin: boolean;
+}): JSX.Element {
   const pathname = usePathname();
   const view = useSearchParams().get("view");
+
+  /** Admins are trainers too, so an admin sees every tab. */
+  const visible = (l: NavLink): boolean => {
+    if (l.adminOnly) return isAdmin;
+    if (l.trainerOnly) return isTrainer;
+    return true;
+  };
 
   const isActive = (link: NavLink): boolean => {
     if (link.href.startsWith("/academy/")) {
@@ -61,7 +86,7 @@ function NavLinks({ isTrainer }: { isTrainer: boolean }): JSX.Element {
          exact thing this change removed. */
       className="-mx-1 flex items-center gap-0.5 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
-      {LINKS.filter((l) => isTrainer || !l.trainerOnly).map((link) => {
+      {LINKS.filter(visible).map((link) => {
         const active = isActive(link);
         return (
           <Link
@@ -87,10 +112,13 @@ export function AcademyNav({
   canReturnToAtlas,
   displayName,
   isTrainer = false,
+  isAdmin = false,
 }: {
   canReturnToAtlas: boolean;
   displayName: string | null;
   isTrainer?: boolean;
+  /** Admins additionally get the scenario library and cohort analytics. */
+  isAdmin?: boolean;
 }) {
   const [signingOut, setSigningOut] = useState(false);
 
@@ -121,7 +149,7 @@ export function AcademyNav({
             right-hand controls off the bar. */}
         <div className="min-w-0 flex-1">
           <Suspense fallback={<div className="h-[30px]" />}>
-            <NavLinks isTrainer={isTrainer} />
+            <NavLinks isTrainer={isTrainer} isAdmin={isAdmin} />
           </Suspense>
         </div>
 

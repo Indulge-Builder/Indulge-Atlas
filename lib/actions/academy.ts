@@ -12,7 +12,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getAuthUser } from "@/lib/auth/getAuthUser";
 import { getServiceSupabaseClient } from "@/lib/supabase/service";
-import { isAcademyTrainer, ACADEMY_TICKET_TAGS } from "@/lib/types/database";
+import { isAcademyTrainer, isPrivilegedRole, ACADEMY_TICKET_TAGS } from "@/lib/types/database";
 import { sanitizeText } from "@/lib/utils/sanitize";
 import { randomizeSession, buildSessionVars, renderTemplate } from "@/lib/academy/randomize";
 import { ACADEMY_PERSONA_MODEL, ACADEMY_TURN_CAP } from "@/lib/academy/models";
@@ -1749,7 +1749,7 @@ function sanitizeSeed(input: SeedInput) {
 /** Full seed rows for the trainer seed editor (secrets included). */
 export async function getSeedsForTrainer(): Promise<Result<ScenarioSeed[]>> {
   const { role, department } = await getAuthUser();
-  if (!isAcademyTrainer(role, department)) {
+  if (!isPrivilegedRole(role)) {
     return { success: false, error: "Trainers only" };
   }
   const db = getServiceSupabaseClient();
@@ -1764,7 +1764,7 @@ export async function getSeedsForTrainer(): Promise<Result<ScenarioSeed[]>> {
 
 export async function createSeed(input: SeedInput): Promise<Result<{ id: string }>> {
   const { user, role, department } = await getAuthUser();
-  if (!isAcademyTrainer(role, department)) {
+  if (!isPrivilegedRole(role)) {
     return { success: false, error: "Trainers only" };
   }
   const parsed = seedInputSchema.safeParse(input);
@@ -1800,7 +1800,7 @@ export async function updateSeed(
   input: SeedInput,
 ): Promise<Result> {
   const { role, department } = await getAuthUser();
-  if (!isAcademyTrainer(role, department)) {
+  if (!isPrivilegedRole(role)) {
     return { success: false, error: "Trainers only" };
   }
   const idParsed = z.string().uuid().safeParse(seedId);
@@ -1837,7 +1837,7 @@ export async function toggleSeedActive(
   isActive: boolean,
 ): Promise<Result> {
   const { role, department } = await getAuthUser();
-  if (!isAcademyTrainer(role, department)) {
+  if (!isPrivilegedRole(role)) {
     return { success: false, error: "Trainers only" };
   }
   const idParsed = z.string().uuid().safeParse(seedId);

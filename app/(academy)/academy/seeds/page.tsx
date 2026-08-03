@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, TriangleAlert } from "lucide-react";
 import { AcademyTopBar } from "@/components/academy/AcademyTopBar";
 import { getAuthUser } from "@/lib/auth/getAuthUser";
-import { isAcademyTrainer } from "@/lib/types/database";
+import { isPrivilegedRole } from "@/lib/types/database";
 import { getSeedsForTrainer } from "@/lib/actions/academy";
 import { SeedEditor } from "@/components/academy/SeedEditor";
 import type { ScenarioSeed } from "@/lib/types/database";
@@ -11,8 +11,11 @@ import type { ScenarioSeed } from "@/lib/types/database";
 export const dynamic = "force-dynamic";
 
 export default async function AcademySeedsPage() {
-  const { role, department } = await getAuthUser();
-  if (!isAcademyTrainer(role, department)) notFound();
+  const { role } = await getAuthUser();
+  // Admin-only: the scenario library holds the answer key, and analytics is
+  // the cohort-wide dashboard. Trainers use the Cohort tab instead. Enforced
+  // here, not merely hidden in the nav.
+  if (!isPrivilegedRole(role)) notFound();
 
   const res = await getSeedsForTrainer();
   const seeds: ScenarioSeed[] = res.success ? res.data ?? [] : [];

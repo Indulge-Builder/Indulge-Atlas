@@ -70,6 +70,7 @@ export default async function AcademyAppLayout({
         canReturnToAtlas={showAtlasLink}
         displayName={profile.full_name ?? null}
         isTrainer={isAcademyTrainer(role as UserRole, department)}
+        isAdmin={isPrivilegedRole(role as UserRole)}
       />
       <main className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         {children}

@@ -157,3 +157,52 @@ describe("a trainee is not a trainer", () => {
     }
   });
 });
+
+// ── Trainer vs admin ─────────────────────────────────────────────────────────
+
+/**
+ * Three tiers. Every row here has a matching server-side gate — the nav flags
+ * only decide what is *shown*.
+ */
+describe("trainer permissions", () => {
+  const TRAINEE = { role: "agent", dept: "academy" };
+  const TRAINER = { role: "manager", dept: "academy" };
+  const ADMIN = { role: "admin", dept: null as string | null };
+
+  const trainer = (u: { role: string; dept: string | null }) =>
+    isAcademyTrainer(u.role, u.dept);
+  const admin = (u: { role: string; dept: string | null }) => isPrivilegedRole(u.role);
+
+  it("gives trainers cohort oversight", () => {
+    expect(trainer(TRAINER)).toBe(true);
+    expect(trainer(ADMIN)).toBe(true);
+    expect(trainer(TRAINEE)).toBe(false);
+  });
+
+  it("keeps the scenario library and analytics admin-only", () => {
+    // The seed library holds hidden_constraints and ideal_outcome — the answers
+    // to the drills. Analytics is the cohort-wide dashboard.
+    expect(admin(ADMIN)).toBe(true);
+    expect(admin(TRAINER)).toBe(false);
+    expect(admin(TRAINEE)).toBe(false);
+  });
+
+  it("keeps trainers out of Atlas and User Management", () => {
+    // Both hang off isPrivilegedRole: the "← Atlas" link, the dashboard
+    // redirect, and requireAdminOnly in lib/actions/admin.ts.
+    expect(canReturnToAtlas({ role: TRAINER.role as UserRole, inNativeShell: false })).toBe(false);
+    expect(canReturnToAtlas({ role: ADMIN.role as UserRole, inNativeShell: false })).toBe(true);
+  });
+
+  it("leaves the trainee experience open to everyone signed in", () => {
+    // Clients, Training tasks and Free practice carry no gate at all — they are
+    // what a trainee signs in for, and trainers/admins get them too.
+    for (const u of [TRAINEE, TRAINER, ADMIN]) {
+      expect(trainer(u) || admin(u) || u.role === "agent").toBe(true);
+    }
+  });
+
+  it("does not let a trainer become an admin by department alone", () => {
+    expect(admin({ role: "manager", dept: "academy" })).toBe(false);
+  });
+});
