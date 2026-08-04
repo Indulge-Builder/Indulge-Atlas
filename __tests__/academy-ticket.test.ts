@@ -173,9 +173,15 @@ describe("ticket update validation", () => {
 
   it("reports every failing field at once, not just the first", () => {
     const errs = validateTicketUpdate(
-      update({ resolution_summary: "", internal_notes: "", public_reply: "", tags: [] }),
+      update({ resolution_summary: "", internal_notes: "", tags: [] }),
     );
-    expect(errs.length).toBe(4);
+    expect(errs.length).toBe(3);
+  });
+
+  it("no longer requires a public reply — the field was removed", () => {
+    // The member already got the answer in the conversation; writing it again
+    // for the ticket was duplicate work. An empty value must validate cleanly.
+    expect(validateTicketUpdate(update({ public_reply: "" }))).toHaveLength(0);
   });
 
   it("knows which statuses actually close a request", () => {

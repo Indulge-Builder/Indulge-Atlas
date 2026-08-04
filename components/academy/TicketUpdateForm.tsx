@@ -32,7 +32,6 @@ import { cn } from "@/lib/utils";
 import { submitTicketUpdate } from "@/lib/actions/academy";
 import {
   MIN_INTERNAL_NOTES,
-  MIN_PUBLIC_REPLY,
   MIN_RESOLUTION_SUMMARY,
   TICKET_PRIORITY_LABEL,
   TICKET_STATUS_LABEL,
@@ -285,12 +284,16 @@ export function TicketUpdateForm({
               </p>
               <p className="mt-0.5 whitespace-pre-wrap">{existing.internal_notes}</p>
             </div>
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-chat-ink-muted">
-                Public reply
-              </p>
-              <p className="mt-0.5 whitespace-pre-wrap">{existing.public_reply}</p>
-            </div>
+            {/* Older tickets, filed before the field was removed, still carry
+                one — show it rather than hide history. New ones have none. */}
+            {existing.public_reply?.trim() ? (
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-chat-ink-muted">
+                  Public reply
+                </p>
+                <p className="mt-0.5 whitespace-pre-wrap">{existing.public_reply}</p>
+              </div>
+            ) : null}
           </div>
         </details>
       </div>
@@ -386,22 +389,10 @@ export function TicketUpdateForm({
         />
       </FieldShell>
 
-      <FieldShell
-        id="ticket-public-reply"
-        label="Public reply"
-        hint={`${form.public_reply.trim().length}/${MIN_PUBLIC_REPLY} · the client reads this`}
-      >
-        <textarea
-          id="ticket-public-reply"
-          aria-describedby="ticket-public-reply-hint"
-          rows={4}
-          value={form.public_reply}
-          onChange={(e) => set("public_reply", e.target.value)}
-          disabled={pending}
-          placeholder="The final message to the client, in the Indulge voice."
-          className={textareaClass}
-        />
-      </FieldShell>
+      {/* The public reply was removed: the member already received the answer in
+          the conversation, which the evaluator grades. Writing it a second time
+          for the ticket was duplicate work, and the column stays in the schema
+          (NOT NULL DEFAULT '') so nothing downstream needed changing. */}
 
       <div className="grid gap-4 sm:grid-cols-3">
         <FieldShell id="ticket-status" label="Status">
@@ -438,20 +429,22 @@ export function TicketUpdateForm({
           </select>
         </FieldShell>
 
-        <FieldShell id="ticket-time-spent" label="Time spent" hint="minutes">
-          <input
+        {/* Measured, not declared. This is the elapsed time of the conversation
+            and the trainee cannot edit it — time efficiency is 10% of their
+            score, and a self-reported figure is a number they can set for
+            themselves. Rendered read-only rather than hidden, because knowing
+            how long a request actually took is useful to them. */}
+        <FieldShell id="ticket-time-spent" label="Time spent" hint="measured">
+          <output
             id="ticket-time-spent"
             aria-describedby="ticket-time-spent-hint"
-            type="number"
-            min={1}
-            max={960}
-            value={form.time_spent_minutes}
-            onChange={(e) =>
-              set("time_spent_minutes", Number(e.target.value) || 0)
-            }
-            disabled={pending}
-            className={selectClass}
-          />
+            className={cn(
+              selectClass,
+              "flex items-center bg-chat-panel-active text-chat-ink-muted",
+            )}
+          >
+            {form.time_spent_minutes} min
+          </output>
         </FieldShell>
       </div>
 
