@@ -13,13 +13,15 @@
 
 import { useCallback, useEffect, useRef, useState, type JSX } from "react";
 import { Loader2, Paperclip, Send, X } from "lucide-react";
+import { toast } from "sonner";
 import { IndulgeButton } from "@/components/ui/indulge-button";
 import { cn } from "@/lib/utils";
 
 /** A file the intern has picked but not yet sent. `previewUrl` is an object URL. */
 export interface PendingAttachment {
   file: File;
-  kind: "image" | "video";
+  /** `document` is a PDF — it has no visual preview, only a name. */
+  kind: "image" | "video" | "document";
   previewUrl: string;
 }
 
@@ -158,8 +160,16 @@ export function AcademyComposer({
         ? ("video" as const)
         : file.type.startsWith("image/")
           ? ("image" as const)
-          : null;
-      if (!kind) return;
+          : file.type === "application/pdf"
+            ? ("document" as const)
+            : null;
+      // Was a silent `return` — the file simply vanished with no explanation.
+      if (!kind) {
+        toast.error("That file type cannot be shared", {
+          description: "Attach an image, a video, or a PDF.",
+        });
+        return;
+      }
       if (attachment) URL.revokeObjectURL(attachment.previewUrl);
       setAttachment({ file, kind, previewUrl: URL.createObjectURL(file) });
     },
@@ -316,7 +326,7 @@ export function AcademyComposer({
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*,video/*"
+          accept="image/*,video/*,application/pdf"
           hidden
           onChange={pickFile}
         />

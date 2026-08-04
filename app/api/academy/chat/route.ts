@@ -51,7 +51,7 @@ export const maxDuration = 60;
 
 const attachmentSchema = z.object({
   path: z.string().min(1).max(400),
-  kind: z.enum(["image", "video"]),
+  kind: z.enum(["image", "video", "document"]),
   mime: z.string().min(1).max(100),
   name: z.string().min(1).max(200),
   size: z.number().int().nonnegative(),
@@ -172,7 +172,11 @@ export async function POST(req: Request): Promise<Response> {
   // still make sense without rendering the file.
   const internTurnBody =
     internBody ||
-    (safeAttachments[0]?.kind === "video" ? "[shared a video]" : "[shared a photo]");
+    (safeAttachments[0]?.kind === "video"
+      ? "[shared a video]"
+      : safeAttachments[0]?.kind === "document"
+        ? "[shared a PDF]"
+        : "[shared a photo]");
 
   const baseTurn = {
     session_id: sessionId,
@@ -360,12 +364,22 @@ export async function POST(req: Request): Promise<Response> {
           continue;
         }
       }
+      /*
+       * A PDF is stored and linked, NOT sent to the model. Deliberate: the
+       * persona is Haiku capped at 200 output tokens playing a member on
+       * WhatsApp — a 40-page document buys nothing, and inlining one would push
+       * the request toward the 30s abort, turning "PDFs do not upload" into
+       * "the chat hangs". The member is told a file arrived and told plainly
+       * that they have not read it, so it cannot invent contents.
+       */
       blocks.push({
         type: "text",
         text:
           att.kind === "video"
             ? `[The concierge shared a video: ${att.name}. You can see it plays, but describe only what they tell you about it.]`
-            : `[The concierge shared an image: ${att.name}.]`,
+            : att.kind === "document"
+              ? `[The concierge shared a PDF: ${att.name}. You have NOT opened it. Do not describe or invent its contents — if it matters, ask them what is in it.]`
+              : `[The concierge shared an image: ${att.name}.]`,
       });
     }
     if (internBody) blocks.push({ type: "text", text: internBody });
