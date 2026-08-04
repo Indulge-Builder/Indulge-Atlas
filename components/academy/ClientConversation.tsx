@@ -12,7 +12,7 @@
  * message and swaps in the real transcript.
  */
 
-import { useState, useTransition, type JSX } from "react";
+import { useMemo, useState, useTransition, type JSX } from "react";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -168,22 +168,36 @@ export function ClientConversation({
   const tier = thread.difficulty as AcademyTier;
   const internTurns = thread.turns.filter((t) => t.role === "intern").length;
 
-  // Not started yet — show the member's opening line as a preview so the request
-  // reads as a message rather than a form. AcademyChat persists it on first reply.
-  const previewTurns =
-    thread.turns.length > 0
-      ? thread.turns
-      : [
-          {
-            id: `preview-${thread.seedId}`,
-            session_id: "",
-            role: "client" as const,
-            body: thread.openingMessage,
-            seq: 1,
-            created_at: new Date().toISOString(),
-            attachments: [],
-          },
-        ];
+  /*
+   * Not started yet — show the member's opening line as a preview so the request
+   * reads as a message rather than a form. AcademyChat persists it on first reply.
+   *
+   * MEMOISED, and no `new Date()` in the render body. Both matter: this array
+   * was rebuilt on every shell render, and AcademyChat adopts `initialTurns`
+   * whenever its identity changes — so an inbox tick (every 2-5 minutes) reset
+   * the whole visible conversation back to this one bubble. Reading the clock
+   * during render was also impure, and would differ across a concurrent replay.
+   */
+  const previewTurns = useMemo(
+    () =>
+      thread.turns.length > 0
+        ? thread.turns
+        : [
+            {
+              id: `preview-${thread.seedId}`,
+              session_id: "",
+              role: "client" as const,
+              body: thread.openingMessage,
+              seq: 1,
+              // Read once per thread inside the memo, not on every render. A
+              // fixed epoch would stabilise identity too, but it would date the
+              // day separator above the conversation to 1970.
+              created_at: new Date().toISOString(),
+              attachments: [],
+            },
+          ],
+    [thread.turns, thread.seedId, thread.openingMessage],
+  );
 
   return (
     <section className={cn("flex h-full min-h-0 flex-col bg-chat-canvas", className)}>

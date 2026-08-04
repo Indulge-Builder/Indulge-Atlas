@@ -197,11 +197,23 @@ export function AcademyChat({
   /** False once the intern scrolls up to re-read — we stop yanking them down. */
   const stickToBottomRef = useRef(true);
 
-  // A server refresh must win over stale local state — but never mid-stream, or
-  // the optimistic bubble would vanish under the intern's cursor.
+  /**
+   * Adopt a server refresh — but never let it SHRINK the transcript.
+   *
+   * This used to replace local state outright. `previewTurns` upstream is a new
+   * array identity on most shell renders, and the shell re-renders on every
+   * inbox tick (every 2-5 minutes), so the whole conversation — adopted
+   * opening, every intern turn, every reply — was replaced by the single
+   * preview bubble while the trainee was working. The rows were never lost
+   * (training_turns is append-only) but the screen was.
+   *
+   * Append-only is exactly why this guard is sound: a server transcript can
+   * never legitimately be shorter than what we already hold, so a shorter
+   * payload is stale by definition and is ignored.
+   */
   useEffect(() => {
     if (inFlightRef.current) return;
-    setTurns(initialTurns);
+    setTurns((prev) => (initialTurns.length >= prev.length ? initialTurns : prev));
   }, [initialTurns]);
 
   // Abandon any in-flight stream when the surface unmounts.
@@ -219,29 +231,34 @@ export function AcademyChat({
    * Display only — the transcript keeps one row, so the evaluator, the ticket
    * reviewer and the persona all still read exactly what they read before.
    *
-   * Scoped to the opening: once the intern has replied the conversation is
-   * under way and the persona's own turns are already message-length, so
-   * splitting them would add nothing. It also keeps resumed conversations on
-   * the untouched path, where the delivery pointer is already correct.
+   * Scoped BY POSITION — the first turn only — not by whether the intern has
+   * replied yet.
+   *
+   * The earlier version branched on `turns.some(t => t.role === "intern")`,
+   * which meant the rendered array changed shape the instant the trainee sent
+   * anything: it collapsed from N chunks back to one turn, no React key
+   * survived, and every bubble unmounted and re-animated at exactly the moment
+   * they pressed Send. Keying off position keeps the shape stable for the whole
+   * conversation, so the opening is split once and stays split.
    */
-  const deliveryTurns = useMemo(() => {
-    if (turns.some((t) => t.role === "intern")) return turns;
+  const deliveryTurns = useMemo(
+    () =>
+      turns.flatMap((turn, index) => {
+        if (index !== 0 || turn.role !== "client") return [turn];
+        const chunks = splitClientMessage(turn.body);
+        if (chunks.length <= 1) return [turn];
 
-    return turns.flatMap((turn) => {
-      if (turn.role !== "client") return [turn];
-      const chunks = splitClientMessage(turn.body);
-      if (chunks.length <= 1) return [turn];
-
-      return chunks.map((body, i) => ({
-        ...turn,
-        // Derived ids keep React keys stable without touching the real row.
-        id: `${turn.id}#${i}`,
-        body,
-        // Media belongs with the closing bubble, not repeated on each.
-        attachments: i === chunks.length - 1 ? turn.attachments : [],
-      }));
-    });
-  }, [turns]);
+        return chunks.map((body, i) => ({
+          ...turn,
+          // Derived ids keep React keys stable without touching the real row.
+          id: `${turn.id}#${i}`,
+          body,
+          // Media belongs with the closing bubble, not repeated on each.
+          attachments: i === chunks.length - 1 ? turn.attachments : [],
+        }));
+      }),
+    [turns],
+  );
 
   /** Only the turns that have "arrived" are rendered. */
   const visibleTurns = useMemo(
@@ -515,6 +532,21 @@ export function AcademyChat({
               created_at: new Date().toISOString(),
             },
           ]);
+          /*
+           * Deliver it in the SAME batch it is appended in.
+           *
+           * Without this, the `finally` below unmounts the streaming bubble in
+           * the same commit — while the delivery pointer still trails the array
+           * by one, so the new turn is not in `visibleTurns` either, and the
+           * typing indicator is off. That commit renders nothing where the
+           * reply was, and it paints. The staging effect then re-showed the
+           * identical text 0.7-2.2s later behind a typing indicator: the
+           * "appears, disappears, reappears" on every single reply.
+           *
+           * The text was streamed live, so it has already been read — staging
+           * it again was never right.
+           */
+          setDeliveredCount((n) => n + 1);
         } else {
           toast.warning("The client went quiet — no reply came back.");
         }
@@ -715,7 +747,12 @@ export function AcademyChat({
 
           {/* "Client is typing…" — shown while waiting for the reply to begin,
               and during the deliberate beat before a staged message arrives. */}
-          {(clientTyping || (sending && streaming === null)) && <TypingIndicator />}
+          {/* Belt and braces for the blank-frame class of bug: if anything is
+              still undelivered, something must be on screen saying so. A commit
+              can then never contain neither a bubble nor an indicator. */}
+          {(clientTyping ||
+            (sending && streaming === null) ||
+            deliveredCount < deliveryTurns.length) && <TypingIndicator />}
         </div>
 
         {/* Scoring overlay — the transcript stays visible but goes quiet. */}

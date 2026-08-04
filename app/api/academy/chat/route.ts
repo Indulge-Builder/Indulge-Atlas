@@ -434,11 +434,29 @@ export async function POST(req: Request): Promise<Response> {
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
 
+  /*
+   * Hoisted out of `start()` so `cancel()` can see what actually streamed.
+   *
+   * When the trainee switched clients mid-stream the cancel path settled with
+   * an empty string, which `persistClientTurn` coerced to FALLBACK_REPLY — so
+   * "Sorry, I got distracted for a moment" was written over the reply they had
+   * just watched arrive. training_turns is append-only, so that was permanent,
+   * and the persona, the evaluator and the ticket reviewer all read it back
+   * afterwards as though the member had really said it.
+   */
+  let accumulated = "";
+  /** Guards against cancel() settling after a completed read already did. */
+  let settled = false;
+  const settleOnce = (text: string) => {
+    if (settled) return;
+    settled = true;
+    settle(text);
+  };
+
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const reader = upstream.body!.getReader();
       let buffer = "";
-      let accumulated = "";
       try {
         for (;;) {
           const { done, value } = await reader.read();
@@ -481,15 +499,17 @@ export async function POST(req: Request): Promise<Response> {
       } finally {
         clearTimeout(timeout);
         reader.releaseLock();
-        settle(accumulated || FALLBACK_REPLY);
+        settleOnce(accumulated || FALLBACK_REPLY);
         controller.close();
       }
     },
     cancel() {
-      // Client navigated away mid-stream — still persist what we had.
+      // Client navigated away mid-stream — persist what actually arrived, not
+      // an empty string. A partial reply is a true record of the conversation;
+      // the canned line is a fabrication the evaluator would later grade.
       clearTimeout(timeout);
       controllerAbort.abort();
-      settle("");
+      settleOnce(accumulated);
     },
   });
 
