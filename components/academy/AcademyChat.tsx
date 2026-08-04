@@ -357,8 +357,21 @@ export function AcademyChat({
     ) => {
       if (inFlightRef.current || readOnly || sessionClosed || capReached) return;
       inFlightRef.current = true;
+      /*
+       * Acknowledge immediately. Session creation below is six sequential round
+       * trips, and it used to run with no indicator at all — on the most common
+       * interaction in the product, the trainee's first reply to a client. The
+       * composer cleared and nothing on screen said anything was happening.
+       */
+      setSending(true);
       // Sending is an explicit intent to follow the conversation again.
       stickToBottomRef.current = true;
+
+      /** Clears every flag an early return would otherwise strand. */
+      const abandon = () => {
+        inFlightRef.current = false;
+        setSending(false);
+      };
 
       // First reply to this client — create the session now rather than when the
       // row was merely opened, so browsing leaves nothing behind.
@@ -366,13 +379,27 @@ export function AcademyChat({
       if (!activeSessionId) {
         if (!seedId) {
           toast.error("This conversation cannot be started.");
-          inFlightRef.current = false;
+          abandon();
           return;
         }
-        const started = await startAcademySession(seedId);
+        /*
+         * Must be caught, not just checked. `getAuthUser` THROWS on an expired
+         * session, and the rejection escaped this un-awaited handler — leaving
+         * inFlightRef true forever, so every later Send silently did nothing
+         * until the component remounted. That is the "chat is dead" symptom.
+         */
+        let started: Awaited<ReturnType<typeof startAcademySession>>;
+        try {
+          started = await startAcademySession(seedId);
+        } catch (e) {
+          console.error("[academy] startAcademySession threw:", e);
+          toast.error("Could not start this conversation. Please try again.");
+          abandon();
+          return;
+        }
         if (!started.success || !started.data) {
           toast.error(started.success ? "Could not start this conversation." : started.error);
-          inFlightRef.current = false;
+          abandon();
           return;
         }
         activeSessionId = started.data.sessionId;
@@ -407,13 +434,16 @@ export function AcademyChat({
           if (!res.success || !res.data) {
             toast.error(res.success ? "Upload failed." : res.error);
             URL.revokeObjectURL(attachment.previewUrl);
-            inFlightRef.current = false;
             setUploading(false);
+            abandon();
             return;
           }
           uploaded = { ...res.data, signedUrl: attachment.previewUrl };
-        } catch {
-          toast.error("Could not upload that file.");
+        } catch (e) {
+          // Was causeless — log the real reason so an upload failure is
+          // diagnosable rather than a shrug in the UI.
+          console.error("[academy] attachment upload failed:", e);
+          toast.error("Could not upload that file. Please try again.");
           URL.revokeObjectURL(attachment.previewUrl);
           inFlightRef.current = false;
           setUploading(false);
@@ -439,6 +469,16 @@ export function AcademyChat({
 
       const controller = new AbortController();
       abortRef.current = controller;
+
+      /*
+       * The only thing that ever aborted this request was unmounting. If the
+       * server stalled before it reached Anthropic — a slow Supabase read, a
+       * cold function — the trainee sat on "client is typing…" indefinitely,
+       * with no error and no way back. 45s is generous against the route's own
+       * 60s ceiling while still being finite.
+       */
+      const timeoutSignal = AbortSignal.timeout(45_000);
+      const requestSignal = AbortSignal.any([controller.signal, timeoutSignal]);
 
       /** Drop the optimistic bubble — the server never recorded this turn. */
       const rollback = () => {
@@ -467,7 +507,7 @@ export function AcademyChat({
             // the server treats its absence as "not reported", not as zero.
             composition: composition ?? null,
           }),
-          signal: controller.signal,
+          signal: requestSignal,
         });
 
         if (!res.ok) {
@@ -551,11 +591,33 @@ export function AcademyChat({
           toast.warning("The client went quiet — no reply came back.");
         }
       } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") {
+        const isDom = error instanceof DOMException;
+
+        // Our own 45s ceiling, not a navigation. The turn IS already recorded —
+        // route.ts inserts it before contacting Anthropic — so the bubble must
+        // stay. Only the client's reply is missing.
+        if (isDom && error.name === "TimeoutError") {
+          console.error("[academy] chat request timed out after 45s");
+          toast.error("The client is taking too long to reply", {
+            description:
+              "Your message was sent and saved. Try again in a moment.",
+          });
+          return;
+        }
+
+        if (isDom && error.name === "AbortError") {
           // Navigated away or closed the session mid-stream — nothing to report.
           return;
         }
+
+        /*
+         * Only now is a rollback honest. The intern turn is written server-side
+         * before the model is called, so removing the bubble on every failure
+         * told the trainee "not sent" about a row that is permanent — they
+         * retyped, and the turn was duplicated at two of their 24.
+         */
         rollback();
+        console.error("[academy] chat request failed:", error);
         toast.error("Network error", {
           description: "Your message was not sent — please try again.",
         });

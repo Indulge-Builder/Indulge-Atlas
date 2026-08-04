@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getServiceSupabaseClient } from "@/lib/supabase/service";
 import { sanitizeText } from "@/lib/utils/sanitize";
+import { formatIST } from "@/lib/utils/time";
 import { buildPersonaSystemPrompt } from "@/lib/academy/persona";
 import { runAiAssistanceEstimate } from "@/lib/services/academyAiAssistance";
 import {
@@ -19,6 +20,15 @@ import type {
 } from "@/lib/types/database";
 
 export const runtime = "nodejs";
+
+/**
+ * Without this the route inherits the platform default, and a stalled upstream
+ * call could outlive the trainee's patience with no ceiling. 60s comfortably
+ * covers the 30s Anthropic timer plus the surrounding database work, and gives
+ * the platform a definite point at which to end the request rather than leaving
+ * the browser holding an open stream forever.
+ */
+export const maxDuration = 60;
 
 /**
  * POST /api/academy/chat — the client-persona turn.
@@ -297,6 +307,9 @@ export async function POST(req: Request): Promise<Response> {
     escalationTrigger: seed.escalation_trigger,
     resolvedConstraints: resolveConstraints(seed, vars),
     openingMessage,
+    // Read here, not in the builder — the prompt builder must stay pure so its
+    // guardrail tests can assert byte-identical output across calls.
+    nowIst: formatIST(new Date(), "EEEE d MMMM yyyy, h:mm a"),
   });
 
   // Anthropic messages must alternate and start with `user`. The transcript
