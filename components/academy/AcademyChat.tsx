@@ -66,6 +66,25 @@ function localId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+/**
+ * Body for a turn that carries files and no text, so the transcript and the
+ * evaluator still read sensibly without rendering the media. Describes the whole
+ * set — the old wording looked only at the first file, so three photos and a PDF
+ * read as "[shared a photo]".
+ */
+function mediaOnlyBody(files: TrainingAttachment[]): string {
+  if (files.length === 0) return "";
+  if (files.length === 1) {
+    const only = files[0].kind;
+    return only === "video"
+      ? "[shared a video]"
+      : only === "document"
+        ? "[shared a PDF]"
+        : "[shared a photo]";
+  }
+  return `[shared ${files.length} files]`;
+}
+
 function safeDate(timestamp: string | null | undefined): string | null {
   if (!timestamp?.trim()) return null;
   try {
@@ -352,7 +371,7 @@ export function AcademyChat({
   const handleSend = useCallback(
     async (
       text: string,
-      attachment: PendingAttachment | null,
+      attachments: PendingAttachment[],
       composition?: ComposerComposition,
     ) => {
       if (inFlightRef.current || readOnly || sessionClosed || capReached) return;
@@ -423,43 +442,67 @@ export function AcademyChat({
       // Upload first — a turn must never be recorded referencing media that
       // failed to store. The local object URL powers the optimistic bubble so
       // the intern sees their photo immediately.
-      let uploaded: TrainingAttachment | null = null;
-      if (attachment) {
+      const uploadedAll: TrainingAttachment[] = [];
+      if (attachments.length > 0) {
         setUploading(true);
-        try {
-          const fd = new FormData();
-          fd.append("sessionId", activeSessionId);
-          fd.append("file", attachment.file);
-          const res = await uploadAcademyAttachment(fd);
-          if (!res.success || !res.data) {
-            toast.error(res.success ? "Upload failed." : res.error);
-            URL.revokeObjectURL(attachment.previewUrl);
-            setUploading(false);
-            abandon();
-            return;
+        /*
+         * All files at once, and one failure does not sink the batch. Uploading
+         * sequentially and bailing on the first error meant a five-file message
+         * could lose four good uploads to one bad one, with the trainee's typed
+         * text already gone.
+         */
+        const results = await Promise.allSettled(
+          attachments.map(async (att) => {
+            const fd = new FormData();
+            fd.append("sessionId", activeSessionId);
+            fd.append("file", att.file);
+            const res = await uploadAcademyAttachment(fd);
+            if (!res.success || !res.data) {
+              throw new Error(res.success ? "Upload failed" : res.error);
+            }
+            return { ...res.data, signedUrl: att.previewUrl } as TrainingAttachment;
+          }),
+        );
+        setUploading(false);
+
+        const failed: string[] = [];
+        results.forEach((r, i) => {
+          if (r.status === "fulfilled") uploadedAll.push(r.value);
+          else {
+            console.error("[academy] attachment upload failed:", r.reason);
+            failed.push(attachments[i].file.name);
           }
-          uploaded = { ...res.data, signedUrl: attachment.previewUrl };
-        } catch (e) {
-          // Was causeless — log the real reason so an upload failure is
-          // diagnosable rather than a shrug in the UI.
-          console.error("[academy] attachment upload failed:", e);
-          toast.error("Could not upload that file. Please try again.");
-          URL.revokeObjectURL(attachment.previewUrl);
-          inFlightRef.current = false;
-          setUploading(false);
+        });
+
+        if (failed.length > 0) {
+          toast.error(
+            failed.length === 1
+              ? `${failed[0]} could not be uploaded`
+              : `${failed.length} files could not be uploaded`,
+            {
+              description:
+                uploadedAll.length > 0
+                  ? "Sending the rest."
+                  : "Nothing was sent — please try again.",
+            },
+          );
+        }
+
+        // Every file failed and there is no text to carry the turn on its own.
+        if (uploadedAll.length === 0 && !text) {
+          abandon();
           return;
         }
-        setUploading(false);
       }
 
       const optimistic: TrainingTurn = {
         id: localId("local-intern"),
         session_id: activeSessionId,
         role: "intern",
-        body: text || (uploaded?.kind === "video" ? "[shared a video]" : uploaded ? "[shared a photo]" : ""),
+        body: text || mediaOnlyBody(uploadedAll),
         seq: (turns.at(-1)?.seq ?? 0) + 1,
         created_at: new Date().toISOString(),
-        attachments: uploaded ? [uploaded] : [],
+        attachments: uploadedAll,
       };
 
       setTurns((prev) => [...prev, optimistic]);
@@ -494,15 +537,13 @@ export function AcademyChat({
             message: text,
             // Strip signedUrl — the server re-derives access; never trust a URL
             // supplied by the browser.
-            attachments: uploaded
-              ? [{
-                  path: uploaded.path,
-                  kind: uploaded.kind,
-                  mime: uploaded.mime,
-                  name: uploaded.name,
-                  size: uploaded.size,
-                }]
-              : [],
+            attachments: uploadedAll.map((a) => ({
+              path: a.path,
+              kind: a.kind,
+              mime: a.mime,
+              name: a.name,
+              size: a.size,
+            })),
             // What the editor observed while this reply was written. Optional —
             // the server treats its absence as "not reported", not as zero.
             composition: composition ?? null,

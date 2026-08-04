@@ -172,11 +172,13 @@ export async function POST(req: Request): Promise<Response> {
   // still make sense without rendering the file.
   const internTurnBody =
     internBody ||
-    (safeAttachments[0]?.kind === "video"
-      ? "[shared a video]"
-      : safeAttachments[0]?.kind === "document"
-        ? "[shared a PDF]"
-        : "[shared a photo]");
+    (safeAttachments.length > 1
+      ? `[shared ${safeAttachments.length} files]`
+      : safeAttachments[0]?.kind === "video"
+        ? "[shared a video]"
+        : safeAttachments[0]?.kind === "document"
+          ? "[shared a PDF]"
+          : "[shared a photo]");
 
   const baseTurn = {
     session_id: sessionId,
