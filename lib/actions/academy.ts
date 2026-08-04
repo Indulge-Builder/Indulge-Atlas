@@ -217,6 +217,46 @@ export async function startAcademySession(
   const rosterName = taskNumber
     ? memberFor(await loadRosterClients(), taskNumber).name
     : undefined;
+  /*
+   * Reuse an open session rather than opening a second one for the same
+   * request. Two tabs, or a second click before the first insert returned,
+   * used to mint a duplicate — and because `bySeed` keeps the LATEST session
+   * per seed, the newer empty one then hid the older one's graded transcript
+   * completely. Six such orphans existed in production before this landed.
+   *
+   * The opening line comes back from the transcript, not from a fresh
+   * randomise: re-rolling would hand the caller a different scenario than the
+   * one the persona has been answering as.
+   */
+  const { data: existing } = await db
+    .from("training_sessions")
+    .select("id")
+    .eq("intern_id", user.id)
+    .eq("seed_id", typedSeed.id)
+    .eq("status", "open")
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (existing) {
+    const { data: opening } = await db
+      .from("training_turns")
+      .select("body")
+      .eq("session_id", existing.id)
+      .eq("role", "client")
+      .order("seq", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    // No opening turn means the seeding INSERT below failed last time; fall
+    // through and open a clean session rather than resume a headless one.
+    if (opening?.body) {
+      return {
+        success: true,
+        data: { sessionId: existing.id as string, openingMessage: opening.body as string },
+      };
+    }
+  }
+
   const rand = randomizeSession(typedSeed, Math.random, rosterName);
   const sessionVars = buildSessionVars(typedSeed, rand);
 
