@@ -1909,7 +1909,15 @@ export interface TrainingSession {
  */
 export interface TrainingAttachment {
   path: string;
-  kind: "image" | "video";
+  /**
+   * `document` is a PDF. It is stored and linked but deliberately NOT sent to
+   * the persona model — see the note in app/api/academy/chat/route.ts.
+   *
+   * Additive on purpose: training_turns is append-only, so rows written before
+   * this existed must keep reading correctly, and every consumer must tolerate
+   * a kind it does not recognise.
+   */
+  kind: "image" | "video" | "document";
   mime: string;
   name: string;
   size: number;

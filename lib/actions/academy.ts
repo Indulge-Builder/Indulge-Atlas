@@ -835,13 +835,25 @@ async function buildSessionProgress(params: {
 /** Per-kind ceilings, tighter than the bucket's coarse 50MB limit. */
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10 MB
 const MAX_VIDEO_BYTES = 50 * 1024 * 1024; // 50 MB
+/*
+ * 4 MB, not 10. These figures are aspirational above ~4 MB regardless: the file
+ * travels through a Next Server Action, and Vercel caps a request body at about
+ * 4.5 MB, so a larger file is rejected by the platform before this check is
+ * ever reached. Set honestly for PDFs so the error the trainee sees is the real
+ * one. Lifting the ceiling properly means a signed upload URL straight to
+ * Supabase, which is tracked separately.
+ */
+const MAX_DOCUMENT_BYTES = 4 * 1024 * 1024; // 4 MB
 const ATTACHMENT_BUCKET = "academy-attachments";
 /** Signed URLs are short-lived — the bucket is private by design. */
 const SIGNED_URL_TTL_SECONDS = 60 * 60;
 
-function attachmentKind(mime: string): "image" | "video" | null {
+function attachmentKind(mime: string): "image" | "video" | "document" | null {
   if (mime.startsWith("image/")) return "image";
   if (mime.startsWith("video/")) return "video";
+  // PDFs only — a general document allowlist would let anything through a
+  // bucket whose MIME policy is the real gate.
+  if (mime === "application/pdf") return "document";
   return null;
 }
 
@@ -869,13 +881,22 @@ export async function uploadAcademyAttachment(
   if (!(file instanceof File)) return { success: false, error: "No file provided" };
 
   const kind = attachmentKind(file.type);
-  if (!kind) return { success: false, error: "Only images and videos can be shared" };
+  if (!kind) {
+    return { success: false, error: "Only images, videos and PDFs can be shared" };
+  }
 
-  const cap = kind === "image" ? MAX_IMAGE_BYTES : MAX_VIDEO_BYTES;
+  const cap =
+    kind === "image"
+      ? MAX_IMAGE_BYTES
+      : kind === "document"
+        ? MAX_DOCUMENT_BYTES
+        : MAX_VIDEO_BYTES;
   if (file.size > cap) {
+    const label =
+      kind === "image" ? "Images" : kind === "document" ? "PDFs" : "Videos";
     return {
       success: false,
-      error: `${kind === "image" ? "Images" : "Videos"} must be under ${Math.round(cap / 1024 / 1024)}MB`,
+      error: `${label} must be under ${Math.round(cap / 1024 / 1024)}MB`,
     };
   }
 

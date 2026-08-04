@@ -85,9 +85,17 @@ export function splitClientMessage(
   }, []);
 }
 
-/** Gap before the next bubble, in ms. Randomised so it never feels metronomic. */
-export const CHUNK_MIN_DELAY_MS = 20_000;
-export const CHUNK_MAX_DELAY_MS = 45_000;
+/**
+ * Gap before the next bubble, in ms. Randomised so it never feels metronomic.
+ *
+ * Was 20-45s, which was far too long: the chat holds a typing indicator for the
+ * wait, so a four-chunk request showed bouncing dots for up to ~135 seconds
+ * before the trainee had sent anything — indistinguishable from a hung request.
+ * A few seconds reads as someone adding a thought; half a minute reads as
+ * broken.
+ */
+export const CHUNK_MIN_DELAY_MS = 3_000;
+export const CHUNK_MAX_DELAY_MS = 8_000;
 
 export function chunkDelay(rng: () => number = Math.random): number {
   const span = CHUNK_MAX_DELAY_MS - CHUNK_MIN_DELAY_MS;

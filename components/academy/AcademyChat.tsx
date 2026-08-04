@@ -66,6 +66,25 @@ function localId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+/**
+ * Body for a turn that carries files and no text, so the transcript and the
+ * evaluator still read sensibly without rendering the media. Describes the whole
+ * set — the old wording looked only at the first file, so three photos and a PDF
+ * read as "[shared a photo]".
+ */
+function mediaOnlyBody(files: TrainingAttachment[]): string {
+  if (files.length === 0) return "";
+  if (files.length === 1) {
+    const only = files[0].kind;
+    return only === "video"
+      ? "[shared a video]"
+      : only === "document"
+        ? "[shared a PDF]"
+        : "[shared a photo]";
+  }
+  return `[shared ${files.length} files]`;
+}
+
 function safeDate(timestamp: string | null | undefined): string | null {
   if (!timestamp?.trim()) return null;
   try {
@@ -197,11 +216,23 @@ export function AcademyChat({
   /** False once the intern scrolls up to re-read — we stop yanking them down. */
   const stickToBottomRef = useRef(true);
 
-  // A server refresh must win over stale local state — but never mid-stream, or
-  // the optimistic bubble would vanish under the intern's cursor.
+  /**
+   * Adopt a server refresh — but never let it SHRINK the transcript.
+   *
+   * This used to replace local state outright. `previewTurns` upstream is a new
+   * array identity on most shell renders, and the shell re-renders on every
+   * inbox tick (every 2-5 minutes), so the whole conversation — adopted
+   * opening, every intern turn, every reply — was replaced by the single
+   * preview bubble while the trainee was working. The rows were never lost
+   * (training_turns is append-only) but the screen was.
+   *
+   * Append-only is exactly why this guard is sound: a server transcript can
+   * never legitimately be shorter than what we already hold, so a shorter
+   * payload is stale by definition and is ignored.
+   */
   useEffect(() => {
     if (inFlightRef.current) return;
-    setTurns(initialTurns);
+    setTurns((prev) => (initialTurns.length >= prev.length ? initialTurns : prev));
   }, [initialTurns]);
 
   // Abandon any in-flight stream when the surface unmounts.
@@ -219,29 +250,34 @@ export function AcademyChat({
    * Display only — the transcript keeps one row, so the evaluator, the ticket
    * reviewer and the persona all still read exactly what they read before.
    *
-   * Scoped to the opening: once the intern has replied the conversation is
-   * under way and the persona's own turns are already message-length, so
-   * splitting them would add nothing. It also keeps resumed conversations on
-   * the untouched path, where the delivery pointer is already correct.
+   * Scoped BY POSITION — the first turn only — not by whether the intern has
+   * replied yet.
+   *
+   * The earlier version branched on `turns.some(t => t.role === "intern")`,
+   * which meant the rendered array changed shape the instant the trainee sent
+   * anything: it collapsed from N chunks back to one turn, no React key
+   * survived, and every bubble unmounted and re-animated at exactly the moment
+   * they pressed Send. Keying off position keeps the shape stable for the whole
+   * conversation, so the opening is split once and stays split.
    */
-  const deliveryTurns = useMemo(() => {
-    if (turns.some((t) => t.role === "intern")) return turns;
+  const deliveryTurns = useMemo(
+    () =>
+      turns.flatMap((turn, index) => {
+        if (index !== 0 || turn.role !== "client") return [turn];
+        const chunks = splitClientMessage(turn.body);
+        if (chunks.length <= 1) return [turn];
 
-    return turns.flatMap((turn) => {
-      if (turn.role !== "client") return [turn];
-      const chunks = splitClientMessage(turn.body);
-      if (chunks.length <= 1) return [turn];
-
-      return chunks.map((body, i) => ({
-        ...turn,
-        // Derived ids keep React keys stable without touching the real row.
-        id: `${turn.id}#${i}`,
-        body,
-        // Media belongs with the closing bubble, not repeated on each.
-        attachments: i === chunks.length - 1 ? turn.attachments : [],
-      }));
-    });
-  }, [turns]);
+        return chunks.map((body, i) => ({
+          ...turn,
+          // Derived ids keep React keys stable without touching the real row.
+          id: `${turn.id}#${i}`,
+          body,
+          // Media belongs with the closing bubble, not repeated on each.
+          attachments: i === chunks.length - 1 ? turn.attachments : [],
+        }));
+      }),
+    [turns],
+  );
 
   /** Only the turns that have "arrived" are rendered. */
   const visibleTurns = useMemo(
@@ -335,13 +371,26 @@ export function AcademyChat({
   const handleSend = useCallback(
     async (
       text: string,
-      attachment: PendingAttachment | null,
+      attachments: PendingAttachment[],
       composition?: ComposerComposition,
     ) => {
       if (inFlightRef.current || readOnly || sessionClosed || capReached) return;
       inFlightRef.current = true;
+      /*
+       * Acknowledge immediately. Session creation below is six sequential round
+       * trips, and it used to run with no indicator at all — on the most common
+       * interaction in the product, the trainee's first reply to a client. The
+       * composer cleared and nothing on screen said anything was happening.
+       */
+      setSending(true);
       // Sending is an explicit intent to follow the conversation again.
       stickToBottomRef.current = true;
+
+      /** Clears every flag an early return would otherwise strand. */
+      const abandon = () => {
+        inFlightRef.current = false;
+        setSending(false);
+      };
 
       // First reply to this client — create the session now rather than when the
       // row was merely opened, so browsing leaves nothing behind.
@@ -349,13 +398,27 @@ export function AcademyChat({
       if (!activeSessionId) {
         if (!seedId) {
           toast.error("This conversation cannot be started.");
-          inFlightRef.current = false;
+          abandon();
           return;
         }
-        const started = await startAcademySession(seedId);
+        /*
+         * Must be caught, not just checked. `getAuthUser` THROWS on an expired
+         * session, and the rejection escaped this un-awaited handler — leaving
+         * inFlightRef true forever, so every later Send silently did nothing
+         * until the component remounted. That is the "chat is dead" symptom.
+         */
+        let started: Awaited<ReturnType<typeof startAcademySession>>;
+        try {
+          started = await startAcademySession(seedId);
+        } catch (e) {
+          console.error("[academy] startAcademySession threw:", e);
+          toast.error("Could not start this conversation. Please try again.");
+          abandon();
+          return;
+        }
         if (!started.success || !started.data) {
           toast.error(started.success ? "Could not start this conversation." : started.error);
-          inFlightRef.current = false;
+          abandon();
           return;
         }
         activeSessionId = started.data.sessionId;
@@ -379,40 +442,67 @@ export function AcademyChat({
       // Upload first — a turn must never be recorded referencing media that
       // failed to store. The local object URL powers the optimistic bubble so
       // the intern sees their photo immediately.
-      let uploaded: TrainingAttachment | null = null;
-      if (attachment) {
+      const uploadedAll: TrainingAttachment[] = [];
+      if (attachments.length > 0) {
         setUploading(true);
-        try {
-          const fd = new FormData();
-          fd.append("sessionId", activeSessionId);
-          fd.append("file", attachment.file);
-          const res = await uploadAcademyAttachment(fd);
-          if (!res.success || !res.data) {
-            toast.error(res.success ? "Upload failed." : res.error);
-            URL.revokeObjectURL(attachment.previewUrl);
-            inFlightRef.current = false;
-            setUploading(false);
-            return;
+        /*
+         * All files at once, and one failure does not sink the batch. Uploading
+         * sequentially and bailing on the first error meant a five-file message
+         * could lose four good uploads to one bad one, with the trainee's typed
+         * text already gone.
+         */
+        const results = await Promise.allSettled(
+          attachments.map(async (att) => {
+            const fd = new FormData();
+            fd.append("sessionId", activeSessionId);
+            fd.append("file", att.file);
+            const res = await uploadAcademyAttachment(fd);
+            if (!res.success || !res.data) {
+              throw new Error(res.success ? "Upload failed" : res.error);
+            }
+            return { ...res.data, signedUrl: att.previewUrl } as TrainingAttachment;
+          }),
+        );
+        setUploading(false);
+
+        const failed: string[] = [];
+        results.forEach((r, i) => {
+          if (r.status === "fulfilled") uploadedAll.push(r.value);
+          else {
+            console.error("[academy] attachment upload failed:", r.reason);
+            failed.push(attachments[i].file.name);
           }
-          uploaded = { ...res.data, signedUrl: attachment.previewUrl };
-        } catch {
-          toast.error("Could not upload that file.");
-          URL.revokeObjectURL(attachment.previewUrl);
-          inFlightRef.current = false;
-          setUploading(false);
+        });
+
+        if (failed.length > 0) {
+          toast.error(
+            failed.length === 1
+              ? `${failed[0]} could not be uploaded`
+              : `${failed.length} files could not be uploaded`,
+            {
+              description:
+                uploadedAll.length > 0
+                  ? "Sending the rest."
+                  : "Nothing was sent — please try again.",
+            },
+          );
+        }
+
+        // Every file failed and there is no text to carry the turn on its own.
+        if (uploadedAll.length === 0 && !text) {
+          abandon();
           return;
         }
-        setUploading(false);
       }
 
       const optimistic: TrainingTurn = {
         id: localId("local-intern"),
         session_id: activeSessionId,
         role: "intern",
-        body: text || (uploaded?.kind === "video" ? "[shared a video]" : uploaded ? "[shared a photo]" : ""),
+        body: text || mediaOnlyBody(uploadedAll),
         seq: (turns.at(-1)?.seq ?? 0) + 1,
         created_at: new Date().toISOString(),
-        attachments: uploaded ? [uploaded] : [],
+        attachments: uploadedAll,
       };
 
       setTurns((prev) => [...prev, optimistic]);
@@ -422,6 +512,16 @@ export function AcademyChat({
 
       const controller = new AbortController();
       abortRef.current = controller;
+
+      /*
+       * The only thing that ever aborted this request was unmounting. If the
+       * server stalled before it reached Anthropic — a slow Supabase read, a
+       * cold function — the trainee sat on "client is typing…" indefinitely,
+       * with no error and no way back. 45s is generous against the route's own
+       * 60s ceiling while still being finite.
+       */
+      const timeoutSignal = AbortSignal.timeout(45_000);
+      const requestSignal = AbortSignal.any([controller.signal, timeoutSignal]);
 
       /** Drop the optimistic bubble — the server never recorded this turn. */
       const rollback = () => {
@@ -437,20 +537,18 @@ export function AcademyChat({
             message: text,
             // Strip signedUrl — the server re-derives access; never trust a URL
             // supplied by the browser.
-            attachments: uploaded
-              ? [{
-                  path: uploaded.path,
-                  kind: uploaded.kind,
-                  mime: uploaded.mime,
-                  name: uploaded.name,
-                  size: uploaded.size,
-                }]
-              : [],
+            attachments: uploadedAll.map((a) => ({
+              path: a.path,
+              kind: a.kind,
+              mime: a.mime,
+              name: a.name,
+              size: a.size,
+            })),
             // What the editor observed while this reply was written. Optional —
             // the server treats its absence as "not reported", not as zero.
             composition: composition ?? null,
           }),
-          signal: controller.signal,
+          signal: requestSignal,
         });
 
         if (!res.ok) {
@@ -515,15 +613,52 @@ export function AcademyChat({
               created_at: new Date().toISOString(),
             },
           ]);
+          /*
+           * Deliver it in the SAME batch it is appended in.
+           *
+           * Without this, the `finally` below unmounts the streaming bubble in
+           * the same commit — while the delivery pointer still trails the array
+           * by one, so the new turn is not in `visibleTurns` either, and the
+           * typing indicator is off. That commit renders nothing where the
+           * reply was, and it paints. The staging effect then re-showed the
+           * identical text 0.7-2.2s later behind a typing indicator: the
+           * "appears, disappears, reappears" on every single reply.
+           *
+           * The text was streamed live, so it has already been read — staging
+           * it again was never right.
+           */
+          setDeliveredCount((n) => n + 1);
         } else {
           toast.warning("The client went quiet — no reply came back.");
         }
       } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") {
+        const isDom = error instanceof DOMException;
+
+        // Our own 45s ceiling, not a navigation. The turn IS already recorded —
+        // route.ts inserts it before contacting Anthropic — so the bubble must
+        // stay. Only the client's reply is missing.
+        if (isDom && error.name === "TimeoutError") {
+          console.error("[academy] chat request timed out after 45s");
+          toast.error("The client is taking too long to reply", {
+            description:
+              "Your message was sent and saved. Try again in a moment.",
+          });
+          return;
+        }
+
+        if (isDom && error.name === "AbortError") {
           // Navigated away or closed the session mid-stream — nothing to report.
           return;
         }
+
+        /*
+         * Only now is a rollback honest. The intern turn is written server-side
+         * before the model is called, so removing the bubble on every failure
+         * told the trainee "not sent" about a row that is permanent — they
+         * retyped, and the turn was duplicated at two of their 24.
+         */
         rollback();
+        console.error("[academy] chat request failed:", error);
         toast.error("Network error", {
           description: "Your message was not sent — please try again.",
         });
@@ -715,7 +850,12 @@ export function AcademyChat({
 
           {/* "Client is typing…" — shown while waiting for the reply to begin,
               and during the deliberate beat before a staged message arrives. */}
-          {(clientTyping || (sending && streaming === null)) && <TypingIndicator />}
+          {/* Belt and braces for the blank-frame class of bug: if anything is
+              still undelivered, something must be on screen saying so. A commit
+              can then never contain neither a bubble nor an indicator. */}
+          {(clientTyping ||
+            (sending && streaming === null) ||
+            deliveredCount < deliveryTurns.length) && <TypingIndicator />}
         </div>
 
         {/* Scoring overlay — the transcript stays visible but goes quiet. */}
