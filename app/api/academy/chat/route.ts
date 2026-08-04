@@ -474,6 +474,8 @@ export async function POST(req: Request): Promise<Response> {
    * afterwards as though the member had really said it.
    */
   let accumulated = "";
+  /** Why generation stopped, when Anthropic says. Logged, never guessed at. */
+  let stopReason: string | null = null;
   /** Guards against cancel() settling after a completed read already did. */
   let settled = false;
   const settleOnce = (text: string) => {
@@ -503,8 +505,34 @@ export async function POST(req: Request): Promise<Response> {
               try {
                 const evt = JSON.parse(payload) as {
                   type?: string;
-                  delta?: { type?: string; text?: string };
+                  delta?: { type?: string; text?: string; stop_reason?: string };
+                  error?: { type?: string; message?: string };
                 };
+
+                /*
+                 * Anthropic can end a stream with an `error` frame — most often
+                 * `overloaded_error`. The loop only ever acted on text deltas,
+                 * so the frame was dropped, `reader.read()` then returned `done`
+                 * with no exception, and the route replied 200 with a zero-byte
+                 * body. The trainee saw an empty bubble and no error at all,
+                 * while `after()` wrote the canned line into the transcript.
+                 */
+                if (evt.type === "error") {
+                  console.error(
+                    "[academy/chat] upstream error frame:",
+                    evt.error?.type,
+                    evt.error?.message,
+                  );
+                  throw new Error(`upstream ${evt.error?.type ?? "error"}`);
+                }
+
+                // The only Anthropic call site in this repo that never recorded
+                // why generation stopped — a truncated reply was indistinguishable
+                // from a complete one.
+                if (evt.type === "message_delta" && evt.delta?.stop_reason) {
+                  stopReason = evt.delta.stop_reason;
+                }
+
                 if (
                   evt.type === "content_block_delta" &&
                   evt.delta?.type === "text_delta" &&
@@ -528,6 +556,11 @@ export async function POST(req: Request): Promise<Response> {
       } finally {
         clearTimeout(timeout);
         reader.releaseLock();
+        if (stopReason && stopReason !== "end_turn") {
+          console.warn(
+            `[academy/chat] reply ended with stop_reason=${stopReason} (${accumulated.length} chars)`,
+          );
+        }
         settleOnce(accumulated || FALLBACK_REPLY);
         controller.close();
       }
