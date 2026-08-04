@@ -1995,6 +1995,12 @@ export const ACADEMY_TICKET_TAGS = [
   "concierge",
   "shopping",
   "urgent",
+  /**
+   * Catch-all. The register covers requests these six do not describe —
+   * property, staffing, medical, visas, home services — and forcing one of the
+   * others onto them makes the tag worse than useless for finding anything.
+   */
+  "other",
 ] as const;
 
 export type AcademyTicketTag = (typeof ACADEMY_TICKET_TAGS)[number];

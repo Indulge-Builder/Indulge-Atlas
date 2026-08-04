@@ -46,7 +46,7 @@ export const TICKET_REVIEW_DIMENSIONS: TicketDimensionDef[] = [
     key: "professionalism",
     label: "Professionalism",
     description:
-      "Is the public reply client-ready — warm, on-brand, free of internal jargon and blame?",
+      "Is the write-up professional — clear, on-brand, free of blame and of shorthand a colleague would have to decode?",
     weight: 1,
   },
   {
@@ -60,7 +60,7 @@ export const TICKET_REVIEW_DIMENSIONS: TicketDimensionDef[] = [
     key: "client_satisfaction",
     label: "Client satisfaction",
     description:
-      "Would the client read this reply and consider themselves properly looked after?",
+      "Judging by the conversation and this write-up, would the member consider themselves properly looked after?",
     weight: 1,
   },
   {
@@ -150,9 +150,6 @@ ${input.update.resolution_summary}
 
 Internal notes:
 ${input.update.internal_notes}
-
-Public reply (this is what the client receives):
-${input.update.public_reply}
 
 REVIEW RUBRIC — score each dimension 1–5:
 ${RUBRIC_TEXT}
