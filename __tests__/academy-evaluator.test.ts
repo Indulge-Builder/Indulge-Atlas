@@ -21,6 +21,13 @@ import {
   DEFAULT_RUBRIC_WEIGHTS,
   computeOverall,
 } from "@/lib/academy/rubric";
+import {
+  ACADEMY_EVALUATOR_MODEL,
+  ACADEMY_EVALUATOR_VERSION,
+  ACADEMY_TICKET_REVIEW_MODEL,
+  ACADEMY_TICKET_REVIEW_VERSION,
+  modelSupportsEffort,
+} from "@/lib/academy/models";
 import type {
   AcademyHiddenConstraint,
   AcademyRubricDimension,
@@ -450,5 +457,49 @@ describe("parsing is deterministic (same model output → same review)", () => {
     const b = buildEvaluatorPrompt(promptInput());
     expect(b.system).toBe(a.system);
     expect(b.user).toBe(a.user);
+  });
+});
+
+// ── Model configuration ──────────────────────────────────────────────────────
+//
+// Which judge model runs is a cost decision, but `output_config.effort` is not
+// universally accepted: Haiku and Sonnet 4.5 reject the whole request rather
+// than ignoring the field, so a model change that leaves `effort` attached is a
+// 400 on every scoring call, not a quality regression. These pin the pairing.
+
+describe("judge model configuration", () => {
+  it("does not send effort to models that reject it", () => {
+    expect(modelSupportsEffort("claude-haiku-4-5")).toBe(false);
+    expect(modelSupportsEffort("claude-haiku-4-5-20251001")).toBe(false);
+    expect(modelSupportsEffort("claude-sonnet-4-5")).toBe(false);
+  });
+
+  it("still sends effort to the models that support it", () => {
+    for (const model of [
+      "claude-opus-4-8",
+      "claude-opus-5",
+      "claude-sonnet-5",
+      "claude-sonnet-4-6",
+    ]) {
+      expect(modelSupportsEffort(model), `${model} supports effort`).toBe(true);
+    }
+  });
+
+  it("keeps both judges on a model the effort check agrees with", () => {
+    // The services derive their request shape from exactly this call, so the
+    // constants and the capability check cannot drift apart unnoticed.
+    for (const model of [ACADEMY_EVALUATOR_MODEL, ACADEMY_TICKET_REVIEW_MODEL]) {
+      expect(typeof modelSupportsEffort(model)).toBe("boolean");
+    }
+    // Both judges run on the same tier — a split would make the two halves of
+    // one request's score incomparable.
+    expect(ACADEMY_TICKET_REVIEW_MODEL).toBe(ACADEMY_EVALUATOR_MODEL);
+  });
+
+  it("stamps the model into the version, so a tier change is visible in the data", () => {
+    // Reviews persist these strings. If the model moves and the stamp doesn't,
+    // scores from two different judges become indistinguishable in the table.
+    expect(ACADEMY_EVALUATOR_VERSION).toContain("haiku");
+    expect(ACADEMY_TICKET_REVIEW_VERSION).toContain("haiku");
   });
 });

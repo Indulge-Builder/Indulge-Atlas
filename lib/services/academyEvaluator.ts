@@ -1,10 +1,10 @@
 /**
  * Academy evaluator service.
  *
- * Runs on session close against the full transcript: Opus 4.8 (structured JSON
- * output) scores the six rubric dimensions; the overall is computed in code; the
- * review is persisted via the service role. NOT a "use server" module — consumed
- * by lib/actions/academy.ts.
+ * Runs on session close against the full transcript: the evaluator model
+ * (structured JSON output) scores the six rubric dimensions; the overall is
+ * computed in code; the review is persisted via the service role. NOT a
+ * "use server" module — consumed by lib/actions/academy.ts.
  */
 
 import { getServiceSupabaseClient } from "@/lib/supabase/service";
@@ -13,6 +13,7 @@ import {
   ANTHROPIC_VERSION,
   ACADEMY_EVALUATOR_MODEL,
   ACADEMY_EVALUATOR_VERSION,
+  modelSupportsEffort,
 } from "@/lib/academy/models";
 import {
   buildEvaluatorPrompt,
@@ -49,15 +50,26 @@ async function callEvaluator(system: string, user: string): Promise<string> {
     messages: [{ role: "user", content: user }],
   };
 
+  // `effort` is not accepted by every model — Haiku rejects the request outright
+  // rather than ignoring it, so it is included only where it is supported.
+  const effort = modelSupportsEffort(ACADEMY_EVALUATOR_MODEL)
+    ? { effort: "medium" }
+    : {};
+
   const attempts: Record<string, unknown>[] = [
     {
       ...baseBody,
       output_config: {
-        effort: "medium",
+        ...effort,
         format: { type: "json_schema", schema: EVALUATOR_OUTPUT_SCHEMA },
       },
     },
-    { ...baseBody, output_config: { effort: "medium" } },
+    // Fallback for a wire-format change: drop the schema and let the prompt
+    // carry the JSON requirement. With no effort to send there is no
+    // output_config left, so the plain body is the request.
+    Object.keys(effort).length > 0
+      ? { ...baseBody, output_config: effort }
+      : { ...baseBody },
   ];
 
   let lastErr = "";

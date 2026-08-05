@@ -1,9 +1,10 @@
 /**
  * Academy ticket-review service.
  *
- * Runs when an intern submits their Freshdesk ticket write-up. Opus reviews the
- * ticket against the actual conversation, the verdict is assembled in code
- * (`buildVerdict`), and the row is updated via the service role.
+ * Runs when an intern submits their Freshdesk ticket write-up. The reviewer
+ * model judges the ticket against the actual conversation, the verdict is
+ * assembled in code (`buildVerdict`), and the row is updated via the service
+ * role.
  *
  * Unlike `academyEvaluator`, this is NOT idempotent-on-existence: a failed
  * review is meant to be resubmitted after revision, and each submission is a
@@ -19,6 +20,7 @@ import {
   ANTHROPIC_VERSION,
   ACADEMY_TICKET_REVIEW_MODEL,
   ACADEMY_TICKET_REVIEW_VERSION,
+  modelSupportsEffort,
 } from "@/lib/academy/models";
 import {
   buildTicketReviewPrompt,
@@ -54,15 +56,26 @@ async function callReviewer(system: string, user: string): Promise<string> {
     messages: [{ role: "user", content: user }],
   };
 
+  // `effort` is not accepted by every model — Haiku rejects the request outright
+  // rather than ignoring it, so it is included only where it is supported.
+  const effort = modelSupportsEffort(ACADEMY_TICKET_REVIEW_MODEL)
+    ? { effort: "medium" }
+    : {};
+
   const attempts: Record<string, unknown>[] = [
     {
       ...baseBody,
       output_config: {
-        effort: "medium",
+        ...effort,
         format: { type: "json_schema", schema: TICKET_REVIEW_OUTPUT_SCHEMA },
       },
     },
-    { ...baseBody, output_config: { effort: "medium" } },
+    // Fallback for a wire-format change: drop the schema and let the prompt
+    // carry the JSON requirement. With no effort to send there is no
+    // output_config left, so the plain body is the request.
+    Object.keys(effort).length > 0
+      ? { ...baseBody, output_config: effort }
+      : { ...baseBody },
   ];
 
   let lastErr = "";
