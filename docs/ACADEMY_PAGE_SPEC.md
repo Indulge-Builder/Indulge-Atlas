@@ -250,7 +250,9 @@ convention is `academy/{session_id}/{uuid}-{filename}`, so
 malformed path cannot raise inside a policy predicate. SELECT and INSERT only.
 Reads are served as short-lived signed URLs (1 hour), minted in one batched call
 by the server action; the action enforces tighter per-kind caps than the bucket
-(10 MB images, 50 MB video, 20 MB documents) and only the owning intern may
+(10 MB images, 50 MB video, 4 MB documents — the last set honestly, because
+Vercel caps a serverless request body at ~4.5 MB and the file travels through a
+server action) and only the owning intern may
 upload — a trainer observing a session deliberately cannot inject media into it.
 
 **The allow-list is a real gate, not documentation.** Storage matches an

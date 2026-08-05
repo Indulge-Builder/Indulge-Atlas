@@ -1,27 +1,23 @@
 /**
- * Academy chat attachments — PDF support, end to end.
+ * Academy attachments — PDF classification and storage content type.
  *
- * THE BUG THIS PINS
- *   A PDF was rejected at six independent layers, each of which had made its own
- *   decision about what a file is:
+ * SCOPE. Multi-file picking, per-kind size caps, the rejection toast and the
+ * PDF bubble all live elsewhere and are main's; this suite covers the one thing
+ * that is easy to get subtly wrong and impossible to see when it breaks:
+ * deciding *what a file is* and *what type to store it under*.
  *
- *     1. the composer's `accept` (image/*,video/*)      — greyed out in the picker
- *     2. the composer's classifier                      — dropped the file SILENTLY
- *     3. the upload action's classifier                 — "Only images and videos"
- *     4. the storage bucket's mime allow-list           — refused after all checks passed
- *     5. the chat route's zod enum (["image","video"])  — 400, "message was not sent"
- *     6. the bubble's renderer                          — would have drawn a PDF as <img>
- *
- *   Layer 2 is why it read as "nothing was sent": with the file silently
- *   discarded there was no attachment, and a composer with neither text nor an
- *   attachment keeps Send disabled. Layer 5 is where the exact wording came
- *   from once a document did reach the wire.
- *
- * WHAT IS TESTED
- *   The pure classifier that all six layers now share, plus source-level guards
- *   that each layer still routes through it. A unit test of the classifier alone
- *   would have passed happily on the broken build — every layer had its own copy
- *   of the logic, which is precisely how they drifted apart.
+ * THE FAILURE THIS PINS
+ *   1. `file.type.startsWith(...)` / `file.type === "application/pdf"` is not a
+ *      reliable test. A browser reports the OS-registered type for a picked
+ *      file: Windows with no PDF handler gives `""`, and several Android/Chrome
+ *      builds give `application/octet-stream`. On those machines an ordinary
+ *      PDF classified as null and was refused.
+ *   2. The upload then declared that same guess as the object's content type.
+ *      `academy-attachments` matches its MIME allow-list against the DECLARED
+ *      type, so such a PDF was rejected by the bucket after every
+ *      application-layer check had passed — a failure with no visible cause.
+ *   3. The bucket allow-list did not include `application/pdf` at all
+ *      (migration 136), so even a correctly-typed PDF was refused.
  */
 
 import { describe, expect, it } from "vitest";
@@ -29,19 +25,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   ATTACHMENT_ACCEPT,
-  ATTACHMENT_KINDS,
   DOCUMENT_MIMES,
-  MAX_ATTACHMENT_BYTES,
-  UNSUPPORTED_ATTACHMENT_ERROR,
-  attachmentDescription,
-  attachmentKindLabel,
-  attachmentSizeError,
   classifyAttachment,
-  isPlaceholderBody,
-  maxBytesFor,
-  placeholderBody,
   resolveContentType,
-  type AttachmentKind,
 } from "@/lib/academy/attachments";
 
 const ROOT = process.cwd();
@@ -64,7 +50,6 @@ describe("classifyAttachment", () => {
   });
 
   it("recognises a PDF the browser reported with an opaque type", () => {
-    // Windows with no registered PDF handler, and several Android/Chrome builds.
     expect(classifyAttachment("application/octet-stream", REPORTED_PDF)).toBe("document");
     expect(classifyAttachment("", REPORTED_PDF)).toBe("document");
     expect(classifyAttachment("binary/octet-stream", "itinerary.pdf")).toBe("document");
@@ -91,11 +76,12 @@ describe("classifyAttachment", () => {
         "budget.xlsx",
       ),
     ).toBeNull();
+    // An opaque type only falls back for a .pdf name — not for anything else.
     expect(classifyAttachment("application/octet-stream", "payload.zip")).toBeNull();
     expect(classifyAttachment("application/octet-stream", "noextension")).toBeNull();
   });
 
-  it("treats a missing type and a missing name as unclassifiable, not as a crash", () => {
+  it("treats a missing type and name as unclassifiable, not as a crash", () => {
     expect(classifyAttachment(null, null)).toBeNull();
     expect(classifyAttachment(undefined)).toBeNull();
     expect(classifyAttachment("")).toBeNull();
@@ -104,8 +90,8 @@ describe("classifyAttachment", () => {
 
 describe("resolveContentType", () => {
   it("declares application/pdf for a PDF the browser typed opaquely", () => {
-    // Load-bearing: storage matches the bucket allow-list against the type we
-    // declare, so uploading a PDF as octet-stream is refused by the bucket.
+    // Load-bearing: storage matches the bucket allow-list against the declared
+    // type, so an octet-stream PDF would be refused by the bucket.
     expect(resolveContentType("application/octet-stream", REPORTED_PDF)).toBe("application/pdf");
     expect(resolveContentType("", REPORTED_PDF)).toBe("application/pdf");
   });
@@ -121,78 +107,9 @@ describe("resolveContentType", () => {
   });
 });
 
-describe("size ceilings", () => {
-  it("gives documents their own cap, between photos and video", () => {
-    expect(MAX_ATTACHMENT_BYTES.image).toBe(10 * 1024 * 1024);
-    expect(MAX_ATTACHMENT_BYTES.video).toBe(50 * 1024 * 1024);
-    expect(MAX_ATTACHMENT_BYTES.document).toBe(20 * 1024 * 1024);
-  });
-
-  it("stays within the bucket's 50MB ceiling for every kind", () => {
-    for (const kind of ATTACHMENT_KINDS) {
-      expect(maxBytesFor(kind)).toBeLessThanOrEqual(52_428_800);
-    }
-  });
-
-  it("words the cap per kind", () => {
-    expect(attachmentSizeError("image")).toBe("Images must be under 10MB");
-    expect(attachmentSizeError("video")).toBe("Videos must be under 50MB");
-    expect(attachmentSizeError("document")).toBe("Documents must be under 20MB");
-  });
-});
-
-describe("placeholder bodies", () => {
-  it("round-trips for every kind", () => {
-    for (const kind of ATTACHMENT_KINDS) {
-      expect(isPlaceholderBody(placeholderBody(kind))).toBe(true);
-    }
-  });
-
-  it("keeps the wording the transcript already used for photos and video", () => {
-    // Sessions closed before this change store these exact strings, and the
-    // evaluator reads them. Changing them would rewrite history.
-    expect(placeholderBody("image")).toBe("[shared a photo]");
-    expect(placeholderBody("video")).toBe("[shared a video]");
-    expect(placeholderBody("document")).toBe("[shared a document]");
-  });
-
-  it("does not mistake a real reply for a placeholder", () => {
-    expect(isPlaceholderBody("Here is the study you asked for.")).toBe(false);
-    expect(isPlaceholderBody("[shared a photo] and here is why")).toBe(false);
-    expect(isPlaceholderBody("")).toBe(false);
-  });
-
-  it("tolerates surrounding whitespace", () => {
-    expect(isPlaceholderBody("  [shared a document]\n")).toBe(true);
-  });
-});
-
-describe("labels and persona descriptions", () => {
-  it("labels each kind for the composer and the bubble", () => {
-    expect(attachmentKindLabel("image")).toBe("Photo");
-    expect(attachmentKindLabel("video")).toBe("Video");
-    expect(attachmentKindLabel("document")).toBe("Document");
-  });
-
-  it("tells the persona a PDF arrived without inventing its contents", () => {
-    const text = attachmentDescription("document", REPORTED_PDF);
-    expect(text).toContain(REPORTED_PDF);
-    expect(text).toMatch(/PDF/i);
-    // The persona is never shown the file, so it must not be told what is in it.
-    expect(text).toMatch(/do not know what is inside/i);
-  });
-
-  it("names the file for every kind", () => {
-    for (const kind of ATTACHMENT_KINDS) {
-      expect(attachmentDescription(kind, "brief.ext")).toContain("brief.ext");
-    }
-  });
-});
-
 describe("the accept attribute", () => {
   it("offers PDFs by both mime and extension", () => {
-    // The mime alone greys out PDFs on a machine with no registered handler;
-    // the extension alone is ignored by some mobile pickers. Both are needed.
+    // The mime alone greys out PDFs on a machine with no registered handler.
     expect(ATTACHMENT_ACCEPT).toContain("application/pdf");
     expect(ATTACHMENT_ACCEPT).toContain(".pdf");
   });
@@ -203,61 +120,30 @@ describe("the accept attribute", () => {
   });
 });
 
-describe("every layer routes through the shared classifier", () => {
-  it("the composer classifies with it and does not re-derive kinds from mime prefixes", () => {
+describe("both layers route through the shared classifier", () => {
+  it("the composer classifies with it rather than testing file.type itself", () => {
     const src = read("components", "academy", "AcademyComposer.tsx");
     expect(src).toContain("classifyAttachment");
     expect(src).toContain("ATTACHMENT_ACCEPT");
-    // The old local classifier is what silently dropped the file.
     expect(src).not.toMatch(/file\.type\.startsWith\(/);
+    expect(src).not.toMatch(/file\.type === "application\/pdf"/);
   });
 
-  it("the composer reports a rejected file instead of dropping it silently", () => {
-    const src = read("components", "academy", "AcademyComposer.tsx");
-    expect(src).toContain("UNSUPPORTED_ATTACHMENT_ERROR");
-    expect(src).toContain("toast.error");
-  });
-
-  it("the composer enables Send on an attachment alone, with no text", () => {
-    const src = read("components", "academy", "AcademyComposer.tsx");
-    // VALID MESSAGE = text OR attachment.
-    expect(src).toMatch(/value\.trim\(\)\.length > 0 \|\| attachment !== null/);
-  });
-
-  it("the upload action classifies with it and declares a resolved content type", () => {
+  it("the upload action classifies with it and declares a resolved type", () => {
     const src = read("lib", "actions", "academy.ts");
-    expect(src).toContain("classifyAttachment");
+    expect(src).toContain("classifyAttachment(file.type, file.name)");
     expect(src).toContain("resolveContentType");
-    expect(src).not.toContain("Only images and videos can be shared");
-    // The declared type must be the resolved one, never the browser's raw guess.
+    // The declared type must be the resolved one, never the browser's guess.
     expect(src).not.toMatch(/contentType:\s*file\.type/);
-  });
-
-  it("the chat route's wire schema accepts every kind the classifier can return", () => {
-    const src = read("app", "api", "academy", "chat", "route.ts");
-    expect(src).toContain("z.enum(ATTACHMENT_KINDS)");
-    expect(src).not.toMatch(/z\.enum\(\["image",\s*"video"\]\)/);
-  });
-
-  it("the chat route accepts an attachment-only turn", () => {
-    const src = read("app", "api", "academy", "chat", "route.ts");
-    // A turn must carry something — text, media, or both. Not text alone.
-    expect(src).toMatch(/!internBody && attachments\.length === 0/);
-  });
-
-  it("the bubble renders documents rather than forcing every file into an <img>", () => {
-    const src = read("components", "academy", "AcademyBubble.tsx");
-    expect(src).toMatch(/attachment\.kind === "document"/);
-    expect(src).toContain("isPlaceholderBody");
   });
 });
 
 describe("the storage bucket allows the same set", () => {
   /**
-   * Executable SQL only. These files carry long rationale comments that mention
-   * the very patterns being asserted against (`'application/*'` appears in the
-   * comment explaining why it is NOT used), so asserting over raw text checks
-   * the prose rather than the statement.
+   * Executable SQL only. These files carry rationale comments that mention the
+   * very patterns being asserted against (`'application/*'` appears in the
+   * comment explaining why it is NOT used), so asserting over raw text would
+   * check the prose rather than the statement.
    */
   const statements = (...parts: string[]) =>
     read(...parts)
@@ -275,8 +161,6 @@ describe("the storage bucket allows the same set", () => {
   });
 
   it("keeps the bucket private", () => {
-    // The transcript is graded work; a public bucket would expose every
-    // session's attachments to anyone holding a URL.
     const values = migration().match(/VALUES\s*\(([\s\S]*?)\)\s*ON CONFLICT/i);
     expect(values).not.toBeNull();
     expect(values![1]).toMatch(/\bfalse\b/);
@@ -295,43 +179,21 @@ describe("the storage bucket allows the same set", () => {
   });
 
   it("covers every document mime the application will send", () => {
-    const sql = migration();
     for (const mime of DOCUMENT_MIMES) {
-      expect(sql).toContain(mime);
+      expect(migration()).toContain(mime);
     }
   });
 });
 
 describe("the server action body limit", () => {
-  it("is raised above Next's 1MB default, or no real PDF can reach the action", () => {
+  it("is raised above Next's 1MB default, or no real PDF reaches the action", () => {
+    // Separate from the action's own per-kind caps: this ceiling applies to the
+    // whole server-action request body and defaults to 1MB, so it rejected a
+    // 2MB PDF before any of our validation ran.
     const src = read("next.config.ts");
     expect(src).toContain("bodySizeLimit");
     const match = src.match(/bodySizeLimit:\s*"(\d+)mb"/);
     expect(match).not.toBeNull();
-    expect(Number(match![1])).toBeGreaterThanOrEqual(20);
-  });
-});
-
-describe("kinds stay in lockstep with the stored type", () => {
-  it("ATTACHMENT_KINDS covers the TrainingAttachment union exactly", () => {
-    const src = read("lib", "types", "database.ts");
-    const union = src.match(/kind:\s*("image"[^;]*?);/);
-    expect(union).not.toBeNull();
-    const declared = [...union![1].matchAll(/"([a-z]+)"/g)].map((m) => m[1]);
-    expect(new Set(declared)).toEqual(new Set(ATTACHMENT_KINDS));
-  });
-
-  it("labels, caps and placeholders exist for every kind", () => {
-    for (const kind of ATTACHMENT_KINDS satisfies readonly AttachmentKind[]) {
-      expect(attachmentKindLabel(kind)).toBeTruthy();
-      expect(maxBytesFor(kind)).toBeGreaterThan(0);
-      expect(placeholderBody(kind)).toBeTruthy();
-    }
-  });
-
-  it("has an unsupported-file message that names what IS supported", () => {
-    expect(UNSUPPORTED_ATTACHMENT_ERROR).toMatch(/image/i);
-    expect(UNSUPPORTED_ATTACHMENT_ERROR).toMatch(/video/i);
-    expect(UNSUPPORTED_ATTACHMENT_ERROR).toMatch(/PDF/i);
+    expect(Number(match![1])).toBeGreaterThanOrEqual(10);
   });
 });

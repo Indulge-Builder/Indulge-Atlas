@@ -95,4 +95,15 @@ describe("chunkDelay", () => {
   it("is not metronomic", () => {
     expect(chunkDelay(() => 0.1)).not.toBe(chunkDelay(() => 0.9));
   });
+
+  it("stays short enough that the chat does not look hung", () => {
+    // The chat holds a typing indicator for this whole wait. At the original
+    // 20-45s a four-chunk request showed bouncing dots for up to ~135 seconds
+    // before the trainee had sent anything, which reads as a broken request
+    // rather than as someone adding a thought.
+    expect(CHUNK_MAX_DELAY_MS).toBeLessThanOrEqual(10_000);
+    expect(CHUNK_MIN_DELAY_MS).toBeGreaterThanOrEqual(1_000);
+    // Worst case across a maximum-length request.
+    expect(CHUNK_MAX_DELAY_MS * (SPLIT_MAX_CHUNKS - 1)).toBeLessThanOrEqual(30_000);
+  });
 });

@@ -1903,14 +1903,20 @@ export interface TrainingSession {
 }
 
 /**
- * A file shared into a training conversation (migration 127; documents added
- * in migration 136). `path` is a storage object path in the private
- * `academy-attachments` bucket; the UI renders it via a short-lived signed URL,
- * never a public URL. `kind` is `AttachmentKind` from `lib/academy/attachments`
- * — spelled out here so this types module stays import-free.
+ * An image/video shared into a training conversation (migration 127).
+ * `path` is a storage object path in the private `academy-attachments` bucket;
+ * the UI renders it via a short-lived signed URL, never a public URL.
  */
 export interface TrainingAttachment {
   path: string;
+  /**
+   * `document` is a PDF. It is stored and linked but deliberately NOT sent to
+   * the persona model — see the note in app/api/academy/chat/route.ts.
+   *
+   * Additive on purpose: training_turns is append-only, so rows written before
+   * this existed must keep reading correctly, and every consumer must tolerate
+   * a kind it does not recognise.
+   */
   kind: "image" | "video" | "document";
   mime: string;
   name: string;
@@ -1997,6 +2003,12 @@ export const ACADEMY_TICKET_TAGS = [
   "concierge",
   "shopping",
   "urgent",
+  /**
+   * Catch-all. The register covers requests these six do not describe —
+   * property, staffing, medical, visas, home services — and forcing one of the
+   * others onto them makes the tag worse than useless for finding anything.
+   */
+  "other",
 ] as const;
 
 export type AcademyTicketTag = (typeof ACADEMY_TICKET_TAGS)[number];

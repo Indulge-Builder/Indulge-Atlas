@@ -14,13 +14,7 @@ import { getAuthUser } from "@/lib/auth/getAuthUser";
 import { getServiceSupabaseClient } from "@/lib/supabase/service";
 import { isAcademyTrainer, isPrivilegedRole, ACADEMY_TICKET_TAGS } from "@/lib/types/database";
 import { sanitizeText } from "@/lib/utils/sanitize";
-import {
-  attachmentSizeError,
-  classifyAttachment,
-  maxBytesFor,
-  resolveContentType,
-  UNSUPPORTED_ATTACHMENT_ERROR,
-} from "@/lib/academy/attachments";
+import { classifyAttachment, resolveContentType } from "@/lib/academy/attachments";
 import { randomizeSession, buildSessionVars, renderTemplate } from "@/lib/academy/randomize";
 import { ACADEMY_PERSONA_MODEL, ACADEMY_TURN_CAP } from "@/lib/academy/models";
 import { DEFAULT_RUBRIC_WEIGHTS, ACADEMY_DIMENSIONS } from "@/lib/academy/rubric";
@@ -224,46 +218,6 @@ export async function startAcademySession(
   const rosterName = taskNumber
     ? memberFor(await loadRosterClients(), taskNumber).name
     : undefined;
-  /*
-   * Reuse an open session rather than opening a second one for the same
-   * request. Two tabs, or a second click before the first insert returned,
-   * used to mint a duplicate — and because `bySeed` keeps the LATEST session
-   * per seed, the newer empty one then hid the older one's graded transcript
-   * completely. Six such orphans existed in production before this landed.
-   *
-   * The opening line comes back from the transcript, not from a fresh
-   * randomise: re-rolling would hand the caller a different scenario than the
-   * one the persona has been answering as.
-   */
-  const { data: existing } = await db
-    .from("training_sessions")
-    .select("id")
-    .eq("intern_id", user.id)
-    .eq("seed_id", typedSeed.id)
-    .eq("status", "open")
-    .order("started_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (existing) {
-    const { data: opening } = await db
-      .from("training_turns")
-      .select("body")
-      .eq("session_id", existing.id)
-      .eq("role", "client")
-      .order("seq", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-    // No opening turn means the seeding INSERT below failed last time; fall
-    // through and open a clean session rather than resume a headless one.
-    if (opening?.body) {
-      return {
-        success: true,
-        data: { sessionId: existing.id as string, openingMessage: opening.body as string },
-      };
-    }
-  }
-
   const rand = randomizeSession(typedSeed, Math.random, rosterName);
   const sessionVars = buildSessionVars(typedSeed, rand);
 
@@ -877,11 +831,32 @@ async function buildSessionProgress(params: {
   };
 }
 
-// ── Attachments (migrations 127 + 136) ────────────────────────────────────────
+// ── Attachments (migration 127) ───────────────────────────────────────────────
 
+/** Per-kind ceilings, tighter than the bucket's coarse 50MB limit. */
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10 MB
+const MAX_VIDEO_BYTES = 50 * 1024 * 1024; // 50 MB
+/*
+ * 4 MB, not 10. These figures are aspirational above ~4 MB regardless: the file
+ * travels through a Next Server Action, and Vercel caps a request body at about
+ * 4.5 MB, so a larger file is rejected by the platform before this check is
+ * ever reached. Set honestly for PDFs so the error the trainee sees is the real
+ * one. Lifting the ceiling properly means a signed upload URL straight to
+ * Supabase, which is tracked separately.
+ */
+const MAX_DOCUMENT_BYTES = 4 * 1024 * 1024; // 4 MB
 const ATTACHMENT_BUCKET = "academy-attachments";
 /** Signed URLs are short-lived — the bucket is private by design. */
 const SIGNED_URL_TTL_SECONDS = 60 * 60;
+
+/*
+ * Classification lives in `lib/academy/attachments.ts` so the composer and this
+ * action cannot disagree — and so both handle the case a bare `file.type` check
+ * misses: a PDF the browser typed as `application/octet-stream`, which several
+ * Android/Chrome builds and any Windows box without a PDF handler will produce.
+ * PDFs only; a general document allow-list would let anything through a bucket
+ * whose MIME policy is the real gate.
+ */
 
 /** Strip anything that could escape the session folder or confuse storage. */
 function safeFileName(name: string): string {
@@ -890,8 +865,8 @@ function safeFileName(name: string): string {
 }
 
 /**
- * Upload one image, video or PDF for a session. Owner-only (a trainer viewing
- * someone else's transcript must not be able to inject media into it).
+ * Upload one image/video for a session. Owner-only (a trainer viewing someone
+ * else's transcript must not be able to inject media into it).
  * Returns the metadata to attach to the next turn.
  */
 export async function uploadAcademyAttachment(
@@ -906,13 +881,24 @@ export async function uploadAcademyAttachment(
   const file = formData.get("file");
   if (!(file instanceof File)) return { success: false, error: "No file provided" };
 
-  // Same classifier the composer used, so the two can never disagree about
-  // whether a file is acceptable.
   const kind = classifyAttachment(file.type, file.name);
-  if (!kind) return { success: false, error: UNSUPPORTED_ATTACHMENT_ERROR };
+  if (!kind) {
+    return { success: false, error: "Only images, videos and PDFs can be shared" };
+  }
 
-  if (file.size > maxBytesFor(kind)) {
-    return { success: false, error: attachmentSizeError(kind) };
+  const cap =
+    kind === "image"
+      ? MAX_IMAGE_BYTES
+      : kind === "document"
+        ? MAX_DOCUMENT_BYTES
+        : MAX_VIDEO_BYTES;
+  if (file.size > cap) {
+    const label =
+      kind === "image" ? "Images" : kind === "document" ? "PDFs" : "Videos";
+    return {
+      success: false,
+      error: `${label} must be under ${Math.round(cap / 1024 / 1024)}MB`,
+    };
   }
 
   const db = getServiceSupabaseClient();
@@ -933,19 +919,19 @@ export async function uploadAcademyAttachment(
 
   const path = `academy/${sessionId}/${crypto.randomUUID()}-${safeFileName(file.name)}`;
   /*
-   * Never forward `file.type` blindly. The bucket's allow-list is matched
-   * against the content type we declare, so a PDF the browser handed us as
-   * `application/octet-stream` would be refused by storage even though every
-   * application-layer check passed. Declaring the real type also makes the
-   * signed URL open the file rather than download it.
+   * Never forward `file.type` blindly. Storage matches the bucket's MIME
+   * allow-list against the type we DECLARE, so a PDF the browser handed us as
+   * `application/octet-stream` is refused by the bucket even though every check
+   * above passed. Declaring the real type also makes the signed URL open the
+   * file rather than download it.
    */
   const contentType = resolveContentType(file.type, file.name);
   const { error: upErr } = await db.storage
     .from(ATTACHMENT_BUCKET)
     .upload(path, file, { contentType, upsert: false });
   if (upErr) {
-    // The bucket's own mime allow-list is the one failure that is invisible
-    // from the UI — name it so this is diagnosable without database access.
+    // The bucket's own allow-list is the one failure invisible from the UI —
+    // name it so this is diagnosable without database access.
     console.error(
       "[academy] attachment upload failed:",
       contentType,

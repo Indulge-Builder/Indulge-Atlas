@@ -12,22 +12,10 @@
  */
 
 import type { JSX } from "react";
-import { Check, CheckCheck, FileText } from "lucide-react";
-import {
-  attachmentKindLabel,
-  isPlaceholderBody,
-} from "@/lib/academy/attachments";
+import { Check, CheckCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatIST } from "@/lib/utils/time";
 import type { TrainingAttachment } from "@/lib/types/database";
-
-/** "1.4 MB" / "820 KB" — a document tile has no thumbnail to judge weight by. */
-function formatBytes(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes <= 0) return "";
-  return bytes >= 1024 * 1024
-    ? `${(bytes / 1024 / 1024).toFixed(1)} MB`
-    : `${Math.max(1, Math.round(bytes / 1024))} KB`;
-}
 
 /**
  * IST wall clock, "HH:mm". Returns null for missing or unparseable stamps —
@@ -84,38 +72,35 @@ function DeliveryTicks({
 function AttachmentTile({ attachment }: { attachment: TrainingAttachment }): JSX.Element {
   const url = attachment.signedUrl;
 
+  const label =
+    attachment.kind === "video"
+      ? "Video"
+      : attachment.kind === "document"
+        ? "PDF"
+        : "Photo";
+
   if (!url) {
     return (
       <div className="flex items-center gap-2 rounded-lg bg-surface-subtle px-3 py-2 text-[12px] text-chat-ink-muted">
-        {attachmentKindLabel(attachment.kind)} · {attachment.name}
+        {label} · {attachment.name}
       </div>
     );
   }
 
-  // A document has nothing to render inline — it is a file card that opens the
-  // signed URL in a new tab, the same shape WhatsApp gives an attached PDF.
+  /*
+   * A PDF has no thumbnail to render, so it gets a link rather than a preview.
+   * `signedUrl` is short-lived and minted server-side; opening in a new tab
+   * keeps the trainee inside the conversation.
+   */
   if (attachment.kind === "document") {
-    const size = formatBytes(attachment.size);
     return (
       <a
         href={url}
         target="_blank"
         rel="noopener noreferrer"
-        className="flex items-center gap-2.5 rounded-lg bg-surface-subtle px-3 py-2.5 ring-1 ring-surface-border transition-colors hover:bg-surface"
+        className="flex items-center gap-2 rounded-lg bg-surface-subtle px-3 py-2 text-[12px] text-chat-ink underline-offset-2 transition-colors hover:bg-chat-panel-active hover:underline"
       >
-        <FileText
-          className="size-6 shrink-0 text-chat-ink-muted"
-          strokeWidth={1.75}
-          aria-hidden="true"
-        />
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-[13px] font-medium text-chat-ink">
-            {attachment.name}
-          </span>
-          <span className="block text-[11px] text-chat-ink-muted">
-            PDF{size ? ` · ${size}` : ""}
-          </span>
-        </span>
+        PDF · {attachment.name}
       </a>
     );
   }
@@ -163,15 +148,15 @@ export function AcademyBubble({
   read?: boolean;
   /** Single tick + dimmed while the turn is still in flight. */
   pending?: boolean;
-  /** Images/videos/PDFs shared in this turn (migrations 127 + 136). */
+  /** Images/videos shared in this turn (migration 127). */
   attachments?: TrainingAttachment[];
 }): JSX.Element {
   const isIntern = side === "intern";
   const stamp = formatStamp(timestamp);
   // A media-only turn stores a synthetic body ("[shared a photo]") so the
-  // transcript reads correctly — but showing it above the file is noise.
-  const showBody =
-    body.trim().length > 0 && !(attachments.length > 0 && isPlaceholderBody(body));
+  // transcript reads correctly — but showing it above the image is noise.
+  const isPlaceholderBody = /^\[shared a (photo|video)\]$/.test(body.trim());
+  const showBody = body.trim().length > 0 && !(attachments.length > 0 && isPlaceholderBody);
 
   return (
     <div

@@ -62,6 +62,7 @@ export const TICKET_TAG_LABEL: Record<AcademyTicketTag, string> = {
   concierge: "Concierge",
   shopping: "Shopping",
   urgent: "Urgent",
+  other: "Other",
 };
 
 /**
@@ -237,11 +238,9 @@ export function validateTicketUpdate(input: TicketUpdateInput): string[] {
       `Internal notes need at least ${MIN_INTERNAL_NOTES} characters — leave context for whoever picks this up next.`,
     );
   }
-  if (input.public_reply.trim().length < MIN_PUBLIC_REPLY) {
-    errors.push(
-      `Public reply needs at least ${MIN_PUBLIC_REPLY} characters — this is what the client reads.`,
-    );
-  }
+  // No public-reply check: the field was removed from the ticket. The reply to
+  // the member is the conversation itself, which is already graded by the
+  // evaluator — asking the trainee to compose it twice was duplicate work.
   if (input.tags.length === 0) {
     errors.push("Add at least one tag so the ticket is findable.");
   }

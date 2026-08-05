@@ -12,24 +12,17 @@
  */
 
 import { useCallback, useEffect, useRef, useState, type JSX } from "react";
-import { FileText, Loader2, Paperclip, Send, X } from "lucide-react";
+import { Loader2, Paperclip, Send, X } from "lucide-react";
 import { toast } from "sonner";
 import { IndulgeButton } from "@/components/ui/indulge-button";
-import {
-  ATTACHMENT_ACCEPT,
-  attachmentKindLabel,
-  attachmentSizeError,
-  classifyAttachment,
-  maxBytesFor,
-  UNSUPPORTED_ATTACHMENT_ERROR,
-  type AttachmentKind,
-} from "@/lib/academy/attachments";
+import { ATTACHMENT_ACCEPT, classifyAttachment } from "@/lib/academy/attachments";
 import { cn } from "@/lib/utils";
 
 /** A file the intern has picked but not yet sent. `previewUrl` is an object URL. */
 export interface PendingAttachment {
   file: File;
-  kind: AttachmentKind;
+  /** `document` is a PDF — it has no visual preview, only a name. */
+  kind: "image" | "video" | "document";
   previewUrl: string;
 }
 
@@ -38,6 +31,9 @@ const MAX_TEXTAREA_HEIGHT = 116;
 
 /** Matches the route's zod ceiling — fail in the UI, not on the wire. */
 const MAX_MESSAGE_LENGTH = 4000;
+
+/** Matches the route's `z.array(attachmentSchema).max(4)` — fail here, not on the wire. */
+const MAX_ATTACHMENTS = 4;
 
 /** Warn once the intern is inside the last few turns. */
 const LOW_TURN_THRESHOLD = 3;
@@ -85,7 +81,7 @@ export function AcademyComposer({
   /** Text may be empty when an attachment is present. */
   onSend: (
     text: string,
-    attachment: PendingAttachment | null,
+    attachments: PendingAttachment[],
     composition: ComposerComposition,
   ) => void;
   onClose: () => void;
@@ -94,7 +90,7 @@ export function AcademyComposer({
 }): JSX.Element {
   const [value, setValue] = useState("");
   const [isComposing, setIsComposing] = useState(false);
-  const [attachment, setAttachment] = useState<PendingAttachment | null>(null);
+  const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -149,52 +145,79 @@ export function AcademyComposer({
   const noTurnsLeft = remainingTurns <= 0;
   const inputLocked = disabled || closing || noTurnsLeft;
   const canSend =
-    !inputLocked && !pending && !uploading && (value.trim().length > 0 || attachment !== null);
+    !inputLocked && !pending && !uploading && (value.trim().length > 0 || attachments.length > 0);
 
-  // Object URLs are leaked memory until revoked.
+  /*
+   * Object URLs leak until revoked — but revoking on state change tore down the
+   * URL of a file that had just been handed to the caller for its optimistic
+   * bubble, so the preview broke at the moment of sending. Tracked in a ref and
+   * released only on unmount.
+   */
+  const objectUrlsRef = useRef<string[]>([]);
   useEffect(
     () => () => {
-      if (attachment) URL.revokeObjectURL(attachment.previewUrl);
+      for (const url of objectUrlsRef.current) URL.revokeObjectURL(url);
+      objectUrlsRef.current = [];
     },
-    [attachment],
+    [],
   );
 
   const pickFile = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0];
+      const picked = Array.from(event.target.files ?? []);
       event.target.value = ""; // allow re-picking the same file
-      if (!file) return;
+      if (picked.length === 0) return;
 
-      // Classified on MIME with an extension fallback — a PDF picked on a
-      // machine with no registered handler arrives as `application/octet-stream`
-      // and must still be recognised.
-      const kind = classifyAttachment(file.type, file.name);
-      // Rejections are spoken, never silent. Dropping the file with no feedback
-      // is what made this look like "the send button stopped working".
-      if (!kind) {
-        toast.error(UNSUPPORTED_ATTACHMENT_ERROR, { description: file.name });
-        return;
-      }
-      // Check the ceiling here as well as server-side: a file that is too large
-      // would otherwise be uploaded in full before being told no.
-      if (file.size > maxBytesFor(kind)) {
-        toast.error(attachmentSizeError(kind), {
-          description: `${file.name} is ${(file.size / 1024 / 1024).toFixed(1)} MB`,
-        });
-        return;
+      const accepted: PendingAttachment[] = [];
+      const rejected: string[] = [];
+
+      for (const file of picked) {
+        // Classified on MIME with an extension fallback: a PDF picked on a
+        // machine with no registered handler arrives as
+        // `application/octet-stream` and must still be recognised.
+        const kind = classifyAttachment(file.type, file.name);
+        // Was a silent `return` — an unsupported file simply vanished. Now each
+        // rejection is named, and one bad file no longer discards the good ones
+        // picked alongside it.
+        if (!kind) {
+          rejected.push(file.name);
+          continue;
+        }
+        const previewUrl = URL.createObjectURL(file);
+        objectUrlsRef.current.push(previewUrl);
+        accepted.push({ file, kind, previewUrl });
       }
 
-      if (attachment) URL.revokeObjectURL(attachment.previewUrl);
-      setAttachment({ file, kind, previewUrl: URL.createObjectURL(file) });
+      if (rejected.length > 0) {
+        toast.error(
+          rejected.length === 1
+            ? `${rejected[0]} cannot be shared`
+            : `${rejected.length} files cannot be shared`,
+          { description: "Attach images, videos, or PDFs." },
+        );
+      }
+
+      setAttachments((prev) => {
+        const room = MAX_ATTACHMENTS - prev.length;
+        if (accepted.length === 0) return prev;
+        if (room <= 0) {
+          toast.error(`Up to ${MAX_ATTACHMENTS} files per message`);
+          return prev;
+        }
+        if (accepted.length > room) {
+          toast.error(`Only ${room} more can be attached`, {
+            description: `The limit is ${MAX_ATTACHMENTS} per message.`,
+          });
+        }
+        return [...prev, ...accepted.slice(0, room)];
+      });
     },
-    [attachment],
+    [],
   );
 
-  const clearAttachment = useCallback(() => {
-    setAttachment((prev) => {
-      if (prev) URL.revokeObjectURL(prev.previewUrl);
-      return null;
-    });
+  /** Remove one staged file. The URL is released on unmount, not here. */
+  const removeAttachment = useCallback((previewUrl: string) => {
+    setAttachments((prev) => prev.filter((a) => a.previewUrl !== previewUrl));
   }, []);
 
   // Grow with the content, then scroll. Reset to `auto` first so the box can
@@ -213,7 +236,8 @@ export function AcademyComposer({
 
   const submit = useCallback(() => {
     const text = value.trim();
-    if ((!text && !attachment) || inputLocked || pending || uploading) return;
+    if ((!text && attachments.length === 0) || inputLocked || pending || uploading)
+      return;
 
     const now = Date.now();
     const firstInputAt = firstInputAtRef.current;
@@ -226,7 +250,7 @@ export function AcademyComposer({
       compositionMs: firstInputAt !== null ? Math.max(0, now - firstInputAt) : null,
     };
 
-    onSend(text, attachment, composition);
+    onSend(text, attachments, composition);
     setValue("");
 
     // Start a fresh measurement window for the next reply.
@@ -234,10 +258,10 @@ export function AcademyComposer({
     firstInputAtRef.current = null;
     pendingPasteRef.current = 0;
     openedAtRef.current = now;
-    // Ownership of the object URL passes to the caller for the optimistic
-    // bubble, so clear the reference without revoking it here.
-    setAttachment(null);
-  }, [value, attachment, inputLocked, pending, uploading, onSend]);
+    // Ownership of the object URLs passes to the caller for the optimistic
+    // bubbles, so clear the references without revoking them here.
+    setAttachments([]);
+  }, [value, attachments, inputLocked, pending, uploading, onSend]);
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -285,52 +309,60 @@ export function AcademyComposer({
         </IndulgeButton>
       </div>
 
-      {/* Staged media — shown above the input, WhatsApp-style, before sending. */}
-      {attachment ? (
-        <div className="mb-2 flex items-center gap-3 rounded-xl border border-chat-bubble-in-border bg-chat-bubble-in p-2">
-          {attachment.kind === "image" ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={attachment.previewUrl}
-              alt="Attachment preview"
-              className="size-14 shrink-0 rounded-lg object-cover"
-            />
-          ) : attachment.kind === "video" ? (
-            <video
-              src={attachment.previewUrl}
-              className="size-14 shrink-0 rounded-lg object-cover"
-              muted
-              playsInline
-            />
-          ) : (
-            // A document has no visual frame to preview — show the same tile
-            // footprint with a file mark so the row does not reflow by kind.
-            <span
-              className="flex size-14 shrink-0 items-center justify-center rounded-lg bg-surface-subtle ring-1 ring-surface-border"
-              aria-hidden="true"
+      {/* Staged media — shown above the input, WhatsApp-style, before sending.
+          One row per file, each removable on its own. */}
+      {attachments.length > 0 ? (
+        <div className="mb-2 space-y-1.5">
+          {attachments.map((att) => (
+            <div
+              key={att.previewUrl}
+              className="flex items-center gap-3 rounded-xl border border-chat-bubble-in-border bg-chat-bubble-in p-2"
             >
-              <FileText className="size-6 text-chat-ink-muted" strokeWidth={1.75} />
-            </span>
-          )}
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-[13px] font-medium text-chat-ink">
-              {attachment.file.name}
-            </p>
-            <p className="text-[11px] text-chat-ink-muted">
-              {attachmentKindLabel(attachment.kind)} ·{" "}
-              {(attachment.file.size / 1024 / 1024).toFixed(1)} MB
-              {uploading ? " · uploading…" : ""}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={clearAttachment}
-            disabled={uploading}
-            aria-label="Remove attachment"
-            className="flex size-7 shrink-0 items-center justify-center rounded-full text-chat-ink-muted transition-colors hover:bg-surface-subtle hover:text-chat-ink disabled:opacity-40"
-          >
-            <X className="size-4" aria-hidden="true" />
-          </button>
+              {att.kind === "image" ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={att.previewUrl}
+                  alt=""
+                  className="size-14 shrink-0 rounded-lg object-cover"
+                />
+              ) : att.kind === "video" ? (
+                <video
+                  src={att.previewUrl}
+                  className="size-14 shrink-0 rounded-lg object-cover"
+                  muted
+                  playsInline
+                />
+              ) : (
+                // A PDF has no thumbnail — name it rather than show a blank tile.
+                <div className="grid size-14 shrink-0 place-items-center rounded-lg bg-surface-subtle text-[10px] font-semibold uppercase tracking-[0.08em] text-chat-ink-muted">
+                  PDF
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[13px] font-medium text-chat-ink">
+                  {att.file.name}
+                </p>
+                <p className="text-[11px] text-chat-ink-muted">
+                  {att.kind === "video"
+                    ? "Video"
+                    : att.kind === "document"
+                      ? "PDF"
+                      : "Photo"}{" "}
+                  · {(att.file.size / 1024 / 1024).toFixed(1)} MB
+                  {uploading ? " · uploading…" : ""}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => removeAttachment(att.previewUrl)}
+                disabled={uploading}
+                aria-label={`Remove ${att.file.name}`}
+                className="flex size-7 shrink-0 items-center justify-center rounded-full text-chat-ink-muted transition-colors hover:bg-surface-subtle hover:text-chat-ink disabled:opacity-40"
+              >
+                <X className="size-4" aria-hidden="true" />
+              </button>
+            </div>
+          ))}
         </div>
       ) : null}
 
@@ -350,6 +382,7 @@ export function AcademyComposer({
           ref={fileInputRef}
           type="file"
           accept={ATTACHMENT_ACCEPT}
+          multiple
           hidden
           onChange={pickFile}
         />
@@ -357,8 +390,8 @@ export function AcademyComposer({
           type="button"
           onClick={() => fileInputRef.current?.click()}
           disabled={inputLocked || pending || uploading}
-          aria-label="Attach a photo, video or PDF"
-          title="Attach a photo, video or PDF"
+          aria-label="Attach a photo or video"
+          title="Attach a photo or video"
           className={cn(
             "mb-0.5 flex size-9 shrink-0 items-center justify-center rounded-full transition-colors",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chat-accent",
@@ -386,7 +419,7 @@ export function AcademyComposer({
               ? "You have used every turn in this drill."
               : disabled
                 ? "This conversation is closed."
-                : attachment
+                : attachments.length > 0
                   ? "Add a caption…  (optional)"
                   : "Reply as the concierge…  (Enter to send, Shift+Enter for a new line)"
           }

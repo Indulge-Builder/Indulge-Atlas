@@ -29,7 +29,10 @@ export const ACADEMY_TICKET_REVIEW_MODEL = "claude-opus-4-8";
 
 /** Bump when the ticket-review model OR its rubric/prompt changes. */
 export const ACADEMY_TICKET_REVIEW_VERSION =
-  "academy-ticket-1@claude-opus-4-8";
+  // v2: the public reply was removed from the ticket, so `professionalism` and
+  // `client_satisfaction` now judge the write-up and the conversation instead.
+  // Scores either side of this line are not comparable.
+  "academy-ticket-2@claude-opus-4-8";
 
 /**
  * Style estimator for the AI-assistance signal. Haiku, not Opus: this runs once
