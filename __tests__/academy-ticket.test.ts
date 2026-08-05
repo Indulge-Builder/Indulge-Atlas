@@ -8,16 +8,26 @@
 
 import { describe, it, expect } from "vitest";
 import {
+  IDLE_GAP_MINUTES,
   categoryForVertical,
+  describeTicketIssues,
   deriveTicket,
   elapsedMinutes,
   formatMinutes,
   isTerminalStatus,
+  measuredTicketMinutes,
+  normaliseTimeSpentMinutes,
   priorityForDifficulty,
   ticketRefFor,
+  ticketUpdateSchema,
   validateTicketUpdate,
   type TicketUpdateInput,
 } from "@/lib/academy/ticket";
+import {
+  ACADEMY_TICKET_PRIORITIES,
+  ACADEMY_TICKET_STATUSES,
+  ACADEMY_TICKET_TAGS,
+} from "@/lib/types/database";
 import {
   TICKET_HARD_FLOOR,
   TICKET_PASS_THRESHOLD,
@@ -148,6 +158,79 @@ describe("time helpers", () => {
   });
 });
 
+// ── Time spent ───────────────────────────────────────────────────────────────
+//
+// The field the trainee cannot edit, and the one that broke submission. It is
+// measured from the transcript, so it has to stay inside the range the wire
+// accepts no matter how long a session sat open.
+
+describe("time spent on the request", () => {
+  /** Turns `n` minutes apart from a fixed start. */
+  function turnsAt(offsetsMinutes: number[]): { created_at: string }[] {
+    const base = Date.parse("2026-08-04T12:33:00.000Z");
+    return offsetsMinutes.map((m) => ({
+      created_at: new Date(base + m * 60_000).toISOString(),
+    }));
+  }
+
+  it("counts working gaps in full", () => {
+    // Four replies, five minutes apart: twenty minutes of work.
+    expect(measuredTicketMinutes(turnsAt([0, 5, 10, 15, 20]))).toBe(20);
+  });
+
+  it("discounts a gap where the trainee had clearly walked away", () => {
+    // Same two messages, one an hour apart — an hour is not an hour of work.
+    expect(measuredTicketMinutes(turnsAt([0, 60]))).toBe(IDLE_GAP_MINUTES);
+  });
+
+  it("submits an overnight session — the exact case that failed", () => {
+    // Session fb20d0aa as it exists in production: opened 12:33, worked, left
+    // overnight, finished 07:13 the next morning. First-to-last was 1120
+    // minutes, which the old wire schema (max 960) rejected outright — and the
+    // trainee could not edit the field to get under it.
+    const turns = turnsAt([
+      0, 2, 4, 7, 9, 12, 15, 18, 22, 26, // afternoon: sixteen turns of work
+      30, 33, 37, 41, 44, 48,
+      1040, 1043, 1047, 1051, 1056, 1060, // next morning, after the break
+      1065, 1069, 1073, 1078, 1082, 1087,
+      1092, 1098, 1105, 1112, 1120,
+    ]);
+    expect(elapsedMinutes(turns[0].created_at, turns[turns.length - 1].created_at)).toBe(
+      1120,
+    );
+
+    const measured = measuredTicketMinutes(turns);
+    // 128 minutes of message-to-message work either side of the break, plus the
+    // one capped idle gap for the night itself. (The real session measures 153
+    // by the same rule.) Honest about the break, and submittable.
+    expect(measured).toBe(128 + IDLE_GAP_MINUTES);
+    expect(
+      ticketUpdateSchema.safeParse({ ...update(), time_spent_minutes: measured }).success,
+    ).toBe(true);
+  });
+
+  it("returns null when there is nothing to measure", () => {
+    expect(measuredTicketMinutes([])).toBeNull();
+    expect(measuredTicketMinutes([{ created_at: "not-a-date" }])).toBeNull();
+  });
+
+  it("rounds to whole minutes and floors at one", () => {
+    expect(normaliseTimeSpentMinutes(0)).toBe(1);
+    expect(normaliseTimeSpentMinutes(-5)).toBe(1);
+    expect(normaliseTimeSpentMinutes(18.6)).toBe(19);
+    expect(normaliseTimeSpentMinutes(Number.NaN)).toBe(1);
+  });
+
+  it("has no upper limit — a long request records as a long request", () => {
+    expect(normaliseTimeSpentMinutes(1120)).toBe(1120);
+    expect(normaliseTimeSpentMinutes(7086)).toBe(7086);
+    expect(
+      ticketUpdateSchema.parse({ ...update(), time_spent_minutes: 7086 })
+        .time_spent_minutes,
+    ).toBe(7086);
+  });
+});
+
 // ── Validation ───────────────────────────────────────────────────────────────
 
 describe("ticket update validation", () => {
@@ -189,6 +272,86 @@ describe("ticket update validation", () => {
     expect(isTerminalStatus("closed")).toBe(true);
     expect(isTerminalStatus("waiting_on_customer")).toBe(false);
     expect(isTerminalStatus("open")).toBe(false);
+  });
+});
+
+// ── Wire schema ──────────────────────────────────────────────────────────────
+//
+// The form and the server action share this schema. They did not always: the
+// action kept its own copy with a 960-minute ceiling the form knew nothing
+// about, and every long-running request died on submit with "Invalid ticket
+// update". These pin the two back together.
+
+describe("ticket update wire schema", () => {
+  it("accepts the ticket from the screenshot — Resolved / Low / 1120 minutes", () => {
+    const parsed = ticketUpdateSchema.safeParse({
+      resolution_summary:
+        "Checked the Chennai forecast for the travel window, confirmed the rain eases after the 9th and shared what to pack.",
+      internal_notes: "Member is travelling with elderly parents.",
+      public_reply: "",
+      status: "resolved",
+      priority: "low",
+      tags: ["luxury", "travel", "watches"],
+      time_spent_minutes: 1120,
+    });
+
+    expect(parsed.success).toBe(true);
+    // Recorded as measured. The trainee cannot edit this field, so no ceiling
+    // may stand between it and a submitted ticket.
+    expect(parsed.data!.time_spent_minutes).toBe(1120);
+    expect(parsed.data!.status).toBe("resolved");
+    expect(parsed.data!.priority).toBe("low");
+    expect(parsed.data!.tags).toEqual(["luxury", "travel", "watches"]);
+  });
+
+  it("accepts every value the form can actually produce", () => {
+    // The form renders its options straight from these constants. If the schema
+    // and the constants ever diverge, a selectable value becomes unsubmittable —
+    // which is the shape of the bug this replaced.
+    for (const status of ACADEMY_TICKET_STATUSES) {
+      for (const priority of ACADEMY_TICKET_PRIORITIES) {
+        const parsed = ticketUpdateSchema.safeParse({
+          ...update(),
+          status,
+          priority,
+          tags: [...ACADEMY_TICKET_TAGS],
+        });
+        expect(parsed.success, `${status}/${priority} must be submittable`).toBe(true);
+      }
+    }
+  });
+
+  it("still refuses values that are not in the vocabulary", () => {
+    expect(ticketUpdateSchema.safeParse({ ...update(), status: "Resolved" }).success).toBe(
+      false,
+    );
+    expect(ticketUpdateSchema.safeParse({ ...update(), priority: "Low" }).success).toBe(
+      false,
+    );
+    expect(
+      ticketUpdateSchema.safeParse({ ...update(), tags: ["not-a-tag"] }).success,
+    ).toBe(false);
+  });
+
+  it("names the offending field instead of saying 'Invalid ticket update'", () => {
+    const parsed = ticketUpdateSchema.safeParse({ ...update(), status: "Resolved" });
+    expect(parsed.success).toBe(false);
+    const message = describeTicketIssues(parsed.error!);
+    expect(message).toMatch(/^Status:/);
+    expect(message).not.toBe("Invalid ticket update");
+  });
+
+  it("keeps the pure validator and the schema describing the same range", () => {
+    expect(validateTicketUpdate(update({ time_spent_minutes: 0 }))).toHaveLength(1);
+    // Anything the schema lets through must satisfy the validator too — including
+    // the long sessions that used to be refused.
+    for (const minutes of [1, 5000, 7086]) {
+      const parsed = ticketUpdateSchema.parse({
+        ...update(),
+        time_spent_minutes: minutes,
+      });
+      expect(validateTicketUpdate(parsed)).toEqual([]);
+    }
   });
 });
 

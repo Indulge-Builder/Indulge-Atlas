@@ -115,10 +115,16 @@ export interface TicketReviewResult {
  * The caller has already written `update` to the row; this reads the session
  * context, judges, and stamps the outcome. Returns the verdict so the UI can
  * show the feedback immediately.
+ *
+ * `attempts` is stamped here rather than by the caller so it lands in the same
+ * write as the verdict: a submission the reviewer never returned from is not an
+ * attempt, and counting it would penalise the trainee for an outage through the
+ * first-attempt metric.
  */
 export async function runAcademyTicketReview(
   sessionId: string,
   update: TicketUpdateInput,
+  opts?: { attempts?: number },
 ): Promise<TicketReviewResult> {
   try {
     const db = getServiceSupabaseClient();
@@ -170,6 +176,9 @@ export async function runAcademyTicketReview(
         verdict,
         passed: verdict.passed,
         submitted_at: new Date().toISOString(),
+        ...(typeof opts?.attempts === "number"
+          ? { attempts: opts.attempts }
+          : {}),
       })
       .eq("session_id", sessionId);
 

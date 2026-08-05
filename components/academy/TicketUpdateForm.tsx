@@ -37,6 +37,7 @@ import {
   TICKET_STATUS_LABEL,
   TICKET_TAG_LABEL,
   isTerminalStatus,
+  normaliseTimeSpentMinutes,
   validateTicketUpdate,
   type TicketUpdateInput,
 } from "@/lib/academy/ticket";
@@ -155,8 +156,6 @@ export function TicketUpdateForm({
    */
   onSubmitted?: (passed: boolean) => void;
 }): JSX.Element {
-  const accepted = existing?.passed === true;
-
   const [form, setForm] = useState<TicketUpdateInput>({
     resolution_summary: existing?.resolution_summary ?? "",
     internal_notes: existing?.internal_notes ?? "",
@@ -164,14 +163,35 @@ export function TicketUpdateForm({
     status: existing?.status ?? "resolved",
     priority: existing?.priority ?? defaultPriority,
     tags: existing?.tags ?? [],
-    time_spent_minutes: existing?.time_spent_minutes || (suggestedMinutes ?? 15),
+    // Whole minutes, floored at one. No ceiling — a long request records as a
+    // long request, and this field is measured rather than typed, so a limit
+    // here could only ever block a submission the trainee cannot correct.
+    time_spent_minutes: normaliseTimeSpentMinutes(
+      existing?.time_spent_minutes || (suggestedMinutes ?? 15),
+    ),
   });
 
   const [verdict, setVerdict] = useState<AcademyTicketVerdict | null>(
     existing?.verdict ?? null,
   );
+  /**
+   * Set the instant the reviewer returns, so the form locks on this render
+   * rather than waiting for the parent's refetch to bring back a `passed` row.
+   * Without it the panel briefly offers Submit again on a ticket that is
+   * already in — and the server would only answer that with an error.
+   */
+  const [handedIn, setHandedIn] = useState(false);
   const [showErrors, setShowErrors] = useState(false);
   const [pending, startTransition] = useTransition();
+
+  const accepted = existing?.passed === true || handedIn;
+
+  /** What the accepted view renders — the saved row, or what we just sent. */
+  const submitted = existing?.passed
+    ? existing
+    : handedIn
+      ? { ...form, attempts: (existing?.attempts ?? 0) + 1 }
+      : null;
 
   const errors = useMemo(() => validateTicketUpdate(form), [form]);
   const statusOk = isTerminalStatus(form.status);
@@ -193,6 +213,9 @@ export function TicketUpdateForm({
   }
 
   function handleSubmit() {
+    // One submission per ticket — the server refuses a second, and this stops
+    // the request ever being made twice.
+    if (pending || accepted) return;
     if (errors.length > 0 || !statusOk) {
       setShowErrors(true);
       return;
@@ -205,6 +228,7 @@ export function TicketUpdateForm({
       }
       const v = res.data!.verdict;
       setVerdict(v);
+      setHandedIn(true);
       // One submission per ticket, so this always hands the request in. The
       // reviewer's quality call still lands — it just reads as feedback on
       // completed work rather than a door to walk back through.
@@ -220,7 +244,7 @@ export function TicketUpdateForm({
   }
 
   // ── Accepted: locked record ────────────────────────────────────────────────
-  if (accepted && verdict) {
+  if (accepted && verdict && submitted) {
     return (
       <div className="space-y-4 px-4 py-5">
         <div className="flex items-center gap-2.5">
@@ -231,8 +255,8 @@ export function TicketUpdateForm({
             </p>
             <p className="text-[12px] text-chat-ink-muted">
               Documentation quality {verdict.quality.toFixed(1)}/5
-              {existing.attempts > 1
-                ? ` · ${existing.attempts} submissions`
+              {submitted.attempts > 1
+                ? ` · ${submitted.attempts} submissions`
                 : " · one submission"}
             </p>
           </div>
@@ -276,22 +300,22 @@ export function TicketUpdateForm({
               <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-chat-ink-muted">
                 Resolution summary
               </p>
-              <p className="mt-0.5 whitespace-pre-wrap">{existing.resolution_summary}</p>
+              <p className="mt-0.5 whitespace-pre-wrap">{submitted.resolution_summary}</p>
             </div>
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-chat-ink-muted">
                 Internal notes
               </p>
-              <p className="mt-0.5 whitespace-pre-wrap">{existing.internal_notes}</p>
+              <p className="mt-0.5 whitespace-pre-wrap">{submitted.internal_notes}</p>
             </div>
             {/* Older tickets, filed before the field was removed, still carry
                 one — show it rather than hide history. New ones have none. */}
-            {existing.public_reply?.trim() ? (
+            {submitted.public_reply?.trim() ? (
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-chat-ink-muted">
                   Public reply
                 </p>
-                <p className="mt-0.5 whitespace-pre-wrap">{existing.public_reply}</p>
+                <p className="mt-0.5 whitespace-pre-wrap">{submitted.public_reply}</p>
               </div>
             ) : null}
           </div>

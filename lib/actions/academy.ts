@@ -12,7 +12,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getAuthUser } from "@/lib/auth/getAuthUser";
 import { getServiceSupabaseClient } from "@/lib/supabase/service";
-import { isAcademyTrainer, isPrivilegedRole, ACADEMY_TICKET_TAGS } from "@/lib/types/database";
+import { isAcademyTrainer, isPrivilegedRole } from "@/lib/types/database";
 import { sanitizeText } from "@/lib/utils/sanitize";
 import { classifyAttachment, resolveContentType } from "@/lib/academy/attachments";
 import { randomizeSession, buildSessionVars, renderTemplate } from "@/lib/academy/randomize";
@@ -28,7 +28,12 @@ import {
 } from "@/lib/academy/progressScore";
 import { runAcademyEvaluation } from "@/lib/services/academyEvaluator";
 import { runAcademyTicketReview } from "@/lib/services/academyTicketReview";
-import { deriveTicket, validateTicketUpdate } from "@/lib/academy/ticket";
+import {
+  describeTicketIssues,
+  deriveTicket,
+  ticketUpdateSchema,
+  validateTicketUpdate,
+} from "@/lib/academy/ticket";
 import { ticketQualityNormalised } from "@/lib/academy/ticketReview";
 import { sessionTiming, type TimedTurn } from "@/lib/academy/timing";
 import {
@@ -395,22 +400,11 @@ export async function retryAcademyEvaluation(
 // request. The intern then writes the ticket, a reviewer judges it, and only an
 // accepted ticket earns progress. See migration 131 for the mutability rules.
 
-const ticketUpdateSchema = z.object({
-  resolution_summary: z.string().max(4000),
-  internal_notes: z.string().max(4000),
-  public_reply: z.string().max(4000),
-  status: z.enum([
-    "open",
-    "pending",
-    "waiting_on_customer",
-    "resolved",
-    "closed",
-  ]),
-  priority: z.enum(["low", "medium", "high", "urgent"]),
-  tags: z.array(z.enum(ACADEMY_TICKET_TAGS)).max(ACADEMY_TICKET_TAGS.length),
-  // A 16-hour ceiling: anything beyond that is a typo, not a concierge request.
-  time_spent_minutes: z.number().int().min(0).max(960),
-});
+// The schema itself lives in lib/academy/ticket.ts so the form validates against
+// the same definition the action enforces. Keeping a second copy here is what
+// produced the "Invalid ticket update" dead end: the form's measured time-spent
+// figure was unbounded, this copy capped it at 960, and neither knew about the
+// other.
 
 /** Read the ticket row for a session, if the intern has started one. */
 async function readTicketUpdate(
@@ -442,7 +436,9 @@ export async function saveTicketDraft(
   if (!id.success) return { success: false, error: "Invalid session id" };
 
   const parsed = ticketUpdateSchema.safeParse(input);
-  if (!parsed.success) return { success: false, error: "Invalid ticket update" };
+  if (!parsed.success) {
+    return { success: false, error: describeTicketIssues(parsed.error) };
+  }
 
   const access = await assertCanAccessSession(id.data);
   if (!access.ok) return { success: false, error: access.error };
@@ -478,6 +474,21 @@ export async function saveTicketDraft(
 }
 
 /**
+ * Every refusal is logged before it is returned.
+ *
+ * The toast shows the trainee one line; the server console is where the reason
+ * has to survive. A submission that fails silently on the server and vaguely on
+ * screen is the shape this workflow already got stuck in once.
+ */
+function refuseTicket(
+  sessionId: string,
+  reason: string,
+): Result<{ verdict: AcademyTicketVerdict }> {
+  console.warn(`[academy] ticket submit refused session=${sessionId}: ${reason}`);
+  return { success: false, error: reason };
+}
+
+/**
  * Submit the ticket for AI review.
  *
  * Structural checks run first so an obviously incomplete ticket never costs an
@@ -490,30 +501,40 @@ export async function submitTicketUpdate(
   input: unknown,
 ): Promise<Result<{ verdict: AcademyTicketVerdict }>> {
   const id = z.string().uuid().safeParse(sessionId);
-  if (!id.success) return { success: false, error: "Invalid session id" };
+  if (!id.success) return refuseTicket(String(sessionId), "Invalid session id");
 
   const parsed = ticketUpdateSchema.safeParse(input);
-  if (!parsed.success) return { success: false, error: "Invalid ticket update" };
+  if (!parsed.success) {
+    return refuseTicket(id.data, describeTicketIssues(parsed.error));
+  }
 
   const access = await assertCanAccessSession(id.data);
-  if (!access.ok) return { success: false, error: access.error };
+  if (!access.ok) return refuseTicket(id.data, access.error);
 
   const { user } = await getAuthUser();
   if (access.session.intern_id !== user.id) {
-    return { success: false, error: "Only the assigned agent can submit this ticket" };
+    return refuseTicket(id.data, "Only the assigned agent can submit this ticket");
   }
   if (access.session.status !== "closed") {
-    return {
-      success: false,
-      error: "Close the conversation before updating the ticket",
-    };
+    return refuseTicket(id.data, "Close the conversation before updating the ticket");
   }
 
   const existing = await readTicketUpdate(id.data);
   if (existing?.passed) {
-    return { success: false, error: "This ticket has already been accepted" };
+    return refuseTicket(id.data, "This ticket has already been accepted");
   }
 
+  // Structure is judged on what the trainee actually wrote, exactly as the form
+  // judged it. Checking the sanitized copy instead made the two disagree: an
+  // angle bracket or an ampersand changes the length after sanitising, so a
+  // write-up the form accepted could be refused here for being too short — with
+  // nothing on screen to explain it.
+  const structural = validateTicketUpdate(parsed.data);
+  if (structural.length > 0) {
+    return refuseTicket(id.data, structural.join(" "));
+  }
+
+  // Sanitised for storage, which is what sanitising is for.
   const clean = {
     resolution_summary: sanitizeText(parsed.data.resolution_summary),
     internal_notes: sanitizeText(parsed.data.internal_notes),
@@ -524,25 +545,38 @@ export async function submitTicketUpdate(
     time_spent_minutes: parsed.data.time_spent_minutes,
   };
 
-  const structural = validateTicketUpdate(clean);
-  if (structural.length > 0) {
-    return { success: false, error: structural.join(" ") };
-  }
-
+  // Save the write-up first so a reviewer failure never costs the trainee their
+  // work. `attempts` is deliberately NOT bumped here: a submission that the
+  // reviewer never got to is not an attempt, and attempts feed the
+  // first-attempt metric in the progress model. The reviewer stamps it along
+  // with the verdict, in the same write.
   const db = getServiceSupabaseClient();
   const { error: upErr } = await db.from("training_ticket_updates").upsert(
     {
       session_id: id.data,
       ...clean,
-      attempts: (existing?.attempts ?? 0) + 1,
+      attempts: existing?.attempts ?? 0,
     },
     { onConflict: "session_id" },
   );
-  if (upErr) return { success: false, error: upErr.message };
+  if (upErr) return refuseTicket(id.data, `Could not save the ticket: ${upErr.message}`);
 
-  const review = await runAcademyTicketReview(id.data, clean);
+  const review = await runAcademyTicketReview(id.data, clean, {
+    attempts: (existing?.attempts ?? 0) + 1,
+  });
+  // Nothing is marked handled on a failed review: `passed` stays false, so the
+  // request stays in awaiting_ticket and the draft above is still there to
+  // resubmit. The trainee gets a line they can act on; the real cause — an API
+  // key, a billing balance, a truncated response — goes to the server log,
+  // where whoever can actually fix it will be looking.
   if (!review.success || !review.verdict) {
-    return { success: false, error: review.error ?? "Ticket review failed" };
+    console.error(
+      `[academy] ticket review failed session=${id.data}: ${review.error ?? "unknown"}`,
+    );
+    return refuseTicket(
+      id.data,
+      "The ticket reviewer is unavailable right now. Your write-up is saved — submit again shortly.",
+    );
   }
 
   revalidatePath(`/academy/session/${id.data}`);
