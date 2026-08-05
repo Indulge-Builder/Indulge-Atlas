@@ -32,12 +32,12 @@ import { cn } from "@/lib/utils";
 import { submitTicketUpdate } from "@/lib/actions/academy";
 import {
   MIN_INTERNAL_NOTES,
-  MIN_PUBLIC_REPLY,
   MIN_RESOLUTION_SUMMARY,
   TICKET_PRIORITY_LABEL,
   TICKET_STATUS_LABEL,
   TICKET_TAG_LABEL,
   isTerminalStatus,
+  normaliseTimeSpentMinutes,
   validateTicketUpdate,
   type TicketUpdateInput,
 } from "@/lib/academy/ticket";
@@ -156,8 +156,6 @@ export function TicketUpdateForm({
    */
   onSubmitted?: (passed: boolean) => void;
 }): JSX.Element {
-  const accepted = existing?.passed === true;
-
   const [form, setForm] = useState<TicketUpdateInput>({
     resolution_summary: existing?.resolution_summary ?? "",
     internal_notes: existing?.internal_notes ?? "",
@@ -165,14 +163,35 @@ export function TicketUpdateForm({
     status: existing?.status ?? "resolved",
     priority: existing?.priority ?? defaultPriority,
     tags: existing?.tags ?? [],
-    time_spent_minutes: existing?.time_spent_minutes || (suggestedMinutes ?? 15),
+    // Whole minutes, floored at one. No ceiling — a long request records as a
+    // long request, and this field is measured rather than typed, so a limit
+    // here could only ever block a submission the trainee cannot correct.
+    time_spent_minutes: normaliseTimeSpentMinutes(
+      existing?.time_spent_minutes || (suggestedMinutes ?? 15),
+    ),
   });
 
   const [verdict, setVerdict] = useState<AcademyTicketVerdict | null>(
     existing?.verdict ?? null,
   );
+  /**
+   * Set the instant the reviewer returns, so the form locks on this render
+   * rather than waiting for the parent's refetch to bring back a `passed` row.
+   * Without it the panel briefly offers Submit again on a ticket that is
+   * already in — and the server would only answer that with an error.
+   */
+  const [handedIn, setHandedIn] = useState(false);
   const [showErrors, setShowErrors] = useState(false);
   const [pending, startTransition] = useTransition();
+
+  const accepted = existing?.passed === true || handedIn;
+
+  /** What the accepted view renders — the saved row, or what we just sent. */
+  const submitted = existing?.passed
+    ? existing
+    : handedIn
+      ? { ...form, attempts: (existing?.attempts ?? 0) + 1 }
+      : null;
 
   const errors = useMemo(() => validateTicketUpdate(form), [form]);
   const statusOk = isTerminalStatus(form.status);
@@ -194,6 +213,9 @@ export function TicketUpdateForm({
   }
 
   function handleSubmit() {
+    // One submission per ticket — the server refuses a second, and this stops
+    // the request ever being made twice.
+    if (pending || accepted) return;
     if (errors.length > 0 || !statusOk) {
       setShowErrors(true);
       return;
@@ -206,11 +228,15 @@ export function TicketUpdateForm({
       }
       const v = res.data!.verdict;
       setVerdict(v);
-      if (v.passed) {
-        toast.success("Ticket accepted — request complete.");
+      setHandedIn(true);
+      // One submission per ticket, so this always hands the request in. The
+      // reviewer's quality call still lands — it just reads as feedback on
+      // completed work rather than a door to walk back through.
+      if (v.meets_bar ?? v.passed) {
+        toast.success("Ticket submitted — request handled.");
       } else {
-        toast.warning("Sent back for revision", {
-          description: "The reviewer left notes on what to tighten.",
+        toast.success("Ticket submitted — request handled.", {
+          description: `Documentation scored ${v.quality.toFixed(1)}/5 — see the reviewer's notes.`,
         });
       }
       onSubmitted?.(v.passed);
@@ -218,23 +244,48 @@ export function TicketUpdateForm({
   }
 
   // ── Accepted: locked record ────────────────────────────────────────────────
-  if (accepted && verdict) {
+  if (accepted && verdict && submitted) {
     return (
       <div className="space-y-4 px-4 py-5">
         <div className="flex items-center gap-2.5">
           <CheckCircle2 className="size-5 shrink-0 text-success" aria-hidden />
           <div className="min-w-0 flex-1">
             <p className="text-[13px] font-semibold text-chat-ink">
-              Ticket accepted
+              Ticket submitted — request handled
             </p>
             <p className="text-[12px] text-chat-ink-muted">
               Documentation quality {verdict.quality.toFixed(1)}/5
-              {existing.attempts > 1
-                ? ` · ${existing.attempts} submissions`
-                : " · first attempt"}
+              {submitted.attempts > 1
+                ? ` · ${submitted.attempts} submissions`
+                : " · one submission"}
             </p>
           </div>
         </div>
+
+        {/* Coaching, not a gate. The request is in; these are the things to do
+            differently next time, and they are the reason the score is what it
+            is — so they stay visible rather than hidden behind a disclosure. */}
+        {verdict.meets_bar === false && verdict.feedback.length > 0 ? (
+          <div className="rounded-lg border border-warning/25 bg-warning-light px-3.5 py-3">
+            <p className="text-[12.5px] font-semibold text-warning">
+              What to tighten next time
+            </p>
+            <ul className="mt-2 space-y-1.5">
+              {verdict.feedback.map((f, i) => (
+                <li
+                  key={i}
+                  className="flex gap-2 text-[12.5px] leading-relaxed text-chat-ink"
+                >
+                  <span
+                    className="mt-1.5 size-1 shrink-0 rounded-full bg-warning"
+                    aria-hidden
+                  />
+                  {f}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
 
         <div className="rounded-lg border border-chat-divider bg-surface p-3.5">
           <VerdictScores verdict={verdict} />
@@ -249,20 +300,24 @@ export function TicketUpdateForm({
               <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-chat-ink-muted">
                 Resolution summary
               </p>
-              <p className="mt-0.5 whitespace-pre-wrap">{existing.resolution_summary}</p>
+              <p className="mt-0.5 whitespace-pre-wrap">{submitted.resolution_summary}</p>
             </div>
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-chat-ink-muted">
                 Internal notes
               </p>
-              <p className="mt-0.5 whitespace-pre-wrap">{existing.internal_notes}</p>
+              <p className="mt-0.5 whitespace-pre-wrap">{submitted.internal_notes}</p>
             </div>
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-chat-ink-muted">
-                Public reply
-              </p>
-              <p className="mt-0.5 whitespace-pre-wrap">{existing.public_reply}</p>
-            </div>
+            {/* Older tickets, filed before the field was removed, still carry
+                one — show it rather than hide history. New ones have none. */}
+            {submitted.public_reply?.trim() ? (
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-chat-ink-muted">
+                  Public reply
+                </p>
+                <p className="mt-0.5 whitespace-pre-wrap">{submitted.public_reply}</p>
+              </div>
+            ) : null}
           </div>
         </details>
       </div>
@@ -300,7 +355,7 @@ export function TicketUpdateForm({
           <div className="flex items-center gap-2">
             <RotateCcw className="size-4 shrink-0 text-warning" aria-hidden />
             <p className="text-[12.5px] font-semibold text-warning">
-              Sent back for revision — quality {verdict.quality.toFixed(1)}/5
+              Not yet completed — quality {verdict.quality.toFixed(1)}/5
             </p>
           </div>
           <ul className="mt-2 space-y-1.5">
@@ -358,22 +413,10 @@ export function TicketUpdateForm({
         />
       </FieldShell>
 
-      <FieldShell
-        id="ticket-public-reply"
-        label="Public reply"
-        hint={`${form.public_reply.trim().length}/${MIN_PUBLIC_REPLY} · the client reads this`}
-      >
-        <textarea
-          id="ticket-public-reply"
-          aria-describedby="ticket-public-reply-hint"
-          rows={4}
-          value={form.public_reply}
-          onChange={(e) => set("public_reply", e.target.value)}
-          disabled={pending}
-          placeholder="The final message to the client, in the Indulge voice."
-          className={textareaClass}
-        />
-      </FieldShell>
+      {/* The public reply was removed: the member already received the answer in
+          the conversation, which the evaluator grades. Writing it a second time
+          for the ticket was duplicate work, and the column stays in the schema
+          (NOT NULL DEFAULT '') so nothing downstream needed changing. */}
 
       <div className="grid gap-4 sm:grid-cols-3">
         <FieldShell id="ticket-status" label="Status">
@@ -410,20 +453,22 @@ export function TicketUpdateForm({
           </select>
         </FieldShell>
 
-        <FieldShell id="ticket-time-spent" label="Time spent" hint="minutes">
-          <input
+        {/* Measured, not declared. This is the elapsed time of the conversation
+            and the trainee cannot edit it — time efficiency is 10% of their
+            score, and a self-reported figure is a number they can set for
+            themselves. Rendered read-only rather than hidden, because knowing
+            how long a request actually took is useful to them. */}
+        <FieldShell id="ticket-time-spent" label="Time spent" hint="measured">
+          <output
             id="ticket-time-spent"
             aria-describedby="ticket-time-spent-hint"
-            type="number"
-            min={1}
-            max={960}
-            value={form.time_spent_minutes}
-            onChange={(e) =>
-              set("time_spent_minutes", Number(e.target.value) || 0)
-            }
-            disabled={pending}
-            className={selectClass}
-          />
+            className={cn(
+              selectClass,
+              "flex items-center bg-chat-panel-active text-chat-ink-muted",
+            )}
+          >
+            {form.time_spent_minutes} min
+          </output>
         </FieldShell>
       </div>
 

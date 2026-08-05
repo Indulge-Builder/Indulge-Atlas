@@ -47,6 +47,13 @@ export async function proxy(request: NextRequest) {
     const publicRoutes = [
       "/login",
       "/academy/login",
+      /*
+       * Sign-out must always reach its handler. Gating it means an expired-but-
+       * present session cookie gets bounced to /login and never actually
+       * cleared, leaving the user in a half-signed-in state they cannot escape.
+       * The handler is POST-only and is a no-op without a session.
+       */
+      "/auth/signout",
       "/forgot-password",
       "/update-password",
       "/auth/callback",

@@ -188,6 +188,137 @@ export const TASK_ACTION_LABEL: Record<TaskStatus, string> = {
   completed: "View",
 };
 
+// ── The four-day programme ───────────────────────────────────────────────────
+//
+// The 176 register entries are the archive; these 40 are the taught curriculum.
+// Selection is by hand, not by range — Day 3 deliberately runs earlier register
+// numbers than Day 1, because the days are ordered by what they teach rather
+// than by when the request happened to land in July.
+//
+// Task numbers reference `scenario_seeds.task_number` (seeded by migration 130),
+// so no rows are duplicated and no migration is needed to reshape the ladder.
+// Changing a day is a change to this map and nothing else.
+
+export const ACADEMY_DAY_COUNT = 4;
+export const ACADEMY_TASKS_PER_DAY = 10;
+
+export const DAY_TASK_NUMBERS: Readonly<Record<number, readonly number[]>> = {
+  1: [4, 14, 24, 29, 31, 47, 54, 71, 84, 100],
+  2: [95, 107, 110, 115, 117, 133, 141, 150, 152, 163],
+  3: [2, 3, 5, 6, 10, 12, 16, 18, 21, 23],
+  4: [25, 30, 35, 36, 37, 40, 42, 48, 57, 65],
+};
+
+export const ACADEMY_DAY_NUMBERS: number[] = Object.keys(DAY_TASK_NUMBERS)
+  .map(Number)
+  .sort((a, b) => a - b);
+
+/** Every task in the programme, in day order. 40 in total. */
+export const CURRICULUM_TASK_NUMBERS: number[] = ACADEMY_DAY_NUMBERS.flatMap(
+  (d) => [...DAY_TASK_NUMBERS[d]],
+);
+
+const DAY_BY_TASK = new Map<number, number>(
+  ACADEMY_DAY_NUMBERS.flatMap((d) =>
+    DAY_TASK_NUMBERS[d].map((t) => [t, d] as const),
+  ),
+);
+
+/** Which day a register task belongs to, or null if it is not taught. */
+export function dayForTask(taskNumber: number): number | null {
+  return DAY_BY_TASK.get(taskNumber) ?? null;
+}
+
+/** Whether a register task is part of the taught programme at all. */
+export function isCurriculumTask(taskNumber: number): boolean {
+  return DAY_BY_TASK.has(taskNumber);
+}
+
+export interface DayProgress {
+  dayNumber: number;
+  taskNumbers: number[];
+  taskCount: number;
+  completedCount: number;
+  /** 0-100, rounded. */
+  percent: number;
+  isComplete: boolean;
+  isLocked: boolean;
+  /** Why it is locked, for the UI to render without re-deriving it. */
+  unlockedBy: number | null;
+}
+
+/**
+ * Resolve each day's progress and lock state from the tasks actually completed.
+ *
+ * Locking is by membership, never by count: Day 2 opens because *these ten*
+ * tasks are done, not because ten of anything are. Completing forty unrelated
+ * tasks unlocks nothing.
+ *
+ * Day 1 is always open. Every later day is shut until its predecessor is
+ * finished — unconditionally.
+ *
+ * There is deliberately NO exemption for a day that already holds progress.
+ * An earlier version unlocked such a day, on the reasoning that reshaping the
+ * curriculum beneath a trainee shouldn't strand them. In practice that clause
+ * fired on stray completions: a request handled from the Clients tab (which
+ * lists all 176 and is not day-aware) put one tick in Day 3 and opened the
+ * whole day. Progress made outside the ladder must not be a way through it.
+ *
+ * Derived purely from completion records, so it is inherently per-trainee and
+ * survives logout: there is no unlock flag to persist or fall out of sync.
+ */
+export function resolveDays(completedTaskNumbers: Iterable<number>): DayProgress[] {
+  const done = new Set(completedTaskNumbers);
+  const days: DayProgress[] = [];
+  let previousComplete = true; // Day 1 has no predecessor to wait on.
+
+  for (const dayNumber of ACADEMY_DAY_NUMBERS) {
+    const taskNumbers = [...DAY_TASK_NUMBERS[dayNumber]];
+    const completedCount = taskNumbers.filter((t) => done.has(t)).length;
+    const isComplete = completedCount === taskNumbers.length;
+
+    days.push({
+      dayNumber,
+      taskNumbers,
+      taskCount: taskNumbers.length,
+      completedCount,
+      percent: percentComplete(completedCount, taskNumbers.length),
+      isComplete,
+      isLocked: !previousComplete,
+      unlockedBy: previousComplete ? null : dayNumber - 1,
+    });
+
+    previousComplete = isComplete;
+  }
+
+  return days;
+}
+
+/** Overall programme progress across all four days. */
+export function curriculumProgress(days: DayProgress[]): {
+  completed: number;
+  total: number;
+  percent: number;
+} {
+  const completed = days.reduce((sum, d) => sum + d.completedCount, 0);
+  const total = days.reduce((sum, d) => sum + d.taskCount, 0);
+  return { completed, total, percent: percentComplete(completed, total) };
+}
+
+/**
+ * Whether a trainee may open a given task. The page hides locked tasks, but this
+ * is the check the server must run too — hiding a control is not a permission.
+ */
+export function canAccessTask(
+  taskNumber: number,
+  completedTaskNumbers: Iterable<number>,
+): boolean {
+  const day = dayForTask(taskNumber);
+  if (day === null) return false;
+  const state = resolveDays(completedTaskNumbers).find((d) => d.dayNumber === day);
+  return state ? !state.isLocked : false;
+}
+
 /**
  * The member behind each group.
  *

@@ -19,6 +19,7 @@ import { format } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 import { cn, getInitials } from "@/lib/utils";
 import { surfaceCardVariants } from "@/components/ui/card";
+import { DynamicIcon } from "@/components/ui/dynamic-icon";
 import { Switch } from "@/components/ui/switch";
 import { MemberAvatarStack } from "./MemberAvatarStack";
 import { SubTaskStatusBadge } from "./SubTaskStatusBadge";
@@ -538,7 +539,7 @@ function MasterTaskRow({
 }: MasterTaskRowProps) {
   const [open, setOpen] = useState(false);
   const accentColor = masterTask.cover_color ?? "#5f5348";
-  const Icon = getIcon(masterTask.icon_key);
+  const icon = getIcon(masterTask.icon_key);
 
   const allSubtasks: SubTask[] = taskGroups.flatMap((g) => g.tasks);
   /** Prefer counts from loaded subtask rows so the bar matches list + status (detail fetch omits aggregates unless enriched). */
@@ -619,8 +620,8 @@ function MasterTaskRow({
           className="w-8 h-8 shrink-0 rounded-lg flex items-center justify-center"
           style={{ backgroundColor: `${accentColor}20` }}
         >
-          {Icon ? (
-            <Icon className="w-4 h-4" style={{ color: accentColor }} />
+          {icon ? (
+            <DynamicIcon icon={icon} className="w-4 h-4" style={{ color: accentColor }} />
           ) : (
             <div className="w-3 h-3 rounded-full" style={{ backgroundColor: accentColor }} />
           )}

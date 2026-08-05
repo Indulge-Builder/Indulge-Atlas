@@ -2,16 +2,19 @@ import { notFound } from "next/navigation";
 import { TriangleAlert } from "lucide-react";
 import { AcademyTopBar } from "@/components/academy/AcademyTopBar";
 import { getAuthUser } from "@/lib/auth/getAuthUser";
-import { isAcademyTrainer } from "@/lib/types/database";
+import { isPrivilegedRole } from "@/lib/types/database";
 import { getAcademyDashboard } from "@/lib/actions/academy-analytics";
 import { AdminDashboard } from "@/components/academy/admin/AdminDashboard";
 
 export const dynamic = "force-dynamic";
 
 export default async function AcademyAdminPage() {
-  const { role, department } = await getAuthUser();
+  const { role } = await getAuthUser();
   // Server-side gate, not a hidden nav link — interns must not reach cohort data.
-  if (!isAcademyTrainer(role, department)) notFound();
+  // Admin-only: the scenario library holds the answer key, and analytics is
+  // the cohort-wide dashboard. Trainers use the Cohort tab instead. Enforced
+  // here, not merely hidden in the nav.
+  if (!isPrivilegedRole(role)) notFound();
 
   const res = await getAcademyDashboard();
 
@@ -19,7 +22,7 @@ export default async function AcademyAdminPage() {
     <div className="min-h-full">
       <AcademyTopBar
         title="Training analytics"
-        subtitle="Cohort performance, rankings and coaching signal — all from recorded academy activity"
+        subtitle="Cohort performance, rankings and coaching signal — all from recorded training activity"
       />
 
       <div className="mx-auto w-full max-w-7xl px-4 py-6 md:px-6 md:py-8 lg:px-8">

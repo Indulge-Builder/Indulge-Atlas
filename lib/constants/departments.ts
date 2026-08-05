@@ -117,7 +117,7 @@ export const DEPARTMENT_CONFIG: Record<EmployeeDepartment, DepartmentConfig> = {
     workspaceRoute: "/concierge/tickets",
   },
   academy: {
-    label: "Academy",
+    label: "Indulge Training",
     description: "Intern training — authors scenarios & reviews cohorts",
     icon: "GraduationCap",
     accentColor: "#5f5348",

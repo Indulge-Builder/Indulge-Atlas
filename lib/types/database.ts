@@ -1772,15 +1772,35 @@ export function canManageConciergeTickets(role: string): boolean {
 
 /**
  * A "trainer" reads every training session and authors the scenario seed
- * library. Mirrors the DB helper `is_academy_trainer()`: privileged roles OR
- * anyone in the `academy` department. Every other authenticated user is an
- * "intern" who owns only their own sessions.
+ * library. Every other authenticated user is a trainee who owns only their own
+ * sessions.
+ *
+ * ── WHY DEPARTMENT ALONE IS NOT ENOUGH ──────────────────────────────────────
+ * This used to be `isPrivilegedRole(role) || department === "academy"`. But
+ * trainees and trainers BOTH sit in the `academy` department — that is what
+ * assigns someone to Indulge Training in the first place — so every trainee an
+ * admin created was silently handed the Scenario Library (which holds the
+ * hidden constraints and ideal outcomes the evaluator grades against), the
+ * whole cohort's analytics, and every other trainee's transcripts.
+ *
+ * Role is what separates them, using the existing role field rather than a
+ * second permission system:
+ *     trainee = role "agent"   + department "academy"
+ *     trainer = role "manager" + department "academy"  (or any privileged role)
+ *
+ * MUST stay in lockstep with the SQL helper `public.is_academy_trainer()`
+ * (migration 135). The SQL side gates scenario_seeds at the RLS layer; if the
+ * two disagree, hiding the UI achieves nothing because the rows are still
+ * readable over the REST API.
  */
 export function isAcademyTrainer(
   role: string,
   department: string | null | undefined,
 ): boolean {
-  return isPrivilegedRole(role) || department === "academy";
+  return (
+    isPrivilegedRole(role) ||
+    (department === "academy" && role === "manager")
+  );
 }
 
 /** The six Indulge verticals a scenario seed can belong to. */
@@ -1889,7 +1909,15 @@ export interface TrainingSession {
  */
 export interface TrainingAttachment {
   path: string;
-  kind: "image" | "video";
+  /**
+   * `document` is a PDF. It is stored and linked but deliberately NOT sent to
+   * the persona model — see the note in app/api/academy/chat/route.ts.
+   *
+   * Additive on purpose: training_turns is append-only, so rows written before
+   * this existed must keep reading correctly, and every consumer must tolerate
+   * a kind it does not recognise.
+   */
+  kind: "image" | "video" | "document";
   mime: string;
   name: string;
   size: number;
@@ -1975,6 +2003,12 @@ export const ACADEMY_TICKET_TAGS = [
   "concierge",
   "shopping",
   "urgent",
+  /**
+   * Catch-all. The register covers requests these six do not describe —
+   * property, staffing, medical, visas, home services — and forcing one of the
+   * others onto them makes the tag worse than useless for finding anything.
+   */
+  "other",
 ] as const;
 
 export type AcademyTicketTag = (typeof ACADEMY_TICKET_TAGS)[number];
@@ -2009,8 +2043,25 @@ export type AcademyTicketReviewScores = Record<
  * the model — same discipline as `computeOverall` for the rubric.
  */
 export interface AcademyTicketVerdict {
+  /**
+   * The ticket was accepted — the request is handled. A trainee gets one
+   * submission, so this is true from the moment they submit.
+   */
   passed: boolean;
-  /** Short, concrete required fixes. Empty when passed. */
+  /**
+   * Whether the write-up actually met the quality bar (all dimensions above the
+   * hard floor, weighted quality at or above threshold, terminal status).
+   *
+   * Separate from `passed` on purpose: acceptance is about the request being
+   * handled, this is about how well it was documented. It no longer blocks
+   * completion, but it still drives `quality` — and therefore the trainee's
+   * score — and it decides whether coaching feedback is shown.
+   *
+   * Optional for rows written before the one-submission change, where `passed`
+   * carried both meanings.
+   */
+  meets_bar?: boolean;
+  /** Short, concrete fixes. Empty when the write-up met the bar. */
   feedback: string[];
   scores: AcademyTicketReviewScores;
   /** Weighted 1–5, computed in code. */

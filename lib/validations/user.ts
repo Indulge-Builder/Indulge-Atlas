@@ -4,6 +4,7 @@ import type {
   UserRole,
   EmployeeDepartment,
 } from "@/lib/types/database";
+import { ALL_DEPARTMENTS } from "@/lib/constants/departments";
 
 const INDULGE_DOMAINS: IndulgeDomain[] = [
   "indulge_concierge",
@@ -13,16 +14,21 @@ const INDULGE_DOMAINS: IndulgeDomain[] = [
   "indulge_global",
 ];
 
-const EMPLOYEE_DEPARTMENTS: EmployeeDepartment[] = [
-  "concierge",
-  "finance",
-  "tech",
-  "shop",
-  "house",
-  "legacy",
-  "marketing",
-  "onboarding",
-];
+/**
+ * Derived from ALL_DEPARTMENTS — the same list the Create User form renders.
+ *
+ * This was previously a hand-maintained copy and had drifted: it was missing
+ * `watcher` (migration 122) and `academy` (124). The consequence was not a type
+ * error but a broken feature — the form offered every department from
+ * ALL_DEPARTMENTS, so an admin could pick "Indulge Training", but this schema
+ * then rejected it on submit and the user was never created. Creating a trainee
+ * was therefore impossible.
+ *
+ * TypeScript could not catch it: a subset of a union is still assignable to
+ * `EmployeeDepartment[]`. Deriving from one source removes the class of bug
+ * rather than fixing this instance of it.
+ */
+const EMPLOYEE_DEPARTMENTS: EmployeeDepartment[] = ALL_DEPARTMENTS;
 
 export const indulgeDomainSchema = z.enum(
   INDULGE_DOMAINS as [IndulgeDomain, ...IndulgeDomain[]],

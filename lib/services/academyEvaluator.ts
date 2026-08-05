@@ -1,10 +1,10 @@
 /**
  * Academy evaluator service.
  *
- * Runs on session close against the full transcript: Opus 4.8 (structured JSON
- * output) scores the six rubric dimensions; the overall is computed in code; the
- * review is persisted via the service role. NOT a "use server" module — consumed
- * by lib/actions/academy.ts.
+ * Runs on session close against the full transcript: the evaluator model
+ * (structured JSON output) scores the six rubric dimensions; the overall is
+ * computed in code; the review is persisted via the service role. NOT a
+ * "use server" module — consumed by lib/actions/academy.ts.
  */
 
 import { getServiceSupabaseClient } from "@/lib/supabase/service";
@@ -13,7 +13,9 @@ import {
   ANTHROPIC_VERSION,
   ACADEMY_EVALUATOR_MODEL,
   ACADEMY_EVALUATOR_VERSION,
+  modelSupportsEffort,
 } from "@/lib/academy/models";
+import { ACADEMY_KEY_MISSING, resolveAcademyApiKey } from "@/lib/academy/apiKey";
 import {
   buildEvaluatorPrompt,
   parseEvaluatorResponse,
@@ -28,8 +30,20 @@ import type {
 } from "@/lib/types/database";
 
 interface AnthropicResult {
-  content?: { text?: string }[];
+  content?: { type?: string; text?: string }[];
   stop_reason?: string;
+}
+
+/**
+ * The text block, wherever it sits. On models with thinking on by default
+ * (Sonnet 5), `content[0]` is a thinking block and the answer follows it —
+ * indexing `[0]` reads an empty string and every evaluation "fails to parse".
+ */
+function textOf(result: AnthropicResult): string {
+  return (
+    result.content?.find((b) => b.type === "text" && typeof b.text === "string")
+      ?.text ?? ""
+  ).trim();
 }
 
 /**
@@ -38,26 +52,40 @@ interface AnthropicResult {
  * prompt still demands JSON) so a wire-format change can't break scoring.
  */
 async function callEvaluator(system: string, user: string): Promise<string> {
-  const key = process.env.ANTHROPIC_API_KEY?.trim();
-  if (!key) throw new Error("ANTHROPIC_API_KEY is not configured");
+  const resolved = resolveAcademyApiKey();
+  if (!resolved) throw new Error(ACADEMY_KEY_MISSING);
 
   const baseBody: Record<string, unknown> = {
     model: ACADEMY_EVALUATOR_MODEL,
-    max_tokens: 2000,
+    // Headroom, not spend: on Sonnet 5 adaptive thinking shares this budget
+    // with the answer, and a cap sized for the answer alone truncates it.
+    // Unused budget costs nothing.
+    max_tokens: 6000,
     stream: false,
     system,
     messages: [{ role: "user", content: user }],
   };
 
+  // `effort` is not accepted by every model — Haiku rejects the request outright
+  // rather than ignoring it, so it is included only where it is supported.
+  const effort = modelSupportsEffort(ACADEMY_EVALUATOR_MODEL)
+    ? { effort: "medium" }
+    : {};
+
   const attempts: Record<string, unknown>[] = [
     {
       ...baseBody,
       output_config: {
-        effort: "medium",
+        ...effort,
         format: { type: "json_schema", schema: EVALUATOR_OUTPUT_SCHEMA },
       },
     },
-    { ...baseBody, output_config: { effort: "medium" } },
+    // Fallback for a wire-format change: drop the schema and let the prompt
+    // carry the JSON requirement. With no effort to send there is no
+    // output_config left, so the plain body is the request.
+    Object.keys(effort).length > 0
+      ? { ...baseBody, output_config: effort }
+      : { ...baseBody },
   ];
 
   let lastErr = "";
@@ -66,14 +94,16 @@ async function callEvaluator(system: string, user: string): Promise<string> {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": key,
+        "x-api-key": resolved.key,
         "anthropic-version": ANTHROPIC_VERSION,
       },
       body: JSON.stringify(body),
     });
 
     if (!res.ok) {
-      lastErr = `Anthropic API error ${res.status}: ${await res
+      // The key source, never the key — a billing failure is unreadable without
+      // knowing which account was charged.
+      lastErr = `Anthropic API error ${res.status} (key from ${resolved.source}): ${await res
         .text()
         .catch(() => "")}`;
       continue; // fall through to the no-format attempt
@@ -85,7 +115,7 @@ async function callEvaluator(system: string, user: string): Promise<string> {
         "ACADEMY_PARSE_ERROR: evaluator response was truncated — not saved",
       );
     }
-    return result.content?.[0]?.text?.trim() ?? "";
+    return textOf(result);
   }
 
   throw new Error(lastErr || "Evaluator request failed");

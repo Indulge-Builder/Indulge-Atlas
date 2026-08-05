@@ -12,12 +12,14 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getAuthUser } from "@/lib/auth/getAuthUser";
 import { getServiceSupabaseClient } from "@/lib/supabase/service";
-import { isAcademyTrainer, ACADEMY_TICKET_TAGS } from "@/lib/types/database";
+import { isAcademyTrainer, isPrivilegedRole } from "@/lib/types/database";
 import { sanitizeText } from "@/lib/utils/sanitize";
+import { classifyAttachment, resolveContentType } from "@/lib/academy/attachments";
 import { randomizeSession, buildSessionVars, renderTemplate } from "@/lib/academy/randomize";
 import { ACADEMY_PERSONA_MODEL, ACADEMY_TURN_CAP } from "@/lib/academy/models";
 import { DEFAULT_RUBRIC_WEIGHTS, ACADEMY_DIMENSIONS } from "@/lib/academy/rubric";
 import { scanSeedForPII } from "@/lib/academy/pii";
+import { rankCohort, scopeCohortToReader } from "@/lib/academy/cohort";
 import {
   computeAcademyPerformance,
   scoreRequest,
@@ -26,7 +28,12 @@ import {
 } from "@/lib/academy/progressScore";
 import { runAcademyEvaluation } from "@/lib/services/academyEvaluator";
 import { runAcademyTicketReview } from "@/lib/services/academyTicketReview";
-import { deriveTicket, validateTicketUpdate } from "@/lib/academy/ticket";
+import {
+  describeTicketIssues,
+  deriveTicket,
+  ticketUpdateSchema,
+  validateTicketUpdate,
+} from "@/lib/academy/ticket";
 import { ticketQualityNormalised } from "@/lib/academy/ticketReview";
 import { sessionTiming, type TimedTurn } from "@/lib/academy/timing";
 import {
@@ -69,6 +76,8 @@ async function loadRosterClients(): Promise<RosterClient[]> {
 }
 import {
   ACADEMY_TOTAL_GROUPS,
+  canAccessTask,
+  dayForTask,
   groupTitle,
   overallProgress,
   percentComplete,
@@ -134,6 +143,53 @@ export async function listAcademyScenarios(): Promise<
 
 // ── Sessions ──────────────────────────────────────────────────────────────────
 
+/**
+ * Refuse a curriculum task whose day is still shut.
+ *
+ * The sidebar already hides locked days, but hiding a control is not a
+ * permission: the Clients tab lists all 176 requests and knows nothing about
+ * days, and a session id can be typed into the URL. Without this, a trainee can
+ * complete a Day 3 request while Day 1 is unfinished — which is exactly how a
+ * stray completion appeared inside a locked day.
+ *
+ * Only tasks that are part of the four-day programme are gated. A task outside
+ * it has no day, so it is archive/free practice and stays open — `canAccessTask`
+ * answers "may this be opened as curriculum", which is not the same question.
+ *
+ * Returns an error string to surface, or null when the task may be opened.
+ */
+async function lockedDayRefusal(
+  internId: string,
+  taskNumber: number | null,
+): Promise<string | null> {
+  if (taskNumber === null || dayForTask(taskNumber) === null) return null;
+
+  const db = getServiceSupabaseClient();
+  const [seedsRes, bySeed] = await Promise.all([
+    db
+      .from("scenario_seeds")
+      .select("id, task_number")
+      .not("task_number", "is", null),
+    loadSeedStatus(internId),
+  ]);
+
+  const taskNumberBySeed = new Map<string, number>(
+    (seedsRes.data ?? []).map((s) => [s.id as string, s.task_number as number]),
+  );
+
+  const completed: number[] = [];
+  for (const [seedId, state] of bySeed) {
+    if (state.status !== "completed") continue;
+    const n = taskNumberBySeed.get(seedId);
+    if (n !== undefined) completed.push(n);
+  }
+
+  if (canAccessTask(taskNumber, completed)) return null;
+
+  const day = dayForTask(taskNumber);
+  return `Day ${day} is locked — finish Day ${(day ?? 2) - 1} first.`;
+}
+
 export async function startAcademySession(
   seedId: string,
 ): Promise<Result<{ sessionId: string; openingMessage: string }>> {
@@ -160,6 +216,10 @@ export async function startAcademySession(
   const taskNumber = (seed as { task_number?: number | null }).task_number ?? null;
   // The persona must open as the real member the row is named after, or the
   // transcript and the roster would disagree about who is in the room.
+  // Gate before any row is written — a locked day must not leave a session behind.
+  const refusal = await lockedDayRefusal(user.id, taskNumber);
+  if (refusal) return { success: false, error: refusal };
+
   const rosterName = taskNumber
     ? memberFor(await loadRosterClients(), taskNumber).name
     : undefined;
@@ -340,22 +400,11 @@ export async function retryAcademyEvaluation(
 // request. The intern then writes the ticket, a reviewer judges it, and only an
 // accepted ticket earns progress. See migration 131 for the mutability rules.
 
-const ticketUpdateSchema = z.object({
-  resolution_summary: z.string().max(4000),
-  internal_notes: z.string().max(4000),
-  public_reply: z.string().max(4000),
-  status: z.enum([
-    "open",
-    "pending",
-    "waiting_on_customer",
-    "resolved",
-    "closed",
-  ]),
-  priority: z.enum(["low", "medium", "high", "urgent"]),
-  tags: z.array(z.enum(ACADEMY_TICKET_TAGS)).max(ACADEMY_TICKET_TAGS.length),
-  // A 16-hour ceiling: anything beyond that is a typo, not a concierge request.
-  time_spent_minutes: z.number().int().min(0).max(960),
-});
+// The schema itself lives in lib/academy/ticket.ts so the form validates against
+// the same definition the action enforces. Keeping a second copy here is what
+// produced the "Invalid ticket update" dead end: the form's measured time-spent
+// figure was unbounded, this copy capped it at 960, and neither knew about the
+// other.
 
 /** Read the ticket row for a session, if the intern has started one. */
 async function readTicketUpdate(
@@ -387,7 +436,9 @@ export async function saveTicketDraft(
   if (!id.success) return { success: false, error: "Invalid session id" };
 
   const parsed = ticketUpdateSchema.safeParse(input);
-  if (!parsed.success) return { success: false, error: "Invalid ticket update" };
+  if (!parsed.success) {
+    return { success: false, error: describeTicketIssues(parsed.error) };
+  }
 
   const access = await assertCanAccessSession(id.data);
   if (!access.ok) return { success: false, error: access.error };
@@ -423,6 +474,21 @@ export async function saveTicketDraft(
 }
 
 /**
+ * Every refusal is logged before it is returned.
+ *
+ * The toast shows the trainee one line; the server console is where the reason
+ * has to survive. A submission that fails silently on the server and vaguely on
+ * screen is the shape this workflow already got stuck in once.
+ */
+function refuseTicket(
+  sessionId: string,
+  reason: string,
+): Result<{ verdict: AcademyTicketVerdict }> {
+  console.warn(`[academy] ticket submit refused session=${sessionId}: ${reason}`);
+  return { success: false, error: reason };
+}
+
+/**
  * Submit the ticket for AI review.
  *
  * Structural checks run first so an obviously incomplete ticket never costs an
@@ -435,30 +501,40 @@ export async function submitTicketUpdate(
   input: unknown,
 ): Promise<Result<{ verdict: AcademyTicketVerdict }>> {
   const id = z.string().uuid().safeParse(sessionId);
-  if (!id.success) return { success: false, error: "Invalid session id" };
+  if (!id.success) return refuseTicket(String(sessionId), "Invalid session id");
 
   const parsed = ticketUpdateSchema.safeParse(input);
-  if (!parsed.success) return { success: false, error: "Invalid ticket update" };
+  if (!parsed.success) {
+    return refuseTicket(id.data, describeTicketIssues(parsed.error));
+  }
 
   const access = await assertCanAccessSession(id.data);
-  if (!access.ok) return { success: false, error: access.error };
+  if (!access.ok) return refuseTicket(id.data, access.error);
 
   const { user } = await getAuthUser();
   if (access.session.intern_id !== user.id) {
-    return { success: false, error: "Only the assigned agent can submit this ticket" };
+    return refuseTicket(id.data, "Only the assigned agent can submit this ticket");
   }
   if (access.session.status !== "closed") {
-    return {
-      success: false,
-      error: "Close the conversation before updating the ticket",
-    };
+    return refuseTicket(id.data, "Close the conversation before updating the ticket");
   }
 
   const existing = await readTicketUpdate(id.data);
   if (existing?.passed) {
-    return { success: false, error: "This ticket has already been accepted" };
+    return refuseTicket(id.data, "This ticket has already been accepted");
   }
 
+  // Structure is judged on what the trainee actually wrote, exactly as the form
+  // judged it. Checking the sanitized copy instead made the two disagree: an
+  // angle bracket or an ampersand changes the length after sanitising, so a
+  // write-up the form accepted could be refused here for being too short — with
+  // nothing on screen to explain it.
+  const structural = validateTicketUpdate(parsed.data);
+  if (structural.length > 0) {
+    return refuseTicket(id.data, structural.join(" "));
+  }
+
+  // Sanitised for storage, which is what sanitising is for.
   const clean = {
     resolution_summary: sanitizeText(parsed.data.resolution_summary),
     internal_notes: sanitizeText(parsed.data.internal_notes),
@@ -469,25 +545,38 @@ export async function submitTicketUpdate(
     time_spent_minutes: parsed.data.time_spent_minutes,
   };
 
-  const structural = validateTicketUpdate(clean);
-  if (structural.length > 0) {
-    return { success: false, error: structural.join(" ") };
-  }
-
+  // Save the write-up first so a reviewer failure never costs the trainee their
+  // work. `attempts` is deliberately NOT bumped here: a submission that the
+  // reviewer never got to is not an attempt, and attempts feed the
+  // first-attempt metric in the progress model. The reviewer stamps it along
+  // with the verdict, in the same write.
   const db = getServiceSupabaseClient();
   const { error: upErr } = await db.from("training_ticket_updates").upsert(
     {
       session_id: id.data,
       ...clean,
-      attempts: (existing?.attempts ?? 0) + 1,
+      attempts: existing?.attempts ?? 0,
     },
     { onConflict: "session_id" },
   );
-  if (upErr) return { success: false, error: upErr.message };
+  if (upErr) return refuseTicket(id.data, `Could not save the ticket: ${upErr.message}`);
 
-  const review = await runAcademyTicketReview(id.data, clean);
+  const review = await runAcademyTicketReview(id.data, clean, {
+    attempts: (existing?.attempts ?? 0) + 1,
+  });
+  // Nothing is marked handled on a failed review: `passed` stays false, so the
+  // request stays in awaiting_ticket and the draft above is still there to
+  // resubmit. The trainee gets a line they can act on; the real cause — an API
+  // key, a billing balance, a truncated response — goes to the server log,
+  // where whoever can actually fix it will be looking.
   if (!review.success || !review.verdict) {
-    return { success: false, error: review.error ?? "Ticket review failed" };
+    console.error(
+      `[academy] ticket review failed session=${id.data}: ${review.error ?? "unknown"}`,
+    );
+    return refuseTicket(
+      id.data,
+      "The ticket reviewer is unavailable right now. Your write-up is saved — submit again shortly.",
+    );
   }
 
   revalidatePath(`/academy/session/${id.data}`);
@@ -781,15 +870,27 @@ async function buildSessionProgress(params: {
 /** Per-kind ceilings, tighter than the bucket's coarse 50MB limit. */
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10 MB
 const MAX_VIDEO_BYTES = 50 * 1024 * 1024; // 50 MB
+/*
+ * 4 MB, not 10. These figures are aspirational above ~4 MB regardless: the file
+ * travels through a Next Server Action, and Vercel caps a request body at about
+ * 4.5 MB, so a larger file is rejected by the platform before this check is
+ * ever reached. Set honestly for PDFs so the error the trainee sees is the real
+ * one. Lifting the ceiling properly means a signed upload URL straight to
+ * Supabase, which is tracked separately.
+ */
+const MAX_DOCUMENT_BYTES = 4 * 1024 * 1024; // 4 MB
 const ATTACHMENT_BUCKET = "academy-attachments";
 /** Signed URLs are short-lived — the bucket is private by design. */
 const SIGNED_URL_TTL_SECONDS = 60 * 60;
 
-function attachmentKind(mime: string): "image" | "video" | null {
-  if (mime.startsWith("image/")) return "image";
-  if (mime.startsWith("video/")) return "video";
-  return null;
-}
+/*
+ * Classification lives in `lib/academy/attachments.ts` so the composer and this
+ * action cannot disagree — and so both handle the case a bare `file.type` check
+ * misses: a PDF the browser typed as `application/octet-stream`, which several
+ * Android/Chrome builds and any Windows box without a PDF handler will produce.
+ * PDFs only; a general document allow-list would let anything through a bucket
+ * whose MIME policy is the real gate.
+ */
 
 /** Strip anything that could escape the session folder or confuse storage. */
 function safeFileName(name: string): string {
@@ -814,14 +915,23 @@ export async function uploadAcademyAttachment(
   const file = formData.get("file");
   if (!(file instanceof File)) return { success: false, error: "No file provided" };
 
-  const kind = attachmentKind(file.type);
-  if (!kind) return { success: false, error: "Only images and videos can be shared" };
+  const kind = classifyAttachment(file.type, file.name);
+  if (!kind) {
+    return { success: false, error: "Only images, videos and PDFs can be shared" };
+  }
 
-  const cap = kind === "image" ? MAX_IMAGE_BYTES : MAX_VIDEO_BYTES;
+  const cap =
+    kind === "image"
+      ? MAX_IMAGE_BYTES
+      : kind === "document"
+        ? MAX_DOCUMENT_BYTES
+        : MAX_VIDEO_BYTES;
   if (file.size > cap) {
+    const label =
+      kind === "image" ? "Images" : kind === "document" ? "PDFs" : "Videos";
     return {
       success: false,
-      error: `${kind === "image" ? "Images" : "Videos"} must be under ${Math.round(cap / 1024 / 1024)}MB`,
+      error: `${label} must be under ${Math.round(cap / 1024 / 1024)}MB`,
     };
   }
 
@@ -842,17 +952,36 @@ export async function uploadAcademyAttachment(
   }
 
   const path = `academy/${sessionId}/${crypto.randomUUID()}-${safeFileName(file.name)}`;
+  /*
+   * Never forward `file.type` blindly. Storage matches the bucket's MIME
+   * allow-list against the type we DECLARE, so a PDF the browser handed us as
+   * `application/octet-stream` is refused by the bucket even though every check
+   * above passed. Declaring the real type also makes the signed URL open the
+   * file rather than download it.
+   */
+  const contentType = resolveContentType(file.type, file.name);
   const { error: upErr } = await db.storage
     .from(ATTACHMENT_BUCKET)
-    .upload(path, file, { contentType: file.type, upsert: false });
-  if (upErr) return { success: false, error: upErr.message };
+    .upload(path, file, { contentType, upsert: false });
+  if (upErr) {
+    // The bucket's own allow-list is the one failure invisible from the UI —
+    // name it so this is diagnosable without database access.
+    console.error(
+      "[academy] attachment upload failed:",
+      contentType,
+      upErr.message,
+      "— if this mentions mime type, apply migration 136 " +
+        "(supabase/manual/academy_part11_pdf_attachments.sql).",
+    );
+    return { success: false, error: upErr.message };
+  }
 
   return {
     success: true,
     data: {
       path,
       kind,
-      mime: file.type,
+      mime: contentType,
       name: safeFileName(file.name),
       size: file.size,
     },
@@ -1045,7 +1174,12 @@ async function loadSeedStatus(internId: string): Promise<Map<string, SeedState>>
         ? "completed"
         : scored
           ? "awaiting_ticket"
-          : "in_progress",
+          : // Closed with no review is a failed evaluation, not open work.
+            // Calling it in_progress reopened the composer over a session the
+            // chat route refuses, stranding the request permanently.
+            s.status === "closed"
+            ? "scoring_failed"
+            : "in_progress",
       overall: review?.overall ?? null,
       at: (s.ended_at as string | null) ?? (s.started_at as string | null) ?? null,
       requestScore,
@@ -1082,7 +1216,8 @@ function buildOverview(
       }
     } else if (
       state.status === "in_progress" ||
-      state.status === "awaiting_ticket"
+      state.status === "awaiting_ticket" ||
+      state.status === "scoring_failed"
     ) {
       // A request whose ticket is still outstanding is open work, not done.
       inProgress += 1;
@@ -1111,6 +1246,10 @@ export async function getAcademyClients(): Promise<Result<AcademyClientList>> {
     db
       .from("scenario_seeds")
       .select("id, title, vertical, difficulty, task_number")
+      // The Clients tab is the full register — all 176 requests. The four-day
+      // programme is a curated 40 of these, and the Training page scopes itself
+      // to them; this surface deliberately does not, so the whole archive stays
+      // browsable and workable.
       .not("task_number", "is", null)
       .eq("is_active", true)
       .order("task_number", { ascending: true }),
@@ -1165,7 +1304,7 @@ export async function getAcademyClientThread(
   const parsed = z.string().uuid().safeParse(seedId);
   if (!parsed.success) return { success: false, error: "Invalid client" };
 
-  const { user, profile } = await getAuthUser();
+  const { user, profile, role, department } = await getAuthUser();
   const db = getServiceSupabaseClient();
 
   const { data: seed, error: seedErr } = await db
@@ -1177,6 +1316,13 @@ export async function getAcademyClientThread(
   if (seedErr || !seed) return { success: false, error: "Client not found" };
 
   const taskNumber = (seed.task_number as number) ?? 0;
+
+  // Trainers review any transcript; only the trainee walking the ladder is gated.
+  if (!isAcademyTrainer(role, department)) {
+    const refusal = await lockedDayRefusal(user.id, taskNumber);
+    if (refusal) return { success: false, error: refusal };
+  }
+
   const member = memberFor(await loadRosterClients(), taskNumber);
   const name = member.name;
 
@@ -1184,6 +1330,8 @@ export async function getAcademyClientThread(
     db
       .from("scenario_seeds")
       .select("id")
+      // Same 176 as the client list — this feeds the overview shown above the
+      // conversation, and the two must not disagree.
       .not("task_number", "is", null)
       .eq("is_active", true),
     loadSeedStatus(user.id),
@@ -1542,13 +1690,18 @@ export async function getAcademyGroup(
   };
 }
 
-// ── Trainer: cohort dashboard ─────────────────────────────────────────────────
+// ── Cohort dashboard ─────────────────────────────────────────────────────────
 
+/**
+ * The cohort table. A trainer gets every trainee; a trainee gets their own row
+ * and their standing within the cohort, and nobody else's.
+ *
+ * Both cases compute the full cohort first — the trainee's rank is only
+ * meaningful measured against everyone — then narrow before returning.
+ */
 export async function getAcademyCohort(): Promise<Result<CohortInternRow[]>> {
-  const { role, department } = await getAuthUser();
-  if (!isAcademyTrainer(role, department)) {
-    return { success: false, error: "Trainers only" };
-  }
+  const { user, role, department } = await getAuthUser();
+  const trainer = isAcademyTrainer(role, department);
 
   const db = getServiceSupabaseClient();
 
@@ -1627,7 +1780,14 @@ export async function getAcademyCohort(): Promise<Result<CohortInternRow[]>> {
   }
 
   rows.sort((a, b) => (b.avgOverall ?? 0) - (a.avgOverall ?? 0));
-  return { success: true, data: rows };
+
+  // Rank across everyone, then narrow — a trainee's standing has to be measured
+  // against the cohort, not against the one row they are allowed to see.
+  const ranked = rankCohort(rows);
+  return {
+    success: true,
+    data: scopeCohortToReader(ranked, { isTrainer: trainer, userId: user.id }),
+  };
 }
 
 // ── Trainer: seed authoring ───────────────────────────────────────────────────
@@ -1677,7 +1837,7 @@ function sanitizeSeed(input: SeedInput) {
 /** Full seed rows for the trainer seed editor (secrets included). */
 export async function getSeedsForTrainer(): Promise<Result<ScenarioSeed[]>> {
   const { role, department } = await getAuthUser();
-  if (!isAcademyTrainer(role, department)) {
+  if (!isPrivilegedRole(role)) {
     return { success: false, error: "Trainers only" };
   }
   const db = getServiceSupabaseClient();
@@ -1692,7 +1852,7 @@ export async function getSeedsForTrainer(): Promise<Result<ScenarioSeed[]>> {
 
 export async function createSeed(input: SeedInput): Promise<Result<{ id: string }>> {
   const { user, role, department } = await getAuthUser();
-  if (!isAcademyTrainer(role, department)) {
+  if (!isPrivilegedRole(role)) {
     return { success: false, error: "Trainers only" };
   }
   const parsed = seedInputSchema.safeParse(input);
@@ -1728,7 +1888,7 @@ export async function updateSeed(
   input: SeedInput,
 ): Promise<Result> {
   const { role, department } = await getAuthUser();
-  if (!isAcademyTrainer(role, department)) {
+  if (!isPrivilegedRole(role)) {
     return { success: false, error: "Trainers only" };
   }
   const idParsed = z.string().uuid().safeParse(seedId);
@@ -1765,7 +1925,7 @@ export async function toggleSeedActive(
   isActive: boolean,
 ): Promise<Result> {
   const { role, department } = await getAuthUser();
-  if (!isAcademyTrainer(role, department)) {
+  if (!isPrivilegedRole(role)) {
     return { success: false, error: "Trainers only" };
   }
   const idParsed = z.string().uuid().safeParse(seedId);

@@ -3,7 +3,10 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getServiceSupabaseClient } from "@/lib/supabase/service";
 import { sanitizeText } from "@/lib/utils/sanitize";
+import { formatIST } from "@/lib/utils/time";
+import { resolveAcademyApiKey } from "@/lib/academy/apiKey";
 import { buildPersonaSystemPrompt } from "@/lib/academy/persona";
+import { runAiAssistanceEstimate } from "@/lib/services/academyAiAssistance";
 import {
   ACADEMY_PERSONA_MODEL,
   ACADEMY_TURN_CAP,
@@ -18,6 +21,15 @@ import type {
 } from "@/lib/types/database";
 
 export const runtime = "nodejs";
+
+/**
+ * Without this the route inherits the platform default, and a stalled upstream
+ * call could outlive the trainee's patience with no ceiling. 60s comfortably
+ * covers the 30s Anthropic timer plus the surrounding database work, and gives
+ * the platform a definite point at which to end the request rather than leaving
+ * the browser holding an open stream forever.
+ */
+export const maxDuration = 60;
 
 /**
  * POST /api/academy/chat — the client-persona turn.
@@ -40,10 +52,24 @@ export const runtime = "nodejs";
 
 const attachmentSchema = z.object({
   path: z.string().min(1).max(400),
-  kind: z.enum(["image", "video"]),
+  kind: z.enum(["image", "video", "document"]),
   mime: z.string().min(1).max(100),
   name: z.string().min(1).max(200),
   size: z.number().int().nonnegative(),
+});
+
+/**
+ * Editor telemetry, when the composer reports it. Every field is something the
+ * browser observed while the reply was written — never an inference about where
+ * the text came from. Optional: an older client simply omits it.
+ */
+const compositionSchema = z.object({
+  pasteCount: z.number().int().nonnegative().max(1000),
+  pastedChars: z.number().int().nonnegative().max(100_000),
+  largestPasteChars: z.number().int().nonnegative().max(100_000),
+  typedChars: z.number().int().nonnegative().max(100_000),
+  timeToFirstInputMs: z.number().int().nonnegative().max(86_400_000).nullable(),
+  compositionMs: z.number().int().nonnegative().max(86_400_000).nullable(),
 });
 
 const bodySchema = z.object({
@@ -51,6 +77,7 @@ const bodySchema = z.object({
   // A share can carry only media, so the text may be empty when attachments exist.
   message: z.string().max(4000).default(""),
   attachments: z.array(attachmentSchema).max(4).default([]),
+  composition: compositionSchema.nullish(),
 });
 
 /** Anthropic vision accepts these; anything else is described, not shown. */
@@ -91,7 +118,7 @@ export async function POST(req: Request): Promise<Response> {
   if (!parsed.success) {
     return Response.json({ error: "Bad request" }, { status: 400 });
   }
-  const { sessionId, message, attachments } = parsed.data;
+  const { sessionId, message, attachments, composition } = parsed.data;
   const internBody = sanitizeText(message).trim();
   // A turn must carry something — text, media, or both.
   if (!internBody && attachments.length === 0) {
@@ -146,7 +173,13 @@ export async function POST(req: Request): Promise<Response> {
   // still make sense without rendering the file.
   const internTurnBody =
     internBody ||
-    (safeAttachments[0]?.kind === "video" ? "[shared a video]" : "[shared a photo]");
+    (safeAttachments.length > 1
+      ? `[shared ${safeAttachments.length} files]`
+      : safeAttachments[0]?.kind === "video"
+        ? "[shared a video]"
+        : safeAttachments[0]?.kind === "document"
+          ? "[shared a PDF]"
+          : "[shared a photo]");
 
   const baseTurn = {
     session_id: sessionId,
@@ -159,9 +192,21 @@ export async function POST(req: Request): Promise<Response> {
   // migration has not been applied yet, so only send the column when there is
   // something to store, and fall back to a plain insert if the column is absent
   // (PostgREST reports an unknown column as PGRST204 / 42703).
-  let insErr = safeAttachments.length
-    ? (await db.from("training_turns").insert({ ...baseTurn, attachments: safeAttachments })).error
-    : (await db.from("training_turns").insert(baseTurn)).error;
+  // The inserted id is needed to attach the AI-assistance estimate to this exact
+  // reply — the estimate lives in a sibling table because `training_turns` is
+  // append-only and must never be updated after the fact.
+  const insertTurn = (payload: Record<string, unknown>) =>
+    db.from("training_turns").insert(payload).select("id").single();
+
+  let internTurnId: string | null = null;
+  let insErr: Awaited<ReturnType<typeof insertTurn>>["error"] = null;
+  {
+    const res = safeAttachments.length
+      ? await insertTurn({ ...baseTurn, attachments: safeAttachments })
+      : await insertTurn(baseTurn);
+    internTurnId = res.data?.id ?? null;
+    insErr = res.error;
+  }
 
   const missingAttachmentsColumn =
     !!insErr &&
@@ -174,7 +219,9 @@ export async function POST(req: Request): Promise<Response> {
       "[academy/chat] `training_turns.attachments` is missing — apply migration 127 " +
         "(supabase/manual/academy_part5_attachments.sql). Saving the turn without media.",
     );
-    insErr = (await db.from("training_turns").insert(baseTurn)).error;
+    const retry = await insertTurn(baseTurn);
+    internTurnId = retry.data?.id ?? null;
+    insErr = retry.error;
   }
 
   if (insErr) {
@@ -189,6 +236,25 @@ export async function POST(req: Request): Promise<Response> {
       { error: "Could not save your message", detail: insErr.message },
       { status: 500 },
     );
+  }
+
+  // Estimate AI assistance out of band. It costs a model round-trip, so running
+  // it inline would delay the persona's reply for a signal nobody is waiting on.
+  // Media-only turns carry a synthetic body ("[shared a photo]") and are not
+  // writing, so there is nothing to judge.
+  if (internTurnId && internBody) {
+    const turnId = internTurnId;
+    after(async () => {
+      await runAiAssistanceEstimate({
+        turnId,
+        sessionId,
+        internId: session.intern_id as string,
+        text: internBody,
+        composition: composition
+          ? { ...composition, finalChars: internBody.length }
+          : null,
+      });
+    });
   }
 
   const isLastTurn = internCount + 1 >= ACADEMY_TURN_CAP;
@@ -217,7 +283,7 @@ export async function POST(req: Request): Promise<Response> {
     .eq("id", session.seed_id)
     .maybeSingle();
 
-  const key = process.env.ANTHROPIC_API_KEY?.trim();
+  const key = resolveAcademyApiKey()?.key;
 
   // Degrade rather than break the drill if the seed or the API is unavailable.
   if (seedErr || !seedRow || !key) {
@@ -248,6 +314,9 @@ export async function POST(req: Request): Promise<Response> {
     escalationTrigger: seed.escalation_trigger,
     resolvedConstraints: resolveConstraints(seed, vars),
     openingMessage,
+    // Read here, not in the builder — the prompt builder must stay pure so its
+    // guardrail tests can assert byte-identical output across calls.
+    nowIst: formatIST(new Date(), "EEEE d MMMM yyyy, h:mm a"),
   });
 
   // Anthropic messages must alternate and start with `user`. The transcript
@@ -298,12 +367,22 @@ export async function POST(req: Request): Promise<Response> {
           continue;
         }
       }
+      /*
+       * A PDF is stored and linked, NOT sent to the model. Deliberate: the
+       * persona is Haiku capped at 200 output tokens playing a member on
+       * WhatsApp — a 40-page document buys nothing, and inlining one would push
+       * the request toward the 30s abort, turning "PDFs do not upload" into
+       * "the chat hangs". The member is told a file arrived and told plainly
+       * that they have not read it, so it cannot invent contents.
+       */
       blocks.push({
         type: "text",
         text:
           att.kind === "video"
             ? `[The concierge shared a video: ${att.name}. You can see it plays, but describe only what they tell you about it.]`
-            : `[The concierge shared an image: ${att.name}.]`,
+            : att.kind === "document"
+              ? `[The concierge shared a PDF: ${att.name}. You have NOT opened it. Do not describe or invent its contents — if it matters, ask them what is in it.]`
+              : `[The concierge shared an image: ${att.name}.]`,
       });
     }
     if (internBody) blocks.push({ type: "text", text: internBody });
@@ -385,11 +464,31 @@ export async function POST(req: Request): Promise<Response> {
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
 
+  /*
+   * Hoisted out of `start()` so `cancel()` can see what actually streamed.
+   *
+   * When the trainee switched clients mid-stream the cancel path settled with
+   * an empty string, which `persistClientTurn` coerced to FALLBACK_REPLY — so
+   * "Sorry, I got distracted for a moment" was written over the reply they had
+   * just watched arrive. training_turns is append-only, so that was permanent,
+   * and the persona, the evaluator and the ticket reviewer all read it back
+   * afterwards as though the member had really said it.
+   */
+  let accumulated = "";
+  /** Why generation stopped, when Anthropic says. Logged, never guessed at. */
+  let stopReason: string | null = null;
+  /** Guards against cancel() settling after a completed read already did. */
+  let settled = false;
+  const settleOnce = (text: string) => {
+    if (settled) return;
+    settled = true;
+    settle(text);
+  };
+
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const reader = upstream.body!.getReader();
       let buffer = "";
-      let accumulated = "";
       try {
         for (;;) {
           const { done, value } = await reader.read();
@@ -407,8 +506,34 @@ export async function POST(req: Request): Promise<Response> {
               try {
                 const evt = JSON.parse(payload) as {
                   type?: string;
-                  delta?: { type?: string; text?: string };
+                  delta?: { type?: string; text?: string; stop_reason?: string };
+                  error?: { type?: string; message?: string };
                 };
+
+                /*
+                 * Anthropic can end a stream with an `error` frame — most often
+                 * `overloaded_error`. The loop only ever acted on text deltas,
+                 * so the frame was dropped, `reader.read()` then returned `done`
+                 * with no exception, and the route replied 200 with a zero-byte
+                 * body. The trainee saw an empty bubble and no error at all,
+                 * while `after()` wrote the canned line into the transcript.
+                 */
+                if (evt.type === "error") {
+                  console.error(
+                    "[academy/chat] upstream error frame:",
+                    evt.error?.type,
+                    evt.error?.message,
+                  );
+                  throw new Error(`upstream ${evt.error?.type ?? "error"}`);
+                }
+
+                // The only Anthropic call site in this repo that never recorded
+                // why generation stopped — a truncated reply was indistinguishable
+                // from a complete one.
+                if (evt.type === "message_delta" && evt.delta?.stop_reason) {
+                  stopReason = evt.delta.stop_reason;
+                }
+
                 if (
                   evt.type === "content_block_delta" &&
                   evt.delta?.type === "text_delta" &&
@@ -432,15 +557,22 @@ export async function POST(req: Request): Promise<Response> {
       } finally {
         clearTimeout(timeout);
         reader.releaseLock();
-        settle(accumulated || FALLBACK_REPLY);
+        if (stopReason && stopReason !== "end_turn") {
+          console.warn(
+            `[academy/chat] reply ended with stop_reason=${stopReason} (${accumulated.length} chars)`,
+          );
+        }
+        settleOnce(accumulated || FALLBACK_REPLY);
         controller.close();
       }
     },
     cancel() {
-      // Client navigated away mid-stream — still persist what we had.
+      // Client navigated away mid-stream — persist what actually arrived, not
+      // an empty string. A partial reply is a true record of the conversation;
+      // the canned line is a fabrication the evaluator would later grade.
       clearTimeout(timeout);
       controllerAbort.abort();
-      settle("");
+      settleOnce(accumulated);
     },
   });
 
