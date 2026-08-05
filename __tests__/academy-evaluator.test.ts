@@ -12,7 +12,10 @@
 import { describe, it, expect } from "vitest";
 import {
   EVALUATOR_OUTPUT_SCHEMA,
+  JUDGE_TRANSCRIPT_CHAR_CAP,
+  JUDGE_TURN_CHAR_CAP,
   buildEvaluatorPrompt,
+  judgeTranscript,
   parseEvaluatorResponse,
 } from "@/lib/academy/evaluator";
 import type { EvaluatorPromptInput } from "@/lib/academy/evaluator";
@@ -22,8 +25,10 @@ import {
   computeOverall,
 } from "@/lib/academy/rubric";
 import {
+  ACADEMY_AI_ASSIST_MODEL,
   ACADEMY_EVALUATOR_MODEL,
   ACADEMY_EVALUATOR_VERSION,
+  ACADEMY_PERSONA_MODEL,
   ACADEMY_TICKET_REVIEW_MODEL,
   ACADEMY_TICKET_REVIEW_VERSION,
   modelSupportsEffort,
@@ -485,21 +490,83 @@ describe("judge model configuration", () => {
     }
   });
 
-  it("keeps both judges on a model the effort check agrees with", () => {
-    // The services derive their request shape from exactly this call, so the
-    // constants and the capability check cannot drift apart unnoticed.
-    for (const model of [ACADEMY_EVALUATOR_MODEL, ACADEMY_TICKET_REVIEW_MODEL]) {
-      expect(typeof modelSupportsEffort(model)).toBe("boolean");
-    }
-    // Both judges run on the same tier — a split would make the two halves of
-    // one request's score incomparable.
+  it("keeps the two-level tiering: Haiku talks, Sonnet judges", () => {
+    // Talking + low-effort work stays on the cheapest tier…
+    expect(ACADEMY_PERSONA_MODEL).toContain("haiku");
+    expect(ACADEMY_AI_ASSIST_MODEL).toContain("haiku");
+    // …and both judges sit together on Sonnet — a split would make the two
+    // halves of one request's score incomparable.
+    expect(ACADEMY_EVALUATOR_MODEL).toContain("sonnet");
     expect(ACADEMY_TICKET_REVIEW_MODEL).toBe(ACADEMY_EVALUATOR_MODEL);
+    // Sonnet accepts effort, so the judges send it; if a future tier change
+    // lands on a model that rejects it, the capability check must say so.
+    expect(modelSupportsEffort(ACADEMY_EVALUATOR_MODEL)).toBe(true);
   });
 
   it("stamps the model into the version, so a tier change is visible in the data", () => {
     // Reviews persist these strings. If the model moves and the stamp doesn't,
     // scores from two different judges become indistinguishable in the table.
-    expect(ACADEMY_EVALUATOR_VERSION).toContain("haiku");
-    expect(ACADEMY_TICKET_REVIEW_VERSION).toContain("haiku");
+    expect(ACADEMY_EVALUATOR_VERSION).toContain("sonnet");
+    expect(ACADEMY_TICKET_REVIEW_VERSION).toContain("sonnet");
+  });
+});
+
+// ── Judge transcript caps ────────────────────────────────────────────────────
+//
+// Both judges are billed per token on everything the transcript carries, and a
+// single pasted blob used to ride into BOTH judge calls uncapped. These pin the
+// bounds and, just as importantly, that the elision is marked — a judge must
+// never read an omission as the trainee going silent.
+
+describe("judgeTranscript", () => {
+  function turnOf(role: "client" | "intern", body: string): TrainingTurn {
+    return turn(role, body);
+  }
+
+  it("passes a normal conversation through untouched", () => {
+    const turns = [
+      turnOf("client", "I need a Cartier Tank before the 14th."),
+      turnOf("intern", "Of course — may I ask the budget range?"),
+    ];
+    expect(judgeTranscript(turns)).toBe(
+      `Client: I need a Cartier Tank before the 14th.\nConcierge: Of course — may I ask the budget range?`,
+    );
+  });
+
+  it("cuts a pasted blob at the per-turn cap, with a visible marker", () => {
+    const blob = "x".repeat(JUDGE_TURN_CHAR_CAP + 2_000);
+    const out = judgeTranscript([turnOf("intern", blob)]);
+    expect(out).toContain("…[message truncated]");
+    // Cap + speaker label + marker — nowhere near the raw blob.
+    expect(out.length).toBeLessThan(JUDGE_TURN_CHAR_CAP + 100);
+  });
+
+  it("bounds the whole transcript and marks what was elided", () => {
+    // 60 turns of ~400 chars ≈ 24k chars — double the transcript cap.
+    const turns = Array.from({ length: 60 }, (_, i) =>
+      turnOf(i % 2 ? "intern" : "client", `m${i} ` + "y".repeat(400)),
+    );
+    const out = judgeTranscript(turns);
+    expect(out.length).toBeLessThanOrEqual(JUDGE_TRANSCRIPT_CHAR_CAP + 100);
+    expect(out).toMatch(/\[… \d+ earlier messages omitted …\]/);
+    // The opening (the request) and the tail (the resolution) both survive.
+    expect(out).toContain("m0 ");
+    expect(out).toContain("m59 ");
+  });
+
+  it("never elides on a realistic session", () => {
+    // Production p99 turn is ~1.1k chars and the largest whole transcript ever
+    // recorded is ~13.9k — but a typical session (median 1.7k chars) must never
+    // trigger either cap.
+    const turns = Array.from({ length: 40 }, (_, i) =>
+      turnOf(i % 2 ? "intern" : "client", `message ${i}: ` + "z".repeat(100)),
+    );
+    const out = judgeTranscript(turns);
+    expect(out).not.toContain("omitted");
+    expect(out).not.toContain("truncated");
+  });
+
+  it("handles the empty session", () => {
+    expect(judgeTranscript([])).toBe("(no messages)");
   });
 });

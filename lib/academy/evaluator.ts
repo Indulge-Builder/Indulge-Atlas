@@ -50,11 +50,66 @@ export const EVALUATOR_OUTPUT_SCHEMA = {
 
 // ── Prompt ────────────────────────────────────────────────────────────────────
 
-function transcriptText(turns: TrainingTurn[]): string {
+/**
+ * Ceilings on what a judge is sent. Chosen from the real data, not taste:
+ * across 853 production turns the median body is 117 chars and the p99 is
+ * ~1,100 — the per-turn cap touches only pasted blobs (7 of 853, up to 4,016
+ * chars), which carry no extra grading signal past the first screenful. The
+ * whole-transcript cap bounds the worst session (~13.9k chars observed) so a
+ * judge call can never balloon past roughly 3k transcript tokens.
+ */
+export const JUDGE_TURN_CHAR_CAP = 1_500;
+export const JUDGE_TRANSCRIPT_CHAR_CAP = 12_000;
+/** How many opening turns survive middle-elision — the setup being graded. */
+const JUDGE_HEAD_TURNS = 8;
+
+/**
+ * Format a transcript for a judge, bounded.
+ *
+ * Two caps, both marked in the text so the judge knows evidence was elided and
+ * never grades the gap as the trainee's silence:
+ *   - each turn is cut at `JUDGE_TURN_CHAR_CAP` with an explicit marker;
+ *   - if the whole thing still exceeds `JUDGE_TRANSCRIPT_CHAR_CAP`, the middle
+ *     is dropped — the opening turns (the request and how it was picked up) and
+ *     the tail (the resolution, which is most of what the rubric grades) are
+ *     what stay.
+ *
+ * Exported for both judges: the evaluator prompt builder here and the ticket
+ * reviewer service, which previously had its own uncapped copy of this.
+ */
+export function judgeTranscript(turns: TrainingTurn[]): string {
   if (turns.length === 0) return "(no messages)";
-  return turns
-    .map((t) => `${t.role === "intern" ? "Concierge" : "Client"}: ${t.body}`)
-    .join("\n");
+
+  const lines = turns.map((t) => {
+    const speaker = t.role === "intern" ? "Concierge" : "Client";
+    const body =
+      t.body.length > JUDGE_TURN_CHAR_CAP
+        ? `${t.body.slice(0, JUDGE_TURN_CHAR_CAP)} …[message truncated]`
+        : t.body;
+    return `${speaker}: ${body}`;
+  });
+
+  const total = lines.reduce((n, l) => n + l.length + 1, 0);
+  if (total <= JUDGE_TRANSCRIPT_CHAR_CAP) return lines.join("\n");
+
+  // Middle-elision: keep the head, then take turns from the tail until the
+  // budget is spent. Order within the kept tail is preserved.
+  const head = lines.slice(0, JUDGE_HEAD_TURNS);
+  const headLen = head.reduce((n, l) => n + l.length + 1, 0);
+  const tail: string[] = [];
+  let tailLen = 0;
+  for (let i = lines.length - 1; i >= JUDGE_HEAD_TURNS; i--) {
+    const cost = lines[i].length + 1;
+    if (headLen + tailLen + cost > JUDGE_TRANSCRIPT_CHAR_CAP) break;
+    tail.unshift(lines[i]);
+    tailLen += cost;
+  }
+  const omitted = lines.length - head.length - tail.length;
+  return [
+    ...head,
+    `[… ${omitted} earlier message${omitted === 1 ? "" : "s"} omitted …]`,
+    ...tail,
+  ].join("\n");
 }
 
 function constraintsText(constraints: AcademyHiddenConstraint[]): string {
@@ -106,7 +161,7 @@ ${RUBRIC_TEXT}
 ${FEW_SHOT}
 
 TRANSCRIPT (grade the Concierge's messages only):
-${transcriptText(input.turns)}
+${judgeTranscript(input.turns)}
 
 Produce a JSON object with exactly these keys:
 - "scores": an object with one entry per rubric dimension key above, each { "score": 1-5 integer, "justification": one concise sentence }.

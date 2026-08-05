@@ -23,6 +23,7 @@
  */
 
 import { getServiceSupabaseClient } from "@/lib/supabase/service";
+import { resolveAcademyApiKey } from "@/lib/academy/apiKey";
 import {
   ACADEMY_AI_ASSIST_MODEL,
   ACADEMY_AI_ASSIST_VERSION,
@@ -133,7 +134,7 @@ export const claudeStyleDetector: AiAssistanceDetector = {
   version: ACADEMY_AI_ASSIST_VERSION,
 
   async estimate(text) {
-    const key = process.env.ANTHROPIC_API_KEY?.trim();
+    const key = resolveAcademyApiKey()?.key;
     if (!key) return null;
 
     const body = {

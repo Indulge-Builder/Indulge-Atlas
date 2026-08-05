@@ -15,6 +15,7 @@
  */
 
 import { getServiceSupabaseClient } from "@/lib/supabase/service";
+import { ACADEMY_KEY_MISSING, resolveAcademyApiKey } from "@/lib/academy/apiKey";
 import {
   ANTHROPIC_MESSAGES_URL,
   ANTHROPIC_VERSION,
@@ -22,6 +23,7 @@ import {
   ACADEMY_TICKET_REVIEW_VERSION,
   modelSupportsEffort,
 } from "@/lib/academy/models";
+import { judgeTranscript } from "@/lib/academy/evaluator";
 import {
   buildTicketReviewPrompt,
   buildVerdict,
@@ -36,8 +38,20 @@ import type {
 } from "@/lib/types/database";
 
 interface AnthropicResult {
-  content?: { text?: string }[];
+  content?: { type?: string; text?: string }[];
   stop_reason?: string;
+}
+
+/**
+ * The text block, wherever it sits. On models with thinking on by default
+ * (Sonnet 5), `content[0]` is a thinking block and the answer follows it —
+ * indexing `[0]` reads an empty string and every review "fails to parse".
+ */
+function textOf(result: AnthropicResult): string {
+  return (
+    result.content?.find((b) => b.type === "text" && typeof b.text === "string")
+      ?.text ?? ""
+  ).trim();
 }
 
 /**
@@ -45,12 +59,15 @@ interface AnthropicResult {
  * output_config.format, and retry without it if the API rejects that shape.
  */
 async function callReviewer(system: string, user: string): Promise<string> {
-  const key = process.env.ANTHROPIC_API_KEY?.trim();
-  if (!key) throw new Error("ANTHROPIC_API_KEY is not configured");
+  const resolved = resolveAcademyApiKey();
+  if (!resolved) throw new Error(ACADEMY_KEY_MISSING);
 
   const baseBody: Record<string, unknown> = {
     model: ACADEMY_TICKET_REVIEW_MODEL,
-    max_tokens: 1500,
+    // Headroom, not spend: on Sonnet 5 adaptive thinking shares this budget
+    // with the answer, and a cap sized for the answer alone truncates it.
+    // Unused budget costs nothing.
+    max_tokens: 4000,
     stream: false,
     system,
     messages: [{ role: "user", content: user }],
@@ -84,14 +101,16 @@ async function callReviewer(system: string, user: string): Promise<string> {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": key,
+        "x-api-key": resolved.key,
         "anthropic-version": ANTHROPIC_VERSION,
       },
       body: JSON.stringify(body),
     });
 
     if (!res.ok) {
-      lastErr = `Anthropic API error ${res.status}: ${await res
+      // The key source, never the key — a billing failure is unreadable without
+      // knowing which account was charged.
+      lastErr = `Anthropic API error ${res.status} (key from ${resolved.source}): ${await res
         .text()
         .catch(() => "")}`;
       continue;
@@ -103,18 +122,16 @@ async function callReviewer(system: string, user: string): Promise<string> {
         "ACADEMY_PARSE_ERROR: ticket review was truncated — not saved",
       );
     }
-    return result.content?.[0]?.text?.trim() ?? "";
+    return textOf(result);
   }
 
   throw new Error(lastErr || "Ticket review request failed");
 }
 
-function transcriptText(turns: TrainingTurn[]): string {
-  if (turns.length === 0) return "(no messages)";
-  return turns
-    .map((t) => `${t.role === "intern" ? "Concierge" : "Client"}: ${t.body}`)
-    .join("\n");
-}
+// Transcript formatting lives in lib/academy/evaluator.ts (`judgeTranscript`)
+// so both judges share the same per-turn and whole-transcript caps — this file
+// previously had its own uncapped copy, which meant a pasted blob in one turn
+// was billed twice, once to each judge.
 
 export interface TicketReviewResult {
   success: boolean;
@@ -171,7 +188,7 @@ export async function runAcademyTicketReview(
       requestTitle,
       clientName,
       idealOutcome: (seed.ideal_outcome as string) ?? "",
-      transcript: transcriptText((turns ?? []) as TrainingTurn[]),
+      transcript: judgeTranscript((turns ?? []) as TrainingTurn[]),
       update,
     });
 

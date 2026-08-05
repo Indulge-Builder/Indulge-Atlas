@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getServiceSupabaseClient } from "@/lib/supabase/service";
 import { sanitizeText } from "@/lib/utils/sanitize";
 import { formatIST } from "@/lib/utils/time";
+import { resolveAcademyApiKey } from "@/lib/academy/apiKey";
 import { buildPersonaSystemPrompt } from "@/lib/academy/persona";
 import { runAiAssistanceEstimate } from "@/lib/services/academyAiAssistance";
 import {
@@ -282,7 +283,7 @@ export async function POST(req: Request): Promise<Response> {
     .eq("id", session.seed_id)
     .maybeSingle();
 
-  const key = process.env.ANTHROPIC_API_KEY?.trim();
+  const key = resolveAcademyApiKey()?.key;
 
   // Degrade rather than break the drill if the seed or the API is unavailable.
   if (seedErr || !seedRow || !key) {
