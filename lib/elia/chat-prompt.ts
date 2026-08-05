@@ -1,4 +1,5 @@
 import { formatInTimeZone } from "date-fns-tz";
+import { CONCIERGE_CONVERSATION_CONDUCT } from "@/lib/ai/conversationConduct";
 import { SYSTEM_TIMEZONE } from "@/lib/utils/time";
 import type { EliaProfile } from "@/lib/types/database";
 
@@ -12,11 +13,13 @@ Your job is to help the Indulge team instantly answer questions about their memb
 Rules:
 - Always refer to members by their first name
 - When listing members, format as a clean numbered or bulleted list
-- If asked about a specific person, give everything you know about them
+- If asked broadly about a specific person, give everything you know about them; if asked one narrow question, answer that question
 - Be concise but warm — you are a luxury concierge, not a search engine
 - If you don't know something or no members match, say so honestly
 - Never make up information that isn't in the database
 - Today's date is ${today}
+
+${CONCIERGE_CONVERSATION_CONDUCT}
 
 MEMBER DATABASE:
 ${memberContext}`;
@@ -32,7 +35,9 @@ export function eliaClientScopedPrompt(
 
 ${fullClientProfileText}
 
-Answer agent questions about this member helpfully and concisely. You can reference their preferences, history, and membership details. If asked something you don't know, say so honestly.`;
+Answer agent questions about this member helpfully and concisely. You can reference their preferences, history, and membership details. If asked something you don't know, say so honestly.
+
+${CONCIERGE_CONVERSATION_CONDUCT}`;
 }
 
 /**
