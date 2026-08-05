@@ -6,6 +6,11 @@ import { sanitizeText } from "@/lib/utils/sanitize";
 import { buildPersonaSystemPrompt } from "@/lib/academy/persona";
 import { runAiAssistanceEstimate } from "@/lib/services/academyAiAssistance";
 import {
+  ATTACHMENT_KINDS,
+  attachmentDescription,
+  placeholderBody,
+} from "@/lib/academy/attachments";
+import {
   ACADEMY_PERSONA_MODEL,
   ACADEMY_TURN_CAP,
   ANTHROPIC_MESSAGES_URL,
@@ -41,7 +46,10 @@ export const runtime = "nodejs";
 
 const attachmentSchema = z.object({
   path: z.string().min(1).max(400),
-  kind: z.enum(["image", "video"]),
+  // Mirrors ATTACHMENT_KINDS. A kind missing from this enum fails the whole
+  // body, so the turn is rejected with a bare 400 and the intern is told their
+  // message was not sent — which is exactly how documents used to fail.
+  kind: z.enum(ATTACHMENT_KINDS),
   mime: z.string().min(1).max(100),
   name: z.string().min(1).max(200),
   size: z.number().int().nonnegative(),
@@ -162,7 +170,7 @@ export async function POST(req: Request): Promise<Response> {
   // still make sense without rendering the file.
   const internTurnBody =
     internBody ||
-    (safeAttachments[0]?.kind === "video" ? "[shared a video]" : "[shared a photo]");
+    (safeAttachments[0] ? placeholderBody(safeAttachments[0].kind) : "[shared a photo]");
 
   const baseTurn = {
     session_id: sessionId,
@@ -330,7 +338,8 @@ export async function POST(req: Request): Promise<Response> {
 
   // Let the persona actually SEE shared photos — otherwise it would blandly
   // acknowledge an image it knows nothing about, which reads as fake. Videos
-  // can't be inlined, so they're described instead.
+  // and documents can't be inlined, so they're described instead: the member
+  // knows a file arrived, not what is inside it.
   if (safeAttachments.length > 0 && messages.length > 0) {
     const blocks: (TextBlock | ImageBlock)[] = [];
     for (const att of safeAttachments) {
@@ -349,10 +358,7 @@ export async function POST(req: Request): Promise<Response> {
       }
       blocks.push({
         type: "text",
-        text:
-          att.kind === "video"
-            ? `[The concierge shared a video: ${att.name}. You can see it plays, but describe only what they tell you about it.]`
-            : `[The concierge shared an image: ${att.name}.]`,
+        text: attachmentDescription(att.kind, att.name),
       });
     }
     if (internBody) blocks.push({ type: "text", text: internBody });

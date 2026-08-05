@@ -12,14 +12,24 @@
  */
 
 import { useCallback, useEffect, useRef, useState, type JSX } from "react";
-import { Loader2, Paperclip, Send, X } from "lucide-react";
+import { FileText, Loader2, Paperclip, Send, X } from "lucide-react";
+import { toast } from "sonner";
 import { IndulgeButton } from "@/components/ui/indulge-button";
+import {
+  ATTACHMENT_ACCEPT,
+  attachmentKindLabel,
+  attachmentSizeError,
+  classifyAttachment,
+  maxBytesFor,
+  UNSUPPORTED_ATTACHMENT_ERROR,
+  type AttachmentKind,
+} from "@/lib/academy/attachments";
 import { cn } from "@/lib/utils";
 
 /** A file the intern has picked but not yet sent. `previewUrl` is an object URL. */
 export interface PendingAttachment {
   file: File;
-  kind: "image" | "video";
+  kind: AttachmentKind;
   previewUrl: string;
 }
 
@@ -154,12 +164,26 @@ export function AcademyComposer({
       const file = event.target.files?.[0];
       event.target.value = ""; // allow re-picking the same file
       if (!file) return;
-      const kind = file.type.startsWith("video/")
-        ? ("video" as const)
-        : file.type.startsWith("image/")
-          ? ("image" as const)
-          : null;
-      if (!kind) return;
+
+      // Classified on MIME with an extension fallback — a PDF picked on a
+      // machine with no registered handler arrives as `application/octet-stream`
+      // and must still be recognised.
+      const kind = classifyAttachment(file.type, file.name);
+      // Rejections are spoken, never silent. Dropping the file with no feedback
+      // is what made this look like "the send button stopped working".
+      if (!kind) {
+        toast.error(UNSUPPORTED_ATTACHMENT_ERROR, { description: file.name });
+        return;
+      }
+      // Check the ceiling here as well as server-side: a file that is too large
+      // would otherwise be uploaded in full before being told no.
+      if (file.size > maxBytesFor(kind)) {
+        toast.error(attachmentSizeError(kind), {
+          description: `${file.name} is ${(file.size / 1024 / 1024).toFixed(1)} MB`,
+        });
+        return;
+      }
+
       if (attachment) URL.revokeObjectURL(attachment.previewUrl);
       setAttachment({ file, kind, previewUrl: URL.createObjectURL(file) });
     },
@@ -271,20 +295,29 @@ export function AcademyComposer({
               alt="Attachment preview"
               className="size-14 shrink-0 rounded-lg object-cover"
             />
-          ) : (
+          ) : attachment.kind === "video" ? (
             <video
               src={attachment.previewUrl}
               className="size-14 shrink-0 rounded-lg object-cover"
               muted
               playsInline
             />
+          ) : (
+            // A document has no visual frame to preview — show the same tile
+            // footprint with a file mark so the row does not reflow by kind.
+            <span
+              className="flex size-14 shrink-0 items-center justify-center rounded-lg bg-surface-subtle ring-1 ring-surface-border"
+              aria-hidden="true"
+            >
+              <FileText className="size-6 text-chat-ink-muted" strokeWidth={1.75} />
+            </span>
           )}
           <div className="min-w-0 flex-1">
             <p className="truncate text-[13px] font-medium text-chat-ink">
               {attachment.file.name}
             </p>
             <p className="text-[11px] text-chat-ink-muted">
-              {attachment.kind === "video" ? "Video" : "Photo"} ·{" "}
+              {attachmentKindLabel(attachment.kind)} ·{" "}
               {(attachment.file.size / 1024 / 1024).toFixed(1)} MB
               {uploading ? " · uploading…" : ""}
             </p>
@@ -316,7 +349,7 @@ export function AcademyComposer({
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*,video/*"
+          accept={ATTACHMENT_ACCEPT}
           hidden
           onChange={pickFile}
         />
@@ -324,8 +357,8 @@ export function AcademyComposer({
           type="button"
           onClick={() => fileInputRef.current?.click()}
           disabled={inputLocked || pending || uploading}
-          aria-label="Attach a photo or video"
-          title="Attach a photo or video"
+          aria-label="Attach a photo, video or PDF"
+          title="Attach a photo, video or PDF"
           className={cn(
             "mb-0.5 flex size-9 shrink-0 items-center justify-center rounded-full transition-colors",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chat-accent",

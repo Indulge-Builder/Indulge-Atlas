@@ -42,6 +42,7 @@ import {
   startAcademySession,
   uploadAcademyAttachment,
 } from "@/lib/actions/academy";
+import { attachmentKindLabel, placeholderBody } from "@/lib/academy/attachments";
 import { typingDelayFor } from "@/lib/academy/mentor";
 import { chunkDelay, splitClientMessage } from "@/lib/academy/messageSplit";
 import { cn } from "@/lib/utils";
@@ -388,15 +389,27 @@ export function AcademyChat({
           fd.append("file", attachment.file);
           const res = await uploadAcademyAttachment(fd);
           if (!res.success || !res.data) {
-            toast.error(res.success ? "Upload failed." : res.error);
+            toast.error(res.success ? "Upload failed." : res.error, {
+              description: attachment.file.name,
+            });
             URL.revokeObjectURL(attachment.previewUrl);
             inFlightRef.current = false;
             setUploading(false);
             return;
           }
           uploaded = { ...res.data, signedUrl: attachment.previewUrl };
-        } catch {
-          toast.error("Could not upload that file.");
+        } catch (uploadError) {
+          // A throw here (rather than a returned error) is almost always the
+          // request body being rejected before the action ran — the platform's
+          // body ceiling, not our validation. Say so, because "could not upload"
+          // sends people looking at the file type instead of its size.
+          console.error("[AcademyChat] attachment upload threw:", uploadError);
+          toast.error(
+            `${attachmentKindLabel(attachment.kind)} could not be uploaded`,
+            {
+              description: `${attachment.file.name} — ${(attachment.file.size / 1024 / 1024).toFixed(1)} MB. Try a smaller file.`,
+            },
+          );
           URL.revokeObjectURL(attachment.previewUrl);
           inFlightRef.current = false;
           setUploading(false);
@@ -409,7 +422,7 @@ export function AcademyChat({
         id: localId("local-intern"),
         session_id: activeSessionId,
         role: "intern",
-        body: text || (uploaded?.kind === "video" ? "[shared a video]" : uploaded ? "[shared a photo]" : ""),
+        body: text || (uploaded ? placeholderBody(uploaded.kind) : ""),
         seq: (turns.at(-1)?.seq ?? 0) + 1,
         created_at: new Date().toISOString(),
         attachments: uploaded ? [uploaded] : [],

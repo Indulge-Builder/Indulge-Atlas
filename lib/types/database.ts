@@ -1903,13 +1903,15 @@ export interface TrainingSession {
 }
 
 /**
- * An image/video shared into a training conversation (migration 127).
- * `path` is a storage object path in the private `academy-attachments` bucket;
- * the UI renders it via a short-lived signed URL, never a public URL.
+ * A file shared into a training conversation (migration 127; documents added
+ * in migration 136). `path` is a storage object path in the private
+ * `academy-attachments` bucket; the UI renders it via a short-lived signed URL,
+ * never a public URL. `kind` is `AttachmentKind` from `lib/academy/attachments`
+ * — spelled out here so this types module stays import-free.
  */
 export interface TrainingAttachment {
   path: string;
-  kind: "image" | "video";
+  kind: "image" | "video" | "document";
   mime: string;
   name: string;
   size: number;

@@ -14,6 +14,13 @@ import { getAuthUser } from "@/lib/auth/getAuthUser";
 import { getServiceSupabaseClient } from "@/lib/supabase/service";
 import { isAcademyTrainer, isPrivilegedRole, ACADEMY_TICKET_TAGS } from "@/lib/types/database";
 import { sanitizeText } from "@/lib/utils/sanitize";
+import {
+  attachmentSizeError,
+  classifyAttachment,
+  maxBytesFor,
+  resolveContentType,
+  UNSUPPORTED_ATTACHMENT_ERROR,
+} from "@/lib/academy/attachments";
 import { randomizeSession, buildSessionVars, renderTemplate } from "@/lib/academy/randomize";
 import { ACADEMY_PERSONA_MODEL, ACADEMY_TURN_CAP } from "@/lib/academy/models";
 import { DEFAULT_RUBRIC_WEIGHTS, ACADEMY_DIMENSIONS } from "@/lib/academy/rubric";
@@ -870,20 +877,11 @@ async function buildSessionProgress(params: {
   };
 }
 
-// ── Attachments (migration 127) ───────────────────────────────────────────────
+// ── Attachments (migrations 127 + 136) ────────────────────────────────────────
 
-/** Per-kind ceilings, tighter than the bucket's coarse 50MB limit. */
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10 MB
-const MAX_VIDEO_BYTES = 50 * 1024 * 1024; // 50 MB
 const ATTACHMENT_BUCKET = "academy-attachments";
 /** Signed URLs are short-lived — the bucket is private by design. */
 const SIGNED_URL_TTL_SECONDS = 60 * 60;
-
-function attachmentKind(mime: string): "image" | "video" | null {
-  if (mime.startsWith("image/")) return "image";
-  if (mime.startsWith("video/")) return "video";
-  return null;
-}
 
 /** Strip anything that could escape the session folder or confuse storage. */
 function safeFileName(name: string): string {
@@ -892,8 +890,8 @@ function safeFileName(name: string): string {
 }
 
 /**
- * Upload one image/video for a session. Owner-only (a trainer viewing someone
- * else's transcript must not be able to inject media into it).
+ * Upload one image, video or PDF for a session. Owner-only (a trainer viewing
+ * someone else's transcript must not be able to inject media into it).
  * Returns the metadata to attach to the next turn.
  */
 export async function uploadAcademyAttachment(
@@ -908,15 +906,13 @@ export async function uploadAcademyAttachment(
   const file = formData.get("file");
   if (!(file instanceof File)) return { success: false, error: "No file provided" };
 
-  const kind = attachmentKind(file.type);
-  if (!kind) return { success: false, error: "Only images and videos can be shared" };
+  // Same classifier the composer used, so the two can never disagree about
+  // whether a file is acceptable.
+  const kind = classifyAttachment(file.type, file.name);
+  if (!kind) return { success: false, error: UNSUPPORTED_ATTACHMENT_ERROR };
 
-  const cap = kind === "image" ? MAX_IMAGE_BYTES : MAX_VIDEO_BYTES;
-  if (file.size > cap) {
-    return {
-      success: false,
-      error: `${kind === "image" ? "Images" : "Videos"} must be under ${Math.round(cap / 1024 / 1024)}MB`,
-    };
+  if (file.size > maxBytesFor(kind)) {
+    return { success: false, error: attachmentSizeError(kind) };
   }
 
   const db = getServiceSupabaseClient();
@@ -936,17 +932,36 @@ export async function uploadAcademyAttachment(
   }
 
   const path = `academy/${sessionId}/${crypto.randomUUID()}-${safeFileName(file.name)}`;
+  /*
+   * Never forward `file.type` blindly. The bucket's allow-list is matched
+   * against the content type we declare, so a PDF the browser handed us as
+   * `application/octet-stream` would be refused by storage even though every
+   * application-layer check passed. Declaring the real type also makes the
+   * signed URL open the file rather than download it.
+   */
+  const contentType = resolveContentType(file.type, file.name);
   const { error: upErr } = await db.storage
     .from(ATTACHMENT_BUCKET)
-    .upload(path, file, { contentType: file.type, upsert: false });
-  if (upErr) return { success: false, error: upErr.message };
+    .upload(path, file, { contentType, upsert: false });
+  if (upErr) {
+    // The bucket's own mime allow-list is the one failure that is invisible
+    // from the UI — name it so this is diagnosable without database access.
+    console.error(
+      "[academy] attachment upload failed:",
+      contentType,
+      upErr.message,
+      "— if this mentions mime type, apply migration 136 " +
+        "(supabase/manual/academy_part11_pdf_attachments.sql).",
+    );
+    return { success: false, error: upErr.message };
+  }
 
   return {
     success: true,
     data: {
       path,
       kind,
-      mime: file.type,
+      mime: contentType,
       name: safeFileName(file.name),
       size: file.size,
     },
