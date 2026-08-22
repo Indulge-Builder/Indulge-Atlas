@@ -43,9 +43,10 @@ interface AnthropicResult {
 }
 
 /**
- * The text block, wherever it sits. On models with thinking on by default
- * (Sonnet 5), `content[0]` is a thinking block and the answer follows it —
- * indexing `[0]` reads an empty string and every review "fails to parse".
+ * The text block, wherever it sits. Haiku puts the answer first, but on any
+ * model with thinking on by default `content[0]` is a thinking block and the
+ * answer follows it — indexing `[0]` would read an empty string and every
+ * review would "fail to parse". Searching keeps a tier change survivable.
  */
 function textOf(result: AnthropicResult): string {
   return (
@@ -64,9 +65,9 @@ async function callReviewer(system: string, user: string): Promise<string> {
 
   const baseBody: Record<string, unknown> = {
     model: ACADEMY_TICKET_REVIEW_MODEL,
-    // Headroom, not spend: on Sonnet 5 adaptive thinking shares this budget
-    // with the answer, and a cap sized for the answer alone truncates it.
-    // Unused budget costs nothing.
+    // Headroom, not spend: `max_tokens` is a ceiling, and unused budget costs
+    // nothing. A truncated response is thrown away rather than saved, so the
+    // cap sits well above the verdict JSON.
     max_tokens: 4000,
     stream: false,
     system,

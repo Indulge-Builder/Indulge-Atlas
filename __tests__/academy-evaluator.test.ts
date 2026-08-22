@@ -479,7 +479,10 @@ describe("judge model configuration", () => {
     expect(modelSupportsEffort("claude-sonnet-4-5")).toBe(false);
   });
 
-  it("still sends effort to the models that support it", () => {
+  it("is a capability probe, not an allowlist — it says yes to other tiers", () => {
+    // These ids are NOT candidates for Atlas (see the Haiku-only test below).
+    // They are here only to prove the check discriminates rather than always
+    // returning false, which would hide a real 400 if a model ever changed.
     for (const model of [
       "claude-opus-4-8",
       "claude-opus-5",
@@ -490,24 +493,43 @@ describe("judge model configuration", () => {
     }
   });
 
-  it("keeps the two-level tiering: Haiku talks, Sonnet judges", () => {
-    // Talking + low-effort work stays on the cheapest tier…
-    expect(ACADEMY_PERSONA_MODEL).toContain("haiku");
-    expect(ACADEMY_AI_ASSIST_MODEL).toContain("haiku");
-    // …and both judges sit together on Sonnet — a split would make the two
-    // halves of one request's score incomparable.
-    expect(ACADEMY_EVALUATOR_MODEL).toContain("sonnet");
+  it("uses Haiku for every Academy call — never Opus, Sonnet or Fable", () => {
+    // Standing Atlas policy (lib/academy/models.ts, CLAUDE.md). All four keys
+    // bill one org cap, so a higher-tier call here starves Elia and the bot.
+    // This test is the tripwire: reintroducing a tier fails the suite.
+    const models = {
+      ACADEMY_PERSONA_MODEL,
+      ACADEMY_AI_ASSIST_MODEL,
+      ACADEMY_EVALUATOR_MODEL,
+      ACADEMY_TICKET_REVIEW_MODEL,
+    };
+    for (const [name, model] of Object.entries(models)) {
+      expect(model, `${name} must be Haiku`).toMatch(/^claude-haiku-/);
+    }
+    // The stamps travel with every persisted score, so they must not advertise
+    // a tier that never ran.
+    for (const [name, version] of Object.entries({
+      ACADEMY_EVALUATOR_VERSION,
+      ACADEMY_TICKET_REVIEW_VERSION,
+    })) {
+      expect(version, `${name} names a forbidden tier`).not.toMatch(
+        /opus|sonnet|fable|mythos/i,
+      );
+    }
+    // The judges also sit on the same model as each other — a split would make
+    // the two halves of one request's score incomparable.
     expect(ACADEMY_TICKET_REVIEW_MODEL).toBe(ACADEMY_EVALUATOR_MODEL);
-    // Sonnet accepts effort, so the judges send it; if a future tier change
-    // lands on a model that rejects it, the capability check must say so.
-    expect(modelSupportsEffort(ACADEMY_EVALUATOR_MODEL)).toBe(true);
+    // And Haiku rejects `effort` outright, so neither judge may send it. This
+    // is what makes the tier safe rather than a 400 on every scoring call.
+    expect(modelSupportsEffort(ACADEMY_EVALUATOR_MODEL)).toBe(false);
+    expect(modelSupportsEffort(ACADEMY_TICKET_REVIEW_MODEL)).toBe(false);
   });
 
   it("stamps the model into the version, so a tier change is visible in the data", () => {
     // Reviews persist these strings. If the model moves and the stamp doesn't,
     // scores from two different judges become indistinguishable in the table.
-    expect(ACADEMY_EVALUATOR_VERSION).toContain("sonnet");
-    expect(ACADEMY_TICKET_REVIEW_VERSION).toContain("sonnet");
+    expect(ACADEMY_EVALUATOR_VERSION).toContain("haiku");
+    expect(ACADEMY_TICKET_REVIEW_VERSION).toContain("haiku");
   });
 });
 

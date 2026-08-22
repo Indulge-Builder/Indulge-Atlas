@@ -629,10 +629,14 @@ scores, choose the lower."* — and a system prompt framing the evaluator as
 
 ### 6.4 Execution
 
-- Model **`claude-opus-4-8`**, `max_tokens: 2000`, `stream: false`,
-  `output_config: { effort: "medium", format: { type: "json_schema", schema: EVALUATOR_OUTPUT_SCHEMA } }`.
-  If the API rejects that shape, one retry with `effort` only — the prompt still
-  demands JSON, so a wire-format change cannot take scoring offline.
+- Model **`claude-haiku-4-5-20251001`** (`ACADEMY_EVALUATOR_MODEL` — Academy is
+  single-tier; every call it makes is Haiku), `max_tokens: 6000`,
+  `stream: false`, `output_config: { format: { type: "json_schema", schema: EVALUATOR_OUTPUT_SCHEMA } }`.
+  If the API rejects that shape, one retry without `output_config` — the prompt
+  still demands JSON, so a wire-format change cannot take scoring offline.
+  **`effort` is never sent on Haiku** — it rejects the parameter outright and
+  the request 400s before the model sees the prompt, so `modelSupportsEffort()`
+  gates it (`lib/academy/models.ts`).
 - **Idempotent**: an existing `training_reviews` row for the session
   short-circuits and returns (the UNIQUE on `session_id` is the key).
 - **Refuses to guess**: a truncated response (`stop_reason === "max_tokens"`) or a
@@ -641,7 +645,9 @@ scores, choose the lower."* — and a system prompt framing the evaluator as
 - The evaluator receives the **resolved** hidden constraints — the per-session
   mutated values, matching exactly what the persona was playing.
 - Every review stamps `model_version = ACADEMY_EVALUATOR_VERSION`
-  (`"academy-eval-1@claude-opus-4-8"`), so scoring drift is detectable.
+  (`"academy-eval-4@claude-haiku-4-5"`), so scoring drift is detectable. Bump it
+  on every model or rubric change; scores stamped with different versions are
+  not one series and must not be compared.
 - Failure is surfaced, not swallowed: `endAcademySession` returns `{ reviewError }`
   and the session page offers `retryAcademyEvaluation`.
 
@@ -812,7 +818,7 @@ real member PII into a table read by every trainer and fed to a model.
 
 ### 9.5 Scoring drift — a model upgrade silently rewrites the scale
 
-If Opus changes, or the rubric prompt is edited, next month's 3.4 is not
+If the judge model changes, or the rubric prompt is edited, next month's 3.4 is not
 comparable to last month's 3.4 — and nobody can tell whether an intern improved or
 the grader moved.
 
@@ -944,7 +950,7 @@ was never retried, and no rate limiting on `POST /api/academy/chat` beyond the
 | `lib/academy/curriculum.ts` | No | Tiers, tier tokens, `memberForTask` roster (+ vestigial ladder maths, §3.3) |
 | `lib/academy/pii.ts` | No | PII detector — pure, client- and server-safe |
 | `lib/academy/types.ts` | No | UI view models — lives outside the action module because `"use server"` permits async exports only |
-| `lib/services/academyEvaluator.ts` | No | Opus call + service-role write — imported by `lib/actions/academy.ts` |
+| `lib/services/academyEvaluator.ts` | No | Haiku judge call + service-role write — imported by `lib/actions/academy.ts` |
 | `app/api/academy/chat/route.ts` | n/a | The only caller of `buildPersonaSystemPrompt` |
 
 > **Stale in-code comments to ignore** (the code is right, the comments are not):

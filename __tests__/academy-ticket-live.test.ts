@@ -2,7 +2,7 @@
  * Live sign-off for the Freshdesk ticket reviewer — hits the real Anthropic API.
  *
  * Skipped by default. Run with ACADEMY_LIVE=1 (same gate as
- * `academy-live-signoff.test.ts`), because it costs a real Opus call.
+ * `academy-live-signoff.test.ts`), because it spends real tokens.
  *
  * What it exists to catch: the offline suite pins the parser against fixtures we
  * wrote. This pins it against what the model ACTUALLY returns — a schema drift
