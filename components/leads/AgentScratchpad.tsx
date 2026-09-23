@@ -123,7 +123,15 @@ export function AgentScratchpad({
     [clearDebounce, scheduleSuccessToIdle],
   );
 
-  flushSaveRef.current = flushSave;
+  // The debounce timers, the blur handler and the unmount flush all reach
+  // `flushSave` through this ref rather than closing over it, so that the mount
+  // effect below never has to list it as a dependency — re-running that effect
+  // would tear down and immediately re-arm the unmount flush. Syncing here in an
+  // effect keeps the ref current without writing to it during render; every
+  // reader runs after mount, and each call site already null-checks.
+  useEffect(() => {
+    flushSaveRef.current = flushSave;
+  }, [flushSave]);
 
   useEffect(() => {
     mountedRef.current = true;

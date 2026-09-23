@@ -241,7 +241,7 @@ export function AcademyReport({
         <div className="flex flex-col gap-6 p-5 sm:p-7 md:flex-row md:items-start md:justify-between md:gap-10">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-gold">
-              Academy review
+              Indulge Training review
             </p>
 
             <h2 className="mt-2 font-serif text-xl leading-snug tracking-tight text-brand-black sm:text-2xl">

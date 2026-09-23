@@ -22,7 +22,7 @@ function BackLink() {
       className="inline-flex items-center gap-2 text-[13px] font-medium text-black/45 transition-colors duration-150 hover:text-brand-gold"
     >
       <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
-      Academy
+      Indulge Training
     </Link>
   );
 }
@@ -57,6 +57,7 @@ export default async function AcademySessionPage({ params }: PageProps) {
             initialTurns={turns}
             turnCap={ACADEMY_TURN_CAP}
             readOnly={readOnly}
+            observingName={readOnly ? internName : null}
           />
         </div>
       </div>
@@ -87,6 +88,7 @@ export default async function AcademySessionPage({ params }: PageProps) {
             initialTurns={turns}
             turnCap={ACADEMY_TURN_CAP}
             readOnly
+            observingName={readOnly ? internName : null}
           />
         </div>
 

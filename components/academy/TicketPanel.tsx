@@ -120,18 +120,19 @@ function buildTimeline(
   if (update?.passed) {
     events.push({
       at: update.submitted_at,
-      label: "Ticket accepted and closed",
+      label: "Ticket submitted — request handled",
       detail: update.verdict
         ? `Quality ${update.verdict.quality.toFixed(1)}/5`
         : undefined,
     });
   } else if (update?.verdict && !update.passed) {
+    // Only reachable for tickets written before submission became the finish
+    // line. Revision is no longer a workflow, so this reads as "still owed"
+    // rather than "sent back".
     events.push({
       at: update.submitted_at,
-      label: "Sent back for revision",
-      detail: `${update.verdict.feedback.length} item${
-        update.verdict.feedback.length === 1 ? "" : "s"
-      } to address`,
+      label: "Submitted — not yet completed",
+      detail: `Quality ${update.verdict.quality.toFixed(1)}/5 · submit again to close it out`,
     });
   }
 

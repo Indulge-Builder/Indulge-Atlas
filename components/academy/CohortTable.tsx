@@ -1,10 +1,16 @@
 "use client";
 
 /**
- * Academy — trainer cohort table.
+ * Academy — cohort table.
  *
  * Renders one row per intern with their completed-session count, weighted
  * overall average, a column per rubric dimension, and a trend delta.
+ *
+ * Two audiences, one table. A trainer sees the whole cohort. A trainee sees
+ * only their own row (`selfOnly`), narrowed server-side by `getAcademyCohort` —
+ * so this component never has peers' data to leak. In that mode the roll-up
+ * tiles speak about the reader rather than the cohort, and the name filter is
+ * dropped: there is nothing to filter.
  *
  * Everything here is derived from the `rows` prop — the component never
  * fetches. Sorting and name filtering are local `useState`, no table library.
@@ -25,6 +31,7 @@ import {
   Search,
   TrendingDown,
   TrendingUp,
+  Trophy,
   Users,
   X,
 } from "lucide-react";
@@ -51,6 +58,22 @@ const deltaFormatter = new Intl.NumberFormat("en-IN", {
 });
 
 const countFormatter = new Intl.NumberFormat("en-IN");
+
+/** 1 → "1st". Used for the trainee's standing tile. */
+function ordinal(n: number): string {
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
+  switch (n % 10) {
+    case 1:
+      return `${n}st`;
+    case 2:
+      return `${n}nd`;
+    case 3:
+      return `${n}rd`;
+    default:
+      return `${n}th`;
+  }
+}
 
 // ── Column model ───────────────────────────────────────────────────────────
 
@@ -236,7 +259,17 @@ function SummaryTile({
 
 // ── Table ──────────────────────────────────────────────────────────────────
 
-export function CohortTable({ rows }: { rows: CohortInternRow[] }) {
+export function CohortTable({
+  rows,
+  selfOnly = false,
+  selfId,
+}: {
+  rows: CohortInternRow[];
+  /** True when the reader is a trainee seeing only their own row. */
+  selfOnly?: boolean;
+  /** The reader's own intern id, so their row can be marked in a trainer view. */
+  selfId?: string;
+}) {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortState>({ key: "overall", dir: "desc" });
 
@@ -266,6 +299,17 @@ export function CohortTable({ rows }: { rows: CohortInternRow[] }) {
       cohortAverage: weightTotal > 0 ? weightedSum / weightTotal : null,
     };
   }, [rows]);
+
+  /** The reader's own row, when it is present. Drives the trainee tiles. */
+  const self = useMemo(
+    () =>
+      selfId
+        ? rows.find((row) => row.internId === selfId)
+        : selfOnly
+          ? rows[0]
+          : undefined,
+    [rows, selfId, selfOnly],
+  );
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -320,44 +364,99 @@ export function CohortTable({ rows }: { rows: CohortInternRow[] }) {
     <div className="space-y-5">
       {/* Summary strip — derived from `rows`, never a per-row fetch. */}
       <div className="grid gap-3 sm:grid-cols-3">
-        <SummaryTile
-          icon={Users}
-          label="Cohort"
-          value={countFormatter.format(rows.length)}
-          caption={rows.length === 1 ? "intern" : "interns"}
-        />
-        <SummaryTile
-          icon={MessagesSquare}
-          label="Sessions"
-          value={countFormatter.format(summary.totalSessions)}
-          caption={summary.totalSessions === 1 ? "completed" : "completed in total"}
-        />
-        <SummaryTile
-          icon={Gauge}
-          label="Cohort average"
-          value={
-            summary.cohortAverage == null ? "—" : `${scoreFormatter.format(summary.cohortAverage)} / 5`
-          }
-          caption={
-            summary.cohortAverage == null
-              ? "awaiting first evaluation"
-              : `session-weighted, ${countFormatter.format(summary.scoredInterns)} scored`
-          }
-        />
+        {selfOnly ? (
+          /*
+           * Trainee view. `rows` holds exactly their row, so the "cohort
+           * average" roll-up would just restate their own score — these tiles
+           * report standing instead. Rank and cohort size are computed across
+           * the real cohort on the server; nothing here reveals who the others
+           * are or what they scored.
+           */
+          <>
+            <SummaryTile
+              icon={Trophy}
+              label="Your standing"
+              value={self?.rank == null ? "—" : ordinal(self.rank)}
+              caption={
+                self?.rank == null
+                  ? "awaiting your first score"
+                  : `of ${countFormatter.format(self.cohortSize ?? 1)} in the cohort`
+              }
+            />
+            <SummaryTile
+              icon={MessagesSquare}
+              label="Requests"
+              value={countFormatter.format(summary.totalSessions)}
+              caption={summary.totalSessions === 1 ? "scored" : "scored so far"}
+            />
+            <SummaryTile
+              icon={Gauge}
+              label="Your average"
+              value={
+                self?.avgOverall == null
+                  ? "—"
+                  : `${scoreFormatter.format(self.avgOverall)} / 5`
+              }
+              caption={
+                self?.avgOverall == null
+                  ? "awaiting first evaluation"
+                  : "across every scored request"
+              }
+            />
+          </>
+        ) : (
+          <>
+            <SummaryTile
+              icon={Users}
+              label="Cohort"
+              value={countFormatter.format(rows.length)}
+              caption={rows.length === 1 ? "intern" : "interns"}
+            />
+            <SummaryTile
+              icon={MessagesSquare}
+              label="Sessions"
+              value={countFormatter.format(summary.totalSessions)}
+              caption={summary.totalSessions === 1 ? "completed" : "completed in total"}
+            />
+            <SummaryTile
+              icon={Gauge}
+              label="Cohort average"
+              value={
+                summary.cohortAverage == null
+                  ? "—"
+                  : `${scoreFormatter.format(summary.cohortAverage)} / 5`
+              }
+              caption={
+                summary.cohortAverage == null
+                  ? "awaiting first evaluation"
+                  : `session-weighted, ${countFormatter.format(summary.scoredInterns)} scored`
+              }
+            />
+          </>
+        )}
       </div>
 
       {/* Table card */}
       <div className="overflow-hidden rounded-xl border border-surface-border bg-white shadow-card">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-surface-border px-5 py-4">
           <div>
-            <h2 className="font-serif text-sm font-semibold text-brand-black">Intern performance</h2>
+            <h2 className="font-serif text-sm font-semibold text-brand-black">
+              {selfOnly ? "Your performance" : "Intern performance"}
+            </h2>
             <p className="mt-0.5 text-xs text-taupe">
-              {countFormatter.format(sorted.length)} intern{sorted.length === 1 ? "" : "s"}
-              {query.trim() ? ` matching “${query.trim()}”` : " shown"}
+              {selfOnly ? (
+                "Your rubric averages across every scored request"
+              ) : (
+                <>
+                  {countFormatter.format(sorted.length)} intern{sorted.length === 1 ? "" : "s"}
+                  {query.trim() ? ` matching “${query.trim()}”` : " shown"}
+                </>
+              )}
             </p>
           </div>
 
-          <div className="relative w-full sm:w-64">
+          {/* Nothing to filter when the table holds a single row. */}
+          <div className={cn("relative w-full sm:w-64", selfOnly && "hidden")}>
             <Search
               className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-taupe"
               aria-hidden="true"
@@ -438,11 +537,12 @@ export function CohortTable({ rows }: { rows: CohortInternRow[] }) {
                 <tr>
                   <td colSpan={totalColumns} className="px-5 py-14 text-center">
                     <p className="font-serif text-base text-brand-black">
-                      No completed sessions yet
+                      No completed requests yet
                     </p>
                     <p className="mx-auto mt-1.5 max-w-sm text-xs text-taupe">
-                      Cohort scores appear here once an intern closes a training session and the
-                      evaluator returns a review.
+                      {selfOnly
+                        ? "Your scores appear here once you close a request and the evaluator returns a review."
+                        : "Cohort scores appear here once an intern closes a training session and the evaluator returns a review."}
                     </p>
                   </td>
                 </tr>

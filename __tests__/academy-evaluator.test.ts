@@ -12,7 +12,10 @@
 import { describe, it, expect } from "vitest";
 import {
   EVALUATOR_OUTPUT_SCHEMA,
+  JUDGE_TRANSCRIPT_CHAR_CAP,
+  JUDGE_TURN_CHAR_CAP,
   buildEvaluatorPrompt,
+  judgeTranscript,
   parseEvaluatorResponse,
 } from "@/lib/academy/evaluator";
 import type { EvaluatorPromptInput } from "@/lib/academy/evaluator";
@@ -21,6 +24,15 @@ import {
   DEFAULT_RUBRIC_WEIGHTS,
   computeOverall,
 } from "@/lib/academy/rubric";
+import {
+  ACADEMY_AI_ASSIST_MODEL,
+  ACADEMY_EVALUATOR_MODEL,
+  ACADEMY_EVALUATOR_VERSION,
+  ACADEMY_PERSONA_MODEL,
+  ACADEMY_TICKET_REVIEW_MODEL,
+  ACADEMY_TICKET_REVIEW_VERSION,
+  modelSupportsEffort,
+} from "@/lib/academy/models";
 import type {
   AcademyHiddenConstraint,
   AcademyRubricDimension,
@@ -450,5 +462,133 @@ describe("parsing is deterministic (same model output → same review)", () => {
     const b = buildEvaluatorPrompt(promptInput());
     expect(b.system).toBe(a.system);
     expect(b.user).toBe(a.user);
+  });
+});
+
+// ── Model configuration ──────────────────────────────────────────────────────
+//
+// Which judge model runs is a cost decision, but `output_config.effort` is not
+// universally accepted: Haiku and Sonnet 4.5 reject the whole request rather
+// than ignoring the field, so a model change that leaves `effort` attached is a
+// 400 on every scoring call, not a quality regression. These pin the pairing.
+
+describe("judge model configuration", () => {
+  it("does not send effort to models that reject it", () => {
+    expect(modelSupportsEffort("claude-haiku-4-5")).toBe(false);
+    expect(modelSupportsEffort("claude-haiku-4-5-20251001")).toBe(false);
+    expect(modelSupportsEffort("claude-sonnet-4-5")).toBe(false);
+  });
+
+  it("is a capability probe, not an allowlist — it says yes to other tiers", () => {
+    // These ids are NOT candidates for Atlas (see the Haiku-only test below).
+    // They are here only to prove the check discriminates rather than always
+    // returning false, which would hide a real 400 if a model ever changed.
+    for (const model of [
+      "claude-opus-4-8",
+      "claude-opus-5",
+      "claude-sonnet-5",
+      "claude-sonnet-4-6",
+    ]) {
+      expect(modelSupportsEffort(model), `${model} supports effort`).toBe(true);
+    }
+  });
+
+  it("uses Haiku for every Academy call — never Opus, Sonnet or Fable", () => {
+    // Standing Atlas policy (lib/academy/models.ts, CLAUDE.md). All four keys
+    // bill one org cap, so a higher-tier call here starves Elia and the bot.
+    // This test is the tripwire: reintroducing a tier fails the suite.
+    const models = {
+      ACADEMY_PERSONA_MODEL,
+      ACADEMY_AI_ASSIST_MODEL,
+      ACADEMY_EVALUATOR_MODEL,
+      ACADEMY_TICKET_REVIEW_MODEL,
+    };
+    for (const [name, model] of Object.entries(models)) {
+      expect(model, `${name} must be Haiku`).toMatch(/^claude-haiku-/);
+    }
+    // The stamps travel with every persisted score, so they must not advertise
+    // a tier that never ran.
+    for (const [name, version] of Object.entries({
+      ACADEMY_EVALUATOR_VERSION,
+      ACADEMY_TICKET_REVIEW_VERSION,
+    })) {
+      expect(version, `${name} names a forbidden tier`).not.toMatch(
+        /opus|sonnet|fable|mythos/i,
+      );
+    }
+    // The judges also sit on the same model as each other — a split would make
+    // the two halves of one request's score incomparable.
+    expect(ACADEMY_TICKET_REVIEW_MODEL).toBe(ACADEMY_EVALUATOR_MODEL);
+    // And Haiku rejects `effort` outright, so neither judge may send it. This
+    // is what makes the tier safe rather than a 400 on every scoring call.
+    expect(modelSupportsEffort(ACADEMY_EVALUATOR_MODEL)).toBe(false);
+    expect(modelSupportsEffort(ACADEMY_TICKET_REVIEW_MODEL)).toBe(false);
+  });
+
+  it("stamps the model into the version, so a tier change is visible in the data", () => {
+    // Reviews persist these strings. If the model moves and the stamp doesn't,
+    // scores from two different judges become indistinguishable in the table.
+    expect(ACADEMY_EVALUATOR_VERSION).toContain("haiku");
+    expect(ACADEMY_TICKET_REVIEW_VERSION).toContain("haiku");
+  });
+});
+
+// ── Judge transcript caps ────────────────────────────────────────────────────
+//
+// Both judges are billed per token on everything the transcript carries, and a
+// single pasted blob used to ride into BOTH judge calls uncapped. These pin the
+// bounds and, just as importantly, that the elision is marked — a judge must
+// never read an omission as the trainee going silent.
+
+describe("judgeTranscript", () => {
+  function turnOf(role: "client" | "intern", body: string): TrainingTurn {
+    return turn(role, body);
+  }
+
+  it("passes a normal conversation through untouched", () => {
+    const turns = [
+      turnOf("client", "I need a Cartier Tank before the 14th."),
+      turnOf("intern", "Of course — may I ask the budget range?"),
+    ];
+    expect(judgeTranscript(turns)).toBe(
+      `Client: I need a Cartier Tank before the 14th.\nConcierge: Of course — may I ask the budget range?`,
+    );
+  });
+
+  it("cuts a pasted blob at the per-turn cap, with a visible marker", () => {
+    const blob = "x".repeat(JUDGE_TURN_CHAR_CAP + 2_000);
+    const out = judgeTranscript([turnOf("intern", blob)]);
+    expect(out).toContain("…[message truncated]");
+    // Cap + speaker label + marker — nowhere near the raw blob.
+    expect(out.length).toBeLessThan(JUDGE_TURN_CHAR_CAP + 100);
+  });
+
+  it("bounds the whole transcript and marks what was elided", () => {
+    // 60 turns of ~400 chars ≈ 24k chars — double the transcript cap.
+    const turns = Array.from({ length: 60 }, (_, i) =>
+      turnOf(i % 2 ? "intern" : "client", `m${i} ` + "y".repeat(400)),
+    );
+    const out = judgeTranscript(turns);
+    expect(out.length).toBeLessThanOrEqual(JUDGE_TRANSCRIPT_CHAR_CAP + 100);
+    expect(out).toMatch(/\[… \d+ earlier messages omitted …\]/);
+    // The opening (the request) and the tail (the resolution) both survive.
+    expect(out).toContain("m0 ");
+    expect(out).toContain("m59 ");
+  });
+
+  it("never elides on a realistic session", () => {
+    // Production p99 turn is ~1.1k chars and the largest whole transcript ever
+    // recorded is ~13.9k — but a typical session (median 1.7k chars) must never
+    // trigger either cap.
+    const turns = Array.from({ length: 40 }, (_, i) =>
+      turnOf(i % 2 ? "intern" : "client", `message ${i}: ` + "z".repeat(100)),
+    );
+    const out = judgeTranscript(turns);
+    expect(out).not.toContain("omitted");
+    expect(out).not.toContain("truncated");
+  });
+
+  it("handles the empty session", () => {
+    expect(judgeTranscript([])).toBe("(no messages)");
   });
 });

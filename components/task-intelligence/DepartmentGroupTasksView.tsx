@@ -9,6 +9,7 @@ import { ChevronDown, LayoutGrid } from "lucide-react";
 import * as LucideIcons from "lucide-react";
 import { cn, getInitials } from "@/lib/utils";
 import { surfaceCardVariants } from "@/components/ui/card";
+import { DynamicIcon } from "@/components/ui/dynamic-icon";
 import { MemberAvatarStack } from "@/components/tasks/MemberAvatarStack";
 import { SubTaskStatusBadge } from "@/components/tasks/SubTaskStatusBadge";
 import { TaskPriorityBadge } from "@/components/tasks/TaskPriorityBadge";
@@ -103,7 +104,7 @@ function ReadOnlyMasterRow({
 }) {
   const [open, setOpen] = useState(false);
   const accentColor = masterTask.cover_color ?? "#D4AF37";
-  const Icon = getIcon(masterTask.icon_key);
+  const icon = getIcon(masterTask.icon_key);
 
   const allSubtasks = taskGroups.flatMap((g) => g.tasks);
   const total =
@@ -154,8 +155,8 @@ function ReadOnlyMasterRow({
           className="w-8 h-8 shrink-0 rounded-lg flex items-center justify-center"
           style={{ backgroundColor: `${accentColor}20` }}
         >
-          {Icon ? (
-            <Icon className="w-4 h-4" style={{ color: accentColor }} />
+          {icon ? (
+            <DynamicIcon icon={icon} className="w-4 h-4" style={{ color: accentColor }} />
           ) : (
             <div className="w-3 h-3 rounded-full" style={{ backgroundColor: accentColor }} />
           )}

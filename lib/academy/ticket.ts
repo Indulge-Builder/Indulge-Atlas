@@ -15,12 +15,17 @@
  * Pure module — no I/O, fully deterministic, safe on client and server.
  */
 
+import { z } from "zod";
 import type {
   AcademyTicketPriority,
   AcademyTicketStatus,
   AcademyTicketTag,
 } from "@/lib/types/database";
-import { ACADEMY_TICKET_TAGS } from "@/lib/types/database";
+import {
+  ACADEMY_TICKET_PRIORITIES,
+  ACADEMY_TICKET_STATUSES,
+  ACADEMY_TICKET_TAGS,
+} from "@/lib/types/database";
 
 // ── Vocabulary ───────────────────────────────────────────────────────────────
 
@@ -62,6 +67,7 @@ export const TICKET_TAG_LABEL: Record<AcademyTicketTag, string> = {
   concierge: "Concierge",
   shopping: "Shopping",
   urgent: "Urgent",
+  other: "Other",
 };
 
 /**
@@ -180,7 +186,13 @@ export function deriveTicket(input: DeriveTicketInput): AcademyTicket {
   };
 }
 
-/** Minutes between session start and submission — the "Time Spent" field. */
+/**
+ * Wall-clock span between two timestamps.
+ *
+ * This is NOT what goes on the ticket — see `measuredTicketMinutes`. A trainee
+ * who opens a request in the afternoon and finishes it the next morning has a
+ * span of eighteen hours and did not spend eighteen hours on it.
+ */
 export function elapsedMinutes(
   startedAt: string | null,
   endedAt: string | null,
@@ -190,6 +202,62 @@ export function elapsedMinutes(
   const b = new Date(endedAt).getTime();
   if (!Number.isFinite(a) || !Number.isFinite(b) || b < a) return null;
   return Math.max(1, Math.round((b - a) / 60_000));
+}
+
+/**
+ * A gap longer than this between two messages is someone walking away, not
+ * someone working. Half an hour is deliberately generous — sourcing a watch or
+ * checking a visa rule genuinely takes that long between replies.
+ */
+export const IDLE_GAP_MINUTES = 30;
+
+/**
+ * The only limit left is the width of the `integer` column it is stored in.
+ * There is deliberately NO business ceiling: the figure is measured for the
+ * trainee rather than typed by them, so any cap can only ever reject a
+ * submission they have no way to correct. A long request records as a long
+ * request.
+ */
+const INT4_MAX = 2_147_483_647;
+
+/**
+ * Round a measured time-spent figure into a storable integer.
+ *
+ * Floors at one minute — a submitted ticket represents at least a minute of
+ * someone's attention — and guards against a non-finite measurement, which is
+ * the only way this can arrive as something the column cannot hold.
+ */
+export function normaliseTimeSpentMinutes(value: number): number {
+  if (!Number.isFinite(value)) return 1;
+  return Math.min(INT4_MAX, Math.max(1, Math.round(value)));
+}
+
+/**
+ * Time spent on the request, measured from the transcript.
+ *
+ * Sums the gap between consecutive messages, counting at most
+ * `IDLE_GAP_MINUTES` for any one gap. First-to-last wall-clock was the previous
+ * definition and it billed the overnight break as work: an eighteen-hour figure
+ * on a request that took two hours of actual attention.
+ *
+ * Returns null when there is nothing to measure, so the caller can decide what
+ * an unmeasurable session should show.
+ */
+export function measuredTicketMinutes(
+  turns: { created_at: string }[],
+): number | null {
+  const stamps = turns
+    .map((t) => new Date(t.created_at).getTime())
+    .filter((ms) => Number.isFinite(ms))
+    .sort((a, b) => a - b);
+  if (stamps.length < 2) return stamps.length === 1 ? 1 : null;
+
+  let minutes = 0;
+  for (let i = 1; i < stamps.length; i++) {
+    const gap = (stamps[i] - stamps[i - 1]) / 60_000;
+    minutes += Math.min(Math.max(gap, 0), IDLE_GAP_MINUTES);
+  }
+  return normaliseTimeSpentMinutes(minutes);
 }
 
 export function formatMinutes(minutes: number): string {
@@ -237,11 +305,9 @@ export function validateTicketUpdate(input: TicketUpdateInput): string[] {
       `Internal notes need at least ${MIN_INTERNAL_NOTES} characters — leave context for whoever picks this up next.`,
     );
   }
-  if (input.public_reply.trim().length < MIN_PUBLIC_REPLY) {
-    errors.push(
-      `Public reply needs at least ${MIN_PUBLIC_REPLY} characters — this is what the client reads.`,
-    );
-  }
+  // No public-reply check: the field was removed from the ticket. The reply to
+  // the member is the conversation itself, which is already graded by the
+  // evaluator — asking the trainee to compose it twice was duplicate work.
   if (input.tags.length === 0) {
     errors.push("Add at least one tag so the ticket is findable.");
   }
@@ -261,4 +327,69 @@ export function validateTicketUpdate(input: TicketUpdateInput): string[] {
 /** Can this update close out the request? Structure + a terminal status. */
 export function canSubmitForReview(input: TicketUpdateInput): boolean {
   return validateTicketUpdate(input).length === 0 && isTerminalStatus(input.status);
+}
+
+// ── Wire schema ──────────────────────────────────────────────────────────────
+
+/**
+ * The shape a ticket submission travels in — used by the server action AND by
+ * the form's own pre-flight, so there is exactly one definition of what the
+ * backend accepts.
+ *
+ * It lives here rather than in `lib/actions/academy.ts` because the two drifted
+ * apart once already: the action capped `time_spent_minutes` at 960 while the
+ * form fed it an unbounded wall-clock measurement, and every request that ran
+ * past sixteen hours died on submit with "Invalid ticket update" — no field
+ * named, and a read-only field the trainee could not have corrected anyway.
+ * That cap is gone; the field now records what it measures.
+ *
+ * The enums are read from the same constants the form renders its options from,
+ * so a new status or tag cannot be offered in the UI without being accepted on
+ * the wire.
+ */
+export const ticketUpdateSchema = z.object({
+  resolution_summary: z.string().max(4000),
+  internal_notes: z.string().max(4000),
+  // Kept for older tickets and for the column's NOT NULL default. The field was
+  // removed from the form — the reply to the member is the conversation itself.
+  public_reply: z.string().max(4000),
+  status: z.enum(ACADEMY_TICKET_STATUSES),
+  priority: z.enum(ACADEMY_TICKET_PRIORITIES),
+  tags: z.array(z.enum(ACADEMY_TICKET_TAGS)).max(ACADEMY_TICKET_TAGS.length),
+  // Measured, not typed — normalised to a storable integer, never rejected.
+  time_spent_minutes: z.number().transform(normaliseTimeSpentMinutes),
+});
+
+export type TicketUpdatePayload = z.infer<typeof ticketUpdateSchema>;
+
+/** Field labels for error messages, so a rejection names something on screen. */
+const FIELD_LABEL: Record<string, string> = {
+  resolution_summary: "Resolution summary",
+  internal_notes: "Internal notes",
+  public_reply: "Public reply",
+  status: "Status",
+  priority: "Priority",
+  tags: "Tags",
+  time_spent_minutes: "Time spent",
+};
+
+/**
+ * Turn a schema rejection into something the trainee can act on.
+ *
+ * The old handler collapsed every possible failure into the string "Invalid
+ * ticket update", which is why this bug took a database query to diagnose
+ * rather than a glance at the toast.
+ */
+export function describeTicketIssues(error: z.ZodError): string {
+  const seen = new Set<string>();
+  const parts: string[] = [];
+  for (const issue of error.issues) {
+    const key = String(issue.path[0] ?? "");
+    const label = FIELD_LABEL[key] ?? key ?? "Ticket";
+    const line = `${label}: ${issue.message}`;
+    if (seen.has(line)) continue;
+    seen.add(line);
+    parts.push(line);
+  }
+  return parts.length > 0 ? parts.join(" · ") : "Invalid ticket update";
 }

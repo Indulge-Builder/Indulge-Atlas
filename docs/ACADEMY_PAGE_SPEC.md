@@ -84,6 +84,7 @@ Four tables plus two `SECURITY DEFINER` helpers, created in migration
 | `128_academy_seed_library_expansion.sql` | 12 more scenarios (**24 total** hand-written) | Data only; guarded by `NOT EXISTS` on title |
 | `129_academy_curriculum_structure.sql` | `advanced` / `expert` difficulty tiers, curriculum columns (`group_number`, `day_number`, `task_number`, `task_date`, `raised_by`, `brief`), `academy_group_progress()` RPC | Columns not a new table: a curriculum position is not an entity with its own lifecycle, and this leaves every existing policy, action and route untouched |
 | `130_academy_curriculum_tasks.sql` | **176 curriculum tasks** from the real Indulge Retail Training register | Data only; guarded by `NOT EXISTS` on `task_number` |
+| `136_academy_pdf_attachments.sql` | Adds `application/pdf` to the `academy-attachments` mime allow-list | Config only — bucket stays private, keeps its 50 MB ceiling and its 127 object policies. PDF specifically, not `application/*`: the bucket's contents are rendered back to users |
 
 Standalone apply files live in **`supabase/manual/`** (`academy_part1_enum` …
 `academy_part8_curriculum_tasks`, plus `academy_part4_verify.sql`). The verify
@@ -177,7 +178,7 @@ the only trainer capability here.
 | `role` | `text` NOT NULL | CHECK ∈ `client, intern` |
 | `body` | `text` NOT NULL | Sanitised (`sanitizeText`) before insert |
 | `seq` | `integer` NOT NULL | Ordering axis with `created_at` |
-| `attachments` | `jsonb` NOT NULL `[]` | *127.* `[{ path, kind, mime, name, size }]` — written at INSERT only |
+| `attachments` | `jsonb` NOT NULL `[]` | *127.* `[{ path, kind, mime, name, size }]` — written at INSERT only. `kind` is `image \| video \| document` (`document` added with 136) |
 | `created_at` | `timestamptz` NOT NULL | |
 
 Indexes: **UNIQUE** `(session_id, seq)` — keeps the append log gap-free and
@@ -240,17 +241,33 @@ No INSERT/UPDATE/DELETE policy for `authenticated`: **only the evaluator service
 running under the service role, can create a score.** There is no client-side path
 to writing or amending a review.
 
-### 2.5 `academy-attachments` storage bucket (127)
+### 2.5 `academy-attachments` storage bucket (127, widened by 136)
 
-Private bucket, 50 MB ceiling, `image/*` + `video/*` only. Path convention is
-`academy/{session_id}/{uuid}-{filename}`, so `storage.foldername(name)[2]` is the
-session id and the object policies reuse `can_access_academy_session()` directly —
-after a UUID-shape regex guard, so a malformed path cannot raise inside a policy
-predicate. SELECT and INSERT only. Reads are served as short-lived signed URLs
-(1 hour), minted in one batched call by the server action; the action enforces
-tighter per-kind caps than the bucket (10 MB images, 50 MB video) and only the
-owning intern may upload — a trainer observing a session deliberately cannot
-inject media into it.
+Private bucket, 50 MB ceiling, `image/*` + `video/*` + `application/pdf`. Path
+convention is `academy/{session_id}/{uuid}-{filename}`, so
+`storage.foldername(name)[2]` is the session id and the object policies reuse
+`can_access_academy_session()` directly — after a UUID-shape regex guard, so a
+malformed path cannot raise inside a policy predicate. SELECT and INSERT only.
+Reads are served as short-lived signed URLs (1 hour), minted in one batched call
+by the server action; the action enforces tighter per-kind caps than the bucket
+(10 MB images, 50 MB video, 4 MB documents — the last set honestly, because
+Vercel caps a serverless request body at ~4.5 MB and the file travels through a
+server action) and only the owning intern may
+upload — a trainer observing a session deliberately cannot inject media into it.
+
+**The allow-list is a real gate, not documentation.** Storage matches an
+upload's *declared* content type against it and refuses anything else at the
+storage API — after every application-layer check has already passed. That is
+why `uploadAcademyAttachment` never forwards `file.type` blindly: a PDF the
+browser typed as `application/octet-stream` is normalised by
+`resolveContentType()` (`lib/academy/attachments.ts`) before it is uploaded.
+
+**One classifier, every layer.** The composer's `accept`, the composer's own
+check, the upload action, the chat route's zod enum and the bubble's renderer
+all read `lib/academy/attachments.ts`. They used to decide independently and
+drifted: PDFs were dropped silently by the composer and rejected with a bare 400
+by the route. `__tests__/academy-attachments.test.ts` pins each layer to the
+shared module.
 
 ---
 
@@ -396,9 +413,15 @@ only, never real client data.*
 
 **Request** — `{ sessionId: uuid, message?: string (≤4000), attachments?: [{ path, kind, mime, name, size }] (≤4) }`.
 `message` is `sanitizeText`'d and trimmed. A turn must carry **something**: empty
-text *and* no attachments is a 400. Attachment paths are re-scoped to
+text *and* no attachments is a 400 — but an attachment with no text is a valid
+message and always has been. Attachment paths are re-scoped to
 `academy/{sessionId}/` server-side, so a caller cannot post a path belonging to
 someone else's session.
+
+`kind` is validated against `ATTACHMENT_KINDS` (`lib/academy/attachments.ts`),
+not a literal enum. A kind missing from that list fails the whole body, so the
+turn is refused with a bare 400 and the intern is told their message was not
+sent — which is exactly how PDFs failed before migration 136.
 
 **Response** — **`text/plain; charset=utf-8`, streamed**. Not SSE, not JSON. Read
 it with `res.body.getReader()` + `TextDecoder` and append deltas as they arrive.
@@ -438,9 +461,11 @@ the transcript). See §5 for why that makes `openingMessage` load-bearing.
 
 **Media.** Shared images that Anthropic vision accepts (`jpeg/png/gif/webp`,
 ≤4 MB) are downloaded and inlined as base64 blocks so the persona actually *sees*
-them; anything else — video included — is described in a text block instead. A
-media-only turn is stored with a readable body (`[shared a photo]` /
-`[shared a video]`) so the transcript and the evaluator still make sense.
+them; anything else — video and PDF documents included — is described in a text
+block instead, and the wording is careful to say the member can see a file
+arrived without claiming to know its contents. A media-only turn is stored with
+a readable body (`[shared a photo]` / `[shared a video]` / `[shared a
+document]`) so the transcript and the evaluator still make sense.
 
 **Turn cap.** `ACADEMY_TURN_CAP = 24` intern messages (`lib/academy/models.ts`).
 Reaching it returns 409 and does **not** auto-close the session — the intern
@@ -604,10 +629,14 @@ scores, choose the lower."* — and a system prompt framing the evaluator as
 
 ### 6.4 Execution
 
-- Model **`claude-opus-4-8`**, `max_tokens: 2000`, `stream: false`,
-  `output_config: { effort: "medium", format: { type: "json_schema", schema: EVALUATOR_OUTPUT_SCHEMA } }`.
-  If the API rejects that shape, one retry with `effort` only — the prompt still
-  demands JSON, so a wire-format change cannot take scoring offline.
+- Model **`claude-haiku-4-5-20251001`** (`ACADEMY_EVALUATOR_MODEL` — Academy is
+  single-tier; every call it makes is Haiku), `max_tokens: 6000`,
+  `stream: false`, `output_config: { format: { type: "json_schema", schema: EVALUATOR_OUTPUT_SCHEMA } }`.
+  If the API rejects that shape, one retry without `output_config` — the prompt
+  still demands JSON, so a wire-format change cannot take scoring offline.
+  **`effort` is never sent on Haiku** — it rejects the parameter outright and
+  the request 400s before the model sees the prompt, so `modelSupportsEffort()`
+  gates it (`lib/academy/models.ts`).
 - **Idempotent**: an existing `training_reviews` row for the session
   short-circuits and returns (the UNIQUE on `session_id` is the key).
 - **Refuses to guess**: a truncated response (`stop_reason === "max_tokens"`) or a
@@ -616,7 +645,9 @@ scores, choose the lower."* — and a system prompt framing the evaluator as
 - The evaluator receives the **resolved** hidden constraints — the per-session
   mutated values, matching exactly what the persona was playing.
 - Every review stamps `model_version = ACADEMY_EVALUATOR_VERSION`
-  (`"academy-eval-1@claude-opus-4-8"`), so scoring drift is detectable.
+  (`"academy-eval-4@claude-haiku-4-5"`), so scoring drift is detectable. Bump it
+  on every model or rubric change; scores stamped with different versions are
+  not one series and must not be compared.
 - Failure is surfaced, not swallowed: `endAcademySession` returns `{ reviewError }`
   and the session page offers `retryAcademyEvaluation`.
 
@@ -787,7 +818,7 @@ real member PII into a table read by every trainer and fed to a model.
 
 ### 9.5 Scoring drift — a model upgrade silently rewrites the scale
 
-If Opus changes, or the rubric prompt is edited, next month's 3.4 is not
+If the judge model changes, or the rubric prompt is edited, next month's 3.4 is not
 comparable to last month's 3.4 — and nobody can tell whether an intern improved or
 the grader moved.
 
@@ -919,7 +950,7 @@ was never retried, and no rate limiting on `POST /api/academy/chat` beyond the
 | `lib/academy/curriculum.ts` | No | Tiers, tier tokens, `memberForTask` roster (+ vestigial ladder maths, §3.3) |
 | `lib/academy/pii.ts` | No | PII detector — pure, client- and server-safe |
 | `lib/academy/types.ts` | No | UI view models — lives outside the action module because `"use server"` permits async exports only |
-| `lib/services/academyEvaluator.ts` | No | Opus call + service-role write — imported by `lib/actions/academy.ts` |
+| `lib/services/academyEvaluator.ts` | No | Haiku judge call + service-role write — imported by `lib/actions/academy.ts` |
 | `app/api/academy/chat/route.ts` | n/a | The only caller of `buildPersonaSystemPrompt` |
 
 > **Stale in-code comments to ignore** (the code is right, the comments are not):

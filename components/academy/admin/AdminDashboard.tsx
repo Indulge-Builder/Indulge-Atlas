@@ -348,7 +348,7 @@ function TraineeTable({
 
       <div className="overflow-x-auto rounded-xl border border-surface-border bg-white">
         <table className="w-full min-w-[720px] text-left">
-          <caption className="sr-only">Academy trainees ranked by quality of work</caption>
+          <caption className="sr-only">Indulge Training trainees ranked by quality of work</caption>
           <thead>
             <tr className="border-b border-surface-border text-[10.5px] uppercase tracking-[0.08em] text-black/45">
               <th scope="col" className="px-3 py-2.5 font-semibold">#</th>
@@ -489,7 +489,7 @@ export function AdminDashboard({
       ) : null}
 
       <section aria-labelledby="kpi-heading">
-        <h2 id="kpi-heading" className="sr-only">Academy overview</h2>
+        <h2 id="kpi-heading" className="sr-only">Indulge Training overview</h2>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
           <Kpi
             icon={<Users className="size-3.5" aria-hidden />}

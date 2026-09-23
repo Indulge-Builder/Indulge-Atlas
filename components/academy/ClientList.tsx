@@ -11,12 +11,13 @@
 
 import { useMemo, useState, type JSX } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, Search, GraduationCap, MessageCircle } from "lucide-react";
+import { Check, Lock, Search, GraduationCap, MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatIST } from "@/lib/utils/time";
 import { ProgressBreakdown } from "@/components/academy/ProgressBreakdown";
 import { TIER_CLASS, TIER_LABEL, type AcademyTier } from "@/lib/academy/curriculum";
 import type { AcademyClientOverview, AcademyClientRow } from "@/lib/academy/types";
+import type { DaySection } from "@/lib/academy/trainingDays";
 
 const nf = new Intl.NumberFormat("en-IN");
 
@@ -53,6 +54,7 @@ function ClientRow({
   const live = client.status === "in_progress";
   // Conversation finished, ticket still owed — the row must not read as done.
   const awaitingTicket = client.status === "awaiting_ticket";
+  const scoringFailed = client.status === "scoring_failed";
   const tier = client.difficulty as AcademyTier;
 
   return (
@@ -132,16 +134,20 @@ function ClientRow({
           <span
             className={cn(
               "truncate text-[11px]",
-              awaitingTicket ? "font-medium text-warning" : "text-chat-ink-muted",
+              awaitingTicket || scoringFailed
+                ? "font-medium text-warning"
+                : "text-chat-ink-muted",
             )}
           >
             {done
               ? `Completed · ${client.overall?.toFixed(1) ?? "—"}/5`
               : awaitingTicket
                 ? "Ticket update required"
-                : live
-                  ? "In progress"
-                  : client.vertical}
+                : scoringFailed
+                  ? "Scoring failed — retry"
+                  : live
+                    ? "In progress"
+                    : client.vertical}
           </span>
         </div>
       </div>
@@ -171,6 +177,8 @@ export function ClientList({
   activeSeedId,
   onSelect,
   className,
+  dayGroups,
+  headline,
 }: {
   clients: AcademyClientRow[];
   /** Live per-client inbox state (unread, activity) keyed by seedId. */
@@ -182,6 +190,15 @@ export function ClientList({
   activeSeedId: string | null;
   onSelect: (seedId: string) => void;
   className?: string;
+  /**
+   * Training mode. When present the roster is grouped into days instead of
+   * rendered flat, and locked days show a notice in place of their rows.
+   * Everything else — the panel, search, filters, row design — is unchanged,
+   * because this is the same sidebar serving different content.
+   */
+  dayGroups?: DaySection[];
+  /** Overrides the panel title and subtitle (Clients vs Training). */
+  headline?: { title: string; subtitle: string };
 }): JSX.Element {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"all" | "open" | "completed">("all");
@@ -200,6 +217,12 @@ export function ClientList({
       );
     });
   }, [clients, query, filter]);
+
+  /** Day sections look their rows up by id, so they inherit search + filters. */
+  const visibleById = useMemo(
+    () => new Map(visible.map((c) => [c.seedId, c])),
+    [visible],
+  );
 
   return (
     /*
@@ -222,7 +245,9 @@ export function ClientList({
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <h1 className="font-serif text-[17px] leading-tight text-chat-ink">Academy</h1>
+              <h1 className="font-serif text-[17px] leading-tight text-chat-ink">
+                {headline?.title ?? "Indulge Training"}
+              </h1>
               {totalUnread && totalUnread > 0 ? (
                 <motion.span
                   initial={{ scale: 0.7, opacity: 0 }}
@@ -234,8 +259,11 @@ export function ClientList({
               ) : null}
             </div>
             <p className="truncate text-[11.5px] text-chat-ink-muted">
-              {nf.format(overview.completed)} of {nf.format(overview.total)} clients handled
-              {overview.inProgress > 0 ? ` · ${overview.inProgress} open` : ""}
+              {headline
+                ? headline.subtitle
+                : `${nf.format(overview.completed)} of ${nf.format(overview.total)} clients handled${
+                    overview.inProgress > 0 ? ` · ${overview.inProgress} open` : ""
+                  }`}
             </p>
           </div>
         </div>
@@ -278,7 +306,56 @@ export function ClientList({
       </div>
 
       <div>
-        {visible.length === 0 ? (
+        {dayGroups ? (
+          dayGroups.map((day) => {
+            // Search and the filter chips still apply, so a day can legitimately
+            // show fewer rows than it holds.
+            const rows = day.seedIds
+              .map((id) => visibleById.get(id))
+              .filter((c): c is AcademyClientRow => c !== undefined);
+
+            return (
+              <section key={day.dayNumber}>
+                <header className="flex items-center justify-between gap-2 border-b border-chat-divider bg-chat-panel-active px-4 py-2">
+                  <span className="flex items-center gap-1.5 text-[12px] font-semibold text-chat-ink">
+                    {day.isLocked ? (
+                      <Lock className="size-3 text-chat-locked" aria-hidden />
+                    ) : day.isComplete ? (
+                      <Check className="size-3.5 text-chat-accent-dark" aria-hidden />
+                    ) : null}
+                    Day {day.dayNumber}
+                  </span>
+                  {!day.isLocked && (
+                    <span className="text-[11px] tabular-nums text-chat-ink-muted">
+                      {day.completedCount}/{day.taskCount}
+                    </span>
+                  )}
+                </header>
+
+                {day.isLocked ? (
+                  <p className="px-4 py-3 text-[11.5px] leading-relaxed text-chat-ink-muted">
+                    Complete Day {day.unlockedBy} to unlock
+                  </p>
+                ) : rows.length === 0 ? (
+                  <p className="px-4 py-3 text-[11.5px] text-chat-ink-muted">
+                    Nothing here matches that search.
+                  </p>
+                ) : (
+                  rows.map((c) => (
+                    <ClientRow
+                      key={c.seedId}
+                      client={c}
+                      isActive={c.seedId === activeSeedId}
+                      unread={inboxState?.get(c.seedId)?.unread ?? 0}
+                      flash={flashSeedId === c.seedId}
+                      onSelect={onSelect}
+                    />
+                  ))
+                )}
+              </section>
+            );
+          })
+        ) : visible.length === 0 ? (
           <p className="px-4 py-8 text-center text-[13px] text-chat-ink-muted">
             No clients match that search.
           </p>

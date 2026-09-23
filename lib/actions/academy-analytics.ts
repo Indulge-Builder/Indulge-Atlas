@@ -14,7 +14,7 @@
 
 import { getAuthUser } from "@/lib/auth/getAuthUser";
 import { getServiceSupabaseClient } from "@/lib/supabase/service";
-import { isAcademyTrainer } from "@/lib/types/database";
+import { isPrivilegedRole } from "@/lib/types/database";
 import {
   computeKpis,
   rankTrainees,
@@ -63,10 +63,19 @@ function avgAcross(values: (number | null)[]): number | null {
   return Math.round((nums.reduce((a, b) => a + b, 0) / nums.length) * 10) / 10;
 }
 
-async function assertTrainer(): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { role, department } = await getAuthUser();
-  if (!isAcademyTrainer(role, department)) {
-    return { ok: false, error: "Trainers only" };
+/**
+ * Cohort-wide analytics is an admin dashboard, not a trainer surface.
+ *
+ * Gated here as well as on the page: a server action is a callable endpoint, so
+ * a `notFound()` in the route component alone would still leave the data
+ * reachable by anyone who invoked the action directly. Trainers review their
+ * cohort through the Cohort tab (`getAcademyCohort`), which remains open to
+ * them.
+ */
+async function assertAdmin(): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { role } = await getAuthUser();
+  if (!isPrivilegedRole(role)) {
+    return { ok: false, error: "Administrators only" };
   }
   return { ok: true };
 }
@@ -368,7 +377,7 @@ export interface AcademyDashboard {
 
 /** KPI strip + ranked trainee table + leaderboard, in one payload. */
 export async function getAcademyDashboard(): Promise<Result<AcademyDashboard>> {
-  const gate = await assertTrainer();
+  const gate = await assertAdmin();
   if (!gate.ok) return { success: false, error: gate.error };
 
   const folded = await foldAcademy();
@@ -433,7 +442,7 @@ export interface TraineeProfile {
 export async function getTraineeProfile(
   internId: string,
 ): Promise<Result<TraineeProfile>> {
-  const gate = await assertTrainer();
+  const gate = await assertAdmin();
   if (!gate.ok) return { success: false, error: gate.error };
 
   const folded = await foldAcademy();

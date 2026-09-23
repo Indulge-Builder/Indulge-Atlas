@@ -46,7 +46,7 @@ export const TICKET_REVIEW_DIMENSIONS: TicketDimensionDef[] = [
     key: "professionalism",
     label: "Professionalism",
     description:
-      "Is the public reply client-ready — warm, on-brand, free of internal jargon and blame?",
+      "Is the write-up professional — clear, on-brand, free of blame and of shorthand a colleague would have to decode?",
     weight: 1,
   },
   {
@@ -60,7 +60,7 @@ export const TICKET_REVIEW_DIMENSIONS: TicketDimensionDef[] = [
     key: "client_satisfaction",
     label: "Client satisfaction",
     description:
-      "Would the client read this reply and consider themselves properly looked after?",
+      "Judging by the conversation and this write-up, would the member consider themselves properly looked after?",
     weight: 1,
   },
   {
@@ -150,9 +150,6 @@ ${input.update.resolution_summary}
 
 Internal notes:
 ${input.update.internal_notes}
-
-Public reply (this is what the client receives):
-${input.update.public_reply}
 
 REVIEW RUBRIC — score each dimension 1–5:
 ${RUBRIC_TEXT}
@@ -279,26 +276,32 @@ export function buildVerdict(
   modelVersion: string,
 ): AcademyTicketVerdict {
   const quality = computeTicketQuality(parsed.scores);
-  const passed = decidePassed(parsed.passed, parsed.scores, quality, status);
+  // Whether the write-up met the documentation bar. This no longer gates
+  // completion — the trainee gets one submission and the request is handled on
+  // it — but it still sets `quality`, which carries into the progress model, and
+  // it decides whether the trainee is shown fixes to learn from.
+  const meetsBar = decidePassed(parsed.passed, parsed.scores, quality, status);
 
-  // A code-side veto must explain itself, or the intern sees "not passed" with
-  // an empty feedback list and no way forward.
+  // Feedback must explain itself, or the intern sees a weak score with no way to
+  // understand it.
   const feedback = [...parsed.feedback];
-  if (!passed && feedback.length === 0) {
+  if (!meetsBar && feedback.length === 0) {
     if (!isTerminalStatus(status)) {
       feedback.push(
         "Set the ticket status to Resolved or Closed once the request is genuinely handled.",
       );
     } else {
       feedback.push(
-        "This write-up is not yet strong enough to close — tighten the weakest sections and resubmit.",
+        "This write-up came in below the documentation bar — the weakest sections are scored above.",
       );
     }
   }
 
   return {
-    passed,
-    feedback: passed ? [] : feedback,
+    // One submission per ticket: submitting accepts it and hands the request in.
+    passed: true,
+    meets_bar: meetsBar,
+    feedback: meetsBar ? [] : feedback,
     scores: parsed.scores,
     quality,
     model_version: modelVersion,

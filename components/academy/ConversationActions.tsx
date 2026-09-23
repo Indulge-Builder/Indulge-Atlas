@@ -37,7 +37,7 @@ import { AcademyReport } from "@/components/academy/AcademyReport";
 import { PanelErrorBoundary } from "@/components/academy/PanelErrorBoundary";
 import { TicketDetails } from "@/components/academy/TicketPanel";
 import { TicketUpdateForm } from "@/components/academy/TicketUpdateForm";
-import { elapsedMinutes } from "@/lib/academy/ticket";
+import { measuredTicketMinutes } from "@/lib/academy/ticket";
 import type { AcademyClientThread } from "@/lib/academy/types";
 import type { AcademyScenarioCard } from "@/lib/types/database";
 
@@ -103,7 +103,13 @@ export function ConversationActions({
   onCompleted,
 }: {
   thread: AcademyClientThread;
-  onCompleted?: () => void;
+  /**
+   * Fires after the reviewer has ruled. `passed` distinguishes an accepted
+   * ticket — which completes the request — from one sent back for revision,
+   * which leaves it outstanding. The caller needs the difference: patching the
+   * row without it would show an accepted ticket as still owing one.
+   */
+  onCompleted?: (passed: boolean) => void;
 }): JSX.Element {
   const [panel, setPanel] = useState<PanelKey | null>(null);
 
@@ -113,8 +119,10 @@ export function ConversationActions({
     !!thread.sessionId &&
     (thread.status === "awaiting_ticket" || thread.status === "completed");
 
-  const first = thread.turns[0]?.created_at ?? null;
-  const last = thread.turns[thread.turns.length - 1]?.created_at ?? null;
+  // Time on the request, summed from the transcript with idle gaps discounted —
+  // NOT first-to-last wall clock, which counted the overnight break as work and
+  // produced figures the submit schema then refused.
+  const workedMinutes = measuredTicketMinutes(thread.turns);
 
   const close = () => setPanel(null);
 
@@ -201,12 +209,12 @@ export function ConversationActions({
                   sessionId={thread.sessionId}
                   existing={thread.ticket.update}
                   defaultPriority={thread.ticket.ticket.priority}
-                  suggestedMinutes={elapsedMinutes(first, last)}
+                  suggestedMinutes={workedMinutes}
                   onSubmitted={(passed) => {
                     // Refetch either way — a rejection is persisted too, and the
                     // verdict must survive closing and reopening the sheet.
                     if (passed) close();
-                    onCompleted?.();
+                    onCompleted?.(passed);
                   }}
                 />
               ) : null}

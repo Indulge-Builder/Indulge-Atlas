@@ -28,6 +28,14 @@ import type { AcademyMember } from "@/lib/academy/roster";
 export type AcademyRequestStatus =
   | "not_started"
   | "in_progress"
+  /**
+   * Conversation closed but the evaluator never returned — a transient API or
+   * model failure. Distinct from `in_progress` on purpose: the session is shut,
+   * so the chat route rejects every further message. Reporting it as in-progress
+   * re-enabled the composer and left the trainee typing into a 409 with no way
+   * forward and no ticket panel, because that is gated on a review existing.
+   */
+  | "scoring_failed"
   | "awaiting_ticket"
   | "completed";
 
@@ -46,6 +54,14 @@ export interface CohortInternRow {
   avgByDimension: Partial<Record<AcademyRubricDimension, number | null>>;
   /** Avg overall of the last 3 reviews minus the prior ones. Null if too few. */
   trend: number | null;
+  /**
+   * Standing in the cohort, 1 = strongest. Present so a trainee viewing their
+   * own row learns where they sit without being shown anyone else's name or
+   * score. Null until they have a scored request to rank.
+   */
+  rank?: number | null;
+  /** How many trainees the rank is out of. */
+  cohortSize?: number;
 }
 
 /** A session summary row in the intern's "my sessions" list. */

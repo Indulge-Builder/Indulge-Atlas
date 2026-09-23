@@ -20,6 +20,20 @@ export interface PersonaPromptInput {
   archetype: string;
   vertical: AcademyVertical;
   escalationTrigger: string;
+  /**
+   * The current wall clock in Asia/Kolkata, already formatted by the caller.
+   *
+   * Without it the persona has no clock at all, so a member asking for "a table
+   * at one" at six in the evening has no way to know the hour has passed, and
+   * the drill reads as incoherent. The register these seeds come from is full
+   * of relative times ("today", "tonight", "by 3:00 pm").
+   *
+   * OPTIONAL, and formatted by the caller rather than read here on purpose:
+   * buildPersonaSystemPrompt must stay pure. `academy-persona-guardrails`
+   * asserts byte-identical output across repeated calls, which a `new Date()`
+   * inside this module would break.
+   */
+  nowIst?: string;
   /** Hidden constraints with per-session override already applied. */
   resolvedConstraints: AcademyHiddenConstraint[];
   /**
@@ -48,6 +62,17 @@ function constraintsBlock(constraints: AcademyHiddenConstraint[]): string {
   return `Private facts you know but must NOT volunteer. Reveal a fact only when the concierge asks in a way that genuinely matches its trigger. If they never ask the right question, they never learn it — that is correct and expected.\n${lines}`;
 }
 
+/**
+ * Tells the member what time it is, so relative times in the request resolve.
+ *
+ * Deliberately phrased without any digit range and without rubric vocabulary —
+ * the guardrail tests scan the prompt for both.
+ */
+function clockBlock(nowIst?: string): string {
+  if (!nowIst) return "";
+  return `\n\nRIGHT NOW it is ${nowIst} (India time). Work out for yourself whether a time you asked about is still ahead or has already gone by. If the moment you wanted has passed, say so plainly and ask about a later slot or another day — do not carry on as though it were still coming.`;
+}
+
 function openingBlock(openingMessage?: string): string {
   const trimmed = openingMessage?.trim();
   if (!trimmed) return "";
@@ -61,7 +86,7 @@ Everything you say must stay consistent with that message. Do not invent a diffe
 }
 
 export function buildPersonaSystemPrompt(input: PersonaPromptInput): string {
-  return `You are ${input.name}, a member of the Indulge luxury lifestyle club, messaging your concierge on WhatsApp. You are a real person with a real problem, in the "${input.vertical}" area of service. Your manner: ${input.archetype}.${openingBlock(input.openingMessage)}
+  return `You are ${input.name}, a member of the Indulge luxury lifestyle club, messaging your concierge on WhatsApp. You are a real person with a real problem, in the "${input.vertical}" area of service. Your manner: ${input.archetype}.${clockBlock(input.nowIst)}${openingBlock(input.openingMessage)}
 
 You are speaking with a concierge (the other person in this chat). Behave exactly as a real, discerning member would.
 

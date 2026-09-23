@@ -10,10 +10,33 @@ import { normalizeToE164, e164LookupVariants } from "@/lib/utils/phone";
 import { sanitizeText } from "@/lib/utils/sanitize";
 import { sendGupshupMessage, sendTypingIndicator } from "@/lib/services/gupshupClient";
 import { processAndInsertLead } from "@/lib/services/leadIngestion";
+import {
+  CONCIERGE_CONVERSATION_CONDUCT,
+  deflectionRetryInstruction,
+  findDeflection,
+  isInformationRequest,
+} from "@/lib/ai/conversationConduct";
 import type { BotCatalogItem, BotClaudeResponse, BotSession } from "@/lib/types/database";
 
 const MODEL = "claude-haiku-4-5-20251001";
 const BOT_TURN_LIMIT = 7;
+
+/**
+ * How much conversation the model is shown.
+ *
+ * `bot_messages` is the authoritative transcript — every inbound and outbound
+ * message is written to it. It used to be write-only: inference read a
+ * *separate*, lossy copy in `bot_sessions.context_jsonb.last_turns`, which kept
+ * only 4 turns and truncated each side to 200 characters. That is what made the
+ * bot claim it had "already shared" details it could no longer see: the record
+ * that it answered survived truncation, the answer itself did not.
+ *
+ * 40 messages comfortably spans a 7-turn bot conversation plus any agent
+ * messages interleaved, and the character budget is a backstop against one
+ * pathological message rather than a per-message trim.
+ */
+const HISTORY_MESSAGE_LIMIT = 40;
+const HISTORY_CHAR_BUDGET = 24_000;
 
 const FALLBACK_REPLY = "Our team will be in touch shortly. 🙏";
 const HANDOFF_REPLY =
@@ -65,23 +88,138 @@ RULES:
 - Do not invent products not in the catalog.
 - Match client interests using Tags (brands, locations, experience types) before recommending.
 - For out-of-scope queries, politely redirect to one of the six luxury categories: watches, travel, events, sports, art, fashion.
-- When reply_type is image, always populate image_reply with the product_id and a caption that includes the product name, one compelling sentence about it, and the price range. Format: "[Name] — [one sentence]. [Price range]"`;
+- When reply_type is image, always populate image_reply with the product_id and a caption that includes the product name, one compelling sentence about it, and the price range. Format: "[Name] — [one sentence]. [Price range]"
+
+${CONCIERGE_CONVERSATION_CONDUCT}
+
+The conduct rules above govern text_reply. If the client asks for something you
+have already shown them — a price, a name, a link, the whole list — put it in
+text_reply again, in full. Re-sending is always correct; refusing is never.`;
 }
 
+/**
+ * Append to the transcript. Returns the new row id so the caller can exclude
+ * the message it just logged from the history it reads back.
+ */
 async function logBotMessage(
   supabase: ReturnType<typeof getServiceSupabaseClient>,
   sessionId: string,
   phone: string,
   role: "user" | "assistant",
   content: string,
-): Promise<void> {
+): Promise<string | null> {
   try {
-    await supabase
+    const { data, error } = await supabase
       .from("bot_messages")
-      .insert({ session_id: sessionId, phone, role, content } as never);
+      .insert({ session_id: sessionId, phone, role, content } as never)
+      .select("id")
+      .single();
+    if (error) {
+      console.error("[gupshupChatbot] Failed to log bot message:", error.message);
+      return null;
+    }
+    return (data as { id: string } | null)?.id ?? null;
   } catch (err) {
     console.error("[gupshupChatbot] Failed to log bot message:", err);
+    return null;
   }
+}
+
+/**
+ * The conversation as it actually happened, ready for the Messages API.
+ *
+ * Reads `bot_messages` — the record of what was really sent — rather than the
+ * summarised copy in `context_jsonb`. Two properties matter and neither was true
+ * before:
+ *
+ *   * messages are **whole**. A client asking "what was the price again?" can
+ *     only be answered if the earlier reply still contains the price.
+ *   * assistant turns are **what the client received**. Previously the stored
+ *     `out` was `text_reply`, the JSON fallback field, even on turns where the
+ *     client was actually sent a rendered list or an image caption — so the bot
+ *     "remembered" saying something nobody ever read.
+ *
+ * `agent` rows (a human replying from Atlas) map to `assistant`: from the
+ * client's side of the chat it is all one voice, and dropping them would make
+ * the bot contradict a colleague.
+ *
+ * Anthropic requires strictly alternating roles starting with `user`, so
+ * consecutive same-role rows are merged and any leading assistant turn dropped.
+ */
+async function loadConversationHistory(
+  supabase: ReturnType<typeof getServiceSupabaseClient>,
+  sessionId: string,
+  excludeMessageId: string | null,
+  /**
+   * Start of the current conversation. `bot_messages` outlives the 24h
+   * inactivity reset, so without this the bot would carry yesterday's thread
+   * into a session the rest of the code has already treated as fresh.
+   */
+  since: string | null,
+  /**
+   * The message being answered. Used only as a fallback when the inbound insert
+   * did not return an id — without it the current turn would appear both in the
+   * history and as the live question, and the client would see the bot answer a
+   * doubled prompt.
+   */
+  currentMessage: string,
+): Promise<Array<{ role: "user" | "assistant"; content: string }>> {
+  let query = supabase
+    .from("bot_messages")
+    .select("id, role, content, created_at")
+    .eq("session_id", sessionId);
+  if (since) query = query.gte("created_at", since);
+
+  const { data, error } = await query
+    .order("created_at", { ascending: false })
+    .limit(HISTORY_MESSAGE_LIMIT);
+
+  if (error) {
+    console.error("[gupshupChatbot] Failed to load history:", error.message);
+    return [];
+  }
+
+  const rows = (data ?? []) as Array<{
+    id: string;
+    role: "user" | "assistant" | "agent";
+    content: string;
+  }>;
+
+  // Newest-first from the query so the LIMIT keeps the most recent messages;
+  // trim to the character budget from the newest end, then restore reading order.
+  const kept: typeof rows = [];
+  let chars = 0;
+  let droppedCurrent = false;
+  for (const row of rows) {
+    if (excludeMessageId && row.id === excludeMessageId) continue;
+    // Newest-first, so the current turn is the first row we see.
+    if (
+      !excludeMessageId &&
+      !droppedCurrent &&
+      row.role === "user" &&
+      row.content?.trim() === currentMessage.trim()
+    ) {
+      droppedCurrent = true;
+      continue;
+    }
+    const content = (row.content ?? "").trim();
+    if (!content) continue;
+    if (chars + content.length > HISTORY_CHAR_BUDGET) break;
+    chars += content.length;
+    kept.push({ ...row, content });
+  }
+  kept.reverse();
+
+  const messages: Array<{ role: "user" | "assistant"; content: string }> = [];
+  for (const row of kept) {
+    const role: "user" | "assistant" = row.role === "user" ? "user" : "assistant";
+    const last = messages.at(-1);
+    if (last && last.role === role) last.content += `\n\n${row.content}`;
+    else messages.push({ role, content: row.content });
+  }
+  while (messages.length > 0 && messages[0].role === "assistant") messages.shift();
+
+  return messages;
 }
 
 async function fetchActiveCatalog(
@@ -125,34 +263,27 @@ async function loadOrCreateSession(
   return created as BotSession;
 }
 
-type ConversationTurn = { in: string; out: string };
+type BotMessages = Array<{ role: "user" | "assistant"; content: string }>;
 
 function buildConversationMessages(
-  lastTurns: ConversationTurn[],
+  history: BotMessages,
   currentMessage: string,
-): Array<{ role: "user" | "assistant"; content: string }> {
-  const messages: Array<{ role: "user" | "assistant"; content: string }> = [];
-  for (const turn of lastTurns) {
-    messages.push({ role: "user", content: turn.in });
-    messages.push({ role: "assistant", content: turn.out });
-  }
-  messages.push({ role: "user", content: currentMessage });
+): BotMessages {
+  const messages: BotMessages = [...history];
+  const last = messages.at(-1);
+  // History is everything before this turn, so the current message opens a new
+  // user turn — unless the previous row was also the client, in which case
+  // Anthropic's alternation rule requires merging rather than appending.
+  if (last && last.role === "user") last.content += `\n\n${currentMessage}`;
+  else messages.push({ role: "user", content: currentMessage });
   return messages;
 }
 
-async function callClaude(
+async function postToClaude(
   systemPrompt: string,
-  userMessage: string,
-  lastTurns: ConversationTurn[],
+  messages: BotMessages,
+  apiKey: string,
 ): Promise<BotClaudeResponse | null> {
-  const apiKey = process.env.GUPSHUP_ANTHROPIC_API_KEY?.trim();
-  if (!apiKey) {
-    console.error("[gupshupChatbot] GUPSHUP_ANTHROPIC_API_KEY is not configured");
-    return null;
-  }
-
-  const messages = buildConversationMessages(lastTurns, userMessage);
-
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -187,6 +318,56 @@ async function callClaude(
     console.error("[gupshupChatbot] Claude call or JSON parse failed:", err);
     return null;
   }
+}
+
+async function callClaude(
+  systemPrompt: string,
+  userMessage: string,
+  history: BotMessages,
+): Promise<BotClaudeResponse | null> {
+  const apiKey = process.env.GUPSHUP_ANTHROPIC_API_KEY?.trim();
+  if (!apiKey) {
+    console.error("[gupshupChatbot] GUPSHUP_ANTHROPIC_API_KEY is not configured");
+    return null;
+  }
+
+  const messages = buildConversationMessages(history, userMessage);
+  const parsed = await postToClaude(systemPrompt, messages, apiKey);
+  if (!parsed) return null;
+
+  /*
+   * Safety net, not the fix.
+   *
+   * The fix is the honest transcript above plus the conduct rules in the system
+   * prompt. But "you already have that" is a reply a client should never see, so
+   * when the client asked for something and the draft deflects instead of
+   * answering, the draft is thrown away and regenerated once with the offending
+   * phrase quoted back. One extra call on a rare path is a fair price; if the
+   * retry also deflects we keep it rather than dropping the turn, and log loudly.
+   */
+  const offending = findDeflection(parsed.text_reply);
+  if (!offending || !isInformationRequest(userMessage)) return parsed;
+
+  console.warn(
+    "[gupshupChatbot] deflection in draft reply, regenerating once:",
+    JSON.stringify(offending),
+  );
+
+  const retry = await postToClaude(
+    `${systemPrompt}\n\n${deflectionRetryInstruction(offending)}`,
+    messages,
+    apiKey,
+  );
+  if (!retry) return parsed;
+
+  const stillDeflecting = findDeflection(retry.text_reply);
+  if (stillDeflecting) {
+    console.error(
+      "[gupshupChatbot] deflection survived regeneration:",
+      JSON.stringify(stillDeflecting),
+    );
+  }
+  return retry;
 }
 
 async function triggerHandoff(
@@ -309,24 +490,31 @@ export async function processBotTurn(
     : 0;
 
   if (hoursSinceLastMessage > 24) {
+    /*
+     * `bot_messages` is permanent, so clearing `context_jsonb` alone no longer
+     * ends a conversation now that history is read from the transcript. Stamp
+     * where the new conversation starts and read from there, or the bot would
+     * greet the client afresh while still quoting yesterday's thread.
+     */
+    const resetContext = { history_since: new Date().toISOString() };
     if (session.state === "handed_off") {
       await supabase
         .from("bot_sessions")
         .update({
           state: "greeting",
           bot_turn_count: 0,
-          context_jsonb: {},
+          context_jsonb: resetContext,
           last_message_at: new Date().toISOString(),
         } as never)
         .eq("id", session.id);
-      session = { ...session, state: "greeting", bot_turn_count: 0, context_jsonb: {} };
+      session = { ...session, state: "greeting", bot_turn_count: 0, context_jsonb: resetContext };
       console.log("[gupshupChatbot] Session auto-reset after 24h inactivity, phone suffix:", normalizedPhone.slice(-4));
     } else {
       await supabase
         .from("bot_sessions")
-        .update({ bot_turn_count: 0, context_jsonb: {} } as never)
+        .update({ bot_turn_count: 0, context_jsonb: resetContext } as never)
         .eq("id", session.id);
-      session = { ...session, bot_turn_count: 0, context_jsonb: {} };
+      session = { ...session, bot_turn_count: 0, context_jsonb: resetContext };
       console.log("[gupshupChatbot] Context cleared after 24h inactivity, phone suffix:", normalizedPhone.slice(-4));
     }
   }
@@ -334,8 +522,15 @@ export async function processBotTurn(
   // Agent has taken over — stay silent
   if (session.state === "handed_off") return;
 
-  // Log inbound message
-  await logBotMessage(supabase, session.id, normalizedPhone, "user", incomingText);
+  // Log inbound message. The id is kept so it can be excluded when the history
+  // is read back below — it is the current turn, not context for it.
+  const inboundMessageId = await logBotMessage(
+    supabase,
+    session.id,
+    normalizedPhone,
+    "user",
+    incomingText,
+  );
 
   // Hard turn limit
   if (session.bot_turn_count >= BOT_TURN_LIMIT) {
@@ -352,12 +547,22 @@ export async function processBotTurn(
   const catalog = await fetchActiveCatalog(supabase);
   const systemPrompt = buildSystemPrompt(catalog);
 
-  // Pass conversation history so Claude has context from prior turns
-  const lastTurns = (
-    (session.context_jsonb?.last_turns as ConversationTurn[] | undefined) ?? []
-  ).slice(-4);
+  // The real transcript, whole — not the summarised copy in context_jsonb.
+  // A client asking "what was the price again?" can only be answered if the
+  // earlier reply still contains the price.
+  const historySince =
+    typeof session.context_jsonb?.history_since === "string"
+      ? (session.context_jsonb.history_since as string)
+      : null;
+  const history = await loadConversationHistory(
+    supabase,
+    session.id,
+    inboundMessageId,
+    historySince,
+    incomingText,
+  );
 
-  const parsed = await callClaude(systemPrompt, incomingText, lastTurns);
+  const parsed = await callClaude(systemPrompt, incomingText, history);
 
   // On Claude failure, send fallback text and increment turn count — do NOT hand off immediately
   if (!parsed) {
@@ -448,14 +653,22 @@ export async function processBotTurn(
   if (parsed.image_reply?.product_id) shownProductIds.push(parsed.image_reply.product_id);
 
   const prevContext = session.context_jsonb ?? {};
+  /*
+   * `last_turns` is no longer read at inference time — `bot_messages` is. It is
+   * kept only because other surfaces read `context_jsonb`, and it now records
+   * `sentText` (what the client actually received) rather than `text_reply`
+   * (the JSON fallback field). On an image/list/buttons turn those differ, and
+   * storing the one nobody read is how the bot came to believe it had shared
+   * details that were never sent.
+   */
   const updatedContext: Record<string, unknown> = {
     ...prevContext,
     last_shown_products: shownProductIds,
     last_intent: parsed.intent,
     last_turns: [
-      ...lastTurns,
-      { in: incomingText.slice(0, 200), out: parsed.text_reply.slice(0, 200) },
-    ],
+      ...(Array.isArray(prevContext.last_turns) ? prevContext.last_turns : []),
+      { in: incomingText, out: sentText },
+    ].slice(-8),
   };
 
   // State transitions:

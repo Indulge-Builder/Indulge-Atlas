@@ -4,6 +4,7 @@ import Link from "next/link";
 import * as LucideIcons from "lucide-react";
 import { cn } from "@/lib/utils";
 import { surfaceCardVariants } from "@/components/ui/card";
+import { DynamicIcon } from "@/components/ui/dynamic-icon";
 import type { DepartmentTaskOverview, TaskIntelligenceHealthSignal } from "@/lib/types/database";
 
 /** Top accent strip by health signal. */
@@ -27,7 +28,7 @@ interface DepartmentHealthCardProps {
 }
 
 export function DepartmentHealthCard({ overview, href }: DepartmentHealthCardProps) {
-  const Icon = getLucideIcon(overview.icon);
+  const icon = getLucideIcon(overview.icon);
   const noGroupTasks = overview.activeMasterTaskCount === 0;
 
   return (
@@ -49,7 +50,11 @@ export function DepartmentHealthCard({ overview, href }: DepartmentHealthCardPro
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
             style={{ backgroundColor: `${overview.accentColor}18` }}
           >
-            <Icon className="h-[18px] w-[18px]" style={{ color: overview.accentColor }} />
+            <DynamicIcon
+              icon={icon}
+              className="h-[18px] w-[18px]"
+              style={{ color: overview.accentColor }}
+            />
           </div>
           <h2 className="truncate font-serif text-[15px] font-semibold text-[#1A1A1A]">
             {overview.label}

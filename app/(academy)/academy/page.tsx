@@ -104,20 +104,21 @@ export default async function AcademyPage({
 }: {
   searchParams: Promise<{ view?: string }>;
 }) {
-  const [{ role, department }, params] = await Promise.all([
+  const [{ user, role, department }, params] = await Promise.all([
     getAuthUser(),
     searchParams,
   ]);
   const trainer = isAcademyTrainer(role, department);
+  const userId = user.id;
 
-  const requested = (params.view ?? "ladder") as View;
-  // Non-trainers can never land on the cohort view, even by URL.
-  const view: View =
-    requested === "cohort" && !trainer ? "ladder" : requested;
+  // The cohort view is open to everyone; what it *contains* is narrowed server
+  // side by `getAcademyCohort` — a trainer sees the cohort, a trainee sees only
+  // their own row and standing.
+  const view: View = (params.view ?? "ladder") as View;
 
   const [ladderRes, cohortRes, scenariosRes, sessionsRes] = await Promise.all([
     view === "ladder" ? getAcademyClients() : Promise.resolve(null),
-    view === "cohort" && trainer ? getAcademyCohort() : Promise.resolve(null),
+    view === "cohort" ? getAcademyCohort() : Promise.resolve(null),
     view === "practice" ? listAcademyScenarios() : Promise.resolve(null),
     view === "practice" ? getMyAcademySessions() : Promise.resolve(null),
   ]);
@@ -181,14 +182,16 @@ export default async function AcademyPage({
           ) : cohortRows.length === 0 ? (
             <div className="rounded-xl border border-dashed border-surface-border bg-surface-subtle px-5 py-8 text-center">
               <p className="font-serif text-[15px] text-black/70">
-                No scored sessions yet
+                No scored requests yet
               </p>
               <p className="mt-1 text-[13px] text-black/45">
-                Cohort averages appear once interns close their first sessions.
+                {trainer
+                  ? "Cohort averages appear once interns close their first requests."
+                  : "Your standing appears once your first request has been scored."}
               </p>
             </div>
           ) : (
-            <CohortTable rows={cohortRows} />
+            <CohortTable rows={cohortRows} selfOnly={!trainer} selfId={userId} />
           )
         ) : (
           <>

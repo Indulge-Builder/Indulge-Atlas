@@ -481,7 +481,7 @@ const NEXT_TASK_ICONS: Record<string, React.FC<{ className?: string }>> = {
 function NextTaskBadge({ task }: { task: NextLeadTask }) {
   const Icon = NEXT_TASK_ICONS[task.task_type] ?? CalendarDays;
   const due = new Date(task.due_date);
-  const now = Date.now();
+  const [now] = useState(() => Date.now());
   const diffMs = due.getTime() - now;
   const isOverdue = diffMs < 0;
 

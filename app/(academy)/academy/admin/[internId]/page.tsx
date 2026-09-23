@@ -3,7 +3,7 @@ import Link from "next/link";
 import { TriangleAlert } from "lucide-react";
 import { AcademyTopBar } from "@/components/academy/AcademyTopBar";
 import { getAuthUser } from "@/lib/auth/getAuthUser";
-import { isAcademyTrainer } from "@/lib/types/database";
+import { isPrivilegedRole } from "@/lib/types/database";
 import { getTraineeProfile } from "@/lib/actions/academy-analytics";
 import { TraineeProfileView } from "@/components/academy/admin/TraineeProfileView";
 
@@ -14,8 +14,11 @@ export default async function TraineeAnalyticsPage({
 }: {
   params: Promise<{ internId: string }>;
 }) {
-  const { role, department } = await getAuthUser();
-  if (!isAcademyTrainer(role, department)) notFound();
+  const { role } = await getAuthUser();
+  // Admin-only: the scenario library holds the answer key, and analytics is
+  // the cohort-wide dashboard. Trainers use the Cohort tab instead. Enforced
+  // here, not merely hidden in the nav.
+  if (!isPrivilegedRole(role)) notFound();
 
   const { internId } = await params;
   const res = await getTraineeProfile(internId);

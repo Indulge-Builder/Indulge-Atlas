@@ -72,11 +72,36 @@ function DeliveryTicks({
 function AttachmentTile({ attachment }: { attachment: TrainingAttachment }): JSX.Element {
   const url = attachment.signedUrl;
 
+  const label =
+    attachment.kind === "video"
+      ? "Video"
+      : attachment.kind === "document"
+        ? "PDF"
+        : "Photo";
+
   if (!url) {
     return (
       <div className="flex items-center gap-2 rounded-lg bg-surface-subtle px-3 py-2 text-[12px] text-chat-ink-muted">
-        {attachment.kind === "video" ? "Video" : "Photo"} · {attachment.name}
+        {label} · {attachment.name}
       </div>
+    );
+  }
+
+  /*
+   * A PDF has no thumbnail to render, so it gets a link rather than a preview.
+   * `signedUrl` is short-lived and minted server-side; opening in a new tab
+   * keeps the trainee inside the conversation.
+   */
+  if (attachment.kind === "document") {
+    return (
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-2 rounded-lg bg-surface-subtle px-3 py-2 text-[12px] text-chat-ink underline-offset-2 transition-colors hover:bg-chat-panel-active hover:underline"
+      >
+        PDF · {attachment.name}
+      </a>
     );
   }
 

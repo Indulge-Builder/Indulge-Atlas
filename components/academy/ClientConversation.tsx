@@ -12,9 +12,16 @@
  * message and swaps in the real transcript.
  */
 
-import { useState, type JSX } from "react";
-import { ArrowLeft, ChevronDown, GraduationCap, Trophy } from "lucide-react";
+import { useMemo, useState, useTransition, type JSX } from "react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  ChevronDown,
+  GraduationCap,
+  Trophy,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
+import { retryAcademyEvaluation } from "@/lib/actions/academy";
 import { AcademyChat } from "@/components/academy/AcademyChat";
 import { ConversationActions } from "@/components/academy/ConversationActions";
 import { ProgressBar } from "@/components/academy/ProgressRing";
@@ -75,7 +82,7 @@ function Briefing({ thread }: { thread: AcademyClientThread }): JSX.Element {
 
           <div>
             <div className="mb-1 flex items-baseline justify-between gap-2">
-              <span className="text-[11px] font-medium text-chat-ink">Academy progress</span>
+              <span className="text-[11px] font-medium text-chat-ink">Indulge Training progress</span>
               <span className="text-[11px] tabular-nums text-chat-ink-muted">
                 {nf.format(thread.overview.completed)}/{nf.format(thread.overview.total)} clients ·{" "}
                 {thread.overview.percent}%
@@ -85,6 +92,49 @@ function Briefing({ thread }: { thread: AcademyClientThread }): JSX.Element {
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * Recovery for a session that closed without a score.
+ *
+ * The same `retryAcademyEvaluation` the standalone session page offers, brought
+ * into the two-panel shell — which is where trainees actually work, and where
+ * the dead end was otherwise unreachable.
+ */
+function ScoringRetry({
+  sessionId,
+  onRetried,
+}: {
+  sessionId: string;
+  onRetried?: () => void;
+}): JSX.Element {
+  const [pending, startRetry] = useTransition();
+  const [failed, setFailed] = useState(false);
+
+  return (
+    <div className="flex shrink-0 items-center gap-2.5 border-b border-warning/25 bg-warning-light px-3 py-2.5 sm:px-4">
+      <AlertTriangle className="size-4 shrink-0 text-warning" aria-hidden />
+      <p className="min-w-0 flex-1 text-[12.5px] leading-snug text-chat-ink">
+        {failed
+          ? "Scoring failed again. Your conversation is safe — try once more in a moment."
+          : "This conversation closed before it could be scored. Your transcript is saved."}
+      </p>
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() =>
+          startRetry(async () => {
+            const res = await retryAcademyEvaluation(sessionId);
+            if (res.success) onRetried?.();
+            else setFailed(true);
+          })
+        }
+        className="shrink-0 rounded-lg bg-warning px-2.5 py-1.5 text-[12px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+      >
+        {pending ? "Scoring…" : "Score it now"}
+      </button>
     </div>
   );
 }
@@ -104,33 +154,50 @@ export function ClientConversation({
   onBack,
   onSessionStarted,
   onClosed,
+  onTicketReviewed,
   className,
 }: {
   thread: AcademyClientThread;
   onBack?: () => void;
   onSessionStarted?: (sessionId: string) => void;
   onClosed?: () => void;
+  /** Reviewer has ruled on the ticket: accepted (true) or sent back (false). */
+  onTicketReviewed?: (passed: boolean) => void;
   className?: string;
 }): JSX.Element {
   const tier = thread.difficulty as AcademyTier;
   const internTurns = thread.turns.filter((t) => t.role === "intern").length;
 
-  // Not started yet — show the member's opening line as a preview so the request
-  // reads as a message rather than a form. AcademyChat persists it on first reply.
-  const previewTurns =
-    thread.turns.length > 0
-      ? thread.turns
-      : [
-          {
-            id: `preview-${thread.seedId}`,
-            session_id: "",
-            role: "client" as const,
-            body: thread.openingMessage,
-            seq: 1,
-            created_at: new Date().toISOString(),
-            attachments: [],
-          },
-        ];
+  /*
+   * Not started yet — show the member's opening line as a preview so the request
+   * reads as a message rather than a form. AcademyChat persists it on first reply.
+   *
+   * MEMOISED, and no `new Date()` in the render body. Both matter: this array
+   * was rebuilt on every shell render, and AcademyChat adopts `initialTurns`
+   * whenever its identity changes — so an inbox tick (every 2-5 minutes) reset
+   * the whole visible conversation back to this one bubble. Reading the clock
+   * during render was also impure, and would differ across a concurrent replay.
+   */
+  const previewTurns = useMemo(
+    () =>
+      thread.turns.length > 0
+        ? thread.turns
+        : [
+            {
+              id: `preview-${thread.seedId}`,
+              session_id: "",
+              role: "client" as const,
+              body: thread.openingMessage,
+              seq: 1,
+              // Read once per thread inside the memo, not on every render. A
+              // fixed epoch would stabilise identity too, but it would date the
+              // day separator above the conversation to 1970.
+              created_at: new Date().toISOString(),
+              attachments: [],
+            },
+          ],
+    [thread.turns, thread.seedId, thread.openingMessage],
+  );
 
   return (
     <section className={cn("flex h-full min-h-0 flex-col bg-chat-canvas", className)}>
@@ -184,9 +251,11 @@ export function ClientConversation({
               ? "Completed"
               : thread.status === "awaiting_ticket"
                 ? "Awaiting ticket"
-                : thread.status === "in_progress"
-                  ? "In progress"
-                  : thread.vertical}
+                : thread.status === "scoring_failed"
+                  ? "Scoring failed"
+                  : thread.status === "in_progress"
+                    ? "In progress"
+                    : thread.vertical}
             {" · "}
             {thread.requestTitle}
           </p>
@@ -204,8 +273,18 @@ export function ClientConversation({
 
         {/* Ticket, Freshdesk write-up and review — all Sheet-backed, so none of
             them can disturb the transcript below. */}
-        <ConversationActions thread={thread} onCompleted={onClosed} />
+        <ConversationActions
+          thread={thread}
+          onCompleted={(passed) => onTicketReviewed?.(passed)}
+        />
       </header>
+
+      {/* The evaluator never returned. Without a way back the request is stuck
+          forever: the session is shut so the chat refuses messages, and the
+          ticket panel is gated on a review existing. */}
+      {thread.status === "scoring_failed" && thread.sessionId ? (
+        <ScoringRetry sessionId={thread.sessionId} onRetried={onClosed} />
+      ) : null}
 
       <Briefing thread={thread} />
 
@@ -220,12 +299,14 @@ export function ClientConversation({
           readOnly={
             thread.status === "completed" ||
             thread.status === "awaiting_ticket" ||
+            // The session is shut, so the chat route rejects every message.
+            // Leaving the composer live only produced a 409 per keystroke.
+            thread.status === "scoring_failed" ||
             thread.readOnly
           }
           onSessionStarted={onSessionStarted}
           onClosed={onClosed}
           chrome={false}
-          constraintHint={thread.constraintCount}
         />
       </div>
     </section>

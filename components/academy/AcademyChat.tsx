@@ -34,6 +34,7 @@ import { toast } from "sonner";
 import { AcademyBubble, TypingIndicator } from "@/components/academy/AcademyBubble";
 import {
   AcademyComposer,
+  type ComposerComposition,
   type PendingAttachment,
 } from "@/components/academy/AcademyComposer";
 import {
@@ -41,7 +42,8 @@ import {
   startAcademySession,
   uploadAcademyAttachment,
 } from "@/lib/actions/academy";
-import { nextMentorCue, typingDelayFor, type MentorCueId } from "@/lib/academy/mentor";
+import { typingDelayFor } from "@/lib/academy/mentor";
+import { chunkDelay, splitClientMessage } from "@/lib/academy/messageSplit";
 import { cn } from "@/lib/utils";
 import { formatIST } from "@/lib/utils/time";
 import type {
@@ -62,6 +64,25 @@ const DIFFICULTY_PILL: Record<AcademyDifficulty, string> = {
 /** Stable-enough local ids for optimistic / just-streamed turns. */
 function localId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/**
+ * Body for a turn that carries files and no text, so the transcript and the
+ * evaluator still read sensibly without rendering the media. Describes the whole
+ * set — the old wording looked only at the first file, so three photos and a PDF
+ * read as "[shared a photo]".
+ */
+function mediaOnlyBody(files: TrainingAttachment[]): string {
+  if (files.length === 0) return "";
+  if (files.length === 1) {
+    const only = files[0].kind;
+    return only === "video"
+      ? "[shared a video]"
+      : only === "document"
+        ? "[shared a PDF]"
+        : "[shared a photo]";
+  }
+  return `[shared ${files.length} files]`;
 }
 
 function safeDate(timestamp: string | null | undefined): string | null {
@@ -121,26 +142,6 @@ function Notice({
   );
 }
 
-/**
- * A mentor cue inside the thread — centred and visually distinct from both
- * sides of the conversation, so it never reads as something the client said.
- */
-function MentorLine({ text }: { text: string }): JSX.Element {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-      className="my-1.5 flex justify-center"
-    >
-      <div className="flex max-w-[85%] items-start gap-1.5 rounded-lg bg-surface/85 px-3 py-1.5 text-[11.5px] leading-snug text-chat-ink-muted ring-1 ring-surface-border">
-        <Sparkles className="mt-px size-3 shrink-0 text-brand-gold" aria-hidden />
-        <span>{text}</span>
-      </div>
-    </motion.div>
-  );
-}
-
 // ── Chat ──────────────────────────────────────────────────────────────────────
 
 export function AcademyChat({
@@ -150,10 +151,10 @@ export function AcademyChat({
   initialTurns,
   turnCap,
   readOnly = false,
+  observingName = null,
   onSessionStarted,
   onClosed,
   chrome = true,
-  constraintHint = 0,
 }: {
   /**
    * Null when the intern has opened a client but not replied yet. The session is
@@ -167,6 +168,11 @@ export function AcademyChat({
   turnCap: number;
   /** Trainer viewing someone else's transcript — no composer, no writes. */
   readOnly?: boolean;
+  /**
+   * Whose session this is, when a trainer is observing someone else's. Absent
+   * when the transcript is read-only merely because it is finished.
+   */
+  observingName?: string | null;
   onSessionStarted?: (sessionId: string) => void;
   onClosed?: () => void;
   /**
@@ -174,8 +180,6 @@ export function AcademyChat({
    * frame — avoids stacking a second header above the conversation.
    */
   chrome?: boolean;
-  /** How many hidden constraints this request has — shapes the opening cue. */
-  constraintHint?: number;
 }): JSX.Element {
   const router = useRouter();
 
@@ -205,9 +209,6 @@ export function AcademyChat({
     initialTurns.length > 1 ? initialTurns.length : 0,
   );
   const [clientTyping, setClientTyping] = useState(false);
-  /** Mentor cues already fired, and which turn each was anchored to. */
-  const shownCuesRef = useRef<Set<MentorCueId>>(new Set());
-  const [mentorAfter, setMentorAfter] = useState<Map<string, string>>(new Map());
 
   const inFlightRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -215,11 +216,23 @@ export function AcademyChat({
   /** False once the intern scrolls up to re-read — we stop yanking them down. */
   const stickToBottomRef = useRef(true);
 
-  // A server refresh must win over stale local state — but never mid-stream, or
-  // the optimistic bubble would vanish under the intern's cursor.
+  /**
+   * Adopt a server refresh — but never let it SHRINK the transcript.
+   *
+   * This used to replace local state outright. `previewTurns` upstream is a new
+   * array identity on most shell renders, and the shell re-renders on every
+   * inbox tick (every 2-5 minutes), so the whole conversation — adopted
+   * opening, every intern turn, every reply — was replaced by the single
+   * preview bubble while the trainee was working. The rows were never lost
+   * (training_turns is append-only) but the screen was.
+   *
+   * Append-only is exactly why this guard is sound: a server transcript can
+   * never legitimately be shorter than what we already hold, so a shorter
+   * payload is stale by definition and is ignored.
+   */
   useEffect(() => {
     if (inFlightRef.current) return;
-    setTurns(initialTurns);
+    setTurns((prev) => (initialTurns.length >= prev.length ? initialTurns : prev));
   }, [initialTurns]);
 
   // Abandon any in-flight stream when the surface unmounts.
@@ -230,21 +243,57 @@ export function AcademyChat({
     };
   }, []);
 
+  /**
+   * The opening request, expanded into the two-to-four bubbles a person would
+   * actually have sent.
+   *
+   * Display only — the transcript keeps one row, so the evaluator, the ticket
+   * reviewer and the persona all still read exactly what they read before.
+   *
+   * Scoped BY POSITION — the first turn only — not by whether the intern has
+   * replied yet.
+   *
+   * The earlier version branched on `turns.some(t => t.role === "intern")`,
+   * which meant the rendered array changed shape the instant the trainee sent
+   * anything: it collapsed from N chunks back to one turn, no React key
+   * survived, and every bubble unmounted and re-animated at exactly the moment
+   * they pressed Send. Keying off position keeps the shape stable for the whole
+   * conversation, so the opening is split once and stays split.
+   */
+  const deliveryTurns = useMemo(
+    () =>
+      turns.flatMap((turn, index) => {
+        if (index !== 0 || turn.role !== "client") return [turn];
+        const chunks = splitClientMessage(turn.body);
+        if (chunks.length <= 1) return [turn];
+
+        return chunks.map((body, i) => ({
+          ...turn,
+          // Derived ids keep React keys stable without touching the real row.
+          id: `${turn.id}#${i}`,
+          body,
+          // Media belongs with the closing bubble, not repeated on each.
+          attachments: i === chunks.length - 1 ? turn.attachments : [],
+        }));
+      }),
+    [turns],
+  );
+
   /** Only the turns that have "arrived" are rendered. */
   const visibleTurns = useMemo(
-    () => turns.slice(0, Math.max(deliveredCount, 0)),
-    [turns, deliveredCount],
+    () => deliveryTurns.slice(0, Math.max(deliveredCount, 0)),
+    [deliveryTurns, deliveredCount],
   );
 
   // Stage the arrival of undelivered turns: show the typing indicator for a
   // length-appropriate beat, then let the message land. Runs one message at a
   // time so a burst arrives in sequence rather than all at once.
   useEffect(() => {
-    if (deliveredCount >= turns.length) {
+    if (deliveredCount >= deliveryTurns.length) {
       setClientTyping(false);
       return;
     }
-    const next = turns[deliveredCount];
+    const next = deliveryTurns[deliveredCount];
     if (!next) return;
 
     // The intern's own messages never need a typing beat — they wrote them.
@@ -253,20 +302,31 @@ export function AcademyChat({
       return;
     }
 
+    /*
+     * A continuation of a split request waits far longer than a normal beat —
+     * the client is thinking of the next thing to add, not typing one message.
+     * The composer stays open throughout, so the trainee can answer the first
+     * line without waiting for the rest.
+     */
+    const isContinuation = next.id.includes("#") && !next.id.endsWith("#0");
+    const wait = isContinuation
+      ? chunkDelay()
+      : typingDelayFor(next.body, { min: 700, max: 2200 });
+
     setClientTyping(true);
     const timer = setTimeout(() => {
       setClientTyping(false);
       setDeliveredCount((n) => n + 1);
-    }, typingDelayFor(next.body, { min: 700, max: 2200 }));
+    }, wait);
 
     return () => clearTimeout(timer);
-  }, [turns, deliveredCount]);
+  }, [deliveryTurns, deliveredCount]);
 
   // Keep the delivery pointer sane when the transcript is replaced wholesale
   // (session start, server refresh) rather than appended to.
   useEffect(() => {
-    setDeliveredCount((n) => Math.min(n, turns.length));
-  }, [turns.length]);
+    setDeliveredCount((n) => Math.min(n, deliveryTurns.length));
+  }, [deliveryTurns.length]);
 
   const internTurnCount = useMemo(
     () => turns.filter((turn) => turn.role === "intern").length,
@@ -276,39 +336,16 @@ export function AcademyChat({
   const capReached = turnCapHit || remainingTurns === 0;
   const composerDisabled = sessionClosed || capReached;
 
-  /** Index of the newest client turn — everything before it has been "read". */
+  /**
+   * Index of the newest client turn — everything before it has been "read".
+   * Indexed over the delivered array, since that is what the map below renders.
+   */
   const lastClientIndex = useMemo(() => {
-    for (let i = turns.length - 1; i >= 0; i -= 1) {
-      if (turns[i].role === "client") return i;
+    for (let i = deliveryTurns.length - 1; i >= 0; i -= 1) {
+      if (deliveryTurns[i].role === "client") return i;
     }
     return -1;
-  }, [turns]);
-
-  // Fire at most one mentor cue per delivered message, anchored to the turn it
-  // follows so it stays in place as the thread grows. Cues are UI-only and are
-  // never written to the transcript the evaluator grades.
-  useEffect(() => {
-    if (readOnly || visibleTurns.length === 0) return;
-    const anchor = visibleTurns[visibleTurns.length - 1];
-    if (!anchor || mentorAfter.has(anchor.id)) return;
-
-    const lastIntern = [...visibleTurns].reverse().find((t) => t.role === "intern");
-    const cue = nextMentorCue({
-      internTurns: visibleTurns.filter((t) => t.role === "intern").length,
-      turnCap,
-      lastInternMessage: lastIntern?.body ?? null,
-      constraintCount: constraintHint,
-      shown: shownCuesRef.current,
-    });
-    if (!cue) return;
-
-    shownCuesRef.current.add(cue.id);
-    // A short beat after the message lands, so the cue reads as a reaction.
-    const timer = setTimeout(() => {
-      setMentorAfter((prev) => new Map(prev).set(anchor.id, cue.text));
-    }, 450);
-    return () => clearTimeout(timer);
-  }, [visibleTurns, turnCap, readOnly, mentorAfter, constraintHint]);
+  }, [deliveryTurns]);
 
   const threadDate = safeDate(turns[0]?.created_at);
 
@@ -332,11 +369,28 @@ export function AcademyChat({
   }, [turns.length, streaming, sending]);
 
   const handleSend = useCallback(
-    async (text: string, attachment: PendingAttachment | null) => {
+    async (
+      text: string,
+      attachments: PendingAttachment[],
+      composition?: ComposerComposition,
+    ) => {
       if (inFlightRef.current || readOnly || sessionClosed || capReached) return;
       inFlightRef.current = true;
+      /*
+       * Acknowledge immediately. Session creation below is six sequential round
+       * trips, and it used to run with no indicator at all — on the most common
+       * interaction in the product, the trainee's first reply to a client. The
+       * composer cleared and nothing on screen said anything was happening.
+       */
+      setSending(true);
       // Sending is an explicit intent to follow the conversation again.
       stickToBottomRef.current = true;
+
+      /** Clears every flag an early return would otherwise strand. */
+      const abandon = () => {
+        inFlightRef.current = false;
+        setSending(false);
+      };
 
       // First reply to this client — create the session now rather than when the
       // row was merely opened, so browsing leaves nothing behind.
@@ -344,13 +398,27 @@ export function AcademyChat({
       if (!activeSessionId) {
         if (!seedId) {
           toast.error("This conversation cannot be started.");
-          inFlightRef.current = false;
+          abandon();
           return;
         }
-        const started = await startAcademySession(seedId);
+        /*
+         * Must be caught, not just checked. `getAuthUser` THROWS on an expired
+         * session, and the rejection escaped this un-awaited handler — leaving
+         * inFlightRef true forever, so every later Send silently did nothing
+         * until the component remounted. That is the "chat is dead" symptom.
+         */
+        let started: Awaited<ReturnType<typeof startAcademySession>>;
+        try {
+          started = await startAcademySession(seedId);
+        } catch (e) {
+          console.error("[academy] startAcademySession threw:", e);
+          toast.error("Could not start this conversation. Please try again.");
+          abandon();
+          return;
+        }
         if (!started.success || !started.data) {
           toast.error(started.success ? "Could not start this conversation." : started.error);
-          inFlightRef.current = false;
+          abandon();
           return;
         }
         activeSessionId = started.data.sessionId;
@@ -374,40 +442,67 @@ export function AcademyChat({
       // Upload first — a turn must never be recorded referencing media that
       // failed to store. The local object URL powers the optimistic bubble so
       // the intern sees their photo immediately.
-      let uploaded: TrainingAttachment | null = null;
-      if (attachment) {
+      const uploadedAll: TrainingAttachment[] = [];
+      if (attachments.length > 0) {
         setUploading(true);
-        try {
-          const fd = new FormData();
-          fd.append("sessionId", activeSessionId);
-          fd.append("file", attachment.file);
-          const res = await uploadAcademyAttachment(fd);
-          if (!res.success || !res.data) {
-            toast.error(res.success ? "Upload failed." : res.error);
-            URL.revokeObjectURL(attachment.previewUrl);
-            inFlightRef.current = false;
-            setUploading(false);
-            return;
+        /*
+         * All files at once, and one failure does not sink the batch. Uploading
+         * sequentially and bailing on the first error meant a five-file message
+         * could lose four good uploads to one bad one, with the trainee's typed
+         * text already gone.
+         */
+        const results = await Promise.allSettled(
+          attachments.map(async (att) => {
+            const fd = new FormData();
+            fd.append("sessionId", activeSessionId);
+            fd.append("file", att.file);
+            const res = await uploadAcademyAttachment(fd);
+            if (!res.success || !res.data) {
+              throw new Error(res.success ? "Upload failed" : res.error);
+            }
+            return { ...res.data, signedUrl: att.previewUrl } as TrainingAttachment;
+          }),
+        );
+        setUploading(false);
+
+        const failed: string[] = [];
+        results.forEach((r, i) => {
+          if (r.status === "fulfilled") uploadedAll.push(r.value);
+          else {
+            console.error("[academy] attachment upload failed:", r.reason);
+            failed.push(attachments[i].file.name);
           }
-          uploaded = { ...res.data, signedUrl: attachment.previewUrl };
-        } catch {
-          toast.error("Could not upload that file.");
-          URL.revokeObjectURL(attachment.previewUrl);
-          inFlightRef.current = false;
-          setUploading(false);
+        });
+
+        if (failed.length > 0) {
+          toast.error(
+            failed.length === 1
+              ? `${failed[0]} could not be uploaded`
+              : `${failed.length} files could not be uploaded`,
+            {
+              description:
+                uploadedAll.length > 0
+                  ? "Sending the rest."
+                  : "Nothing was sent — please try again.",
+            },
+          );
+        }
+
+        // Every file failed and there is no text to carry the turn on its own.
+        if (uploadedAll.length === 0 && !text) {
+          abandon();
           return;
         }
-        setUploading(false);
       }
 
       const optimistic: TrainingTurn = {
         id: localId("local-intern"),
         session_id: activeSessionId,
         role: "intern",
-        body: text || (uploaded?.kind === "video" ? "[shared a video]" : uploaded ? "[shared a photo]" : ""),
+        body: text || mediaOnlyBody(uploadedAll),
         seq: (turns.at(-1)?.seq ?? 0) + 1,
         created_at: new Date().toISOString(),
-        attachments: uploaded ? [uploaded] : [],
+        attachments: uploadedAll,
       };
 
       setTurns((prev) => [...prev, optimistic]);
@@ -417,6 +512,16 @@ export function AcademyChat({
 
       const controller = new AbortController();
       abortRef.current = controller;
+
+      /*
+       * The only thing that ever aborted this request was unmounting. If the
+       * server stalled before it reached Anthropic — a slow Supabase read, a
+       * cold function — the trainee sat on "client is typing…" indefinitely,
+       * with no error and no way back. 45s is generous against the route's own
+       * 60s ceiling while still being finite.
+       */
+      const timeoutSignal = AbortSignal.timeout(45_000);
+      const requestSignal = AbortSignal.any([controller.signal, timeoutSignal]);
 
       /** Drop the optimistic bubble — the server never recorded this turn. */
       const rollback = () => {
@@ -432,17 +537,18 @@ export function AcademyChat({
             message: text,
             // Strip signedUrl — the server re-derives access; never trust a URL
             // supplied by the browser.
-            attachments: uploaded
-              ? [{
-                  path: uploaded.path,
-                  kind: uploaded.kind,
-                  mime: uploaded.mime,
-                  name: uploaded.name,
-                  size: uploaded.size,
-                }]
-              : [],
+            attachments: uploadedAll.map((a) => ({
+              path: a.path,
+              kind: a.kind,
+              mime: a.mime,
+              name: a.name,
+              size: a.size,
+            })),
+            // What the editor observed while this reply was written. Optional —
+            // the server treats its absence as "not reported", not as zero.
+            composition: composition ?? null,
           }),
-          signal: controller.signal,
+          signal: requestSignal,
         });
 
         if (!res.ok) {
@@ -507,15 +613,52 @@ export function AcademyChat({
               created_at: new Date().toISOString(),
             },
           ]);
+          /*
+           * Deliver it in the SAME batch it is appended in.
+           *
+           * Without this, the `finally` below unmounts the streaming bubble in
+           * the same commit — while the delivery pointer still trails the array
+           * by one, so the new turn is not in `visibleTurns` either, and the
+           * typing indicator is off. That commit renders nothing where the
+           * reply was, and it paints. The staging effect then re-showed the
+           * identical text 0.7-2.2s later behind a typing indicator: the
+           * "appears, disappears, reappears" on every single reply.
+           *
+           * The text was streamed live, so it has already been read — staging
+           * it again was never right.
+           */
+          setDeliveredCount((n) => n + 1);
         } else {
           toast.warning("The client went quiet — no reply came back.");
         }
       } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") {
+        const isDom = error instanceof DOMException;
+
+        // Our own 45s ceiling, not a navigation. The turn IS already recorded —
+        // route.ts inserts it before contacting Anthropic — so the bubble must
+        // stay. Only the client's reply is missing.
+        if (isDom && error.name === "TimeoutError") {
+          console.error("[academy] chat request timed out after 45s");
+          toast.error("The client is taking too long to reply", {
+            description:
+              "Your message was sent and saved. Try again in a moment.",
+          });
+          return;
+        }
+
+        if (isDom && error.name === "AbortError") {
           // Navigated away or closed the session mid-stream — nothing to report.
           return;
         }
+
+        /*
+         * Only now is a rollback honest. The intern turn is written server-side
+         * before the model is called, so removing the bubble on every failure
+         * told the trainee "not sent" about a row that is permanent — they
+         * retyped, and the turn was duplicated at two of their 24.
+         */
         rollback();
+        console.error("[academy] chat request failed:", error);
         toast.error("Network error", {
           description: "Your message was not sent — please try again.",
         });
@@ -681,9 +824,6 @@ export function AcademyChat({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
             >
-              {mentorAfter.get(turn.id) ? (
-                <MentorLine text={mentorAfter.get(turn.id) as string} />
-              ) : null}
             <AcademyBubble
               side={turn.role}
               body={turn.body}
@@ -710,7 +850,12 @@ export function AcademyChat({
 
           {/* "Client is typing…" — shown while waiting for the reply to begin,
               and during the deliberate beat before a staged message arrives. */}
-          {(clientTyping || (sending && streaming === null)) && <TypingIndicator />}
+          {/* Belt and braces for the blank-frame class of bug: if anything is
+              still undelivered, something must be on screen saying so. A commit
+              can then never contain neither a bubble nor an indicator. */}
+          {(clientTyping ||
+            (sending && streaming === null) ||
+            deliveredCount < deliveryTurns.length) && <TypingIndicator />}
         </div>
 
         {/* Scoring overlay — the transcript stays visible but goes quiet. */}
@@ -768,8 +913,21 @@ export function AcademyChat({
           tone="muted"
           icon={<Lock className="size-3.5" aria-hidden="true" />}
         >
-          Read-only transcript — you are reviewing another trainee&apos;s
-          session.
+          {/* `readOnly` is set for two different reasons — someone else's
+              session, or your own finished one. Saying "another trainee's
+              session" to an intern re-reading their own work is simply wrong,
+              so the reason has to be carried, not assumed. */}
+          {observingName ? (
+            <>
+              Read-only transcript — you are reviewing {observingName}&apos;s
+              session. Messages cannot be edited or sent.
+            </>
+          ) : (
+            <>
+              Read-only transcript — this conversation is closed. Messages
+              cannot be edited or sent.
+            </>
+          )}
         </Notice>
       ) : sessionClosed ? (
         <Notice
